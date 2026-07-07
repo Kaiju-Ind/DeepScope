@@ -1,0 +1,33 @@
+import { describe, expect, it } from 'vitest';
+
+import { hasSensitiveEvidenceFragment, redactEvidenceValue } from '@/lib/privacy/redaction';
+
+describe('evidence redaction', () => {
+	it('redacts token assignments before evidence reaches storage', () => {
+		expect(redactEvidenceValue('access_token=secret-token-value')).toBe('access_token=[redacted]');
+		expect(redactEvidenceValue('Authorization: Bearer abc123')).toBe('Authorization: [redacted]');
+	});
+
+	it('redacts JWT-looking values inside larger strings', () => {
+		expect(redactEvidenceValue('state=aaaaaaaaaa.bbbbbbbbbb.cccccccccc')).toBe('state=[redacted-jwt]');
+	});
+
+	it('redacts emails, phone numbers, and query parameter values', () => {
+		expect(redactEvidenceValue('contact admin@example.com')).toBe('contact [redacted-email]');
+		expect(redactEvidenceValue('call 555-123-4567')).toBe('call [redacted-phone]');
+		expect(redactEvidenceValue('https://example.com/callback?code=abc123&state=xyz')).toBe(
+			'https://example.com/callback?code=[redacted]&state=[redacted]',
+		);
+	});
+
+	it('keeps ordinary technology evidence visible', () => {
+		expect(redactEvidenceValue('/wp-content/plugins/woocommerce/assets/app.js')).toBe(
+			'/wp-content/plugins/woocommerce/assets/app.js',
+		);
+		expect(hasSensitiveEvidenceFragment('/_next/static/chunks/main.js')).toBe(false);
+	});
+
+	it('applies the caller supplied display limit after redaction', () => {
+		expect(redactEvidenceValue('abcdef', 3)).toBe('abc');
+	});
+});

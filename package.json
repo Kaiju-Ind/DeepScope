@@ -1,0 +1,39 @@
+{
+  "name": "kaiju-site-scope-web-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "build:chrome": "wxt build -b chrome",
+    "zip": "wxt zip",
+    "zip:chrome": "wxt zip -b chrome",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "compile": "tsc --noEmit",
+    "check:release": "tsc --noEmit && vitest run && wxt build -b chrome",
+    "release:zip": "npm run check:release && wxt zip -b chrome",
+    "bench": "vitest bench src/benchmarks/*.bench.ts",
+    "postinstall": "wxt prepare",
+    "bench:rules": "vitest bench src/benchmarks/rule-detection-profile.bench.ts",
+    "bench:rules:wide": "KAIJU_SITE_SCOPE_RULE_BENCH_REGISTRY_SCAN=1 vitest bench src/benchmarks/rule-detection-profile.bench.ts",
+    "bench:rules:gate": "KAIJU_SITE_SCOPE_RULE_BENCH_REGISTRY_SCAN=1 KAIJU_SITE_SCOPE_RULE_BENCH_GENERATED_PASS_SCAN=1 KAIJU_SITE_SCOPE_RULE_BENCH_FAIL_ON_BUDGET=1 vitest bench src/benchmarks/rule-detection-profile.bench.ts"
+  },
+  "dependencies": {
+    "@dagrejs/graphlib": "^4.0.1",
+    "@logtape/logtape": "^2.1.5",
+    "@std/encoding": "npm:@jsr/std__encoding@^1.0.11",
+    "comctx": "1.7.5",
+    "postcss-selector-parser": "^7.1.1",
+    "solid-js": "1.9.13",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@fast-check/vitest": "0.4.1",
+    "@wxt-dev/module-solid": "1.1.4",
+    "typescript": "6.0.3",
+    "vitest": "4.1.9",
+    "wxt": "0.20.26"
+  }
+}

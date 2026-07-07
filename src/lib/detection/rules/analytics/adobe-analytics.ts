@@ -1,0 +1,101 @@
+import type { TechnologyDefinition } from '../../types';
+
+export const adobeAnalyticsTechnologyDefinition = {
+	id: "adobe-analytics",
+	name: "Adobe Analytics",
+	website: "https://www.adobe.com/analytics/adobe-analytics.html",
+	description: "Adobe Analytics is a web analytics, marketing and cross-channel analytics application.",
+	icon: "Adobe Analytics.svg",
+	categories: [
+		"analytics",
+	],
+	rules: [
+		{
+			id: "adobe-analytics:jsGlobal:0",
+			kind: "jsGlobal",
+			property: "s_c_il.0._c",
+			valuePattern: new RegExp("s_c"),
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "adobe-analytics:jsGlobal:1",
+			kind: "jsGlobal",
+			property: "s_c_il.0.constructor.name",
+			valuePattern: new RegExp("AppMeasurement"),
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "adobe-analytics:jsGlobal:2",
+			kind: "jsGlobal",
+			property: "s_c_il.1._c",
+			valuePattern: new RegExp("s_c"),
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "adobe-analytics:jsGlobal:3",
+			kind: "jsGlobal",
+			property: "s_c_il.1.constructor.name",
+			valuePattern: new RegExp("AppMeasurement"),
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "adobe-analytics:jsGlobal:4",
+			kind: "jsGlobal",
+			property: "s_c_il.2._c",
+			valuePattern: new RegExp("s_c"),
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "adobe-analytics:jsGlobal:5",
+			kind: "jsGlobal",
+			property: "s_c_il.2.constructor.name",
+			valuePattern: new RegExp("AppMeasurement"),
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "adobe-analytics:jsGlobal:6",
+			kind: "jsGlobal",
+			property: "s_c_il.3._c",
+			valuePattern: new RegExp("s_c"),
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "adobe-analytics:jsGlobal:7",
+			kind: "jsGlobal",
+			property: "s_c_il.3.constructor.name",
+			valuePattern: new RegExp("AppMeasurement"),
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "adobe-analytics:jsGlobal:8",
+			kind: "jsGlobal",
+			property: "s_c_il.4._c",
+			valuePattern: new RegExp("s_c"),
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "adobe-analytics:jsGlobal:9",
+			kind: "jsGlobal",
+			property: "s_c_il.4.constructor.name",
+			valuePattern: new RegExp("AppMeasurement"),
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "adobe-analytics:jsGlobal:10",
+			kind: "jsGlobal",
+			property: "s_c_il.5._c",
+			valuePattern: new RegExp("s_c"),
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "adobe-analytics:jsGlobal:11",
+			kind: "jsGlobal",
+			property: "s_c_il.5.constructor.name",
+			valuePattern: new RegExp("AppMeasurement"),
+			description: "Page-owned global matches a known technology marker.",
+		},
+	],
+	metadata: {
+		saas: true,
+	},
+} as const satisfies TechnologyDefinition;

@@ -1,0 +1,97 @@
+import type { TechnologyDefinition } from '../../types';
+
+export const postcssTechnologyDefinition = {
+	id: "postcss",
+	name: "PostCSS",
+	website: "https://postcss.org",
+	description: "PostCSS is a tool for transforming CSS with JavaScript plugins. These plugins can lint your CSS, support variables and mixins, transpile future CSS syntax, inline images, and more.",
+	categories: [
+		"styling-processor",
+	],
+	rules: [
+		{
+			id: "postcss:stylesheetContent:modern:0",
+			kind: "stylesheetContent",
+			pattern: new RegExp("@property\\s+--[\\w-]+\\s*{[^}]*syntax:"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "postcss:stylesheetContent:modern:1",
+			kind: "stylesheetContent",
+			pattern: new RegExp("@custom-media\\s+--[\\w-]+\\s*\\([^)]+\\)"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "postcss:stylesheetContent:modern:2",
+			kind: "stylesheetContent",
+			pattern: new RegExp("@custom-selector\\s*:--[\\w-]+"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "postcss:stylesheetContent:modern:3",
+			kind: "stylesheetContent",
+			pattern: new RegExp("@nest\\s*&"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "postcss:stylesheetContent:modern:4",
+			kind: "stylesheetContent",
+			pattern: new RegExp("@nest\\s+[^&]+&[^{]+{"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "postcss:stylesheetContent:modern:5",
+			kind: "stylesheetContent",
+			pattern: new RegExp("&:matches\\([^)]+\\)"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "postcss:stylesheetContent:modern:6",
+			kind: "stylesheetContent",
+			pattern: new RegExp("color\\([^)]+(?:tint|shade|modify|adjust)\\s+[\\d.]+%?\\)"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "postcss:stylesheetContent:modern:7",
+			kind: "stylesheetContent",
+			pattern: new RegExp("color-mod\\([^)]+\\)"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "postcss:stylesheetContent:modern:8",
+			kind: "stylesheetContent",
+			pattern: new RegExp("lab\\([^)]+\\/\\s*[\\d.]+%?\\)"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "postcss:stylesheetContent:modern:9",
+			kind: "stylesheetContent",
+			pattern: new RegExp("@custom-media[^{]+{"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "postcss:stylesheetContent:modern:10",
+			kind: "stylesheetContent",
+			pattern: new RegExp("@custom-selector[^{]+{"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "postcss:stylesheetContent:modern:11",
+			kind: "stylesheetContent",
+			pattern: new RegExp("@custom-property[^{]+{"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+	],
+} as const satisfies TechnologyDefinition;

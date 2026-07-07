@@ -1,0 +1,121 @@
+import type { TechnologyDefinition } from '../../types';
+
+export const svelteTechnologyDefinition = {
+	id: "svelte",
+	name: "Svelte",
+	website: "https://svelte.dev",
+	description: "Svelte is a free and open-source front end compiler created by Rich Harris and maintained by the Svelte core team members.",
+	icon: "Svelte.svg",
+	categories: [
+		"ui-library",
+	],
+	rules: [
+		{
+			id: "svelte:dom:0",
+			kind: "dom",
+			selector: "[class*='svelte-']",
+			description: "DOM selector matches a known technology marker.",
+		},
+		{
+			id: "svelte:dom:1",
+			kind: "dom",
+			selector: "link[href*='/svelte/']",
+			description: "DOM selector matches a known technology marker.",
+		},
+		{
+			id: "svelte:dom:2",
+			kind: "dom",
+			selector: "main[class^='svelte-']",
+			description: "DOM selector matches a known technology marker.",
+		},
+		{
+			id: "svelte:dom:3",
+			kind: "dom",
+			selector: "a[data-svelte-h^='svelte-']",
+			description: "DOM selector matches a known technology marker.",
+		},
+		{
+			id: "svelte:dom:4",
+			kind: "dom",
+			selector: "nav[data-svelte-h^='svelte-']",
+			description: "DOM selector matches a known technology marker.",
+		},
+		{
+			id: "svelte:dom:5",
+			kind: "dom",
+			selector: "section[data-svelte-h^='svelte-']",
+			description: "DOM selector matches a known technology marker.",
+		},
+		{
+			id: "svelte:jsGlobal:6",
+			kind: "jsGlobal",
+			property: "__svelte",
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "svelte:jsGlobal:7",
+			kind: "jsGlobal",
+			property: "svelte_taxlistteaser",
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "svelte:dom:8",
+			kind: "dom",
+			selector: "link[href*='/svelte/'], main[class^='svelte-'], a[data-svelte-h^='svelte-'], nav[data-svelte-h^='svelte-'], section[data-svelte-h^='svelte-'], div[class*='svelte-']",
+			description: "DOM selector matches a known technology marker.",
+		},
+		{
+			id: "svelte:scriptContent:modern:0",
+			kind: "scriptContent",
+			pattern: new RegExp("\\$\\$\\.(?:ctx|dirty)\\[\\d+\\]"),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "svelte:scriptContent:modern:1",
+			kind: "scriptContent",
+			pattern: new RegExp("\\$\\$\\.fragment\\s*="),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "svelte:scriptContent:modern:2",
+			kind: "scriptContent",
+			pattern: new RegExp("\\$\\$\\s*=\\s*{\\s*(?:(?:ctx|dirty|on_mount|on_destroy|before_update|after_update|fragment)\\s*:|(?:\\s*,\\s*)?)+"),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "svelte:scriptContent:modern:3",
+			kind: "scriptContent",
+			pattern: new RegExp("\\$\\$\\.subscription\\s*=\\s*subscribe"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "svelte:scriptContent:modern:4",
+			kind: "scriptContent",
+			pattern: new RegExp("safe_not_equal\\s*\\([^,]+,\\s*[^)]+\\)"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "svelte:scriptContent:modern:5",
+			kind: "scriptContent",
+			pattern: new RegExp("__sveltekit(?:_\\w+)?\\.navigation"),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "svelte:scriptContent:modern:6",
+			kind: "scriptContent",
+			pattern: new RegExp("__sveltekit(?:_\\w+)?\\.page"),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+	],
+	metadata: {
+		oss: true,
+		cpe: "cpe:2.3:a:svelte:svelte:*:*:*:*:*:node.js:*:*",
+	},
+} as const satisfies TechnologyDefinition;

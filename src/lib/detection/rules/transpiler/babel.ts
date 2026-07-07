@@ -1,0 +1,97 @@
+import type { TechnologyDefinition } from '../../types';
+
+export const babelTechnologyDefinition = {
+	id: "babel",
+	name: "Babel",
+	website: "https://babel.dev/",
+	description: "A JavaScript compiler that allows developers to use next-generation JavaScript, today.",
+	categories: [
+		"transpiler",
+	],
+	rules: [
+		{
+			id: "babel:resourceUrl:runtime:0",
+			kind: "resourceUrl",
+			pattern: new RegExp("(?:^|[/@])@babel/runtime(?:/|$)", "i"),
+			confidence: 90,
+			description: "Resource URL references the Babel runtime helper package.",
+		},
+		{
+			id: "babel:scriptContent:helper:0",
+			kind: "scriptContent",
+			pattern: new RegExp("function\\s+_typeof\\s*\\(\\w+\\)\\s*\\{(?:[^{}]|\\{[^{}]*\\})*typeof\\s+Symbol[^}]+\\}"),
+			confidence: 45,
+			description: "Bundled script content contains a Babel helper function.",
+		},
+		{
+			id: "babel:scriptContent:helper:1",
+			kind: "scriptContent",
+			pattern: new RegExp("function\\s+_classCallCheck\\s*\\(\\w+\\s*,\\s*\\w+\\)\\s*\\{"),
+			confidence: 45,
+			description: "Bundled script content contains a Babel helper function.",
+		},
+		{
+			id: "babel:scriptContent:helper:2",
+			kind: "scriptContent",
+			pattern: new RegExp("function\\s+_defineProperties\\s*\\(\\w+\\s*,\\s*\\w+\\)\\s*\\{"),
+			confidence: 45,
+			description: "Bundled script content contains a Babel helper function.",
+		},
+		{
+			id: "babel:scriptContent:helper:3",
+			kind: "scriptContent",
+			pattern: new RegExp("function\\s+_createClass\\s*\\(\\w+\\s*,\\s*\\w+(?:\\s*,\\s*\\w+)?\\)\\s*\\{"),
+			confidence: 45,
+			description: "Bundled script content contains a Babel helper function.",
+		},
+		{
+			id: "babel:scriptContent:helper:4",
+			kind: "scriptContent",
+			pattern: new RegExp("function\\s+_inherits\\s*\\(\\w+\\s*,\\s*\\w+\\)\\s*\\{[^}]*_setPrototypeOf\\s*\\([^}]+\\}"),
+			confidence: 45,
+			description: "Bundled script content contains a Babel helper function.",
+		},
+		{
+			id: "babel:scriptContent:helper:5",
+			kind: "scriptContent",
+			pattern: new RegExp("function\\s+_extends\\(\\)\\s*\\{\\s*_extends\\s*=\\s*Object\\.assign\\s*\\|\\|"),
+			confidence: 45,
+			description: "Bundled script content contains a Babel helper function.",
+		},
+		{
+			id: "babel:scriptContent:helper:6",
+			kind: "scriptContent",
+			pattern: new RegExp("function\\s+_objectSpread\\s*\\(\\w+\\)\\s*\\{"),
+			confidence: 45,
+			description: "Bundled script content contains a Babel helper function.",
+		},
+		{
+			id: "babel:scriptContent:helper:7",
+			kind: "scriptContent",
+			pattern: new RegExp("function\\s+_asyncToGenerator\\s*\\(\\s*fn\\s*\\)\\s*\\{"),
+			confidence: 45,
+			description: "Bundled script content contains a Babel helper function.",
+		},
+		{
+			id: "babel:scriptContent:helper:8",
+			kind: "scriptContent",
+			pattern: new RegExp("regeneratorRuntime\\.mark\\(function\\s+_callee\\("),
+			confidence: 45,
+			description: "Bundled script content contains Babel/regenerator async output.",
+		},
+		{
+			id: "babel:scriptContent:helper:9",
+			kind: "scriptContent",
+			pattern: new RegExp("function\\s+_objectWithoutProperties\\s*\\([^)]+\\)\\s*\\{"),
+			confidence: 45,
+			description: "Bundled script content contains a Babel helper function.",
+		},
+		{
+			id: "babel:scriptContent:helper:10",
+			kind: "scriptContent",
+			pattern: new RegExp("function\\s+_objectWithoutPropertiesLoose\\s*\\([^)]+\\)\\s*\\{"),
+			confidence: 45,
+			description: "Bundled script content contains a Babel helper function.",
+		},
+	],
+} as const satisfies TechnologyDefinition;

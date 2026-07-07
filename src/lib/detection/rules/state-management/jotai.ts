@@ -1,0 +1,97 @@
+import type { TechnologyDefinition } from '../../types';
+
+export const jotaiTechnologyDefinition = {
+	id: "jotai",
+	name: "Jotai",
+	website: "https://jotai.org",
+	description: "Primitive and flexible state management for React.",
+	categories: [
+		"state-management",
+	],
+	rules: [
+		{
+			id: "jotai:scriptContent:modern:0",
+			kind: "scriptContent",
+			pattern: new RegExp("\"setSelf function cannot be used with read-only atom\""),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jotai:scriptContent:modern:1",
+			kind: "scriptContent",
+			pattern: new RegExp("\"setSelf function cannot be called in sync\""),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jotai:scriptContent:modern:2",
+			kind: "scriptContent",
+			pattern: new RegExp("\"atom not writable\""),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jotai:scriptContent:modern:3",
+			kind: "scriptContent",
+			pattern: new RegExp("\"no atom init\""),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jotai:scriptContent:modern:4",
+			kind: "scriptContent",
+			pattern: new RegExp("\"atom\\d+\""),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jotai:scriptContent:modern:5",
+			kind: "scriptContent",
+			pattern: new RegExp("atomStateMap\\s*=\\s*new\\s*WeakMap"),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jotai:scriptContent:modern:6",
+			kind: "scriptContent",
+			pattern: new RegExp("mountedMap\\s*=\\s*new\\s*WeakMap"),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jotai:scriptContent:modern:7",
+			kind: "scriptContent",
+			pattern: new RegExp("cancelPromiseMap\\s*=\\s*new\\s*WeakMap"),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jotai:scriptContent:modern:8",
+			kind: "scriptContent",
+			pattern: new RegExp("from\\s+[\"']jotai\\/vanilla[\"']"),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jotai:scriptContent:modern:9",
+			kind: "scriptContent",
+			pattern: new RegExp("from\\s+[\"']jotai\\/devtools[\"']"),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jotai:scriptContent:modern:10",
+			kind: "scriptContent",
+			pattern: new RegExp("require\\([\"']jotai\\/vanilla[\"']\\)"),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jotai:scriptContent:modern:11",
+			kind: "scriptContent",
+			pattern: new RegExp("require\\([\"']jotai\\/devtools[\"']\\)"),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+	],
+} as const satisfies TechnologyDefinition;

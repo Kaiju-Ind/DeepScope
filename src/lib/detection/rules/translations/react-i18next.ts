@@ -1,0 +1,90 @@
+import type { TechnologyDefinition } from '../../types';
+
+export const reactI18nextTechnologyDefinition = {
+	id: "react-i18next",
+	name: "React-i18next",
+	website: "https://react.i18next.com/",
+	description: "React-i18next is an internationalization-framework written in and for JavaScript. But it's much more than that.",
+	categories: [
+		"translations",
+	],
+	rules: [
+		{
+			id: "react-i18next:scriptContent:modern:0",
+			kind: "scriptContent",
+			pattern: new RegExp("react-i18next::"),
+			confidence: 75,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "react-i18next:scriptContent:modern:1",
+			kind: "scriptContent",
+			pattern: new RegExp("pass in an i18next instance by using initReactI18next"),
+			confidence: 75,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "react-i18next:scriptContent:modern:2",
+			kind: "scriptContent",
+			pattern: new RegExp("It seems you are still using the old wait option, you may migrate to the new useSuspense behaviour"),
+			confidence: 75,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "react-i18next:scriptContent:modern:3",
+			kind: "scriptContent",
+			pattern: new RegExp("displayName=`withI18nextTranslation\\("),
+			confidence: 75,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "react-i18next:scriptContent:modern:4",
+			kind: "scriptContent",
+			pattern: new RegExp("reportNamespaces\\s*=\\s*new\\s*[A-Za-z]+\\(\\)"),
+			confidence: 75,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "react-i18next:scriptContent:modern:5",
+			kind: "scriptContent",
+			pattern: new RegExp("useTranslation:\\s*{[^}]*ns:.*defaultNS:.*i18n:"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "react-i18next:scriptContent:modern:6",
+			kind: "scriptContent",
+			pattern: new RegExp("addUsedNamespaces\\(\\s*\\w+\\s*\\.\\s*forEach"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "react-i18next:scriptContent:modern:7",
+			kind: "scriptContent",
+			pattern: new RegExp("transSupportBasicHtmlNodes.*transWrapTextNodes.*transKeepBasicHtmlNodesFor"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "react-i18next:scriptContent:modern:8",
+			kind: "scriptContent",
+			pattern: new RegExp("initialI18nStore:\\s*{\\s*[^}]*getResourceBundle\\("),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "react-i18next:scriptContent:modern:9",
+			kind: "scriptContent",
+			pattern: new RegExp("getInitialProps.*getUsedNamespaces.*initialI18nStore"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "react-i18next:scriptContent:modern:10",
+			kind: "scriptContent",
+			pattern: new RegExp("reportNamespaces\\.getUsedNamespaces\\(\\).*initialI18nStore"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+	],
+} as const satisfies TechnologyDefinition;

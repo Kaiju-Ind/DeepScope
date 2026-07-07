@@ -1,0 +1,90 @@
+import type { TechnologyDefinition } from '../../types';
+
+export const vueI18nTechnologyDefinition = {
+	id: "vue-i18n",
+	name: "Vue I18n",
+	website: "https://vue-i18n.intlify.dev/",
+	description: "Vue I18n is an internationalization-framework written in and for JavaScript. But it's much more than that.",
+	categories: [
+		"translations",
+	],
+	rules: [
+		{
+			id: "vue-i18n:scriptContent:modern:0",
+			kind: "scriptContent",
+			pattern: new RegExp("__VUE_I18N_FULL_INSTALL__"),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "vue-i18n:scriptContent:modern:1",
+			kind: "scriptContent",
+			pattern: new RegExp("__VUE_I18N_LEGACY_API__"),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "vue-i18n:scriptContent:modern:2",
+			kind: "scriptContent",
+			pattern: new RegExp("__INTLIFY_DROP_MESSAGE_COMPILER__"),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "vue-i18n:scriptContent:modern:3",
+			kind: "scriptContent",
+			pattern: new RegExp("name:\\s*[\"']i18n-(?:t|n|d)[\"']"),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "vue-i18n:scriptContent:modern:4",
+			kind: "scriptContent",
+			pattern: new RegExp("Symbol\\([\"']__translateVNode[\"']\\)"),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "vue-i18n:scriptContent:modern:5",
+			kind: "scriptContent",
+			pattern: new RegExp("Symbol\\([\"']__datetimeParts[\"']\\)"),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "vue-i18n:scriptContent:modern:6",
+			kind: "scriptContent",
+			pattern: new RegExp("Symbol\\([\"']__numberParts[\"']\\)"),
+			confidence: 55,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "vue-i18n:scriptContent:modern:7",
+			kind: "scriptContent",
+			pattern: new RegExp("[\"']@intlify\\/vue-devtools[\"']"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "vue-i18n:scriptContent:modern:8",
+			kind: "scriptContent",
+			pattern: new RegExp("[\"']@intlify\\/core-base[\"']"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "vue-i18n:scriptContent:modern:9",
+			kind: "scriptContent",
+			pattern: new RegExp("CANNOT_SETUP_VUE_DEVTOOLS_PLUGIN:\\s*30"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "vue-i18n:scriptContent:modern:10",
+			kind: "scriptContent",
+			pattern: new RegExp("NOT_AVAILABLE_COMPOSITION_IN_LEGACY:\\s*34"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+	],
+} as const satisfies TechnologyDefinition;

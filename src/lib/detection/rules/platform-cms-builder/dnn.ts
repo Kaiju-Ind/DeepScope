@@ -1,0 +1,140 @@
+import type { TechnologyDefinition } from '../../types';
+
+export const dnnTechnologyDefinition = {
+	id: "dnn",
+	name: "DNN",
+	website: "https://www.dnnsoftware.com/",
+	description: "DNN, formerly DotNetNuke, is a web content management platform built on ASP.NET.",
+	icon: "DNN.svg",
+	categories: [
+		"platform-cms-builder",
+	],
+	rules: [
+		{
+			id: "dnn:scriptSrc:0",
+			kind: "scriptSrc",
+			pattern: new RegExp("\\/js\\/dnncore\\.js"),
+			description: "Script source URL matches a known technology marker.",
+		},
+		{
+			id: "dnn:scriptSrc:1",
+			kind: "scriptSrc",
+			pattern: new RegExp("\\/js\\/dnn\\.js"),
+			description: "Script source URL matches a known technology marker.",
+		},
+		{
+			id: "dnn:html:2",
+			kind: "html",
+			pattern: new RegExp("<!-- by DotNetNuke Corporation"),
+			description: "HTML contains a known technology signature.",
+		},
+		{
+			id: "dnn:html:3",
+			kind: "html",
+			pattern: new RegExp("<!-- DNN Platform"),
+			description: "HTML contains a known technology signature.",
+		},
+		{
+			id: "dnn:jsGlobal:4",
+			kind: "jsGlobal",
+			property: "DotNetNuke",
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "dnn:jsGlobal:5",
+			kind: "jsGlobal",
+			property: "dnn.apiversion",
+			valuePattern: new RegExp("^([\\d\\.]+)$"),
+			version: {
+				source: "match",
+				group: 1,
+			},
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "dnn:cookie:6",
+			kind: "cookie",
+			keyPattern: new RegExp("^DotNetNukeAnonymous$", "i"),
+			description: "Cookie name matches a known technology marker.",
+		},
+		{
+			id: "dnn:header:7",
+			kind: "header",
+			key: "Cookie",
+			valuePattern: new RegExp("dnn_IsMobile=", "i"),
+			description: "Response header matches a known technology marker.",
+		},
+		{
+			id: "dnn:header:8",
+			kind: "header",
+			key: "X-Compressed-By",
+			valuePattern: new RegExp("DotNetNuke", "i"),
+			description: "Response header matches a known technology marker.",
+		},
+		{
+			id: "dnn:meta:9",
+			kind: "meta",
+			key: "generator",
+			valuePattern: new RegExp("DotNetNuke", "i"),
+			description: "Meta tag matches a known technology marker.",
+		},
+		{
+			id: "dnn:jsGlobal:10",
+			kind: "jsGlobal",
+			property: "__dnncore",
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "dnn:jsGlobal:11",
+			kind: "jsGlobal",
+			property: "dnnJscriptVersion",
+			description: "Page-owned global matches a known technology marker.",
+		},
+		{
+			id: "dnn:html:12",
+			kind: "html",
+			pattern: new RegExp("<!-- by dotnetnuke corporation"),
+			description: "HTML contains a known technology signature.",
+		},
+		{
+			id: "dnn:html:13",
+			kind: "html",
+			pattern: new RegExp("<!-- dnn platform"),
+			description: "HTML contains a known technology signature.",
+		},
+		{
+			id: "dnn:cookie:14",
+			kind: "cookie",
+			keyPattern: new RegExp("^dotnetnukeanonymous$", "i"),
+			description: "Cookie name matches a known technology marker.",
+		},
+		{
+			id: "dnn:header:15",
+			kind: "header",
+			key: "cookie",
+			valuePattern: new RegExp("dnn_ismobile=", "i"),
+			description: "Response header matches a known technology marker.",
+		},
+		{
+			id: "dnn:header:16",
+			kind: "header",
+			key: "x-compressed-by",
+			valuePattern: new RegExp("dotnetnuke", "i"),
+			description: "Response header matches a known technology marker.",
+		},
+		{
+			id: "dnn:meta:17",
+			kind: "meta",
+			key: "generator",
+			valuePattern: new RegExp("dotnetnuke", "i"),
+			description: "Meta tag matches a known technology marker.",
+		},
+	],
+	metadata: {
+		oss: true,
+		cpe: "cpe:2.3:a:dnnsoftware:dotnetnuke:*:*:*:*:*:*:*:*",
+	},
+	implies: [
+		"microsoft-asp-net",
+	],
+} as const satisfies TechnologyDefinition;

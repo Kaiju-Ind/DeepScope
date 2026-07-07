@@ -1,0 +1,97 @@
+import type { TechnologyDefinition } from '../../types';
+
+export const jssTechnologyDefinition = {
+	id: "jss",
+	name: "JSS",
+	website: "https://emotion.sh/docs/introduction",
+	description: "Emotion is a performant and flexible CSS-in-JS library. Building on many other CSS-in-JS libraries, it allows you to style apps quickly with string or object styles. It has predictable composition to avoid specificity issues with CSS.",
+	categories: [
+		"styling-processor",
+	],
+	rules: [
+		{
+			id: "jss:scriptContent:modern:0",
+			kind: "scriptContent",
+			pattern: new RegExp("jss-[\\da-f]{4,8}-[\\da-f]{4}"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jss:scriptContent:modern:1",
+			kind: "scriptContent",
+			pattern: new RegExp("createRule\\([\"']@(?:media|keyframes)[\"'],\\{"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jss:scriptContent:modern:2",
+			kind: "scriptContent",
+			pattern: new RegExp("\\.[\\w-]+-[\\da-f]{4,8}-[\\da-f]{4}\\s*{"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jss:scriptContent:modern:3",
+			kind: "scriptContent",
+			pattern: new RegExp("\\{registry:\\[\\],plugins:\\[\\],index:0,sheet:[\\w$]+,rules:\\{"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jss:scriptContent:modern:4",
+			kind: "scriptContent",
+			pattern: new RegExp("\\{generateId:[\\w$]+,jss:[\\w$]+,Renderer:[\\w$]+,insertionPoint:"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jss:scriptContent:modern:5",
+			kind: "scriptContent",
+			pattern: new RegExp("\\.use\\(\\{onCreateRule:[\\w$]+,onProcessRule:[\\w$]+\\}\\)"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jss:stylesheetContent:modern:6",
+			kind: "stylesheetContent",
+			pattern: new RegExp("\\.jss[\\da-f]{4,8}-[\\da-f]{4}"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "jss:stylesheetContent:modern:7",
+			kind: "stylesheetContent",
+			pattern: new RegExp("--jss-[\\da-f]{4,8}-[\\da-f]{4}:"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "jss:stylesheetContent:modern:8",
+			kind: "stylesheetContent",
+			pattern: new RegExp("@keyframes jss-keyframe-[\\da-f]{4,8}"),
+			confidence: 45,
+			description: "Stylesheet content matches a modern styling marker.",
+		},
+		{
+			id: "jss:scriptContent:modern:9",
+			kind: "scriptContent",
+			pattern: new RegExp("jss-plugin-[\\w-]+"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jss:scriptContent:modern:10",
+			kind: "scriptContent",
+			pattern: new RegExp("onProcessStyle:\\s*function\\([\\w$]+,[\\w$]+,[\\w$]+\\)\\{"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "jss:scriptContent:modern:11",
+			kind: "scriptContent",
+			pattern: new RegExp("onCreateRule:\\s*function\\([\\w$]+,[\\w$]+,[\\w$]+\\)\\{"),
+			confidence: 45,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+	],
+} as const satisfies TechnologyDefinition;

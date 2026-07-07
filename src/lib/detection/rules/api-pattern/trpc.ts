@@ -1,0 +1,90 @@
+import type { TechnologyDefinition } from '../../types';
+
+export const trpcTechnologyDefinition = {
+	id: "trpc",
+	name: "tRPC",
+	website: "https://trpc.io/",
+	description: "End-to-end typesafe APIs made easy",
+	categories: [
+		"api-pattern",
+	],
+	rules: [
+		{
+			id: "trpc:resourceUrl:modern:0",
+			kind: "resourceUrl",
+			pattern: new RegExp("@trpc\\/client[.\\-@/]"),
+			confidence: 75,
+			description: "Resource filename or URL matches a modern tooling marker.",
+		},
+		{
+			id: "trpc:resourceUrl:modern:1",
+			kind: "resourceUrl",
+			pattern: new RegExp("@trpc\\/server[.\\-@/]"),
+			confidence: 75,
+			description: "Resource filename or URL matches a modern tooling marker.",
+		},
+		{
+			id: "trpc:resourceUrl:modern:2",
+			kind: "resourceUrl",
+			pattern: new RegExp("@trpc\\/react-query[.\\-@/]"),
+			confidence: 75,
+			description: "Resource filename or URL matches a modern tooling marker.",
+		},
+		{
+			id: "trpc:resourceUrl:modern:3",
+			kind: "resourceUrl",
+			pattern: new RegExp("@trpc\\/next[.\\-@/]"),
+			confidence: 75,
+			description: "Resource filename or URL matches a modern tooling marker.",
+		},
+		{
+			id: "trpc:scriptContent:modern:4",
+			kind: "scriptContent",
+			pattern: new RegExp("TRPCClientError"),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "trpc:scriptContent:modern:5",
+			kind: "scriptContent",
+			pattern: new RegExp("TRPCUntypedClient"),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "trpc:scriptContent:modern:6",
+			kind: "scriptContent",
+			pattern: new RegExp("createTRPCClient"),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "trpc:scriptContent:modern:7",
+			kind: "scriptContent",
+			pattern: new RegExp("createTRPCProxyClient"),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "trpc:scriptContent:modern:8",
+			kind: "scriptContent",
+			pattern: new RegExp("httpBatchLink"),
+			confidence: 65,
+			description: "Bundled script content matches a modern tooling marker.",
+		},
+		{
+			id: "trpc:html:modern:9",
+			kind: "html",
+			pattern: new RegExp("\\/api\\/trpc\\/"),
+			confidence: 65,
+			description: "Document HTML matches a modern tooling marker.",
+		},
+		{
+			id: "trpc:html:modern:10",
+			kind: "html",
+			pattern: new RegExp("\\/trpc\\/"),
+			confidence: 65,
+			description: "Document HTML matches a modern tooling marker.",
+		},
+	],
+} as const satisfies TechnologyDefinition;
