@@ -26,13 +26,13 @@ const DNS_RECORD_ORDER: DnsRecordType[] = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'SO
  */
 export interface PageSignalsObservationOptions {
 	/** Interface that produced the original snapshot. */
-	interface?: ObservationInterface;
+	readonly interface?: ObservationInterface;
 	/** Default collector assigned to observations that do not have a more specific source. */
-	collector?: ObservationCollector;
+	readonly collector?: ObservationCollector;
 	/** Timestamp override for deterministic tests and replay fixtures. */
-	observedAt?: number;
+	readonly observedAt?: number;
 	/** Include `dom` observations for selectors that were probed but not present. */
-	includeAbsentDomSelectors?: boolean;
+	readonly includeAbsentDomSelectors?: boolean;
 }
 
 /**
@@ -168,14 +168,9 @@ function createObservationAppender(options: {
 			target: options.target,
 			observedAt: options.observedAt,
 			value: input.value,
+			...(input.key !== undefined ? { key: input.key } : {}),
+			...(attributes && Object.keys(attributes).length > 0 ? { attributes } : {}),
 		};
-
-		if (input.key !== undefined) {
-			observation.key = input.key;
-		}
-		if (attributes && Object.keys(attributes).length > 0) {
-			observation.attributes = attributes;
-		}
 
 		options.observations.push(observation);
 	};
@@ -272,9 +267,9 @@ function toObservationValue(value: unknown): ObservationValue {
 }
 
 function compactAttributes(
-	attributes: Record<string, ObservationValue | undefined>,
+	attributes: Readonly<Record<string, ObservationValue | undefined>>,
 ): ObservationAttributes {
-	const compacted: ObservationAttributes = {};
+	const compacted: Record<string, ObservationValue> = {};
 	for (const [key, value] of Object.entries(attributes)) {
 		if (value !== undefined && value !== '') {
 			compacted[key] = value;

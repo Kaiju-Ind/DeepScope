@@ -7,11 +7,11 @@ import type {
 /** Filter used when reading evidence from the in-memory repository. */
 export interface EvidenceRepositoryFilter {
 	/** Limit results to one analyzed target URL. */
-	targetUrl?: string;
+	readonly targetUrl?: string;
 	/** Limit results to one technology. */
-	technologyId?: string;
+	readonly technologyId?: string;
 	/** Limit results to direct or relationship-derived evidence. */
-	direct?: boolean;
+	readonly direct?: boolean;
 }
 
 /**
@@ -27,11 +27,19 @@ export interface EvidenceRepository {
 	/** Add every entry from a batch and return the number of records stored. */
 	addBatch(batch: EvidenceBatch): number;
 	/** List stored evidence in deterministic replay order. */
-	list(filter?: EvidenceRepositoryFilter): EvidenceEntry[];
+	list(filter?: EvidenceRepositoryFilter): readonly EvidenceEntry[];
 	/** Summarize stored evidence by technology without computing final detections. */
-	summarizeByTechnology(filter?: EvidenceRepositoryFilter): EvidenceTechnologySummary[];
+	summarizeByTechnology(filter?: EvidenceRepositoryFilter): readonly EvidenceTechnologySummary[];
 	/** Remove all entries from the repository. */
 	clear(): void;
+}
+
+interface MutableEvidenceTechnologySummary {
+	technologyId: string;
+	entryCount: number;
+	directCount: number;
+	relationshipCount: number;
+	maxConfidence: number;
 }
 
 /** Create an isolated in-memory evidence repository. */
@@ -63,15 +71,15 @@ class InMemoryEvidenceRepository implements EvidenceRepository {
 		return batch.entries.length;
 	}
 
-	list(filter: EvidenceRepositoryFilter = {}): EvidenceEntry[] {
+	list(filter: EvidenceRepositoryFilter = {}): readonly EvidenceEntry[] {
 		return this.#entries
 			.filter((entry) => matchesFilter(entry, filter))
 			.sort(compareEvidenceEntries)
 			.map(cloneEvidenceEntry);
 	}
 
-	summarizeByTechnology(filter: EvidenceRepositoryFilter = {}): EvidenceTechnologySummary[] {
-		const summaries = new Map<string, EvidenceTechnologySummary>();
+	summarizeByTechnology(filter: EvidenceRepositoryFilter = {}): readonly EvidenceTechnologySummary[] {
+		const summaries = new Map<string, MutableEvidenceTechnologySummary>();
 		for (const entry of this.#entries) {
 			if (!matchesFilter(entry, filter)) {
 				continue;

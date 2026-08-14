@@ -107,10 +107,9 @@ function createObservationAppender(options: {
 			target: options.target,
 			observedAt: options.observedAt,
 			value: input.value,
+			...(input.key !== undefined ? { key: input.key } : {}),
+			...(attributes && Object.keys(attributes).length > 0 ? { attributes } : {}),
 		};
-
-		if (input.key !== undefined) observation.key = input.key;
-		if (attributes && Object.keys(attributes).length > 0) observation.attributes = attributes;
 
 		options.observations.push(observation);
 	};
@@ -150,9 +149,9 @@ function addRequestObservation(addObservation: ObservationAppender, request: Req
 
 /** Remove empty optional attributes before values reach replay or dedupe. */
 function compactAttributes(
-	attributes: Record<string, ObservationValue | undefined>,
+	attributes: Readonly<Record<string, ObservationValue | undefined>>,
 ): ObservationAttributes {
-	const compacted: ObservationAttributes = {};
+	const compacted: Record<string, ObservationValue> = {};
 	for (const [key, value] of Object.entries(attributes)) {
 		if (value !== undefined && value !== '') compacted[key] = value;
 	}

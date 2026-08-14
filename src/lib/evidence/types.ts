@@ -28,15 +28,15 @@ export type EvidenceEntrySource = 'observation' | 'detection-result' | 'relation
  */
 export interface EvidenceObservationReference {
 	/** Observation surface that generated the evidence, such as `scriptSrc` or `meta`. */
-	kind: NormalizedObservationKind;
+	readonly kind: NormalizedObservationKind;
 	/** Optional lookup key from the observation, such as a header name or selector. */
-	key?: string;
+	readonly key?: string;
 	/** Interface that saw the observation. */
-	interface: ObservationInterface;
+	readonly interface: ObservationInterface;
 	/** Concrete collector that emitted the observation. */
-	collector: ObservationCollector;
+	readonly collector: ObservationCollector;
 	/** Timestamp copied from the observation for replay ordering. */
-	observedAt: number;
+	readonly observedAt: number;
 }
 
 /**
@@ -49,35 +49,35 @@ export interface EvidenceObservationReference {
  */
 export interface EvidenceEntry {
 	/** Stable identifier generated from target, technology, source, and ordinal data. */
-	id: string;
+	readonly id: string;
 	/** Page or request target associated with this evidence. */
-	target: ObservationTarget;
+	readonly target: ObservationTarget;
 	/** Technology receiving support from this entry. */
-	technologyId: string;
+	readonly technologyId: string;
 	/** Detector surface this evidence can satisfy. */
-	kind: DetectionKind;
+	readonly kind: DetectionKind;
 	/** Runtime path that created the entry. */
-	source: EvidenceEntrySource;
+	readonly source: EvidenceEntrySource;
 	/** Confidence contribution before final candidate aggregation. */
-	confidence: number;
+	readonly confidence: number;
 	/** Redacted scalar value that matched or explained the evidence. */
-	matchedValue: ObservationValue;
+	readonly matchedValue: ObservationValue;
 	/** Timestamp used for replay and deterministic repository ordering. */
-	observedAt: number;
+	readonly observedAt: number;
 	/** Whether this came from direct rule evidence rather than graph inference. */
-	direct: boolean;
+	readonly direct: boolean;
 	/** Optional rule identifier when the registry supplied one. */
-	ruleId?: string;
+	readonly ruleId?: string;
 	/** Human-readable rule note preserved for explanation output. */
-	ruleDescription?: string;
+	readonly ruleDescription?: string;
 	/** Version captured by the supporting rule, when present. */
-	version?: string;
+	readonly version?: string;
 	/** Relationship source technology when graph inference produced the entry. */
-	sourceTechnologyId?: string;
+	readonly sourceTechnologyId?: string;
 	/** Observation metadata when an observation directly produced this evidence. */
-	observation?: EvidenceObservationReference;
+	readonly observation?: EvidenceObservationReference;
 	/** Additional scalar context, such as storage area or request URL. */
-	attributes?: ObservationAttributes;
+	readonly attributes?: ObservationAttributes;
 }
 
 /**
@@ -89,11 +89,11 @@ export interface EvidenceEntry {
  */
 export interface EvidenceBatch {
 	/** Target shared by entries in the batch. */
-	target: ObservationTarget;
+	readonly target: ObservationTarget;
 	/** Timestamp attached to compatibility batches and replay events. */
-	observedAt: number;
+	readonly observedAt: number;
 	/** Ordered evidence entries derived from observations or compatibility output. */
-	entries: EvidenceEntry[];
+	readonly entries: readonly EvidenceEntry[];
 }
 
 /**
@@ -105,13 +105,13 @@ export interface EvidenceBatch {
  */
 export interface EvidenceTechnologySummary {
 	/** Technology represented by the summary. */
-	technologyId: string;
+	readonly technologyId: string;
 	/** Total entries recorded for the technology. */
-	entryCount: number;
+	readonly entryCount: number;
 	/** Entries that came from direct rule or observation support. */
-	directCount: number;
+	readonly directCount: number;
 	/** Entries that came from relationship inference. */
-	relationshipCount: number;
+	readonly relationshipCount: number;
 	/** Highest confidence contribution seen for the technology. */
-	maxConfidence: number;
+	readonly maxConfidence: number;
 }

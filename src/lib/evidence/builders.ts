@@ -15,21 +15,21 @@ import type {
  */
 export interface CreateObservationEvidenceEntryInput {
 	/** Technology that the matched observation supports. */
-	technologyId: string;
+	readonly technologyId: string;
 	/** Observation that matched a registry rule. */
-	observation: NormalizedObservation;
+	readonly observation: NormalizedObservation;
 	/** Confidence contribution assigned by the matching rule. */
-	confidence: number;
+	readonly confidence: number;
 	/** Rule identifier from the compiled registry, when available. */
-	ruleId?: string;
+	readonly ruleId?: string;
 	/** Human-readable rule note used later by explanations. */
-	ruleDescription?: string;
+	readonly ruleDescription?: string;
 	/** Version captured from the observation match, when available. */
-	version?: string;
+	readonly version?: string;
 	/** Override for the value recorded in evidence. Defaults to the observation value. */
-	matchedValue?: EvidenceEntry['matchedValue'];
+	readonly matchedValue?: EvidenceEntry['matchedValue'];
 	/** Extra scalar context to merge with observation attributes. */
-	attributes?: ObservationAttributes;
+	readonly attributes?: ObservationAttributes;
 }
 
 /**
@@ -40,9 +40,9 @@ export interface CreateObservationEvidenceEntryInput {
  */
 export interface CreateEvidenceBatchFromAnalysisInput {
 	/** Existing detector output to adapt into evidence entries. */
-	analysis: SiteAnalysis;
+	readonly analysis: SiteAnalysis;
 	/** Optional timestamp override for deterministic replay fixtures. */
-	observedAt?: number;
+	readonly observedAt?: number;
 }
 
 /** Build a direct evidence entry from a matched normalized observation. */
@@ -50,7 +50,8 @@ export function createEvidenceEntryFromObservation(
 	input: CreateObservationEvidenceEntryInput,
 ): EvidenceEntry {
 	const attributes = mergeAttributes(input.observation.attributes, input.attributes);
-	const entry: EvidenceEntry = {
+
+	return {
 		id: createEvidenceEntryId([
 			input.observation.target.url,
 			input.technologyId,
@@ -59,7 +60,7 @@ export function createEvidenceEntryFromObservation(
 			String(input.matchedValue ?? input.observation.value),
 			input.ruleId ?? '',
 		]),
-		target: input.observation.target,
+		target: { ...input.observation.target },
 		technologyId: input.technologyId,
 		kind: input.observation.kind === 'htmlMatch' ? 'html' : input.observation.kind,
 		source: 'observation',
@@ -67,23 +68,18 @@ export function createEvidenceEntryFromObservation(
 		matchedValue: input.matchedValue ?? input.observation.value,
 		observedAt: input.observation.observedAt,
 		direct: true,
+		...(input.ruleId !== undefined ? { ruleId: input.ruleId } : {}),
+		...(input.ruleDescription !== undefined ? { ruleDescription: input.ruleDescription } : {}),
+		...(input.version !== undefined ? { version: input.version } : {}),
 		observation: {
 			kind: input.observation.kind,
-			key: input.observation.key,
+			...(input.observation.key !== undefined ? { key: input.observation.key } : {}),
 			interface: input.observation.interface,
 			collector: input.observation.collector,
 			observedAt: input.observation.observedAt,
 		},
+		...(attributes ? { attributes } : {}),
 	};
-
-	copyOptional(entry, 'ruleId', input.ruleId);
-	copyOptional(entry, 'ruleDescription', input.ruleDescription);
-	copyOptional(entry, 'version', input.version);
-	if (attributes) {
-		entry.attributes = attributes;
-	}
-
-	return entry;
 }
 
 /**
@@ -115,18 +111,19 @@ export function createEvidenceBatchFromAnalysis(
 }
 
 interface CreateDetectionEvidenceEntryInput {
-	target: ObservationTarget;
-	observedAt: number;
-	result: DetectionResult;
-	evidence: Evidence;
-	ordinal: string;
+	readonly target: ObservationTarget;
+	readonly observedAt: number;
+	readonly result: DetectionResult;
+	readonly evidence: Evidence;
+	readonly ordinal: string;
 }
 
 function createEvidenceEntryFromDetectionEvidence(
 	input: CreateDetectionEvidenceEntryInput,
 ): EvidenceEntry {
 	const source = getDetectionEvidenceSource(input.evidence);
-	const entry: EvidenceEntry = {
+
+	return {
 		id: createEvidenceEntryId([
 			input.target.url,
 			input.result.technologyId,
@@ -134,7 +131,7 @@ function createEvidenceEntryFromDetectionEvidence(
 			getEvidenceMatchedValue(input.evidence),
 			input.ordinal,
 		]),
-		target: input.target,
+		target: { ...input.target },
 		technologyId: input.result.technologyId,
 		kind: input.evidence.kind,
 		source,
@@ -142,13 +139,12 @@ function createEvidenceEntryFromDetectionEvidence(
 		matchedValue: getEvidenceMatchedValue(input.evidence),
 		observedAt: input.observedAt,
 		direct: input.evidence.direct ?? source !== 'relationship',
+		...(input.evidence.ruleDescription !== undefined ? { ruleDescription: input.evidence.ruleDescription } : {}),
+		...(input.evidence.version !== undefined ? { version: input.evidence.version } : {}),
+		...(input.evidence.sourceTechnologyId !== undefined
+			? { sourceTechnologyId: input.evidence.sourceTechnologyId }
+			: {}),
 	};
-
-	copyOptional(entry, 'ruleDescription', input.evidence.ruleDescription);
-	copyOptional(entry, 'version', input.evidence.version);
-	copyOptional(entry, 'sourceTechnologyId', input.evidence.sourceTechnologyId);
-
-	return entry;
 }
 
 function getDetectionEvidenceSource(evidence: Evidence): EvidenceEntrySource {
@@ -183,14 +179,4 @@ function createEvidenceEntryId(parts: readonly string[]): string {
  */
 function encodeEvidenceIdPart(value: string): string {
 	return encodeURIComponent(value);
-}
-
-function copyOptional<K extends keyof EvidenceEntry>(
-	entry: EvidenceEntry,
-	key: K,
-	value: EvidenceEntry[K] | undefined,
-): void {
-	if (value !== undefined) {
-		entry[key] = value;
-	}
 }

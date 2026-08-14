@@ -49,11 +49,12 @@ describe('evidence repository', () => {
 		]);
 	});
 
-	it('returns defensive copies of stored entries', () => {
-		const repository = createEvidenceRepository(makeEvidenceBatch().entries);
-		const [entry] = repository.list({ technologyId: 'react' });
+	it('does not retain caller-owned target references', () => {
+		const source = makeEvidenceBatch().entries.find((entry) => entry.technologyId === 'react')!;
+		const target = { ...source.target };
+		const repository = createEvidenceRepository([{ ...source, target }]);
 
-		entry.target.url = 'https://mutated.example/';
+		target.url = 'https://mutated.example/';
 
 		expect(repository.list({ technologyId: 'react' })[0].target.url).toBe('https://example.com/products');
 	});

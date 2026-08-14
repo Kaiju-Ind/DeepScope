@@ -44,7 +44,7 @@ export type ObservationCollector =
 export type ObservationValue = string | number | boolean;
 
 /** Additional scalar context carried with an observation. */
-export type ObservationAttributes = Record<string, ObservationValue>;
+export type ObservationAttributes = Readonly<Record<string, ObservationValue>>;
 
 /**
  * Page or request target associated with an observation.
@@ -56,9 +56,9 @@ export type ObservationAttributes = Record<string, ObservationValue>;
  */
 export interface ObservationTarget {
 	/** URL of the analyzed document or request context. */
-	url: string;
+	readonly url: string;
 	/** Hostname derived from the analyzed document URL. */
-	hostname: string;
+	readonly hostname: string;
 }
 
 /**
@@ -71,21 +71,21 @@ export interface ObservationTarget {
  */
 export interface NormalizedObservation {
 	/** Collection surface, such as `scriptSrc`, `meta`, `dom`, or `header`. */
-	kind: NormalizedObservationKind;
+	readonly kind: NormalizedObservationKind;
 	/** Interface that produced this observation, such as the extension or CLI. */
-	interface: ObservationInterface;
+	readonly interface: ObservationInterface;
 	/** Concrete collector boundary that observed the value. */
-	collector: ObservationCollector;
+	readonly collector: ObservationCollector;
 	/** Target document or request associated with this value. */
-	target: ObservationTarget;
+	readonly target: ObservationTarget;
 	/** Millisecond timestamp inherited from the collector snapshot. */
-	observedAt: number;
+	readonly observedAt: number;
 	/** Optional lookup key, such as a header name, meta name, selector, or storage key. */
-	key?: string;
+	readonly key?: string;
 	/** Scalar value used by pattern matching and replay comparison. */
-	value: ObservationValue;
+	readonly value: ObservationValue;
 	/** Optional structured scalar context that should not be pattern text itself. */
-	attributes?: ObservationAttributes;
+	readonly attributes?: ObservationAttributes;
 }
 
 /**
@@ -97,11 +97,11 @@ export interface NormalizedObservation {
  */
 export interface ObservationBatch {
 	/** Target shared by the observations in the batch. */
-	target: ObservationTarget;
+	readonly target: ObservationTarget;
 	/** Interface that produced the batch. */
-	interface: ObservationInterface;
+	readonly interface: ObservationInterface;
 	/** Millisecond timestamp attached to observations that came from this batch. */
-	observedAt: number;
+	readonly observedAt: number;
 	/** Ordered observations derived from the snapshot. */
-	observations: NormalizedObservation[];
+	readonly observations: readonly NormalizedObservation[];
 }

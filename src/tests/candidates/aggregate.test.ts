@@ -169,14 +169,16 @@ describe('evidence candidate aggregation', () => {
 		]);
 	});
 
-	it('copies evidence input before storing it on candidates', () => {
-		const entry = makeEvidenceEntry();
+	it('copies caller-owned evidence input before storing it on candidates', () => {
+		const source = makeEvidenceEntry();
+		const target = { ...source.target };
+		const entry = { ...source, target };
 
 		const batch = createEvidenceCandidateBatch({
 			registry: makeRegistry(),
 			evidence: [entry],
 		});
-		entry.target.url = 'https://mutated.example/';
+		target.url = 'https://mutated.example/';
 
 		expect(batch.candidates[0]!.evidence[0]!.target.url).toBe('https://example.com/products');
 	});
