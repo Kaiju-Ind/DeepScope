@@ -1,6 +1,6 @@
 # Background coordinator runtime
 
-The background service worker is a coordinator, not the only owner of visible extension state. Popup-visible detection state lives in durable snapshot records, and content owns page-local observation while a document is active. The background wakes for commands and browser lifecycle events, then promotes or cleans up stored state without assuming its globals survived.
+The background service worker entrypoint is now a composition root, not the coordinator implementation itself. Popup-visible detection state lives in durable snapshot records, content owns page-local observation while a document is active, and `createBackgroundRuntime(...)` owns the disposable orchestration state for one service-worker lifetime. The entrypoint selects browser adapters, registers listeners, and exposes RPC; it does not implement analysis workflows.
 
 ```text
 popup command or tab event
@@ -9,6 +9,25 @@ popup command or tab event
   -> durable snapshot revision
   -> popup storage subscription
 ```
+
+## Composition boundary
+
+```text
+background.ts (composition root)
+  -> active-tab browser adapter
+  -> content RPC client factory
+  -> extension observation collector
+  -> compiled registry provider
+  -> offscreen matcher adapter
+  -> persistence ports
+  -> logging adapter
+  -> createBackgroundRuntime(...)
+       -> BackgroundApi
+       -> runtime message handler
+       -> navigation/close cleanup callbacks
+```
+
+The runtime module imports no `wxt/browser` or `comctx` implementation. This keeps browser registration and RPC wiring at the edge while making the analysis coordinator constructible in tests without importing an extension entrypoint. Mutable maps for active observation batches, matcher ownership, refresh scheduling, and progress are scoped to the runtime instance instead of module-global entrypoint state.
 
 ## What the coordinator owns
 

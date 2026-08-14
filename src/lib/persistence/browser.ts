@@ -19,6 +19,7 @@ import {
 } from '../storage';
 import { getDetectionOriginSnapshotKey } from '../storage/contracts';
 import type {
+	BackgroundDetectionPersistence,
 	DetectionPersistenceMaintenance,
 	DetectionReplayStore,
 	DetectionSnapshotRevisionSource,
@@ -77,4 +78,4 @@ export const browserDetectionPersistence = {
 	...browserDetectionReplayStore,
 	...browserDetectionPersistenceMaintenance,
 	...browserMatcherJobStore,
-} as const;
+} as const satisfies BackgroundDetectionPersistence;

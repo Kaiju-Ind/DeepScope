@@ -1,4 +1,5 @@
 export type {
+	BackgroundDetectionPersistence,
 	DetectionPersistenceMaintenance,
 	DetectionReplayStore,
 	DetectionSessionIndexEntry,
@@ -9,6 +10,7 @@ export type {
 	DetectionSnapshotRevisionSource,
 	DetectionSnapshotStore,
 	DetectionSnapshotWriter,
+	MatcherJobStore,
 } from './ports';
 export {
 	browserDetectionPersistence,

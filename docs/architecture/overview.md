@@ -22,7 +22,7 @@ observations
 
 ## Current runtime map
 
-The popup still owns user interaction, the background owns privileged extension work, and the content script owns page-local DOM reads. The detector path is event-only for extension analysis.
+The popup still owns user interaction, the background runtime coordinates privileged extension work, and the content script owns page-local DOM reads. The detector path is event-only for extension analysis. The service-worker entrypoint itself is only a composition root: it wires concrete browser/RPC/persistence adapters into `createBackgroundRuntime(...)` and registers listeners.
 
 ```text
 Popup extension page
@@ -55,6 +55,22 @@ Popup extension page
 
 The content script still uses the bounded DOM collector internally because it is the safe place to read the active document. That snapshot is an implementation detail inside the content runtime. The background receives normalized observations and does not call the old direct `analyzeSite(signals, technologies)` path for extension analysis.
 
+### Background composition boundary
+
+```text
+Browser service-worker entrypoint
+  -> wires browser tabs / scripting
+  -> wires content RPC client factory
+  -> wires registry + collector + matcher adapters
+  -> wires persistence + logging
+  -> createBackgroundRuntime(...)
+       -> owns disposable coordination state
+       -> exposes BackgroundApi
+       -> handles runtime notifications
+       -> exposes tab lifecycle cleanup callbacks
+```
+
+This separates extension startup mechanics from the analysis workflow. Background API tests can construct the runtime directly with fake adapters, while the browser entrypoint stays small and declarative.
 
 ### Persistence boundary
 

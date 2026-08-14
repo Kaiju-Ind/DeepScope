@@ -12,7 +12,9 @@ import {
 	getDetectionSessionSnapshotKey,
 } from '@/lib/storage/contracts';
 import type { ObservationBatch } from '@/lib/observations';
+import type { MatcherJobRecord } from '@/lib/matcher';
 import type { DetectionReplayTrace } from '@/lib/pipeline';
+import type { CompiledTechnologyRegistryArtifact } from '@/lib/registry/compiler-core';
 import { ok, type AppResult } from '@/lib/shared/result';
 import { makeDetectionReplayTrace } from '../support/factories';
 
@@ -52,7 +54,10 @@ type BackgroundApiHarnessOptions = {
 	cachedReplayTrace?: DetectionReplayTrace | null;
 	cachedReplayHistory?: DetectionReplayTrace[];
 	collectionPlan?: CollectionPlan;
-	updateMatcherJobRecord?: (jobId: string, patch?: unknown) => Promise<unknown>;
+	updateMatcherJobRecord?: (
+		jobId: string,
+		patch?: Partial<Omit<MatcherJobRecord, 'jobId' | 'tabId' | 'expectedUrl' | 'target' | 'createdAt'>>,
+	) => Promise<MatcherJobRecord | null>;
 };
 
 const SOURCE_LIMITS_STUB = {
@@ -225,7 +230,6 @@ async function loadBackgroundApi(input: BackgroundApiHarnessOptions) {
 
 async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	vi.resetModules();
-	vi.stubGlobal('defineBackground', (setup: () => void) => setup);
 	vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 204 })));
 	vi.doMock('@/data/technologies', () => ({
 		technologies: [],
@@ -272,46 +276,20 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	} satisfies ContentApi;
 
 	const executeScript = vi.fn(async () => [{ frameId: 0, result: undefined }]);
-	const tabsOnRemovedAddListener = vi.fn();
-	const tabsOnUpdatedAddListener = vi.fn();
-	const runtimeOnMessageAddListener = vi.fn();
 	vi.doMock('wxt/browser', () => ({
 		browser: {
 			runtime: {
-				onMessage: {
-					addListener: runtimeOnMessageAddListener,
-				},
 				sendMessage: vi.fn(async () => ({ ok: false, message: 'offscreen unavailable in test' })),
 				getURL: vi.fn((path: string) => `chrome-extension://kaiju-site-scope${path}`),
 			},
+			offscreen: undefined,
 			scripting: {
 				executeScript,
 			},
 			tabs: {
 				get: vi.fn(async () => input.tab ?? HTTP_TAB),
-				onRemoved: {
-					addListener: tabsOnRemovedAddListener,
-				},
-				onUpdated: {
-					addListener: tabsOnUpdatedAddListener,
-				},
 			},
 		},
-	}));
-
-	vi.doMock('comctx', () => ({
-		defineProxy: vi.fn((_factory: unknown, options?: { namespace?: string }) => {
-			if (options?.namespace === 'kaiju-site-scope.content-rpc.v1') {
-				return [vi.fn(), vi.fn(() => contentApi)];
-			}
-
-			return [vi.fn()];
-		}),
-	}));
-
-	vi.doMock('@/lib/browser/active-tab', () => ({
-		getActiveTab: vi.fn(async () => input.tab ?? null),
-		canInspectTab: canInspectUrl,
 	}));
 
 	const analyzeSite = vi.fn((signals: PageSignals) => makeAnalysis(signals));
@@ -322,7 +300,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	const { buildCollectionPlan } = await import('@/lib/collectors/planning');
 	const { createObservationMatcherIndex } = await import('@/lib/detection/observation-matcher-index');
 	const { createCompiledDetectionRegistry } = await import('@/lib/detection/registry-graph');
-	const compiledRegistryArtifact = {
+	const compiledRegistryArtifact: CompiledTechnologyRegistryArtifact = {
 		artifactVersion: 1,
 		sourceSchemaVersion: 1,
 		technologies: [],
@@ -339,22 +317,6 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	const getCompiledRegistry = vi.fn(async () => compiledRegistryArtifact);
 	const getCompiledBootstrapRegistry = vi.fn(async () => compiledRegistryArtifact);
 	const getCompiledObservationKindRegistry = vi.fn(async () => compiledRegistryArtifact);
-	vi.doMock('@/lib/detection/registry-provider', () => ({
-		bundledTechnologyRegistryProvider: {
-			listTechnologies,
-			listBootstrapTechnologies,
-			getCompiledRegistry,
-			getCompiledBootstrapRegistry,
-			getCompiledObservationKindRegistry,
-		},
-	}));
-
-	vi.doMock('@/lib/messaging', () => ({
-		BACKGROUND_RPC_NAMESPACE: 'kaiju-site-scope.background-rpc.v1',
-		CONTENT_RPC_NAMESPACE: 'kaiju-site-scope.content-rpc.v1',
-		createBackgroundServerAdapter: vi.fn(() => ({})),
-		createContentClientAdapter: vi.fn(() => ({})),
-	}));
 
 	const getCachedReplayTrace = vi.fn(async () => input.cachedReplayTrace ?? null);
 	const getCachedReplayTraceHistory = vi.fn(async () =>
@@ -362,9 +324,9 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	);
 	const getStatus = vi.fn(async () => ({ totalAnalyses: 0, trackedOrigins: 0 }));
 	const saveReplayTrace = vi.fn(async (trace: DetectionReplayTrace) => trace);
-	const saveMatcherJobRecord = vi.fn(async (record: unknown) => record);
+	const saveMatcherJobRecord = vi.fn(async (record: MatcherJobRecord) => record);
 	const updateMatcherJobRecord = vi.fn(input.updateMatcherJobRecord ?? (async () => null));
-	const getLatestDetectionOriginSnapshot = vi.fn(async () => input.cachedAnalysis
+	const getBestVisibleDetectionSessionSnapshot = vi.fn(async () => input.cachedAnalysis
 		? makeDetectionSnapshotFromAnalysis(input.cachedAnalysis)
 		: null);
 	const getLatestDetectionSessionSnapshot = vi.fn(async () => null);
@@ -374,28 +336,55 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		originStorageKey: getDetectionOriginSnapshotKey(snapshot.key.originHash),
 		snapshot,
 	}));
-	vi.doMock('@/lib/storage', () => ({
-		getCachedReplayTrace,
-		getCachedReplayTraceHistory,
-		getStatus,
-		getLatestDetectionOriginSnapshot,
-		getLatestDetectionSessionSnapshot,
-		saveDetectionSessionSnapshot,
-		saveMatcherJobRecord,
-		saveReplayTrace,
-		updateMatcherJobRecord,
-	}));
 
-	const background = await import('@/entrypoints/background');
+	const { collectExtensionObservationBatch } = await import('@/lib/collectors/extension-page-collector');
+	const {
+		cancelOffscreenMatcherJob,
+		ensureKaijuSiteScopeOffscreenDocument,
+		runMatcherJobWithOffscreenFallback,
+	} = await import('@/lib/lifecycle/offscreen-matcher');
+	const { createBackgroundRuntime } = await import('@/lib/background/runtime');
+	const runtime = createBackgroundRuntime({
+		getActiveTab: vi.fn(async () => input.tab ?? null),
+		getTab: vi.fn(async () => input.tab ?? HTTP_TAB),
+		executeContentScript: async () => {
+			await executeScript();
+		},
+		createContentApiClient: () => contentApi,
+		collectObservationBatch: collectExtensionObservationBatch,
+		registryProvider: { getCompiledRegistry },
+		matcher: {
+			cancelJob: cancelOffscreenMatcherJob,
+			ensureOffscreenDocument: ensureKaijuSiteScopeOffscreenDocument,
+			runJob: runMatcherJobWithOffscreenFallback,
+		},
+		persistence: {
+			getBestVisibleSnapshot: getBestVisibleDetectionSessionSnapshot,
+			getSessionIndex: vi.fn(async () => ({ tabId: HTTP_TAB.id!, entries: [], updatedAt: 0 })),
+			getLatestOriginSnapshot: vi.fn(async () => null),
+			getLatestSessionSnapshot: getLatestDetectionSessionSnapshot,
+			saveSnapshot: saveDetectionSessionSnapshot,
+			getReplayTrace: getCachedReplayTrace,
+			getReplayHistory: getCachedReplayTraceHistory,
+			saveReplayTrace,
+			clearStoredData: vi.fn(async () => 0),
+			getStatus,
+			saveMatcherJob: saveMatcherJobRecord,
+			updateMatcherJob: updateMatcherJobRecord,
+		},
+		logEvent: () => undefined,
+		logAnalysisSummary: () => undefined,
+	});
+
 	return {
-		api: background.createBackgroundApi(),
+		api: runtime.api,
 		contentApi,
 		mocks: {
 			analyzeSite,
 			executeScript,
 			getCachedReplayTrace,
 			getCachedReplayTraceHistory,
-			getLatestDetectionOriginSnapshot,
+			getBestVisibleDetectionSessionSnapshot,
 			getStatus,
 			getCompiledRegistry,
 			getCompiledBootstrapRegistry,
@@ -413,15 +402,10 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 afterEach(() => {
 	vi.useRealTimers();
 	vi.unstubAllGlobals();
-	vi.doUnmock('comctx');
 	vi.doUnmock('wxt/browser');
 	vi.doUnmock('@/data/technologies');
-	vi.doUnmock('@/lib/browser/active-tab');
 	vi.doUnmock('@/lib/detection/engine');
-	vi.doUnmock('@/lib/detection/registry-provider');
 	vi.doUnmock('@/lib/detection/rules');
-	vi.doUnmock('@/lib/messaging');
-	vi.doUnmock('@/lib/storage');
 	vi.resetModules();
 });
 
@@ -600,7 +584,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 			},
 		});
 
-		expect(harness.mocks.getLatestDetectionOriginSnapshot).toHaveBeenCalledWith(VISIBLE_TAB_TARGET.originHash);
+		expect(harness.mocks.getBestVisibleDetectionSessionSnapshot).toHaveBeenCalledWith(VISIBLE_TAB_TARGET);
 		expect(harness.contentApi.collectObservationBatch).toHaveBeenCalledOnce();
 		expect(harness.mocks.getCompiledBootstrapRegistry).not.toHaveBeenCalled();
 		expect(harness.mocks.getCompiledRegistry).toHaveBeenCalledOnce();
@@ -786,7 +770,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 			},
 		});
 
-		expect(harness.mocks.getLatestDetectionOriginSnapshot).not.toHaveBeenCalled();
+		expect(harness.mocks.getBestVisibleDetectionSessionSnapshot).not.toHaveBeenCalled();
 		expect(harness.mocks.saveDetectionSessionSnapshot).not.toHaveBeenCalled();
 		expect(harness.mocks.saveReplayTrace).not.toHaveBeenCalled();
 		expect(harness.contentApi.beginObservationSession).toHaveBeenCalledOnce();
@@ -815,7 +799,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 			},
 		});
 
-		expect(harness.mocks.getLatestDetectionOriginSnapshot).toHaveBeenCalledWith(VISIBLE_TAB_TARGET.originHash);
+		expect(harness.mocks.getBestVisibleDetectionSessionSnapshot).toHaveBeenCalledWith(VISIBLE_TAB_TARGET);
 		expect(harness.contentApi.collectObservationBatch).toHaveBeenCalledOnce();
 		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledOnce());
 	});
@@ -1030,7 +1014,7 @@ describe.sequential('background observation session baseline', () => {
 		expect(harness.contentApi.flushObservationBatch).toHaveBeenCalledOnce();
 		expect(harness.contentApi.beginObservationSession).not.toHaveBeenCalled();
 		expect(harness.mocks.getCompiledRegistry).toHaveBeenCalledTimes(2);
-		expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(2);
+		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(2));
 		expect(harness.mocks.analyzeSite).not.toHaveBeenCalled();
 	});
 
@@ -1085,7 +1069,7 @@ describe.sequential('background observation session baseline', () => {
 		expect(harness.contentApi.collectObservationBatch).toHaveBeenCalledOnce();
 		expect(harness.contentApi.flushObservationBatch).toHaveBeenCalledOnce();
 		expect(harness.contentApi.beginObservationSession).not.toHaveBeenCalled();
-		expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledOnce();
+		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledOnce());
 	});
 
 	it('rejects observation refresh when the session belongs to a previous page path', async () => {
