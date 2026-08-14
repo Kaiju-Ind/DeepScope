@@ -7,10 +7,21 @@ export {
 	createEvidenceEntryFromObservation,
 } from './builders';
 export type {
+	AddEvidenceBatchResult,
+	AddEvidenceEntryResult,
 	EvidenceRepository,
 	EvidenceRepositoryFilter,
+	EvidenceRepositoryState,
 } from './repository';
-export { createEvidenceRepository } from './repository';
+export {
+	addEvidenceBatch,
+	addEvidenceEntry,
+	clearEvidenceRepositoryState,
+	createEvidenceRepository,
+	createEvidenceRepositoryState,
+	listEvidenceEntries,
+	summarizeEvidenceByTechnology,
+} from './repository';
 export type {
 	EvidenceBatch,
 	EvidenceEntry,

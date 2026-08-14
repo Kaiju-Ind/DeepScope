@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+	addEvidenceBatch,
+	addEvidenceEntry,
+	clearEvidenceRepositoryState,
 	createEvidenceBatchFromAnalysis,
 	createEvidenceRepository,
+	createEvidenceRepositoryState,
+	listEvidenceEntries,
+	summarizeEvidenceByTechnology,
 } from '@/lib/evidence';
 import {
 	makeAnalysis,
@@ -33,6 +39,53 @@ function makeEvidenceBatch() {
 		], { analyzedAt: TEST_NOW + 1 }),
 	});
 }
+
+describe('functional evidence repository state', () => {
+	it('adds entries and batches without mutating previous states or retaining input references', () => {
+		const batch = makeEvidenceBatch();
+		const initial = createEvidenceRepositoryState();
+		const source = batch.entries[0]!;
+		const target = { ...source.target };
+		const first = addEvidenceEntry(initial, { ...source, target });
+		const second = addEvidenceBatch(first.state, {
+			...batch,
+			entries: batch.entries.slice(1),
+		});
+
+		target.url = 'https://mutated.example/';
+
+		expect(initial.entries).toEqual([]);
+		expect(first.state.entries.map((entry) => entry.technologyId)).toEqual(['react']);
+		expect(first.state.entries[0]!.target.url).toBe('https://example.com/products');
+		expect(second.state.entries.map((entry) => entry.technologyId)).toEqual(['react', 'vite']);
+		expect(second.addedCount).toBe(1);
+	});
+
+	it('queries immutable state without exposing stored references or reordering state', () => {
+		const batch = makeEvidenceBatch();
+		const state = createEvidenceRepositoryState([...batch.entries].reverse());
+		const listed = listEvidenceEntries(state);
+		const mutableTarget = listed[0]!.target as { url: string; hostname: string };
+
+		mutableTarget.url = 'https://mutated.example/';
+
+		expect(state.entries.map((entry) => entry.technologyId)).toEqual(['vite', 'react']);
+		expect(listEvidenceEntries(state).map((entry) => entry.technologyId)).toEqual(['react', 'vite']);
+		expect(listEvidenceEntries(state)[0]!.target.url).toBe('https://example.com/products');
+		expect(summarizeEvidenceByTechnology(state)).toEqual([
+			expect.objectContaining({ technologyId: 'react', entryCount: 1 }),
+			expect.objectContaining({ technologyId: 'vite', entryCount: 1 }),
+		]);
+	});
+
+	it('clears by returning new empty state', () => {
+		const populated = createEvidenceRepositoryState(makeEvidenceBatch().entries);
+		const cleared = clearEvidenceRepositoryState(populated);
+
+		expect(populated.entries).toHaveLength(2);
+		expect(cleared.entries).toEqual([]);
+	});
+});
 
 describe('evidence repository', () => {
 	it('stores batches and lists entries in deterministic order', () => {
