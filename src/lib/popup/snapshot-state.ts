@@ -1,18 +1,14 @@
 import type { DetectionReplaySummary, DetectionSessionSnapshot } from '../contracts/detection-session';
 
-import { browser } from 'wxt/browser';
 import type { VisibleTabIdentity, AnalysisEnrichmentState, AnalyzeVisibleTabOutput } from '../messaging';
 import { filterReplayHistoryForAnalysis, isDetectionReplayTraceForAnalysis } from '../pipeline';
 
-import {
-  getCachedReplayTrace,
-  getCachedReplayTraceHistory,
-  getDetectionSessionIndex,
-  getLatestDetectionOriginSnapshot,
-  getLatestDetectionSessionSnapshot,
-  isDetectionSessionSnapshot,
-} from '../storage';
-import { STORAGE_LIMITS, getAnalysisResponseKey, getDetectionOriginSnapshotKey } from '../storage/contracts';
+import type {
+  DetectionReplayStore,
+  DetectionSnapshotReader,
+  DetectionSnapshotRevisionSource,
+} from '../persistence';
+import { STORAGE_LIMITS, getAnalysisResponseKey } from '../storage/contracts';
 import type { PopupVisibleRevision } from './view-model';
 
 /** Handler invoked when storage publishes a matching snapshot revision. */
@@ -20,6 +16,12 @@ export type PopupSnapshotRevisionHandler = (snapshot: DetectionSessionSnapshot) 
 
 /** Cleanup callback for removing the popup's storage change listener. */
 export type PopupSnapshotUnsubscribe = () => void;
+
+/** Persistence capabilities required to hydrate popup snapshot state. */
+export type PopupSnapshotPersistence = Pick<
+  DetectionSnapshotReader,
+  'getSessionIndex' | 'getLatestSessionSnapshot' | 'getLatestOriginSnapshot'
+> & Pick<DetectionReplayStore, 'getReplayTrace' | 'getReplayHistory'>;
 
 /** Stored analysis source that can paint the popup before background analysis runs. */
 export type PopupStoredAnalysisSource = 'session-snapshot' | 'origin-snapshot';
@@ -55,12 +57,13 @@ export type PopupStoredAnalysisResult = {
  */
 export async function readStoredPopupAnalysis(
   identity: VisibleTabIdentity,
+  persistence: PopupSnapshotPersistence,
 ): Promise<PopupStoredAnalysisResult | null> {
   if (identity.incognito) {
     return null;
   }
 
-  const storedSnapshot = await getStoredVisibleSnapshot(identity);
+  const storedSnapshot = await getStoredVisibleSnapshot(identity, persistence);
   if (
     !storedSnapshot ||
     !isSnapshotForActiveTab(identity, storedSnapshot.snapshot) ||
@@ -69,7 +72,7 @@ export async function readStoredPopupAnalysis(
     return null;
   }
 
-  const replay = await readStoredReplayState(storedSnapshot.snapshot.analysis);
+  const replay = await readStoredReplayState(storedSnapshot.snapshot.analysis, persistence);
   const stored = {
     source: storedSnapshot.source,
     analysis: storedSnapshot.snapshot.analysis,
@@ -85,8 +88,11 @@ type StoredVisibleSnapshot = {
 };
 
 /** Prefer exact session snapshots for the visible tab, falling back to old origin pointers. */
-async function getStoredVisibleSnapshot(identity: VisibleTabIdentity): Promise<StoredVisibleSnapshot | null> {
-	const index = await getDetectionSessionIndex(identity.tabId);
+async function getStoredVisibleSnapshot(
+  identity: VisibleTabIdentity,
+  persistence: PopupSnapshotPersistence,
+): Promise<StoredVisibleSnapshot | null> {
+	const index = await persistence.getSessionIndex(identity.tabId);
 	const exactSnapshots: DetectionSessionSnapshot[] = [];
 
 	for (const entry of index.entries) {
@@ -94,7 +100,7 @@ async function getStoredVisibleSnapshot(identity: VisibleTabIdentity): Promise<S
 			continue;
 		}
 
-		const snapshot = await getLatestDetectionSessionSnapshot(entry.key);
+		const snapshot = await persistence.getLatestSessionSnapshot(entry.key);
 		if (snapshot && isSnapshotForActiveTab(identity, snapshot) && isDetectorStartupSnapshot(snapshot)) {
 			exactSnapshots.push(snapshot);
 		}
@@ -106,7 +112,7 @@ async function getStoredVisibleSnapshot(identity: VisibleTabIdentity): Promise<S
 		return { source: 'session-snapshot', snapshot: newestExactSnapshot };
 	}
 
-	const originSnapshot = await getLatestDetectionOriginSnapshot(identity.originHash);
+	const originSnapshot = await persistence.getLatestOriginSnapshot(identity.originHash);
 	return originSnapshot ? { source: 'origin-snapshot', snapshot: originSnapshot } : null;
 }
 
@@ -120,10 +126,11 @@ async function getStoredVisibleSnapshot(identity: VisibleTabIdentity): Promise<S
  */
 async function readStoredReplayState(
   analysis: AnalyzeVisibleTabOutput['analysis'],
+  persistence: PopupSnapshotPersistence,
 ): Promise<Pick<PopupStoredAnalysisResult, 'replayTrace' | 'replayHistory'>> {
   const [replayTrace, replayHistory] = await Promise.all([
-    getCachedReplayTrace(analysis.url),
-    getCachedReplayTraceHistory(analysis.url),
+    persistence.getReplayTrace(analysis.url),
+    persistence.getReplayHistory(analysis.url),
   ]);
   const matchingReplayTrace = replayTrace && isDetectionReplayTraceForAnalysis(replayTrace, analysis)
     ? replayTrace
@@ -222,19 +229,13 @@ export function isSnapshotForActiveTab(identity: VisibleTabIdentity, snapshot: D
  */
 export function subscribeToPopupSnapshotRevisions(
   identity: VisibleTabIdentity,
+  revisions: DetectionSnapshotRevisionSource,
   onRevision: PopupSnapshotRevisionHandler,
 ): PopupSnapshotUnsubscribe {
-  const storageKey = getDetectionOriginSnapshotKey(identity.originHash);
-  const listener = (changes: Record<string, { readonly newValue?: unknown }>, areaName: string): void => {
-    if (areaName !== 'local') return;
-    const change = changes[storageKey];
-    if (!change || !isDetectionSessionSnapshot(change.newValue)) return;
-    if (!isSnapshotForActiveTab(identity, change.newValue)) return;
-    onRevision(change.newValue);
-  };
-
-  browser.storage.onChanged.addListener(listener);
-  return () => browser.storage.onChanged.removeListener(listener);
+  return revisions.subscribeOriginSnapshot(identity.originHash, (snapshot) => {
+    if (!isSnapshotForActiveTab(identity, snapshot)) return;
+    onRevision(snapshot);
+  });
 }
 
 /** Compare revisions without assuming all storage writes share one document id. */

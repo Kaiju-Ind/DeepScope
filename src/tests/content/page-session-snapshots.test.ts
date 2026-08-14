@@ -1,9 +1,10 @@
 import type { ContentPageSessionSnapshotTarget } from '@/lib/contracts/analysis';
+import type { DetectionSessionSnapshot } from '@/lib/contracts/detection-session';
+import type { DetectionSnapshotReader, DetectionSnapshotWriter } from '@/lib/persistence';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getDetectionSessionSnapshotKey } from '@/lib/storage/contracts';
+import { describe, expect, it, vi } from 'vitest';
+import { writeContentPageSessionSnapshot } from '@/lib/content/page-session-snapshots';
 import { makeAnalysis, makeDetection, makeDetectionSessionSnapshot } from '../support/factories';
-import { createMockBrowserStorageArea } from '../support/mock-browser';
 
 const SNAPSHOT_TARGET: ContentPageSessionSnapshotTarget = {
 	key: {
@@ -17,43 +18,39 @@ const SNAPSHOT_TARGET: ContentPageSessionSnapshotTarget = {
 	hostname: 'example.com',
 };
 
-async function loadPageSessionSnapshotHarness(initialValues: Record<string, unknown> = {}) {
-	vi.resetModules();
-	const storage = createMockBrowserStorageArea(initialValues);
-	vi.doMock('wxt/browser', () => ({
-		browser: {
-			storage: {
-				local: storage.local,
-			},
-		},
-	}));
+type ContentSnapshotStore = Pick<DetectionSnapshotReader, 'getLatestSessionSnapshot'> & DetectionSnapshotWriter;
 
+function createContentSnapshotStore(initial: DetectionSessionSnapshot | null = null): ContentSnapshotStore {
+	let stored = initial;
 	return {
-		...(await import('@/lib/content/page-session-snapshots')),
-		storage,
+		getLatestSessionSnapshot: vi.fn(async () => stored),
+		saveSnapshot: vi.fn(async (snapshot) => {
+			stored = snapshot;
+			return {
+				accepted: true,
+				sessionStorageKey: 'session:test',
+				originStorageKey: 'origin:test',
+				snapshot,
+			};
+		}),
 	};
 }
 
-afterEach(() => {
-	vi.doUnmock('wxt/browser');
-	vi.resetModules();
-});
-
-describe.sequential('content page-session snapshots', () => {
+describe('content page-session snapshots', () => {
 	/**
 	 * Content can publish the first visible lifecycle state before background
 	 * enrichment has produced detector results. The placeholder analysis keeps
 	 * popup rendering deterministic without storing raw page observations.
 	 */
 	it('writes an observing revision when no detector analysis exists yet', async () => {
-		const harness = await loadPageSessionSnapshotHarness();
+		const store = createContentSnapshotStore();
 
-		const snapshot = await harness.writeContentPageSessionSnapshot({
+		const snapshot = await writeContentPageSessionSnapshot({
 			target: SNAPSHOT_TARGET,
 			status: 'observing',
 			observedAt: 1_700_000_000_000,
 			reason: 'observation-session-started',
-		});
+		}, store);
 
 		expect(snapshot).toMatchObject({
 			revision: 1,
@@ -87,16 +84,14 @@ describe.sequential('content page-session snapshots', () => {
 			status: 'complete',
 			source: 'background',
 		});
-		const harness = await loadPageSessionSnapshotHarness({
-			[getDetectionSessionSnapshotKey(SNAPSHOT_TARGET.key)]: existingSnapshot,
-		});
+		const store = createContentSnapshotStore(existingSnapshot);
 
-		const snapshot = await harness.writeContentPageSessionSnapshot({
+		const snapshot = await writeContentPageSessionSnapshot({
 			target: SNAPSHOT_TARGET,
 			status: 'observing',
 			observedAt: 1_700_000_000_125,
 			reason: 'observation-batch-flushed',
-		});
+		}, store);
 
 		expect(snapshot).toMatchObject({
 			revision: 3,

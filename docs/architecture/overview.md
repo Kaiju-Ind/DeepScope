@@ -26,7 +26,9 @@ The popup still owns user interaction, the background owns privileged extension 
 
 ```text
 Popup extension page
-  -> read latest DetectionSessionSnapshot
+  -> snapshot/replay persistence ports
+      -> browser storage adapter
+      -> read latest DetectionSessionSnapshot
   -> BackgroundApi.analyzeVisibleTab(target)
       -> visible target validation
       -> origin snapshot lookup
@@ -44,12 +46,28 @@ Popup extension page
           -> relationship refinement
           -> SiteAnalysis emission
       -> createDetectionReplayTrace()
-      -> storage.saveDetectionSessionSnapshot() + storage.saveReplayTrace()
+      -> snapshot/replay persistence ports
+          -> browser storage adapter
+          -> save DetectionSessionSnapshot + replay trace
   -> popup view model
   -> popup named regions
 ```
 
 The content script still uses the bounded DOM collector internally because it is the safe place to read the active document. That snapshot is an implementation detail inside the content runtime. The background receives normalized observations and does not call the old direct `analyzeSite(signals, technologies)` path for extension analysis.
+
+
+### Persistence boundary
+
+Snapshot persistence is a shared infrastructure capability, not background-owned state. Content can publish lifecycle revisions, background can publish detector revisions, and popup can read or subscribe to revisions. Application modules depend on narrow persistence ports; the browser entrypoints wire those ports to the concrete `chrome.storage` adapter.
+
+```text
+content runtime ── snapshot writer ──┐
+background runtime ─ snapshot/replay ├─> persistence ports -> browser storage adapter -> chrome.storage.local
+popup runtime ─ snapshot/replay read ┘                         |
+            └─ revision subscription <-------------------------┘
+```
+
+This keeps the single-source revision rules in the storage implementation while preventing content, popup, and lifecycle application logic from depending directly on browser storage APIs.
 
 ## Durable visible state
 

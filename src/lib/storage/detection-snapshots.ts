@@ -14,6 +14,11 @@ import type {
 import type { Evidence, SiteAnalysis } from '../detection/types';
 import type { VisibleTabIdentity } from '../contracts/analysis';
 
+import type {
+	DetectionSessionIndexEntry,
+	DetectionSessionIndexRecord,
+	DetectionSessionSnapshotWriteResult,
+} from '../persistence/ports';
 import { browser } from 'wxt/browser';
 
 import {
@@ -32,48 +37,6 @@ import {
 	getDetectionSessionIndexKey,
 	getDetectionSessionSnapshotKey,
 } from './contracts';
-
-/** Stored pointer to one exact detection snapshot owned by a browser tab. */
-export interface DetectionSessionIndexEntry {
-	/** Exact page-session key used to read or update the stored snapshot. */
-	readonly key: DetectionSessionKey;
-	/** Stable non-raw URL key used to detect same-document replacements. */
-	readonly urlHash: string;
-	/** Last known snapshot status for tab lifecycle cleanup. */
-	readonly status: DetectionSessionStatus;
-	/** Last write timestamp used to keep the newest entry when records collide. */
-	readonly updatedAt: number;
-}
-
-/** Stored list of known detection sessions for one browser tab. */
-export interface DetectionSessionIndexRecord {
-	/** Browser tab id that owns every entry in this index. */
-	readonly tabId: number;
-	/** Latest known sessions for this tab, newest first. */
-	readonly entries: readonly DetectionSessionIndexEntry[];
-	/** Millisecond timestamp when the index was last rewritten. */
-	readonly updatedAt: number;
-}
-
-/**
- * Result returned after attempting to persist a detection snapshot revision.
- *
- * Older revisions are rejected instead of overwriting the visible snapshot. The
- * caller still receives the stored value so a popup or background command can
- * converge on the newest known state without issuing a second read.
- */
-export interface DetectionSessionSnapshotWriteResult {
-	/** Whether the submitted snapshot replaced the exact session record. */
-	readonly accepted: boolean;
-	/** Exact session storage key used for the write or rejected comparison. */
-	readonly sessionStorageKey: string;
-	/** Origin-level storage key considered for latest-snapshot promotion. */
-	readonly originStorageKey: string;
-	/** Snapshot currently stored for the exact session after the operation. */
-	readonly snapshot: DetectionSessionSnapshot;
-	/** Revision that prevented a stale write, when the submitted snapshot was rejected. */
-	readonly rejectedByRevision?: number;
-}
 
 /**
  * Persist the latest visible detection snapshot for one page session.

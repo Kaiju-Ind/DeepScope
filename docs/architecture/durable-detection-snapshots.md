@@ -7,9 +7,13 @@ A snapshot is not a raw observation log. It stores normalized detector output, a
 ```text
 content or background creates visible detector output
   -> DetectionSessionSnapshot(revision n)
-  -> chrome.storage.local
+  -> snapshot persistence port
+  -> browser storage adapter -> chrome.storage.local
+  -> popup persistence reader/revision source
   -> popup renders the newest revision
 ```
+
+Content, background, and popup do not import the concrete storage implementation directly. Runtime entrypoints compose narrow persistence ports with the browser-storage adapter, so the durable snapshot model can be reused or tested without making application logic a `chrome.storage` client.
 
 The key behavior is revision ordering. For the same tab, frame, and document, a newer revision replaces an older revision. An older revision cannot overwrite a newer one. This protects the popup from out-of-order content and background responses, which is important because the background service worker can wake, suspend, and restart while the page and popup continue to exist.
 
@@ -51,7 +55,7 @@ The final runtime should feel like a stream, but the stream needs a durable reco
 popup opens
   -> read exact session snapshot when known
   -> fall back to origin latest snapshot
-  -> subscribe to storage changes
+  -> subscribe through the snapshot revision source
   -> ask background/content to sync or refresh
 ```
 
@@ -59,7 +63,7 @@ This step does not replace the event-based detector. It gives the existing event
 
 ## Validation points
 
-The storage tests protect the invariants that later popup and content phases depend on:
+The storage and persistence-boundary tests protect the invariants that later popup and content phases depend on:
 
 - first session snapshot writes with revision `1`
 - older revisions do not replace newer revisions

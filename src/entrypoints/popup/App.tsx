@@ -53,7 +53,10 @@ import {
   readStoredPopupAnalysis,
   subscribeToPopupSnapshotRevisions,
 } from "@/lib/popup/snapshot-state";
-import { clearStoredDetectionData } from "@/lib/storage";
+import {
+  browserDetectionPersistence,
+  browserDetectionSnapshotRevisionSource,
+} from "@/lib/persistence";
 
 import "./App.css";
 
@@ -407,7 +410,7 @@ export default function App() {
   async function renderStoredAnalysisForVisibleTab(identity: VisibleTabIdentity) {
     setWorkflow({ kind: "loading-stored-snapshot", identity });
     try {
-      const stored = await readStoredPopupAnalysis(identity);
+      const stored = await readStoredPopupAnalysis(identity, browserDetectionPersistence);
       if (!stored) {
         const current = analysis();
         const preservingCurrentTabAnalysis = current?.url === identity.url;
@@ -470,7 +473,7 @@ export default function App() {
     setErrorMessage("");
     setNotice(null);
     try {
-      const removedCount = await clearStoredDetectionData();
+      const removedCount = await browserDetectionPersistence.clearStoredData();
       setAnalysis(null);
       setVisibleSnapshotRevision(null);
       setReplayHistory([]);
@@ -799,7 +802,11 @@ export default function App() {
 
   function resetVisibleStateForVisibleTab(identity: VisibleTabIdentity): void {
     unsubscribeSnapshotRevisions?.();
-    unsubscribeSnapshotRevisions = subscribeToPopupSnapshotRevisions(identity, applySnapshotRevision);
+    unsubscribeSnapshotRevisions = subscribeToPopupSnapshotRevisions(
+      identity,
+      browserDetectionSnapshotRevisionSource,
+      applySnapshotRevision,
+    );
     logPopupEvent("visible-state-reset", {
       previousUrl: analysis()?.url,
       previousResultCount: analysis()?.results.length ?? 0,

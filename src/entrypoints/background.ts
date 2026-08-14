@@ -90,16 +90,9 @@ import {
 	getAnalysisResponseKey,
 } from '@/lib/storage/contracts';
 import {
-	getBestVisibleDetectionSessionSnapshot,
-	getCachedReplayTrace,
-	getCachedReplayTraceHistory,
-	getLatestDetectionSessionSnapshot,
-	getStatus,
-	saveDetectionSessionSnapshot,
-	saveMatcherJobRecord,
-	saveReplayTrace,
-	updateMatcherJobRecord,
-} from '@/lib/storage';
+	browserDetectionPersistence,
+	browserDetectionSnapshotStore,
+} from '@/lib/persistence';
 
 /** Visible tab shape after unsupported URLs and missing ids have been rejected. */
 type InspectableTab = {
@@ -119,6 +112,18 @@ configureKaijuSiteScopeLogging('background');
 const backgroundLogger = getKaijuSiteScopeLogger('background');
 const CONTENT_SCRIPT_FILE = '/content-scripts/content.js';
 const CONTENT_SCRIPT_PING_TIMEOUT_MS = 750;
+
+const {
+	getBestVisibleSnapshot: getBestVisibleDetectionSessionSnapshot,
+	getReplayTrace: getCachedReplayTrace,
+	getReplayHistory: getCachedReplayTraceHistory,
+	getLatestSessionSnapshot: getLatestDetectionSessionSnapshot,
+	getStatus,
+	saveSnapshot: saveDetectionSessionSnapshot,
+	saveMatcherJob: saveMatcherJobRecord,
+	saveReplayTrace,
+	updateMatcherJob: updateMatcherJobRecord,
+} = browserDetectionPersistence;
 
 /** Dirty observation notifications are coalesced before background flushes queued facts. */
 const BACKGROUND_OBSERVATION_REFRESH_DELAY_MS = 250;
@@ -2427,6 +2432,7 @@ export default defineBackground(() => {
 		);
 	});
 	registerBackgroundLifecycleListeners({
+		snapshots: browserDetectionSnapshotStore,
 		onTabNavigation: (tabId) => forgetTabRuntimeState(tabId, 'navigation'),
 		onTabRemoved: (tabId) => forgetTabRuntimeState(tabId, 'tab-closed'),
 		log: logBackgroundEvent,

@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { DetectionSnapshotLifecycleStore } from '@/lib/persistence';
+
 type Listener<T extends readonly unknown[]> = (...args: T) => void;
 
 function createListenerRegistry<T extends readonly unknown[]>() {
@@ -18,8 +20,10 @@ async function loadLifecycleHarness() {
 	vi.resetModules();
 	const onUpdated = createListenerRegistry<[number, { status?: string; url?: string }]>();
 	const onRemoved = createListenerRegistry<[number]>();
-	const markDetectionSessionSnapshotsForTab = vi.fn(async () => []);
-	const removeDetectionSessionIndex = vi.fn(async () => undefined);
+	const snapshots: DetectionSnapshotLifecycleStore = {
+		markTabSnapshots: vi.fn(async () => []),
+		removeSessionIndex: vi.fn(async () => undefined),
+	};
 	vi.doMock('wxt/browser', () => ({
 		browser: {
 			tabs: {
@@ -28,23 +32,17 @@ async function loadLifecycleHarness() {
 			},
 		},
 	}));
-	vi.doMock('@/lib/storage', () => ({
-		markDetectionSessionSnapshotsForTab,
-		removeDetectionSessionIndex,
-	}));
 
 	return {
 		...(await import('@/lib/background/lifecycle')),
 		onUpdated,
 		onRemoved,
-		markDetectionSessionSnapshotsForTab,
-		removeDetectionSessionIndex,
+		snapshots,
 	};
 }
 
 afterEach(() => {
 	vi.doUnmock('wxt/browser');
-	vi.doUnmock('@/lib/storage');
 	vi.resetModules();
 });
 
@@ -58,24 +56,29 @@ describe.sequential('background lifecycle listeners', () => {
 		const harness = await loadLifecycleHarness();
 		const log = vi.fn();
 		const onTabNavigation = vi.fn();
-		harness.registerBackgroundLifecycleListeners({ onTabNavigation, onTabRemoved: vi.fn(), log });
+		harness.registerBackgroundLifecycleListeners({
+			snapshots: harness.snapshots,
+			onTabNavigation,
+			onTabRemoved: vi.fn(),
+			log,
+		});
 
 		harness.onUpdated.emit(7, { status: 'loading' });
 		await Promise.resolve();
 
 		expect(onTabNavigation).toHaveBeenCalledWith(7);
-		expect(harness.markDetectionSessionSnapshotsForTab).toHaveBeenCalledWith(7, 'stale', 'tab-navigation');
-		expect(harness.removeDetectionSessionIndex).not.toHaveBeenCalled();
+		expect(harness.snapshots.markTabSnapshots).toHaveBeenCalledWith(7, 'stale', 'tab-navigation');
+		expect(harness.snapshots.removeSessionIndex).not.toHaveBeenCalled();
 	});
 
 	it('ignores tab updates that do not replace the document', async () => {
 		const harness = await loadLifecycleHarness();
-		harness.registerBackgroundLifecycleListeners({ onTabRemoved: vi.fn() });
+		harness.registerBackgroundLifecycleListeners({ snapshots: harness.snapshots, onTabRemoved: vi.fn() });
 
 		harness.onUpdated.emit(7, { status: 'complete' });
 		await Promise.resolve();
 
-		expect(harness.markDetectionSessionSnapshotsForTab).not.toHaveBeenCalled();
+		expect(harness.snapshots.markTabSnapshots).not.toHaveBeenCalled();
 	});
 
 	/**
@@ -86,14 +89,14 @@ describe.sequential('background lifecycle listeners', () => {
 	it('marks indexed tab snapshots stopped and removes the index when a tab closes', async () => {
 		const harness = await loadLifecycleHarness();
 		const onTabRemoved = vi.fn();
-		harness.registerBackgroundLifecycleListeners({ onTabRemoved });
+		harness.registerBackgroundLifecycleListeners({ snapshots: harness.snapshots, onTabRemoved });
 
 		harness.onRemoved.emit(7);
 		await Promise.resolve();
 		await Promise.resolve();
 
 		expect(onTabRemoved).toHaveBeenCalledWith(7);
-		expect(harness.markDetectionSessionSnapshotsForTab).toHaveBeenCalledWith(7, 'stopped', 'tab-removed');
-		expect(harness.removeDetectionSessionIndex).toHaveBeenCalledWith(7);
+		expect(harness.snapshots.markTabSnapshots).toHaveBeenCalledWith(7, 'stopped', 'tab-removed');
+		expect(harness.snapshots.removeSessionIndex).toHaveBeenCalledWith(7);
 	});
 });

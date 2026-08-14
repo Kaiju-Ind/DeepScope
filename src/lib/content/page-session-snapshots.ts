@@ -6,10 +6,7 @@ import type {
 import type { SiteAnalysis } from '../detection/types';
 
 import { DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION } from '../contracts/detection-session';
-import {
-	getLatestDetectionSessionSnapshot,
-	saveDetectionSessionSnapshot,
-} from '../storage';
+import type { DetectionSnapshotReader, DetectionSnapshotWriter } from '../persistence';
 
 /**
  * Input for publishing content-owned progress to the durable popup stream.
@@ -43,13 +40,14 @@ export interface WriteContentPageSessionSnapshotInput {
  */
 export async function writeContentPageSessionSnapshot(
 	input: WriteContentPageSessionSnapshotInput,
+	store: Pick<DetectionSnapshotReader, 'getLatestSessionSnapshot'> & DetectionSnapshotWriter,
 ): Promise<DetectionSessionSnapshot | null> {
 	if (input.target.incognito) {
 		return null;
 	}
 
 	const updatedAt = input.observedAt ?? Date.now();
-	const existing = await getLatestDetectionSessionSnapshot(input.target.key);
+	const existing = await store.getLatestSessionSnapshot(input.target.key);
 	const analysis = existing && existing.analysis.url === input.target.url
 		? existing.analysis
 		: createContentBootstrapAnalysis(input.target, updatedAt);
@@ -75,7 +73,7 @@ export async function writeContentPageSessionSnapshot(
 		},
 		...(existing?.replaySummary ? { replaySummary: existing.replaySummary } : {}),
 	};
-	const result = await saveDetectionSessionSnapshot(snapshot);
+	const result = await store.saveSnapshot(snapshot);
 
 	return result.accepted ? result.snapshot : null;
 }

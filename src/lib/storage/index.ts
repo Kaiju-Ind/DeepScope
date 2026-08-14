@@ -296,7 +296,7 @@ function cloneReplayTrace(trace: DetectionReplayTrace): DetectionReplayTrace {
 }
 
 
-export type { DetectionSessionIndexEntry, DetectionSessionIndexRecord, DetectionSessionSnapshotWriteResult } from './detection-snapshots';
+export type { DetectionSessionIndexEntry, DetectionSessionIndexRecord, DetectionSessionSnapshotWriteResult } from '../persistence/ports';
 export {
 	getBestVisibleDetectionSessionSnapshot,
 	getDetectionStorageStatusSnapshot,

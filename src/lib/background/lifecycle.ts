@@ -1,9 +1,6 @@
 import { browser } from 'wxt/browser';
 
-import {
-	markDetectionSessionSnapshotsForTab,
-	removeDetectionSessionIndex,
-} from '../storage';
+import type { DetectionSnapshotLifecycleStore } from '../persistence';
 
 /** Reason recorded when a tab lifecycle event updates stored snapshots. */
 type BackgroundTabLifecycleReason = 'tab-navigation' | 'tab-removed';
@@ -16,6 +13,8 @@ export type BackgroundLifecycleLogger = (event: string, details?: Record<string,
 
 /** Options for registering lightweight background lifecycle listeners. */
 export interface RegisterBackgroundLifecycleListenersInput {
+	/** Persistence capability used to update durable tab-session lifecycle state. */
+	readonly snapshots: DetectionSnapshotLifecycleStore;
 	/** Remove volatile tab-scoped maps when Chrome reports that a document is being replaced. */
 	readonly onTabNavigation?: BackgroundTabCleanup;
 	/** Remove volatile tab-scoped maps when Chrome reports a closed tab. */
@@ -41,14 +40,14 @@ export function registerBackgroundLifecycleListeners(
 		}
 
 		input.onTabNavigation?.(tabId);
-		void markTabSnapshots(tabId, 'stale', 'tab-navigation', input.log);
+		void markTabSnapshots(input.snapshots, tabId, 'stale', 'tab-navigation', input.log);
 	});
 
 	browser.tabs.onRemoved.addListener((tabId) => {
 		input.onTabRemoved(tabId);
 		void (async () => {
-			await markTabSnapshots(tabId, 'stopped', 'tab-removed', input.log);
-			await removeDetectionSessionIndex(tabId);
+			await markTabSnapshots(input.snapshots, tabId, 'stopped', 'tab-removed', input.log);
+			await input.snapshots.removeSessionIndex(tabId);
 		})().catch((error) => {
 			input.log?.('tab-session-cleanup-failed', {
 				tabId,
@@ -65,12 +64,13 @@ function isNavigationChange(changeInfo: { readonly status?: string; readonly url
 
 /** Update stored snapshots without letting lifecycle cleanup throw into Chrome listeners. */
 async function markTabSnapshots(
+	snapshots: DetectionSnapshotLifecycleStore,
 	tabId: number,
 	status: 'stale' | 'stopped',
 	reason: BackgroundTabLifecycleReason,
 	log?: BackgroundLifecycleLogger,
 ): Promise<void> {
-	const marked = await markDetectionSessionSnapshotsForTab(tabId, status, reason);
+	const marked = await snapshots.markTabSnapshots(tabId, status, reason);
 	if (marked.length === 0) {
 		return;
 	}
