@@ -93,8 +93,6 @@ export interface CreateMatcherPipelineResultInput {
 	readonly analyzedAt?: number;
 	/** Source marker written to the emitted analysis. */
 	readonly source?: SiteAnalysis['source'];
-	/** Optional event sink for runtime diagnostics. */
-	readonly onEvent?: (event: DetectionPipelineRuntimeEvent) => void;
 }
 
 /**
@@ -304,6 +302,5 @@ function createPartitionEventRecorder(
 			: { stage, target, occurredAt, count };
 
 		events.push(event);
-		input.onEvent?.(event);
 	};
 }

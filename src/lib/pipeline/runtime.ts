@@ -72,8 +72,6 @@ export interface RunDetectionPipelineInput {
 	readonly source?: SiteAnalysis['source'];
 	/** Interface label assigned while adapting `PageSignals` into observations. */
 	readonly observationInterface?: ObservationInterface;
-	/** Optional event sink used by tests and runtime instrumentation. */
-	readonly onEvent?: (event: DetectionPipelineRuntimeEvent) => void;
 }
 
 /** Output from one event detector pass. */
@@ -177,7 +175,6 @@ function createEventRecorder(
 			: { stage, target, occurredAt, count };
 
 		events.push(event);
-		input.onEvent?.(event);
 	};
 }
 

@@ -185,20 +185,17 @@ describe('event pipeline runtime coordinator', () => {
 		expect(result.events.every((event) => event.occurredAt === batch.observedAt)).toBe(true);
 	});
 
-	it('records ordered public-safe stage events for the event path', () => {
+	it('returns ordered public-safe stage events for the event path', () => {
 		const registry = [
 			makeTechnology({
 				id: 'vite',
 				rules: [{ kind: 'scriptSrc', pattern: /@vite\/client/i, confidence: 85 }],
 			}),
 		];
-		const observedEvents: string[] = [];
-
 		const result = runDetectionPipeline({
 			signals: makePageSignals({ scripts: ['https://example.com/@vite/client'] }),
 			registry,
 			analyzedAt: TEST_NOW,
-			onEvent: (event) => observedEvents.push(event.stage),
 		});
 
 		const expectedStages = [
@@ -211,7 +208,6 @@ describe('event pipeline runtime coordinator', () => {
 		];
 
 		expect(result.events.map((event) => event.stage)).toEqual(expectedStages);
-		expect(observedEvents).toEqual(expectedStages);
 		expect(result.events.every((event) => !('observation' in event))).toBe(true);
 	});
 

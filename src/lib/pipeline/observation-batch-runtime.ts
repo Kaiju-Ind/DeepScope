@@ -5,7 +5,6 @@ import type { DetectionRunOptions, SiteAnalysis, TechnologyDefinition } from '..
 import { emitSiteAnalysisFromRefinedCandidates } from '../emission';
 import type { ObservationBatch } from '../observations';
 import type { CompiledTechnologyRegistryArtifact } from '../registry';
-import { timeSyncSpan, type TimingContext } from '../diagnostics/timing';
 import type {
 	DetectionPipelineEventDetails,
 	DetectionPipelineRuntimeEvent,
@@ -27,10 +26,6 @@ export interface RunObservationBatchPipelineInput {
 	readonly analyzedAt?: number;
 	/** Source marker written to the emitted analysis when the caller needs an override. */
 	readonly source?: SiteAnalysis['source'];
-	/** Optional timing context used by extension diagnostics without changing pipeline output. */
-	readonly timingContext?: TimingContext;
-	/** Optional event sink used by tests and later runtime instrumentation. */
-	readonly onEvent?: (event: DetectionPipelineRuntimeEvent) => void;
 }
 
 /** Event stages produced by an already-normalized observation batch. */
@@ -52,40 +47,21 @@ interface ObservationBatchEventRecorder {
 /**
  * Run the event detector stages from an already-normalized observation batch.
  *
- * Pipeline-level timing is optional so tests and shared engine callers can run
- * without configuring diagnostics. Extension entrypoints pass a timing context
- * when investigating visible-tab latency, which makes matcher, candidate,
- * refinement, and emission costs visible as separate spans.
+ * The coordinator returns public-safe stage events as data. Logging, timing, and
+ * event publication belong to callers at runtime boundaries rather than this
+ * deterministic domain pipeline.
  */
 export function runObservationBatchPipeline(
 	input: RunObservationBatchPipelineInput,
 ): DetectionPipelineRuntimeResult {
 	const events: DetectionPipelineRuntimeEvent[] = [];
 	const record = createObservationBatchEventRecorder(input, events);
-	const matches = timePipelineStage(
-		'pipeline.match-indexed-observation-batch',
-		input,
-		() => matchIndexedObservationBatch({
-			registry: input.registry,
-			batch: input.batch,
-			index: input.compiledRegistryArtifact?.matcherIndex,
-			options: input.options,
-		}),
-		(result) => ({
-			matchCount: result.matches.length,
-			evidenceCount: result.evidenceBatch.entries.length,
-			observationCount: result.diagnostics.observationCount,
-			skippedObservationCount: result.diagnostics.skippedObservationCount,
-			candidateRuleCount: result.diagnostics.candidateRuleCount,
-			keyedRuleCount: result.diagnostics.keyedRuleCount,
-			literalRuleCount: result.diagnostics.literalRuleCount,
-			literalRejectedRuleCount: result.diagnostics.literalRejectedRuleCount,
-			fallbackRuleCount: result.diagnostics.fallbackRuleCount,
-			observationsByKind: result.diagnostics.observationsByKind,
-			skippedObservationsByKind: result.diagnostics.skippedObservationsByKind,
-			candidateRulesByKind: result.diagnostics.candidateRulesByKind,
-		}),
-	);
+	const matches = matchIndexedObservationBatch({
+		registry: input.registry,
+		batch: input.batch,
+		index: input.compiledRegistryArtifact?.matcherIndex,
+		options: input.options,
+	});
 	record('pattern-matched', matches.matches.length, {
 		observationCount: matches.diagnostics.observationCount,
 		skippedObservationCount: matches.diagnostics.skippedObservationCount,
@@ -98,48 +74,26 @@ export function runObservationBatchPipeline(
 	});
 	record('evidence-created', matches.evidenceBatch.entries.length);
 
-	const candidates = timePipelineStage(
-		'pipeline.create-evidence-candidates',
-		input,
-		() => createEvidenceCandidateBatch({
-			registry: input.registry,
-			evidence: matches.evidenceBatch,
-		}),
-		(result) => ({ candidateCount: result.candidates.length }),
-	);
+	const candidates = createEvidenceCandidateBatch({
+		registry: input.registry,
+		evidence: matches.evidenceBatch,
+	});
 	record('candidates-created', candidates.candidates.length);
 
-	const refined = timePipelineStage(
-		'pipeline.refine-evidence-candidates',
-		input,
-		() => refineEvidenceCandidateBatch({
-			batch: candidates,
-			compiledRegistry: input.compiledRegistryArtifact?.relationshipGraph ?? createCompiledDetectionRegistry(input.registry),
-		}),
-		(result) => ({
-			candidateCount: result.candidates.length,
-			rejectionCount: result.rejections.length,
-			relationshipEvidenceCount: result.relationshipEvidence.length,
-		}),
-	);
+	const refined = refineEvidenceCandidateBatch({
+		batch: candidates,
+		compiledRegistry: input.compiledRegistryArtifact?.relationshipGraph ?? createCompiledDetectionRegistry(input.registry),
+	});
 	record('candidates-refined', refined.candidates.length, {
 		rejectionCount: refined.rejections.length,
 		relationshipEvidenceCount: refined.relationshipEvidence.length,
 	});
 
-	const emitted = timePipelineStage(
-		'pipeline.emit-site-analysis',
-		input,
-		() => emitSiteAnalysisFromRefinedCandidates({
-			batch: refined,
-			analyzedAt: input.analyzedAt ?? input.batch.observedAt,
-			source: input.source,
-		}),
-		(result) => ({
-			resultCount: result.analysis.results.length,
-			filteredCandidateCount: result.metadata.filteredCandidateCount,
-		}),
-	);
+	const emitted = emitSiteAnalysisFromRefinedCandidates({
+		batch: refined,
+		analyzedAt: input.analyzedAt ?? input.batch.observedAt,
+		source: input.source,
+	});
 	record('detections-emitted', emitted.analysis.results.length, {
 		filteredCandidateCount: emitted.metadata.filteredCandidateCount,
 	});
@@ -157,20 +111,6 @@ function stringifyCounts(counts: Readonly<Record<string, number>>): string {
 	return JSON.stringify(counts);
 }
 
-/** Run a pipeline sub-stage with timing only when the caller supplied context. */
-function timePipelineStage<T>(
-	spanName: string,
-	input: RunObservationBatchPipelineInput,
-	operation: () => T,
-	summarize: (value: T) => Record<string, unknown>,
-): T {
-	if (!input.timingContext) {
-		return operation();
-	}
-
-	return timeSyncSpan(spanName, input.timingContext, operation, summarize);
-}
-
 /** Create the stage recorder shared by observation-batch pipeline stages. */
 function createObservationBatchEventRecorder(
 	input: RunObservationBatchPipelineInput,
@@ -185,6 +125,5 @@ function createObservationBatchEventRecorder(
 			: { stage, target, occurredAt, count };
 
 		events.push(event);
-		input.onEvent?.(event);
 	};
 }
