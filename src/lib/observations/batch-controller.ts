@@ -80,29 +80,132 @@ export interface ObservationBatchFlushInput {
 	readonly observedAt: number;
 }
 
+/** Immutable business state owned by the observation batch state machine. */
+export interface ObservationBatchControllerState {
+	/** Number of observations currently queued by the imperative adapter. */
+	readonly queuedCount: number;
+	/** Number of observations accepted since state creation. */
+	readonly acceptedCount: number;
+	/** Number of observations dropped as duplicates. */
+	readonly duplicateDropCount: number;
+	/** Number of observations dropped because the queue was full. */
+	readonly queueLimitDropCount: number;
+	/** Number of observations dropped because the storm window was saturated. */
+	readonly stormLimitDropCount: number;
+	/** Number of observations accepted during the current storm window. */
+	readonly acceptedInStormWindow: number;
+	/** Start timestamp of the current storm window, when one exists. */
+	readonly stormWindowStartedAt: number | undefined;
+}
+
+/** Explicit inputs accepted by the pure observation batch state machine. */
+export type ObservationBatchControllerEvent =
+	| {
+		readonly type: 'push';
+		readonly observation: NormalizedObservation;
+		/** Duplicate fact calculated by the adapter's bounded dedupe index. */
+		readonly duplicateWithinWindow: boolean;
+	}
+	| {
+		readonly type: 'flush';
+		/** Number of queued observations emitted by the adapter. */
+		readonly emittedCount: number;
+	}
+	| { readonly type: 'reset' };
+
+/** Result of one pure state transition. */
+export type ObservationBatchControllerTransition =
+	| {
+		readonly type: 'push';
+		readonly state: ObservationBatchControllerState;
+		readonly result: ObservationBatchPushResult;
+	}
+	| {
+		readonly type: 'flush';
+		readonly state: ObservationBatchControllerState;
+	}
+	| {
+		readonly type: 'reset';
+		readonly state: ObservationBatchControllerState;
+	};
+
+type PushEvent = Extract<ObservationBatchControllerEvent, { readonly type: 'push' }>;
+type FlushEvent = Extract<ObservationBatchControllerEvent, { readonly type: 'flush' }>;
+type ResetEvent = Extract<ObservationBatchControllerEvent, { readonly type: 'reset' }>;
+type PushTransition = Extract<ObservationBatchControllerTransition, { readonly type: 'push' }>;
+type FlushTransition = Extract<ObservationBatchControllerTransition, { readonly type: 'flush' }>;
+type ResetTransition = Extract<ObservationBatchControllerTransition, { readonly type: 'reset' }>;
+
+/** Create the empty immutable state used by the observation batch state machine. */
+export function createObservationBatchControllerState(): ObservationBatchControllerState {
+	return {
+		queuedCount: 0,
+		acceptedCount: 0,
+		duplicateDropCount: 0,
+		queueLimitDropCount: 0,
+		stormLimitDropCount: 0,
+		acceptedInStormWindow: 0,
+		stormWindowStartedAt: undefined,
+	};
+}
+
+/** Project the public controller stats contract from immutable machine state. */
+export function getObservationBatchControllerStats(
+	state: ObservationBatchControllerState,
+): ObservationBatchControllerStats {
+	return {
+		queuedCount: state.queuedCount,
+		acceptedCount: state.acceptedCount,
+		duplicateDropCount: state.duplicateDropCount,
+		queueLimitDropCount: state.queueLimitDropCount,
+		stormLimitDropCount: state.stormLimitDropCount,
+		acceptedInStormWindow: state.acceptedInStormWindow,
+		...(state.stormWindowStartedAt === undefined
+			? {}
+			: { stormWindowStartedAt: state.stormWindowStartedAt }),
+	};
+}
+
+/** Apply one push event without mutating the input state. */
+export function transitionObservationBatchController(
+	state: ObservationBatchControllerState,
+	event: PushEvent,
+	policy?: ObservationBatchPolicy,
+): PushTransition;
+/** Apply one flush event without mutating the input state. */
+export function transitionObservationBatchController(
+	state: ObservationBatchControllerState,
+	event: FlushEvent,
+	policy?: ObservationBatchPolicy,
+): FlushTransition;
+/** Apply one reset event without mutating the input state. */
+export function transitionObservationBatchController(
+	state: ObservationBatchControllerState,
+	event: ResetEvent,
+	policy?: ObservationBatchPolicy,
+): ResetTransition;
+/** Apply one explicit controller event as a pure state transition. */
+export function transitionObservationBatchController(
+	state: ObservationBatchControllerState,
+	event: ObservationBatchControllerEvent,
+	policy: ObservationBatchPolicy = DEFAULT_OBSERVATION_BATCH_POLICY,
+): ObservationBatchControllerTransition {
+	validatePolicy(policy);
+	return transitionObservationBatchControllerWithPolicy(state, event, policy);
+}
+
 /** Internal dedupe state for one observation identity. */
 interface DedupeEntry {
 	/** Last time this observation identity was accepted. */
-	lastSeenAt: number;
-}
-
-/** Mutable counters kept inside the controller. */
-interface MutableObservationBatchControllerStats {
-	queuedCount: number;
-	acceptedCount: number;
-	duplicateDropCount: number;
-	queueLimitDropCount: number;
-	stormLimitDropCount: number;
-	acceptedInStormWindow: number;
-	stormWindowStartedAt?: number;
+	readonly lastSeenAt: number;
 }
 
 /**
- * Create a bounded controller for normalized observation events.
+ * Create a bounded imperative adapter around the pure observation batch state machine.
  *
- * The controller is intentionally runtime-agnostic. Content scripts, background
- * orchestration, and future CLI collectors can share the same queue policy while
- * deciding independently when to flush batches into the pipeline.
+ * The mutable queue and dedupe map stay private as performance-oriented indexes.
+ * Acceptance policy, storm-window behavior, queue counts, and cumulative counters
+ * are computed by immutable transitions that can be tested and replayed directly.
  */
 export function createObservationBatchController(
 	policy: ObservationBatchPolicy = DEFAULT_OBSERVATION_BATCH_POLICY,
@@ -111,41 +214,26 @@ export function createObservationBatchController(
 
 	const queuedObservations: NormalizedObservation[] = [];
 	const dedupeEntries = new Map<string, DedupeEntry>();
-	const mutableStats: MutableObservationBatchControllerStats = {
-		queuedCount: 0,
-		acceptedCount: 0,
-		duplicateDropCount: 0,
-		queueLimitDropCount: 0,
-		stormLimitDropCount: 0,
-		acceptedInStormWindow: 0,
-	};
+	let state = createObservationBatchControllerState();
 
 	function push(observation: NormalizedObservation): ObservationBatchPushResult {
-		startOrResetStormWindow(observation.observedAt, mutableStats, policy);
 		pruneDedupeEntries(dedupeEntries, observation.observedAt, policy.dedupeWindowMs);
+		const identity = observationIdentity(observation);
+		const duplicateWithinWindow = isDuplicateObservation(
+			dedupeEntries,
+			identity,
+			observation.observedAt,
+			policy.dedupeWindowMs,
+		);
+		const transition = transitionPush(state, observation, duplicateWithinWindow, policy);
+		state = transition.state;
 
-		if (isDuplicateObservation(dedupeEntries, observation, policy.dedupeWindowMs)) {
-			mutableStats.duplicateDropCount += 1;
-			return rejected('duplicate', queuedObservations.length);
+		if (transition.result.accepted) {
+			queuedObservations.push(observation);
+			dedupeEntries.set(identity, { lastSeenAt: observation.observedAt });
 		}
 
-		if (mutableStats.acceptedInStormWindow >= policy.maxAcceptedPerStormWindow) {
-			mutableStats.stormLimitDropCount += 1;
-			return rejected('storm-limit', queuedObservations.length);
-		}
-
-		if (queuedObservations.length >= policy.maxQueuedObservations) {
-			mutableStats.queueLimitDropCount += 1;
-			return rejected('queue-limit', queuedObservations.length);
-		}
-
-		queuedObservations.push(observation);
-		dedupeEntries.set(observationIdentity(observation), { lastSeenAt: observation.observedAt });
-		mutableStats.acceptedCount += 1;
-		mutableStats.acceptedInStormWindow += 1;
-		mutableStats.queuedCount = queuedObservations.length;
-
-		return { accepted: true, queuedCount: queuedObservations.length };
+		return transition.result;
 	}
 
 	function flush(input: ObservationBatchFlushInput): ObservationBatch | null {
@@ -154,7 +242,7 @@ export function createObservationBatchController(
 		}
 
 		const observations = queuedObservations.splice(0, policy.maxBatchObservations);
-		mutableStats.queuedCount = queuedObservations.length;
+		state = transitionFlush(state, observations.length).state;
 
 		return {
 			target: input.target,
@@ -165,18 +253,145 @@ export function createObservationBatchController(
 	}
 
 	function stats(): ObservationBatchControllerStats {
-		return { ...mutableStats, queuedCount: queuedObservations.length };
+		return getObservationBatchControllerStats(state);
 	}
 
 	function reset(): void {
 		queuedObservations.length = 0;
 		dedupeEntries.clear();
-		mutableStats.queuedCount = 0;
-		mutableStats.acceptedInStormWindow = 0;
-		mutableStats.stormWindowStartedAt = undefined;
+		state = transitionReset(state).state;
 	}
 
 	return { push, flush, stats, reset };
+}
+
+function transitionObservationBatchControllerWithPolicy(
+	state: ObservationBatchControllerState,
+	event: ObservationBatchControllerEvent,
+	policy: ObservationBatchPolicy,
+): ObservationBatchControllerTransition {
+	switch (event.type) {
+		case 'push':
+			return transitionPush(state, event.observation, event.duplicateWithinWindow, policy);
+		case 'flush':
+			return transitionFlush(state, event.emittedCount);
+		case 'reset':
+			return transitionReset(state);
+	}
+}
+
+function transitionPush(
+	state: ObservationBatchControllerState,
+	observation: NormalizedObservation,
+	duplicateWithinWindow: boolean,
+	policy: ObservationBatchPolicy,
+): PushTransition {
+	const stormWindowContinues = state.stormWindowStartedAt !== undefined
+		&& observation.observedAt - state.stormWindowStartedAt <= policy.stormWindowMs;
+	const acceptedInStormWindow = stormWindowContinues ? state.acceptedInStormWindow : 0;
+	const stormWindowStartedAt = stormWindowContinues
+		? state.stormWindowStartedAt
+		: observation.observedAt;
+
+	if (duplicateWithinWindow) {
+		return {
+			type: 'push',
+			state: {
+				queuedCount: state.queuedCount,
+				acceptedCount: state.acceptedCount,
+				duplicateDropCount: state.duplicateDropCount + 1,
+				queueLimitDropCount: state.queueLimitDropCount,
+				stormLimitDropCount: state.stormLimitDropCount,
+				acceptedInStormWindow,
+				stormWindowStartedAt,
+			},
+			result: rejected('duplicate', state.queuedCount),
+		};
+	}
+
+	if (acceptedInStormWindow >= policy.maxAcceptedPerStormWindow) {
+		return {
+			type: 'push',
+			state: {
+				queuedCount: state.queuedCount,
+				acceptedCount: state.acceptedCount,
+				duplicateDropCount: state.duplicateDropCount,
+				queueLimitDropCount: state.queueLimitDropCount,
+				stormLimitDropCount: state.stormLimitDropCount + 1,
+				acceptedInStormWindow,
+				stormWindowStartedAt,
+			},
+			result: rejected('storm-limit', state.queuedCount),
+		};
+	}
+
+	if (state.queuedCount >= policy.maxQueuedObservations) {
+		return {
+			type: 'push',
+			state: {
+				queuedCount: state.queuedCount,
+				acceptedCount: state.acceptedCount,
+				duplicateDropCount: state.duplicateDropCount,
+				queueLimitDropCount: state.queueLimitDropCount + 1,
+				stormLimitDropCount: state.stormLimitDropCount,
+				acceptedInStormWindow,
+				stormWindowStartedAt,
+			},
+			result: rejected('queue-limit', state.queuedCount),
+		};
+	}
+
+	const queuedCount = state.queuedCount + 1;
+	return {
+		type: 'push',
+		state: {
+			queuedCount,
+			acceptedCount: state.acceptedCount + 1,
+			duplicateDropCount: state.duplicateDropCount,
+			queueLimitDropCount: state.queueLimitDropCount,
+			stormLimitDropCount: state.stormLimitDropCount,
+			acceptedInStormWindow: acceptedInStormWindow + 1,
+			stormWindowStartedAt,
+		},
+		result: { accepted: true, queuedCount },
+	};
+}
+
+function transitionFlush(
+	state: ObservationBatchControllerState,
+	emittedCount: number,
+): FlushTransition {
+	if (emittedCount < 0 || emittedCount > state.queuedCount) {
+		throw new Error('Observation batch flush count must be within the queued observation count.');
+	}
+
+	return {
+		type: 'flush',
+		state: {
+			queuedCount: state.queuedCount - emittedCount,
+			acceptedCount: state.acceptedCount,
+			duplicateDropCount: state.duplicateDropCount,
+			queueLimitDropCount: state.queueLimitDropCount,
+			stormLimitDropCount: state.stormLimitDropCount,
+			acceptedInStormWindow: state.acceptedInStormWindow,
+			stormWindowStartedAt: state.stormWindowStartedAt,
+		},
+	};
+}
+
+function transitionReset(state: ObservationBatchControllerState): ResetTransition {
+	return {
+		type: 'reset',
+		state: {
+			queuedCount: 0,
+			acceptedCount: state.acceptedCount,
+			duplicateDropCount: state.duplicateDropCount,
+			queueLimitDropCount: state.queueLimitDropCount,
+			stormLimitDropCount: state.stormLimitDropCount,
+			acceptedInStormWindow: 0,
+			stormWindowStartedAt: undefined,
+		},
+	};
 }
 
 function rejected(reason: ObservationBatchDropReason, queuedCount: number): ObservationBatchPushResult {
@@ -195,20 +410,6 @@ function validatePolicy(policy: ObservationBatchPolicy): void {
 	}
 }
 
-function startOrResetStormWindow(
-	observedAt: number,
-	stats: MutableObservationBatchControllerStats,
-	policy: ObservationBatchPolicy,
-): void {
-	const startedAt = stats.stormWindowStartedAt;
-	if (startedAt !== undefined && observedAt - startedAt <= policy.stormWindowMs) {
-		return;
-	}
-
-	stats.stormWindowStartedAt = observedAt;
-	stats.acceptedInStormWindow = 0;
-}
-
 function pruneDedupeEntries(
 	entries: Map<string, DedupeEntry>,
 	observedAt: number,
@@ -222,12 +423,13 @@ function pruneDedupeEntries(
 }
 
 function isDuplicateObservation(
-	entries: Map<string, DedupeEntry>,
-	observation: NormalizedObservation,
+	entries: ReadonlyMap<string, DedupeEntry>,
+	identity: string,
+	observedAt: number,
 	dedupeWindowMs: number,
 ): boolean {
-	const entry = entries.get(observationIdentity(observation));
-	return entry !== undefined && observation.observedAt - entry.lastSeenAt <= dedupeWindowMs;
+	const entry = entries.get(identity);
+	return entry !== undefined && observedAt - entry.lastSeenAt <= dedupeWindowMs;
 }
 
 /**

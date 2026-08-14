@@ -1,5 +1,8 @@
 export type {
 	ObservationBatchController,
+	ObservationBatchControllerEvent,
+	ObservationBatchControllerState,
+	ObservationBatchControllerTransition,
 	ObservationBatchControllerStats,
 	ObservationBatchDropReason,
 	ObservationBatchFlushInput,
@@ -19,6 +22,9 @@ export type {
 export {
 	DEFAULT_OBSERVATION_BATCH_POLICY,
 	createObservationBatchController,
+	createObservationBatchControllerState,
+	getObservationBatchControllerStats,
+	transitionObservationBatchController,
 } from './batch-controller';
 export type { ObservedPageSignalsObservationOptions } from './observed-page-signals';
 export {

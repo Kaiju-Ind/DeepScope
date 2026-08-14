@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	createObservationBatchController,
+	createObservationBatchControllerState,
+	transitionObservationBatchController,
 	type NormalizedObservation,
 	type ObservationBatchPolicy,
 } from '@/lib/observations';
@@ -32,6 +34,42 @@ function makeObservation(overrides: Partial<NormalizedObservation> = {}): Normal
 }
 
 describe('observation batch controller', () => {
+	it('transitions policy state without mutating prior state snapshots', () => {
+		const policy = makePolicy();
+		const observation = makeObservation({ value: 'one.js' });
+		const initial = createObservationBatchControllerState();
+		const pushed = transitionObservationBatchController(initial, {
+			type: 'push',
+			observation,
+			duplicateWithinWindow: false,
+		}, policy);
+
+		expect(initial).toMatchObject({ queuedCount: 0, acceptedCount: 0 });
+		expect(pushed.result).toEqual({ accepted: true, queuedCount: 1 });
+		expect(pushed.state).toMatchObject({ queuedCount: 1, acceptedCount: 1 });
+
+		const duplicate = transitionObservationBatchController(pushed.state, {
+			type: 'push',
+			observation: { ...observation, observedAt: 200 },
+			duplicateWithinWindow: true,
+		}, policy);
+		expect(pushed.state.duplicateDropCount).toBe(0);
+		expect(duplicate.result.reason).toBe('duplicate');
+		expect(duplicate.state.duplicateDropCount).toBe(1);
+
+		const flushed = transitionObservationBatchController(pushed.state, {
+			type: 'flush',
+			emittedCount: 1,
+		}, policy);
+		expect(pushed.state.queuedCount).toBe(1);
+		expect(flushed.state.queuedCount).toBe(0);
+
+		const reset = transitionObservationBatchController(pushed.state, { type: 'reset' }, policy);
+		expect(pushed.state.queuedCount).toBe(1);
+		expect(reset.state.queuedCount).toBe(0);
+		expect(reset.state.acceptedCount).toBe(1);
+	});
+
 	it('flushes queued observations in bounded batches', () => {
 		const controller = createObservationBatchController(makePolicy());
 		controller.push(makeObservation({ value: 'one.js' }));
