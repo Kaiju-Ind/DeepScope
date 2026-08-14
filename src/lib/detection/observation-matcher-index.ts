@@ -25,9 +25,9 @@ export interface IndexedObservationRule {
 /**
  * Registry rule that carries a literal substring required by its regex source.
  *
- * URL-like rules often contain stable host, path, or package-name fragments.
+ * URL and content rules often contain stable host, path, package, or API-name fragments.
  * Checking one required literal before running the full regex turns most
- * unmatched resource observations into cheap substring checks while keeping
+ * unrelated observations into cheap substring checks while keeping
  * unindexable regexes in the fallback bucket.
  */
 export interface LiteralPrefilteredObservationRule extends IndexedObservationRule {
@@ -138,7 +138,7 @@ interface ObservationRuleRoute {
 	readonly kind: NormalizedObservationKind;
 	/** Canonical key used for exact lookup before running the full rule matcher. */
 	readonly key?: string;
-	/** Required lowercase substring used to avoid regex work for URL-like patterns. */
+	/** Required lowercase substring used to avoid regex work for scalar patterns. */
 	readonly requiredLiteral?: string;
 }
 
@@ -413,7 +413,7 @@ function getRuleRoutes(
 			return [{ kind: 'storage', key: rule.key }];
 		case 'html':
 			return [
-				{ kind: 'html' },
+				createPatternRoute(rule),
 				{ kind: 'htmlMatch', key: htmlProbeKey(technologyId, ruleIndex) },
 			];
 		default:
@@ -434,109 +434,184 @@ function createPatternRoute(
 }
 
 /**
- * Literal prefilters are only applied to URL-like scalar observations.
+ * Literal prefilters are applied to scalar URL and content observations.
  *
- * Content and full-text surfaces can contain arbitrary prose or source code, so
- * they stay in fallback until there is a safer tokenizer for those workloads.
+ * The filter is only an admission check: rules whose regex does not expose a
+ * provably required literal stay in the fallback bucket and still reach the
+ * semantic matcher. This keeps source-heavy observations cheap without changing
+ * detection semantics.
  */
 function isLiteralPrefilterSupported(kind: NormalizedObservationKind): boolean {
-	switch (kind) {
-		case 'scriptSrc':
-		case 'stylesheetHref':
-		case 'resourceUrl':
-		case 'requestUrl':
-		case 'url':
-			return true;
-		default:
-			return false;
-	}
+    switch (kind) {
+        case 'scriptSrc':
+        case 'stylesheetHref':
+        case 'resourceUrl':
+        case 'requestUrl':
+        case 'url':
+        case 'scriptContent':
+        case 'stylesheetContent':
+        case 'html':
+        case 'text':
+            return true;
+        default:
+            return false;
+    }
 }
 
 /**
- * Extract a required top-level literal from a regex source when it is safe.
+ * Extract one provably required top-level literal from a regex source.
  *
- * The parser intentionally ignores character classes and groups. A literal found
- * at regex depth zero is present in every successful match for the supported
- * URL-like rule shapes, while optional or alternative-heavy patterns fall back
- * to normal regex evaluation instead of risking false negatives.
+ * The parser intentionally leaves money on the table. It ignores literals inside
+ * groups and character classes, rejects patterns containing alternation, and
+ * discards a literal run when `?`, `*`, or `{...}` can make its final atom
+ * optional. Escaped classes such as `\d` and `\s`, backreferences, and encoded
+ * escapes are never interpreted as source text. Unclear cases remain fallback
+ * rules, so this prefilter cannot turn a true regex match into a false negative.
  */
 function extractTopLevelRegexLiteral(pattern: RegExp | undefined): string | undefined {
-	if (!pattern || pattern.source.includes('|')) {
-		return undefined;
-	}
+    if (!pattern || pattern.source.includes('|')) {
+        return undefined;
+    }
 
-	const tokens: string[] = [];
-	let token = '';
-	let depth = 0;
-	let inCharacterClass = false;
+    const tokens: string[] = [];
+    let token = '';
+    let depth = 0;
+    let inCharacterClass = false;
 
-	for (let index = 0; index < pattern.source.length; index += 1) {
-		const char = pattern.source[index]!;
+    for (let index = 0; index < pattern.source.length; index += 1) {
+        const char = pattern.source[index]!;
 
-		if (char === '\\') {
-			const next = pattern.source[index + 1];
-			if (next === undefined) {
-				flushToken();
-				break;
-			}
+        if (char === '\\') {
+            const next = pattern.source[index + 1];
+            if (next === undefined) {
+                flushToken();
+                break;
+            }
 
-			if (depth === 0 && !inCharacterClass && isEscapedLiteralCharacter(next)) {
-				token += next;
-			} else {
-				flushToken();
-			}
-			index += 1;
-			continue;
-		}
+            if (depth === 0 && !inCharacterClass && isEscapedLiteralCharacter(next)) {
+                token += next;
+                index += 1;
+            } else {
+                flushToken();
+                index = skipNonLiteralEscape(pattern.source, index);
+            }
+            continue;
+        }
 
-		if (inCharacterClass) {
-			if (char === ']') {
-				inCharacterClass = false;
-			}
-			continue;
-		}
-		if (char === '[') {
-			flushToken();
-			inCharacterClass = true;
-			continue;
-		}
-		if (char === '(') {
-			flushToken();
-			depth += 1;
-			continue;
-		}
-		if (char === ')') {
-			flushToken();
-			depth = Math.max(0, depth - 1);
-			continue;
-		}
-		if (depth === 0 && isPlainLiteralCharacter(char)) {
-			token += char;
-			continue;
-		}
+        if (inCharacterClass) {
+            if (char === ']') {
+                inCharacterClass = false;
+            }
+            continue;
+        }
+        if (char === '[') {
+            flushToken();
+            inCharacterClass = true;
+            continue;
+        }
+        if (char === '(') {
+            flushToken();
+            depth += 1;
+            continue;
+        }
+        if (char === ')') {
+            flushToken();
+            depth = Math.max(0, depth - 1);
+            continue;
+        }
 
-		flushToken();
-	}
-	flushToken();
+        if (depth > 0) {
+            continue;
+        }
 
-	return tokens
-		.sort((left, right) => right.length - left.length)[0];
+        if (isPlainLiteralCharacter(char)) {
+            token += char;
+            continue;
+        }
 
-	function flushToken(): void {
-		const normalized = token.toLowerCase();
-		if (isUsefulLiteralToken(normalized)) {
-			tokens.push(normalized);
-		}
-		token = '';
-	}
+        switch (char) {
+            case '?':
+            case '*':
+                discardToken();
+                break;
+            case '{':
+                discardToken();
+                index = skipBraceExpression(pattern.source, index);
+                break;
+            default:
+                flushToken();
+        }
+    }
+    flushToken();
+
+    return tokens.sort((left, right) => right.length - left.length)[0];
+
+    function flushToken(): void {
+        const normalized = token.toLowerCase();
+        if (isUsefulLiteralToken(normalized)) {
+            tokens.push(normalized);
+        }
+        token = '';
+    }
+
+    function discardToken(): void {
+        token = '';
+    }
 }
 
 function isPlainLiteralCharacter(char: string): boolean {
-	return /^[a-zA-Z0-9._~:/@%-]$/.test(char);
+    return /^[a-zA-Z0-9_~:/@%-]$/.test(char);
 }
 
 function isEscapedLiteralCharacter(char: string): boolean {
-	return /^[a-zA-Z0-9._~:/@%\-]$/.test(char);
+    return '.\\^$*+?(){}[]|/-'.includes(char);
+}
+
+/** Skip escape payloads whose text is regex syntax rather than required source text. */
+function skipNonLiteralEscape(source: string, slashIndex: number): number {
+    const escapeType = source[slashIndex + 1];
+    if (escapeType === undefined) {
+        return slashIndex;
+    }
+
+    switch (escapeType) {
+        case 'x':
+            return Math.min(source.length - 1, slashIndex + 3);
+        case 'u':
+            return source[slashIndex + 2] === '{'
+                ? skipBraceExpression(source, slashIndex + 2)
+                : Math.min(source.length - 1, slashIndex + 5);
+        case 'c':
+            return Math.min(source.length - 1, slashIndex + 2);
+        case 'p':
+        case 'P':
+            return source[slashIndex + 2] === '{'
+                ? skipBraceExpression(source, slashIndex + 2)
+                : slashIndex + 1;
+        case 'k': {
+            if (source[slashIndex + 2] !== '<') {
+                return slashIndex + 1;
+            }
+            const closing = source.indexOf('>', slashIndex + 3);
+            return closing < 0 ? source.length - 1 : closing;
+        }
+        default:
+            if (!/^[0-9]$/.test(escapeType)) {
+                return slashIndex + 1;
+            }
+
+            let end = slashIndex + 1;
+            while (end + 1 < source.length && /^[0-9]$/.test(source[end + 1]!)) {
+                end += 1;
+            }
+            return end;
+    }
+}
+
+/** Skip a brace-delimited quantifier or escape payload so its digits cannot become literals. */
+function skipBraceExpression(source: string, openingBraceIndex: number): number {
+    const closing = source.indexOf('}', openingBraceIndex + 1);
+    return closing < 0 ? source.length - 1 : closing;
 }
 
 function isUsefulLiteralToken(token: string): boolean {

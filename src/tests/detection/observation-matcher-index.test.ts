@@ -229,4 +229,167 @@ describe('indexed observation matcher', () => {
 		});
 	});
 
+
+
+
+
+
+    it('prefilters content-like rules by required literals without changing matcher output', () => {
+        const registry: TechnologyDefinition[] = [
+            {
+                id: 'script-match',
+                name: 'Script Match',
+                website: 'https://script-match.example',
+                categories: ['framework'],
+                rules: [{ kind: 'scriptContent', pattern: /window\.Sentry\.init/ }],
+            },
+            {
+                id: 'script-other',
+                name: 'Script Other',
+                website: 'https://script-other.example',
+                categories: ['framework'],
+                rules: [{ kind: 'scriptContent', pattern: /window\.Datadog\.init/ }],
+            },
+            {
+                id: 'script-fallback',
+                name: 'Script Fallback',
+                website: 'https://script-fallback.example',
+                categories: ['framework'],
+                rules: [{ kind: 'scriptContent', pattern: /Sentry|Datadog/ }],
+            },
+            {
+                id: 'style-match',
+                name: 'Style Match',
+                website: 'https://style-match.example',
+                categories: ['ui-library'],
+                rules: [{ kind: 'stylesheetContent', pattern: /--tw-ring-offset-shadow/ }],
+            },
+            {
+                id: 'style-other',
+                name: 'Style Other',
+                website: 'https://style-other.example',
+                categories: ['ui-library'],
+                rules: [{ kind: 'stylesheetContent', pattern: /--mui-palette-primary/ }],
+            },
+            {
+                id: 'html-match',
+                name: 'HTML Match',
+                website: 'https://html-match.example',
+                categories: ['platform-cms-builder'],
+                rules: [{ kind: 'html', pattern: /data-kaiju-root/ }],
+            },
+            {
+                id: 'html-other',
+                name: 'HTML Other',
+                website: 'https://html-other.example',
+                categories: ['platform-cms-builder'],
+                rules: [{ kind: 'html', pattern: /data-other-root/ }],
+            },
+            {
+                id: 'text-match',
+                name: 'Text Match',
+                website: 'https://text-match.example',
+                categories: ['platform-cms-builder'],
+                rules: [{ kind: 'text', pattern: /KaijuPlatform marker/ }],
+            },
+            {
+                id: 'text-other',
+                name: 'Text Other',
+                website: 'https://text-other.example',
+                categories: ['platform-cms-builder'],
+                rules: [{ kind: 'text', pattern: /AcmePlatform marker/ }],
+            },
+        ];
+        const batch = normalizePageSignals(makePageSignals({
+            html: '<main data-kaiju-root></main>',
+            text: 'KaijuPlatform marker',
+            scriptContents: ['window.Sentry.init({});'],
+            stylesheetContents: [':root{--tw-ring-offset-shadow:0 0 #0000}'],
+        }));
+
+        const sequential = matchObservationBatch({ registry, batch });
+        const indexed = matchIndexedObservationBatch({
+            registry,
+            batch,
+            index: createObservationMatcherIndex(registry),
+        });
+
+        expect(indexed.matches).toEqual(sequential.matches);
+        expect(indexed.evidenceBatch.entries).toEqual(sequential.evidenceBatch.entries);
+        expect(indexed.diagnostics).toMatchObject({
+            candidateRuleCount: 5,
+            fallbackRuleCount: 1,
+            literalRuleCount: 4,
+            literalRejectedRuleCount: 4,
+            candidateRulesByKind: {
+                html: 1,
+                text: 1,
+                scriptContent: 2,
+                stylesheetContent: 1,
+            },
+        });
+    });
+
+    it('keeps required-literal extraction conservative around regex syntax', () => {
+        const registry: TechnologyDefinition[] = [
+            {
+                id: 'wildcard',
+                name: 'Wildcard',
+                website: 'https://wildcard.example',
+                categories: ['framework'],
+                rules: [{ kind: 'scriptSrc', pattern: /abcd.efgh/ }],
+            },
+            {
+                id: 'digit-class',
+                name: 'Digit Class',
+                website: 'https://digit-class.example',
+                categories: ['framework'],
+                rules: [{ kind: 'scriptSrc', pattern: /prefix\d+suffix/ }],
+            },
+            {
+                id: 'optional-suffix',
+                name: 'Optional Suffix',
+                website: 'https://optional-suffix.example',
+                categories: ['framework'],
+                rules: [{ kind: 'scriptSrc', pattern: /foobar?/ }],
+            },
+            {
+                id: 'unicode-escape',
+                name: 'Unicode Escape',
+                website: 'https://unicode-escape.example',
+                categories: ['framework'],
+                rules: [{ kind: 'scriptSrc', pattern: /\u0066oo-marker/ }],
+            },
+            {
+                id: 'bounded-optional',
+                name: 'Bounded Optional',
+                website: 'https://bounded-optional.example',
+                categories: ['framework'],
+                rules: [{ kind: 'scriptSrc', pattern: /prefixx{0,10000}suffix/ }],
+            },
+        ];
+        const batch = normalizePageSignals(makePageSignals({
+            scripts: [
+                'https://cdn.example/abcdXefgh.js',
+                'https://cdn.example/prefix123suffix.js',
+                'https://cdn.example/fooba.js',
+                'https://cdn.example/foo-marker.js',
+                'https://cdn.example/prefixsuffix.js',
+            ],
+        }));
+        const index = createObservationMatcherIndex(registry);
+        const sequential = matchObservationBatch({ registry, batch });
+        const indexed = matchIndexedObservationBatch({ registry, batch, index });
+
+        expect(indexed.matches).toEqual(sequential.matches);
+        expect(indexed.matches.map((match) => match.technologyId)).toEqual([
+            'wildcard',
+            'digit-class',
+            'optional-suffix',
+            'unicode-escape',
+            'bounded-optional',
+        ]);
+        expect(index.fallbackRules.scriptSrc?.map((entry) => entry.technology.id)).toContain('optional-suffix');
+    });
+
 });
