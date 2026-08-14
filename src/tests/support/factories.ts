@@ -78,6 +78,7 @@ export function makeDetectionSessionSnapshot(
 		detectionCount: overrides.detectionCount ?? analysis.results.length,
 		analysis,
 		enrichment: overrides.enrichment ?? { status: 'not-needed' },
+		...(overrides.evidence ? { evidence: overrides.evidence } : {}),
 		...(overrides.matcherExecutor ? { matcherExecutor: overrides.matcherExecutor } : {}),
 		...(overrides.matcherProgress ? { matcherProgress: overrides.matcherProgress } : {}),
 		...(overrides.replaySummary ? { replaySummary: overrides.replaySummary } : {}),
@@ -125,6 +126,7 @@ export function makeDetectionReplayTrace(
 	const analyzedAt = overrides.analyzedAt ?? TEST_NOW;
 
 	return {
+		...(overrides.runId ? { runId: overrides.runId } : {}),
 		schemaVersion: overrides.schemaVersion ?? DETECTION_REPLAY_TRACE_SCHEMA_VERSION,
 		target,
 		requestedMode: overrides.requestedMode ?? 'event',

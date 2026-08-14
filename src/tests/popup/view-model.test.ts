@@ -406,7 +406,10 @@ describe('popup view model', () => {
 		})).toBe(true);
 		expect(shouldPreservePopupReplayState({
 			previousAnalysis,
-			revision: createPopupVisibleRevisionFromAnalysisResponse({ ...response, replayTrace: makeDetectionReplayTrace() }),
+			revision: createPopupVisibleRevisionFromAnalysisResponse({
+				...response,
+				replayTrace: makeDetectionReplayTrace({ resultCount: previousAnalysis.results.length }),
+			}),
 		})).toBe(false);
 	});
 
