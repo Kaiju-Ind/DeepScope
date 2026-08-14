@@ -27,3 +27,4 @@ web-ext.config.ts
 .pnpm-store
 .tmp
 *.zip
+repomix-output.xml
