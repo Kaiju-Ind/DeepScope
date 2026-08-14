@@ -226,6 +226,7 @@ export function createCuratedRuleProfileCases(input: {
 /** Create one generated miss case for every registry rule. */
 export function createGeneratedRuleMissCases(
 	registry: readonly TechnologyDefinition[],
+	options: { readonly contentPayloadChars?: number } = {},
 ): readonly RuleProfileCase[] {
 	const cases: RuleProfileCase[] = [];
 	for (const target of collectRuleProfileTargets(registry)) {
@@ -233,7 +234,7 @@ export function createGeneratedRuleMissCases(
 			target,
 			scenario: `generated miss: ${target.ruleId}`,
 			expected: 'miss',
-			observations: createGeneratedMissObservationCandidates(target),
+			observations: createGeneratedMissObservationCandidates(target, options.contentPayloadChars),
 		});
 		if (profileCase) {
 			cases.push(profileCase);
@@ -431,7 +432,10 @@ function countRegistryRules(registry: readonly TechnologyDefinition[]): number {
 	return registry.reduce((count, technology) => count + technology.rules.length, 0);
 }
 
-function createGeneratedMissObservationCandidates(target: RuleProfileTarget): readonly NormalizedObservation[] {
+function createGeneratedMissObservationCandidates(
+	target: RuleProfileTarget,
+	contentPayloadChars?: number,
+): readonly NormalizedObservation[] {
 	const missId = `__kaiju_site_scope_miss_${target.technology.id}_${target.ruleId}`;
 	const missValue = `${missId}_value__`;
 
@@ -481,7 +485,7 @@ function createGeneratedMissObservationCandidates(target: RuleProfileTarget): re
 		case 'html':
 		case 'text':
 			return [
-				makeRuleProfileObservation(target.rule.kind, makeReactRouterHydrationPayload()),
+				makeRuleProfileObservation(target.rule.kind, makeReactRouterHydrationPayload(contentPayloadChars)),
 				makeRuleProfileObservation(target.rule.kind, ''),
 			];
 		case 'scriptSrc':

@@ -10,6 +10,8 @@ import {
 import { technologyDefinitions } from '@/lib/detection/rules.ts';
 import { RULE_PERFORMANCE_FIXTURES } from '../support/rule-performance-fixtures';
 
+const SEMANTIC_MISS_PAYLOAD_CHARS = 256;
+
 describe('rule performance fixtures', () => {
 	it('keep curated passing and failing samples semantically correct', () => {
 		const cases = createCuratedRuleProfileCases({
@@ -24,7 +26,9 @@ describe('rule performance fixtures', () => {
 	});
 
 	it('create generated miss coverage only for rules that can be missed safely', () => {
-		const cases = createGeneratedRuleMissCases(technologyDefinitions);
+		const cases = createGeneratedRuleMissCases(technologyDefinitions, {
+			contentPayloadChars: SEMANTIC_MISS_PAYLOAD_CHARS,
+		});
 		const coverage = summarizeRuleProfileCoverage({
 			registry: technologyDefinitions,
 			generatedMissCases: cases,
