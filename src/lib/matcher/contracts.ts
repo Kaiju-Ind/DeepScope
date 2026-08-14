@@ -145,7 +145,7 @@ export interface RunMatcherJobRequest {
 	readonly relationshipGraph: CompiledDetectionRegistry;
 	/** Optional detector compatibility flags. */
 	readonly options?: DetectionRunOptions;
-	/** Emitted analysis timestamp override used by deterministic tests. */
+	/** Optional analysis timestamp; matcher merge falls back to the observation batch timestamp. */
 	readonly analyzedAt?: number;
 	/** Source marker written to emitted analysis. */
 	readonly source?: SiteAnalysis['source'];

@@ -171,6 +171,7 @@ describe('matcher partitions', () => {
 			partitions,
 		});
 
+		expect(result.analysis.analyzedAt).toBe(batch.observedAt);
 		expect(result.analysis.results.map((detection) => detection.technologyId).sort()).toEqual([
 			'meta-cms',
 			'resource-tool',

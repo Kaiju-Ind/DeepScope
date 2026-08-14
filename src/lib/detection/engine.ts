@@ -115,7 +115,7 @@ export function analyzeCompiledSite(
 	return {
 		url: signals.url,
 		hostname: signals.hostname,
-		analyzedAt: Date.now(),
+		analyzedAt: signals.collectedAt,
 		source: 'fresh',
 		results,
 		errors: [],

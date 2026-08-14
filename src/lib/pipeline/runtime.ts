@@ -66,7 +66,7 @@ export interface RunDetectionPipelineInput {
 	readonly compiledRegistryArtifact?: Pick<CompiledTechnologyRegistryArtifact, 'matcherIndex' | 'relationshipGraph'>;
 	/** Optional detector compatibility flags shared with matching stages. */
 	readonly options?: DetectionRunOptions;
-	/** Timestamp override used by deterministic tests and replay fixtures. */
+	/** Optional analysis timestamp. Defaults deterministically to `signals.collectedAt`. */
 	readonly analyzedAt?: number;
 	/** Source marker written to the emitted analysis when the caller needs an override. */
 	readonly source?: SiteAnalysis['source'];
@@ -141,7 +141,7 @@ export function runDetectionPipeline(input: RunDetectionPipelineInput): Detectio
 
 	const emitted = emitSiteAnalysisFromRefinedCandidates({
 		batch: refined,
-		analyzedAt: input.analyzedAt,
+		analyzedAt: input.analyzedAt ?? input.signals.collectedAt,
 		source: input.source,
 	});
 	record('detections-emitted', emitted.analysis.results.length, {

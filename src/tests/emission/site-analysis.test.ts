@@ -1,5 +1,5 @@
 import { fc, test } from '@fast-check/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/detection/rules', () => ({
 	SOURCE_LIMITS: { evidenceValueChars: 160 },
@@ -41,19 +41,15 @@ function analyzeViaCandidatePipeline(
 
 	return emitSiteAnalysisFromRefinedCandidates({
 		batch: refined,
-		analyzedAt: TEST_NOW,
+		analyzedAt: signals.collectedAt,
 	}).analysis;
 }
 
 function expectPipelineParity(signals: PageSignals, registry: TechnologyDefinition[]): void {
-	vi.setSystemTime(TEST_NOW);
 	expect(analyzeViaCandidatePipeline(signals, registry)).toEqual(analyzeSite(signals, registry));
 }
 
 describe('final detection emission', () => {
-	afterEach(() => {
-		vi.useRealTimers();
-	});
 
 	it('emits SiteAnalysis-compatible output and filters candidates below the display threshold', () => {
 		const registry = [

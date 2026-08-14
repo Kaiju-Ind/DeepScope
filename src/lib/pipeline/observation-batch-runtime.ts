@@ -23,7 +23,7 @@ export interface RunObservationBatchPipelineInput {
 	readonly compiledRegistryArtifact?: Pick<CompiledTechnologyRegistryArtifact, 'matcherIndex' | 'relationshipGraph'>;
 	/** Optional detector compatibility flags shared with matching stages. */
 	readonly options?: DetectionRunOptions;
-	/** Timestamp override used by deterministic tests and replay fixtures. */
+	/** Optional analysis timestamp. Defaults deterministically to `batch.observedAt`. */
 	readonly analyzedAt?: number;
 	/** Source marker written to the emitted analysis when the caller needs an override. */
 	readonly source?: SiteAnalysis['source'];
@@ -132,7 +132,7 @@ export function runObservationBatchPipeline(
 		input,
 		() => emitSiteAnalysisFromRefinedCandidates({
 			batch: refined,
-			analyzedAt: input.analyzedAt,
+			analyzedAt: input.analyzedAt ?? input.batch.observedAt,
 			source: input.source,
 		}),
 		(result) => ({

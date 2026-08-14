@@ -26,8 +26,8 @@ export type FinalDetectionAnalysisSource = SiteAnalysis['source'];
 export interface EmitSiteAnalysisFromCandidatesInput {
 	/** Relationship-refined candidate batch that should become detector output. */
 	readonly batch: RefinedEvidenceCandidateBatch;
-	/** Optional analysis timestamp for deterministic tests and replay. Defaults to `Date.now()`. */
-	readonly analyzedAt?: number;
+	/** Analysis timestamp supplied by the caller so emission remains deterministic. */
+	readonly analyzedAt: number;
 	/** Source marker for the emitted analysis. Defaults to `fresh` to match current detector output. */
 	readonly source?: FinalDetectionAnalysisSource;
 	/** Optional policy override for compatibility experiments. */

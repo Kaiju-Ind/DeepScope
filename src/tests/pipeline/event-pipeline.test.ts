@@ -38,8 +38,9 @@ function makeTechnology(
 
 describe('event pipeline runtime coordinator', () => {
 	it('defaults snapshot inputs to the event pipeline', () => {
+		const signals = makePageSignals({ collectedAt: 123 });
 		const result = runDetectionPipeline({
-			signals: makePageSignals(),
+			signals,
 			registry: [],
 		});
 
@@ -47,6 +48,7 @@ describe('event pipeline runtime coordinator', () => {
 			requestedMode: 'event',
 			completedMode: 'event',
 		});
+		expect(result.analysis.analyzedAt).toBe(signals.collectedAt);
 		expect(result.events.map((event) => event.stage)).toEqual([
 			'normalized-observations',
 			'pattern-matched',
@@ -55,6 +57,7 @@ describe('event pipeline runtime coordinator', () => {
 			'candidates-refined',
 			'detections-emitted',
 		]);
+		expect(result.events.every((event) => event.occurredAt === signals.collectedAt)).toBe(true);
 	});
 
 	it('runs PageSignals through the event pipeline and emits SiteAnalysis output', () => {
@@ -172,6 +175,14 @@ describe('event pipeline runtime coordinator', () => {
 			'candidates-refined',
 			'detections-emitted',
 		]);
+	});
+
+	it('uses the observation timestamp when no analysis timestamp override is supplied', () => {
+		const batch = normalizePageSignals(makePageSignals({ collectedAt: 321 }));
+		const result = runObservationBatchPipeline({ batch, registry: [] });
+
+		expect(result.analysis.analyzedAt).toBe(batch.observedAt);
+		expect(result.events.every((event) => event.occurredAt === batch.observedAt)).toBe(true);
 	});
 
 	it('records ordered public-safe stage events for the event path', () => {

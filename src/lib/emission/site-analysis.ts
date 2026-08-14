@@ -32,7 +32,7 @@ export function emitSiteAnalysisFromRefinedCandidates(
 	const analysis: SiteAnalysis = {
 		url: input.batch.target.url,
 		hostname: input.batch.target.hostname,
-		analyzedAt: input.analyzedAt ?? Date.now(),
+		analyzedAt: input.analyzedAt,
 		source: input.source ?? 'fresh',
 		results,
 		errors: [],

@@ -89,7 +89,7 @@ export interface CreateMatcherPipelineResultInput {
 	readonly compiledRegistryArtifact?: Pick<CompiledTechnologyRegistryArtifact, 'relationshipGraph'>;
 	/** Partition results emitted by workers. */
 	readonly partitions: readonly MatcherPartitionResult[];
-	/** Optional timestamp override for emitted `SiteAnalysis`. */
+	/** Optional analysis timestamp. Defaults deterministically to `batch.observedAt`. */
 	readonly analyzedAt?: number;
 	/** Source marker written to the emitted analysis. */
 	readonly source?: SiteAnalysis['source'];
@@ -212,7 +212,7 @@ export function createMatcherPipelineResult(
 
 	const emitted = emitSiteAnalysisFromRefinedCandidates({
 		batch: refined,
-		analyzedAt: input.analyzedAt,
+		analyzedAt: input.analyzedAt ?? input.batch.observedAt,
 		source: input.source,
 	});
 	record('detections-emitted', emitted.analysis.results.length, {
