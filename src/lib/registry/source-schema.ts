@@ -15,6 +15,7 @@ export { REGISTRY_SOURCE_SCHEMA_VERSION, type RegistrySourceSchemaVersion } from
 const runtimeDetectionKindSchema = z.enum([
 	'dom',
 	'html',
+	'imageSrc',
 	'scriptSrc',
 	'stylesheetHref',
 	'resourceUrl',
@@ -109,6 +110,7 @@ const versionExtractionSchema = z.discriminatedUnion('source', [
 /** Pattern rule kinds that use one regular expression over one observation value. */
 const patternKindSchema = z.enum([
 	'html',
+	'imageSrc',
 	'scriptSrc',
 	'stylesheetHref',
 	'resourceUrl',
@@ -225,6 +227,66 @@ export const detectionRelationshipSchema = z.strictObject({
 	reason: optionalNonEmptyStringSchema,
 });
 
+const technologyComponentKindSchema = z.enum([
+	'platform',
+	'edition',
+	'distribution',
+	'module',
+	'plugin',
+	'extension',
+	'theme',
+	'storefront',
+	'adapter',
+	'connector',
+	'sdk',
+	'infrastructure',
+	'feature-provider',
+	'unknown',
+]);
+
+const technologySourceIdentitySchema = z.strictObject({
+	kind: z.enum([
+		'composer-package',
+		'npm-package',
+		'magento-module',
+		'wordpress-plugin',
+		'wordpress-theme',
+		'marketplace-listing',
+		'repository',
+		'script-origin',
+		'api-origin',
+		'asset-path',
+	]),
+	value: nonEmptyStringSchema,
+	url: optionalNonEmptyStringSchema,
+});
+
+const technologyIntegrationSchema = z.strictObject({
+	kind: z.enum(['integrates-with', 'adapts', 'connects-to', 'replaces', 'extends', 'fork-of']),
+	target: nonEmptyStringSchema,
+	reason: optionalNonEmptyStringSchema,
+});
+
+const technologyComponentSchema = z.strictObject({
+	kind: technologyComponentKindSchema,
+	parentTechnologyId: optionalNonEmptyStringSchema,
+	vendor: optionalNonEmptyStringSchema,
+	sourceIdentities: z.optional(z.array(technologySourceIdentitySchema)),
+	features: z.optional(z.array(nonEmptyStringSchema)),
+	integrations: z.optional(z.array(technologyIntegrationSchema)),
+});
+
+const technologyVersioningSchema = z.discriminatedUnion('enabled', [
+	z.strictObject({
+		enabled: z.literal(false),
+		reason: optionalNonEmptyStringSchema,
+	}),
+	z.strictObject({
+		enabled: z.optional(z.literal(true)),
+		scheme: nonEmptyStringSchema,
+	}),
+]);
+
 /** Runtime schema for one TypeScript technology definition. */
 export const technologyDefinitionSchema = z.strictObject({
 	id: nonEmptyStringSchema,
@@ -239,6 +301,8 @@ export const technologyDefinitionSchema = z.strictObject({
 	excludes: z.optional(z.array(nonEmptyStringSchema)),
 	relationships: z.optional(z.array(detectionRelationshipSchema)),
 	priority: z.optional(z.number()),
+	component: z.optional(technologyComponentSchema),
+	versioning: z.optional(technologyVersioningSchema),
 	metadata: z.optional(z.strictObject({
 		saas: z.optional(z.boolean()),
 		oss: z.optional(z.boolean()),

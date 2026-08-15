@@ -42,6 +42,12 @@ const CAPABILITIES: readonly ExtensionCollectorCapability[] = [
 		note: 'The content script captures bounded HTML and planned HTML matches.',
 	},
 	{
+		kind: 'imageSrc',
+		support: 'collected',
+		source: 'content script',
+		note: 'Rendered image URLs come from image elements and observed DOM changes.',
+	},
+	{
 		kind: 'scriptSrc',
 		support: 'collected',
 		source: 'content script',

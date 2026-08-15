@@ -40,6 +40,7 @@ export type CollectPageSignalsInput = {
 export type RuntimePageSignals = Partial<
 	Pick<
 		PageSignals,
+		| 'images'
 		| 'scripts'
 		| 'stylesheets'
 		| 'links'
@@ -64,6 +65,7 @@ type StylesheetSourceInput = ParentNode | Iterable<HTMLLinkElement>;
 type StylesheetContentInput = ParentNode | Iterable<HTMLStyleElement>;
 type LinkTagInput = ParentNode | Iterable<HTMLLinkElement>;
 type MetaTagInput = ParentNode | Iterable<HTMLMetaElement>;
+type ImageSourceInput = ParentNode | Iterable<HTMLImageElement>;
 
 export async function collectPageSignals(
 	input: CollectPageSignalsInput,
@@ -101,6 +103,12 @@ export async function collectPageSignals(
 		timingContext,
 		() => runtime.resources ?? collectResourceTimings(),
 		(values) => ({ resourceCount: values.length }),
+	);
+	const images = timeSyncSpan(
+		'content.collect-page-signals.images',
+		timingContext,
+		() => runtime.images ?? collectImageSources(),
+		(values) => ({ imageCount: values.length }),
 	);
 	const scripts = timeSyncSpan(
 		'content.collect-page-signals.scripts',
@@ -183,6 +191,7 @@ export async function collectPageSignals(
 		html,
 		htmlMatches,
 		text,
+		images,
 		scripts,
 		stylesheets,
 		links,
@@ -377,6 +386,15 @@ export function collectScriptSources(input: ScriptSourceInput = document): strin
 			.map((script) => normalizeResourceUrl(script.getAttribute('src') ?? script.src))
 			.filter((source): source is string => Boolean(source)),
 	).slice(0, SOURCE_LIMITS.scriptSrc);
+}
+
+/** Collect rendered image source URLs without reading image bytes. */
+export function collectImageSources(input: ImageSourceInput = document): string[] {
+	return uniqueStrings(
+		Array.from(iterateImages(input))
+			.map((image) => normalizeResourceUrl(image.currentSrc || image.getAttribute('src') || image.src))
+			.filter((source): source is string => Boolean(source)),
+	).slice(0, SOURCE_LIMITS.imageSrc);
 }
 
 export function collectScriptContents(input: ScriptContentInput = document): string[] {
@@ -635,6 +653,15 @@ function* iterateLinks(input: LinkTagInput): Iterable<HTMLLinkElement> {
 function* iterateMetaTags(input: MetaTagInput): Iterable<HTMLMetaElement> {
 	if (isParentNode(input)) {
 		yield* input.querySelectorAll('meta') as Iterable<HTMLMetaElement>;
+		return;
+	}
+
+	yield* input;
+}
+
+function* iterateImages(input: ImageSourceInput): Iterable<HTMLImageElement> {
+	if (isParentNode(input)) {
+		yield* input.querySelectorAll('img[src], img[srcset]') as Iterable<HTMLImageElement>;
 		return;
 	}
 

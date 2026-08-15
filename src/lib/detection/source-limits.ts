@@ -9,6 +9,7 @@
 export const SOURCE_LIMITS = {
 	htmlChars: 200_000,
 	textChars: 80_000,
+	imageSrc: 300,
 	scriptSrc: 300,
 	stylesheetHref: 300,
 	resourceUrls: 500,

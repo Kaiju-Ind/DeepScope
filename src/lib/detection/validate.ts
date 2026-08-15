@@ -26,6 +26,10 @@ export function validatePageSignals(signals: PageSignals): string | null {
 		return 'Text signal exceeded safe size bounds';
 	}
 
+	if ((signals.images?.length ?? 0) > SOURCE_LIMITS.imageSrc) {
+		return 'Too many image source entries';
+	}
+
 	if (signals.scripts.length > SOURCE_LIMITS.scriptSrc) {
 		return 'Too many script source entries';
 	}

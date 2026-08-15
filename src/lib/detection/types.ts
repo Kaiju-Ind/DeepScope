@@ -3,6 +3,7 @@ import type { AppError } from '../shared/errors';
 export type DetectionKind =
 	| 'dom'
 	| 'html'
+	| 'imageSrc'
 	| 'scriptSrc'
 	| 'stylesheetHref'
 	| 'resourceUrl'
@@ -87,6 +88,73 @@ export type Category = {
 	priority: number;
 };
 
+export type TechnologyComponentKind =
+	| 'platform'
+	| 'edition'
+	| 'distribution'
+	| 'module'
+	| 'plugin'
+	| 'extension'
+	| 'theme'
+	| 'storefront'
+	| 'adapter'
+	| 'connector'
+	| 'sdk'
+	| 'infrastructure'
+	| 'feature-provider'
+	| 'unknown';
+
+export type TechnologySourceIdentityKind =
+	| 'composer-package'
+	| 'npm-package'
+	| 'magento-module'
+	| 'wordpress-plugin'
+	| 'wordpress-theme'
+	| 'marketplace-listing'
+	| 'repository'
+	| 'script-origin'
+	| 'api-origin'
+	| 'asset-path';
+
+export type TechnologySourceIdentity = {
+	kind: TechnologySourceIdentityKind;
+	value: string;
+	url?: string;
+};
+
+export type TechnologyIntegrationKind =
+	| 'integrates-with'
+	| 'adapts'
+	| 'connects-to'
+	| 'replaces'
+	| 'extends'
+	| 'fork-of';
+
+export type TechnologyIntegration = {
+	kind: TechnologyIntegrationKind;
+	target: string;
+	reason?: string;
+};
+
+export type TechnologyComponentDefinition = {
+	kind: TechnologyComponentKind;
+	parentTechnologyId?: string;
+	vendor?: string;
+	sourceIdentities?: TechnologySourceIdentity[];
+	features?: string[];
+	integrations?: TechnologyIntegration[];
+};
+
+export type TechnologyVersioningDefinition =
+	| {
+		enabled: false;
+		reason?: string;
+	}
+	| {
+		enabled?: true;
+		scheme: 'semver' | 'numeric-dotted' | 'adobe-commerce-release' | string;
+	};
+
 export type EvidenceScope = {
 	frameId?: number;
 	isTopFrame?: boolean;
@@ -126,6 +194,7 @@ type DetectionRuleBase = {
 export type PatternDetectionRule = DetectionRuleBase & {
 	kind:
 		| 'html'
+		| 'imageSrc'
 		| 'scriptSrc'
 		| 'stylesheetHref'
 		| 'resourceUrl'
@@ -268,6 +337,8 @@ export type TechnologyDefinition = {
 	excludes?: string[];
 	relationships?: DetectionRelationship[];
 	priority?: number;
+	component?: TechnologyComponentDefinition;
+	versioning?: TechnologyVersioningDefinition;
 	metadata?: {
 		saas?: boolean;
 		oss?: boolean;
@@ -355,6 +426,7 @@ export type PageSignals = {
 	html: string;
 	htmlMatches?: Record<string, HtmlMatchSignal>;
 	text: string;
+	images?: string[];
 	scripts: string[];
 	stylesheets: string[];
 	links: LinkSignal[];

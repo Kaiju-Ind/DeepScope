@@ -443,6 +443,7 @@ function createPatternRoute(
  */
 function isLiteralPrefilterSupported(kind: NormalizedObservationKind): boolean {
     switch (kind) {
+        case 'imageSrc':
         case 'scriptSrc':
         case 'stylesheetHref':
         case 'resourceUrl':

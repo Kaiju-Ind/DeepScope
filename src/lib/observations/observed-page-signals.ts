@@ -50,6 +50,7 @@ export function normalizeObservedPageSignalsSnapshot(
 		collector: options.collector ?? 'content-observer',
 	});
 
+	for (const image of snapshot.images) addTextObservation(addObservation, 'imageSrc', image);
 	for (const script of snapshot.scripts) addTextObservation(addObservation, 'scriptSrc', script);
 	for (const stylesheet of snapshot.stylesheets) addTextObservation(addObservation, 'stylesheetHref', stylesheet);
 	for (const link of snapshot.links) addLinkObservation(addObservation, link);

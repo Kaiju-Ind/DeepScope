@@ -67,6 +67,9 @@ export function normalizePageSignals(
 	addTextObservation(addObservation, 'html', signals.html);
 	addHtmlMatchObservations(addObservation, signals.htmlMatches ?? {});
 	addTextObservation(addObservation, 'text', signals.text);
+	for (const image of signals.images ?? []) {
+		addTextObservation(addObservation, 'imageSrc', image);
+	}
 
 	for (const script of signals.scripts) {
 		addTextObservation(addObservation, 'scriptSrc', script);

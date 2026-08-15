@@ -52,6 +52,7 @@ const HTML_STANDALONE_SAFE_TECHNOLOGY_IDS = new Set([
 export const runtimeDetectionKinds = [
 	'dom',
 	'html',
+	'imageSrc',
 	'scriptSrc',
 	'stylesheetHref',
 	'resourceUrl',
@@ -238,6 +239,9 @@ function matchRule(
 
 			return matchPattern(rule, signals.html, confidence, metadata);
 		}
+
+		case 'imageSrc':
+			return matchStringList(rule, signals.images ?? [], confidence, metadata);
 
 		case 'scriptSrc':
 			return matchStringList(rule, signals.scripts, confidence, metadata);

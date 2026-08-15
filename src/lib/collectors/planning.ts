@@ -35,6 +35,7 @@ const CHEAP_RULE_KINDS = Object.freeze({
 	cookie: true,
 	dom: true,
 	jsGlobal: true,
+	imageSrc: true,
 	link: true,
 	meta: true,
 	requestUrl: true,

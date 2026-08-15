@@ -489,6 +489,7 @@ function createGeneratedMissObservationCandidates(
 				makeRuleProfileObservation(target.rule.kind, ''),
 			];
 		case 'scriptSrc':
+		case 'imageSrc':
 		case 'stylesheetHref':
 		case 'resourceUrl':
 		case 'requestUrl':

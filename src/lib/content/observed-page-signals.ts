@@ -1,5 +1,6 @@
 import {
 	collectLinkTags,
+	collectImageSources,
 	collectMetaTags,
 	collectResourceTimings,
 	collectScriptContents,
@@ -32,7 +33,9 @@ export type ObservedPageSignalsSnapshot = Pick<
 	| 'stylesheetContents'
 	| 'meta'
 	| 'dom'
->;
+> & {
+	images: string[];
+};
 
 export type ObservationSessionStatus = 'idle' | 'observing' | 'dirty' | 'stopped';
 
@@ -122,6 +125,7 @@ export function createObservedPageSignals(
 	options: ObservedPageSignalsOptions,
 ): ObservedPageSignals {
 	const scripts = new Set<string>();
+	const images = new Set<string>();
 	const stylesheets = new Set<string>();
 	const scriptContents = new Set<string>();
 	const stylesheetContents = new Set<string>();
@@ -259,6 +263,9 @@ export function createObservedPageSignals(
 
 	function rememberSnapshot(snapshot: ObservedPageSignalsSnapshot): void {
 		const observedAt = Date.now();
+		for (const source of snapshot.images) {
+			images.add(source);
+		}
 		for (const source of snapshot.scripts) {
 			scripts.add(source);
 		}
@@ -322,6 +329,7 @@ export function createObservedPageSignals(
 
 	function emptySnapshot(): ObservedPageSignalsSnapshot {
 		return {
+			images: [],
 			scripts: [],
 			stylesheets: [],
 			links: [],
@@ -340,6 +348,15 @@ export function createObservedPageSignals(
 				...emptySnapshot(),
 				scripts: collectScriptSources([node]),
 				scriptContents: collectScriptContents([node]),
+				dom: { selectors: await collectDomSelectors(node) },
+			});
+			return;
+		}
+
+		if (node instanceof HTMLImageElement) {
+			rememberSnapshot({
+				...emptySnapshot(),
+				images: collectImageSources([node]),
 				dom: { selectors: await collectDomSelectors(node) },
 			});
 			return;
@@ -376,6 +393,7 @@ export function createObservedPageSignals(
 		if (node instanceof Element || node instanceof DocumentFragment || node instanceof Document) {
 			const resources = collectResourceTimings();
 			rememberSnapshot({
+				images: collectImageSources(node),
 				scripts: collectScriptSources(node),
 				stylesheets: collectStylesheetSources(node),
 				links: collectLinkTags(node),
@@ -392,6 +410,7 @@ export function createObservedPageSignals(
 	async function scanCurrentDocument(): Promise<void> {
 		const resources = collectResourceTimings();
 		rememberSnapshot({
+			images: collectImageSources(document),
 			scripts: collectScriptSources(document),
 			stylesheets: collectStylesheetSources(document),
 			links: collectLinkTags(document),
@@ -603,6 +622,7 @@ export function createObservedPageSignals(
 			}
 
 			return {
+				images: [...images].slice(0, SOURCE_LIMITS.imageSrc),
 				scripts: [...scripts].slice(0, SOURCE_LIMITS.scriptSrc),
 				stylesheets: [...stylesheets].slice(0, SOURCE_LIMITS.stylesheetHref),
 				links: [...linkEntries.values()].slice(0, SOURCE_LIMITS.linkTags),

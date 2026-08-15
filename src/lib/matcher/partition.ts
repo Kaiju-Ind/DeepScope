@@ -30,6 +30,7 @@ const KIND_PRIORITIES = Object.freeze({
 	cookie: 2,
 	storage: 2,
 	jsGlobal: 2,
+	imageSrc: 3,
 	scriptSrc: 3,
 	stylesheetHref: 3,
 	resourceUrl: 3,
@@ -57,6 +58,7 @@ const DEFAULT_PARTITION_CHUNK_SIZE = 128;
  * detector snapshots while the rest of the same kind continues matching.
  */
 const KIND_PARTITION_CHUNK_SIZES = Object.freeze({
+	imageSrc: 16,
 	scriptSrc: 16,
 	stylesheetHref: 16,
 	resourceUrl: 16,
