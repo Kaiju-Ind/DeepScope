@@ -163,6 +163,7 @@ export function makePageSignals(overrides: Partial<PageSignals> = {}): PageSigna
 		html: overrides.html ?? '<html><head></head><body></body></html>',
 		htmlMatches: overrides.htmlMatches ?? {},
 		text: overrides.text ?? '',
+		images: overrides.images ?? [],
 		scripts: overrides.scripts ?? [],
 		stylesheets: overrides.stylesheets ?? [],
 		links: overrides.links ?? [],

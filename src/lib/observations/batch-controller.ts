@@ -6,7 +6,7 @@ export const DEFAULT_OBSERVATION_BATCH_POLICY = {
 	maxQueuedObservations: 1_000,
 	dedupeWindowMs: 2_000,
 	stormWindowMs: 10_000,
-	maxAcceptedPerStormWindow: 2_000,
+	maxAcceptedPerStormWindow: 1_000,
 } as const satisfies ObservationBatchPolicy;
 
 /** Reason an observation was not accepted into the queue. */
