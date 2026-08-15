@@ -93,15 +93,25 @@ async function getMostRecentInspectableActiveTab(): Promise<BrowserTab | undefin
 
 /** Return the remembered website tab when popup or DevTools focus hides all visible tab queries. */
 async function getLastInspectableTab(): Promise<BrowserTab | undefined> {
-	if (!lastInspectableTab?.id) {
+	if (typeof lastInspectableTab?.id !== 'number') {
 		return undefined;
 	}
 
+	const rememberedTabId = lastInspectableTab.id;
 	try {
-		const tab = await browser.tabs.get(lastInspectableTab.id);
-		return canInspectTab(tab) ? rememberInspectableTab(tab) : undefined;
+		const tab = await browser.tabs.get(rememberedTabId);
+		if (tab.active !== true || !canInspectTab(tab)) {
+			if (lastInspectableTab?.id === rememberedTabId) {
+				lastInspectableTab = undefined;
+			}
+			return undefined;
+		}
+
+		return rememberInspectableTab(tab);
 	} catch {
-		lastInspectableTab = undefined;
+		if (lastInspectableTab?.id === rememberedTabId) {
+			lastInspectableTab = undefined;
+		}
 		return undefined;
 	}
 }

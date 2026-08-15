@@ -294,7 +294,7 @@ function matchStorageRule(
 	if (rule.area && observation.attributes?.area !== rule.area) {
 		return null;
 	}
-	if ((rule.key && observation.key === rule.key) || rule.keyPattern?.test(observation.key)) {
+	if ((rule.key && observation.key === rule.key) || (rule.keyPattern && testPattern(rule.keyPattern, observation.key))) {
 		return { matchedValue: safeMatchedValue(`${observation.attributes?.area ?? 'storage'}:${observation.key}`) };
 	}
 

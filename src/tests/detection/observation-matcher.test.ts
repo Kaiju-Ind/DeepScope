@@ -115,6 +115,31 @@ describe('observation pattern matcher', () => {
 		expect(result.evidenceBatch.entries).toHaveLength(2);
 	});
 
+	it('resets stateful storage key regexes between observations', () => {
+		const technology: TechnologyDefinition = {
+			id: 'stateful-storage',
+			name: 'Stateful Storage',
+			website: 'https://example.com',
+			categories: ['framework'],
+			rules: [{ kind: 'storage', keyPattern: /^app_/g }],
+		};
+		const firstBatch = normalizePageSignals(makePageSignals({
+			storage: {
+				localStorage: { app_first: true },
+				sessionStorage: {},
+			},
+		}));
+		const secondBatch = normalizePageSignals(makePageSignals({
+			storage: {
+				localStorage: { app_second: true },
+				sessionStorage: {},
+			},
+		}));
+
+		expect(matchObservationBatch({ registry: [technology], batch: firstBatch }).matches).toHaveLength(1);
+		expect(matchObservationBatch({ registry: [technology], batch: secondBatch }).matches).toHaveLength(1);
+	});
+
 	it('respects disabled kinds and rule ids', () => {
 		const technology: TechnologyDefinition = {
 			id: 'example',
