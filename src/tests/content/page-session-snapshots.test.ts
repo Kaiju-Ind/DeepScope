@@ -1,10 +1,9 @@
 import type { ContentPageSessionSnapshotTarget } from '@/lib/contracts/analysis';
-import type { DetectionSessionSnapshot } from '@/lib/contracts/detection-session';
-import type { DetectionSnapshotReader, DetectionSnapshotWriter } from '@/lib/persistence';
 
-import { describe, expect, it, vi } from 'vitest';
-import { writeContentPageSessionSnapshot } from '@/lib/content/page-session-snapshots';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getContentSessionLifecycleKey, getDetectionSessionSnapshotKey } from '@/lib/storage/contracts';
 import { makeAnalysis, makeDetection, makeDetectionSessionSnapshot } from '../support/factories';
+import { createMockBrowserStorageArea } from '../support/mock-browser';
 
 const SNAPSHOT_TARGET: ContentPageSessionSnapshotTarget = {
 	key: {
@@ -18,39 +17,43 @@ const SNAPSHOT_TARGET: ContentPageSessionSnapshotTarget = {
 	hostname: 'example.com',
 };
 
-type ContentSnapshotStore = Pick<DetectionSnapshotReader, 'getLatestSessionSnapshot'> & DetectionSnapshotWriter;
+async function loadPageSessionSnapshotHarness(initialValues: Record<string, unknown> = {}) {
+	vi.resetModules();
+	const storage = createMockBrowserStorageArea(initialValues);
+	vi.doMock('wxt/browser', () => ({
+		browser: {
+			storage: {
+				local: storage.local,
+			},
+		},
+	}));
 
-function createContentSnapshotStore(initial: DetectionSessionSnapshot | null = null): ContentSnapshotStore {
-	let stored = initial;
 	return {
-		getLatestSessionSnapshot: vi.fn(async () => stored),
-		saveSnapshot: vi.fn(async (snapshot) => {
-			stored = snapshot;
-			return {
-				accepted: true,
-				sessionStorageKey: 'session:test',
-				originStorageKey: 'origin:test',
-				snapshot,
-			};
-		}),
+		...(await import('@/lib/content/page-session-snapshots')),
+		storage,
 	};
 }
 
-describe('content page-session snapshots', () => {
+afterEach(() => {
+	vi.doUnmock('wxt/browser');
+	vi.resetModules();
+});
+
+describe.sequential('content page-session snapshots', () => {
 	/**
 	 * Content can publish the first visible lifecycle state before background
 	 * enrichment has produced detector results. The placeholder analysis keeps
 	 * popup rendering deterministic without storing raw page observations.
 	 */
 	it('writes an observing revision when no detector analysis exists yet', async () => {
-		const store = createContentSnapshotStore();
+		const harness = await loadPageSessionSnapshotHarness();
 
-		const snapshot = await writeContentPageSessionSnapshot({
+		const snapshot = await harness.writeContentPageSessionSnapshot({
 			target: SNAPSHOT_TARGET,
 			status: 'observing',
 			observedAt: 1_700_000_000_000,
 			reason: 'observation-session-started',
-		}, store);
+		});
 
 		expect(snapshot).toMatchObject({
 			revision: 1,
@@ -66,6 +69,10 @@ describe('content page-session snapshots', () => {
 				status: 'not-needed',
 				reason: 'observation-session-started',
 			},
+		});
+		expect(harness.storage.values.get(getContentSessionLifecycleKey(SNAPSHOT_TARGET.key))).toMatchObject({
+			status: 'observing',
+			source: 'content',
 		});
 	});
 
@@ -84,14 +91,16 @@ describe('content page-session snapshots', () => {
 			status: 'complete',
 			source: 'background',
 		});
-		const store = createContentSnapshotStore(existingSnapshot);
+		const harness = await loadPageSessionSnapshotHarness({
+			[getDetectionSessionSnapshotKey(SNAPSHOT_TARGET.key)]: existingSnapshot,
+		});
 
-		const snapshot = await writeContentPageSessionSnapshot({
+		const snapshot = await harness.writeContentPageSessionSnapshot({
 			target: SNAPSHOT_TARGET,
 			status: 'observing',
 			observedAt: 1_700_000_000_125,
 			reason: 'observation-batch-flushed',
-		}, store);
+		});
 
 		expect(snapshot).toMatchObject({
 			revision: 3,
@@ -100,6 +109,14 @@ describe('content page-session snapshots', () => {
 			analysis: {
 				results: [expect.objectContaining({ technologyId: 'solidjs' })],
 			},
+		});
+		expect(harness.storage.values.get(getDetectionSessionSnapshotKey(SNAPSHOT_TARGET.key))).toMatchObject({
+			source: 'background',
+			status: 'complete',
+		});
+		expect(harness.storage.values.get(getContentSessionLifecycleKey(SNAPSHOT_TARGET.key))).toMatchObject({
+			status: 'observing',
+			source: 'content',
 		});
 	});
 });

@@ -8,7 +8,6 @@ import {
   type ObservedPageSignalsQueuedBatchEvent,
 } from "@/lib/content/observed-page-signals";
 import { writeContentPageSessionSnapshot } from "@/lib/content/page-session-snapshots";
-import { browserDetectionSnapshotStore } from "@/lib/persistence";
 import { validatePageSignals } from "@/lib/detection/validate";
 import { configureKaijuSiteScopeLogging, getKaijuSiteScopeLogger } from "@/lib/diagnostics/logging";
 import type { CollectPageSignalsInput, ContentApi } from "@/lib/messaging";
@@ -365,7 +364,7 @@ export function createContentRuntime(observedSignals: ObservedPageSignals): Cont
       status,
       observedAt: details.observedAt,
       reason: details.reason,
-    }, browserDetectionSnapshotStore).catch((error) => {
+    }).catch((error) => {
       logContentEvent("snapshot-write-failed", {
         status,
         message: describeContentError(error),

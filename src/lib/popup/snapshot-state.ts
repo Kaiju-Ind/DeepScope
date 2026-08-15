@@ -1,14 +1,27 @@
-import type { DetectionReplaySummary, DetectionSessionSnapshot } from '../contracts/detection-session';
+import type {
+  DetectionReplaySummary,
+  DetectionSessionKey,
+  DetectionSessionSnapshot,
+} from '../contracts/detection-session';
 
+import { browser } from 'wxt/browser';
 import type { VisibleTabIdentity, AnalysisEnrichmentState, AnalyzeVisibleTabOutput } from '../messaging';
 import { filterReplayHistoryForAnalysis, isDetectionReplayTraceForAnalysis } from '../pipeline';
 
+import {
+  browserDetectionPersistence,
+} from '../persistence';
 import type {
   DetectionReplayStore,
   DetectionSnapshotReader,
-  DetectionSnapshotRevisionSource,
 } from '../persistence';
-import { STORAGE_LIMITS, getAnalysisResponseKey } from '../storage/contracts';
+import {
+  STORAGE_LIMITS,
+  getContentSessionLifecycleKey,
+  getAnalysisResponseKey,
+  getDetectionOriginSnapshotKey,
+  getDetectionSessionSnapshotKey,
+} from '../storage/contracts';
 import type { PopupVisibleRevision } from './view-model';
 
 /** Handler invoked when storage publishes a matching snapshot revision. */
@@ -42,6 +55,8 @@ export type PopupStoredAnalysisResult = {
   readonly analysis: AnalyzeVisibleTabOutput['analysis'];
   /** Snapshot revision used when the storage-backed stream already has state. */
   readonly snapshot?: DetectionSessionSnapshot;
+  /** Optional content-owned lifecycle revision for the same exact session. */
+  readonly lifecycleSnapshot?: DetectionSessionSnapshot;
   /** Latest replay trace for the stored analysis, when replay storage has one. */
   readonly replayTrace?: AnalyzeVisibleTabOutput['replayTrace'];
   /** Recent replay runs for the stored analysis origin. */
@@ -57,7 +72,7 @@ export type PopupStoredAnalysisResult = {
  */
 export async function readStoredPopupAnalysis(
   identity: VisibleTabIdentity,
-  persistence: PopupSnapshotPersistence,
+  persistence: PopupSnapshotPersistence = browserDetectionPersistence,
 ): Promise<PopupStoredAnalysisResult | null> {
   if (identity.incognito) {
     return null;
@@ -77,6 +92,7 @@ export async function readStoredPopupAnalysis(
     source: storedSnapshot.source,
     analysis: storedSnapshot.snapshot.analysis,
     snapshot: storedSnapshot.snapshot,
+    ...(storedSnapshot.lifecycleSnapshot ? { lifecycleSnapshot: storedSnapshot.lifecycleSnapshot } : {}),
     ...replay,
   };
   return { ...stored, revision: createStoredPopupVisibleRevision(stored) };
@@ -85,6 +101,7 @@ export async function readStoredPopupAnalysis(
 type StoredVisibleSnapshot = {
 	readonly source: PopupStoredAnalysisSource;
 	readonly snapshot: DetectionSessionSnapshot;
+  readonly lifecycleSnapshot?: DetectionSessionSnapshot;
 };
 
 /** Prefer exact session snapshots for the visible tab, falling back to old origin pointers. */
@@ -93,26 +110,38 @@ async function getStoredVisibleSnapshot(
   persistence: PopupSnapshotPersistence,
 ): Promise<StoredVisibleSnapshot | null> {
 	const index = await persistence.getSessionIndex(identity.tabId);
-	const exactSnapshots: DetectionSessionSnapshot[] = [];
+  const exactSnapshots: StoredVisibleSnapshot[] = [];
 
 	for (const entry of index.entries) {
 		if (entry.key.frameId !== identity.frameId || entry.urlHash !== identity.urlHash) {
 			continue;
 		}
 
-		const snapshot = await persistence.getLatestSessionSnapshot(entry.key);
+    const [snapshot, lifecycleSnapshot] = await Promise.all([
+      persistence.getLatestSessionSnapshot(entry.key),
+      getLatestContentSessionLifecycleSnapshot(entry.key),
+    ]);
 		if (snapshot && isSnapshotForActiveTab(identity, snapshot) && isDetectorStartupSnapshot(snapshot)) {
-			exactSnapshots.push(snapshot);
+      exactSnapshots.push({
+        source: 'session-snapshot',
+        snapshot,
+        ...(lifecycleSnapshot && isSnapshotForActiveTab(identity, lifecycleSnapshot)
+          ? { lifecycleSnapshot }
+          : {}),
+      });
 		}
 	}
 
 	const newestExactSnapshot = exactSnapshots
-		.sort((left, right) => right.updatedAt - left.updatedAt || right.revision - left.revision)[0];
+    .sort((left, right) =>
+      getStoredVisibleSnapshotUpdatedAt(right) - getStoredVisibleSnapshotUpdatedAt(left) ||
+      right.snapshot.revision - left.snapshot.revision,
+    )[0];
 	if (newestExactSnapshot) {
-		return { source: 'session-snapshot', snapshot: newestExactSnapshot };
+    return newestExactSnapshot;
 	}
 
-	const originSnapshot = await persistence.getLatestOriginSnapshot(identity.originHash);
+  const originSnapshot = await persistence.getLatestOriginSnapshot(identity.originHash);
 	return originSnapshot ? { source: 'origin-snapshot', snapshot: originSnapshot } : null;
 }
 
@@ -184,6 +213,7 @@ export function createStoredPopupAnalysisOutput(stored: PopupStoredAnalysisResul
 
 /** Convert stored snapshot state into the popup's revision model. */
 export function createStoredPopupVisibleRevision(stored: Omit<PopupStoredAnalysisResult, 'revision'>): PopupVisibleRevision {
+  const lifecycleSnapshot = stored.lifecycleSnapshot ?? stored.snapshot;
   const replaySummary = isReplaySummaryForAnalysis(stored.snapshot?.replaySummary, stored.analysis)
     ? stored.snapshot?.replaySummary
     : undefined;
@@ -201,11 +231,11 @@ export function createStoredPopupVisibleRevision(stored: Omit<PopupStoredAnalysi
     ...(replaySummary ? { replaySummary } : {}),
     ...(stored.snapshot?.matcherProgress ? { matcherProgress: stored.snapshot.matcherProgress } : {}),
     ...(stored.snapshot?.evidence ? { evidence: stored.snapshot.evidence } : {}),
-    ...(stored.snapshot ? {
-      sessionSnapshotStatus: stored.snapshot.status,
-      sessionSnapshotSource: stored.snapshot.source,
-      enrichment: toAnalysisEnrichmentState(stored.snapshot),
-      updatedAt: stored.snapshot.updatedAt,
+    ...(lifecycleSnapshot ? {
+      sessionSnapshotStatus: lifecycleSnapshot.status,
+      sessionSnapshotSource: lifecycleSnapshot.source,
+      enrichment: toAnalysisEnrichmentState(lifecycleSnapshot),
+      updatedAt: lifecycleSnapshot.updatedAt,
     } : {}),
   };
 }
@@ -229,13 +259,28 @@ export function isSnapshotForActiveTab(identity: VisibleTabIdentity, snapshot: D
  */
 export function subscribeToPopupSnapshotRevisions(
   identity: VisibleTabIdentity,
-  revisions: DetectionSnapshotRevisionSource,
+  exactSessionKey: DetectionSessionKey | null,
   onRevision: PopupSnapshotRevisionHandler,
 ): PopupSnapshotUnsubscribe {
-  return revisions.subscribeOriginSnapshot(identity.originHash, (snapshot) => {
-    if (!isSnapshotForActiveTab(identity, snapshot)) return;
-    onRevision(snapshot);
-  });
+  const storageKeys = exactSessionKey
+    ? [
+      getDetectionSessionSnapshotKey(exactSessionKey),
+      getContentSessionLifecycleKey(exactSessionKey),
+    ]
+    : [getDetectionOriginSnapshotKey(identity.originHash)];
+  const listener = (changes: Record<string, { readonly newValue?: unknown }>, areaName: string): void => {
+		if (areaName !== 'local') return;
+    for (const storageKey of storageKeys) {
+      const change = changes[storageKey];
+      if (!change || !isDetectionSessionSnapshot(change.newValue)) continue;
+      if (!isSnapshotForActiveTab(identity, change.newValue)) continue;
+      onRevision(change.newValue);
+      break;
+    }
+	};
+
+  browser.storage.onChanged.addListener(listener);
+  return () => browser.storage.onChanged.removeListener(listener);
 }
 
 /** Compare revisions without assuming all storage writes share one document id. */
@@ -258,4 +303,32 @@ function toAnalysisEnrichmentState(snapshot: DetectionSessionSnapshot): Analysis
     ...(snapshot.enrichment.completedAt ? { completedAt: snapshot.enrichment.completedAt } : {}),
     ...(snapshot.enrichment.reason ? { reason: snapshot.enrichment.reason } : {}),
   };
+}
+
+function getStoredVisibleSnapshotUpdatedAt(snapshot: StoredVisibleSnapshot): number {
+	return Math.max(snapshot.snapshot.updatedAt, snapshot.lifecycleSnapshot?.updatedAt ?? 0);
+}
+
+async function getLatestContentSessionLifecycleSnapshot(
+  key: DetectionSessionKey,
+): Promise<DetectionSessionSnapshot | null> {
+  const storageKey = getContentSessionLifecycleKey(key);
+  const raw = await browser.storage.local.get(storageKey);
+  const value = raw[storageKey];
+
+  return isDetectionSessionSnapshot(value) ? value : null;
+}
+
+function isDetectionSessionSnapshot(value: unknown): value is DetectionSessionSnapshot {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'schemaVersion' in value &&
+    'key' in value &&
+    'urlHash' in value &&
+    'hostname' in value &&
+    'analysis' in value &&
+    'detectionCount' in value &&
+    'updatedAt' in value
+  );
 }

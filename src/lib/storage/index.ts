@@ -9,6 +9,7 @@ import type { AnalysisStatus } from '../detection/types';
 import type { DetectionReplayTrace } from '../pipeline';
 import {
 	ANALYSIS_RESPONSE_PREFIX,
+	CONTENT_SESSION_LIFECYCLE_PREFIX,
 	DETECTION_ORIGIN_SNAPSHOT_PREFIX,
 	DETECTION_ORIGIN_SUMMARY_PREFIX,
 	DETECTION_SESSION_INDEX_PREFIX,
@@ -30,6 +31,7 @@ import {
 
 const DETECTION_STORAGE_PREFIXES = [
 	ANALYSIS_RESPONSE_PREFIX,
+	CONTENT_SESSION_LIFECYCLE_PREFIX,
 	DETECTION_ORIGIN_SNAPSHOT_PREFIX,
 	DETECTION_ORIGIN_SUMMARY_PREFIX,
 	DETECTION_SESSION_INDEX_PREFIX,
@@ -294,7 +296,6 @@ function cloneReplayTrace(trace: DetectionReplayTrace): DetectionReplayTrace {
 		...(trace.emission ? { emission: { ...trace.emission } } : {}),
 	};
 }
-
 
 export type { DetectionSessionIndexEntry, DetectionSessionIndexRecord, DetectionSessionSnapshotWriteResult } from '../persistence/ports';
 export {

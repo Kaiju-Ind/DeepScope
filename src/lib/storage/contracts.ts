@@ -6,6 +6,9 @@ import { createFnv1a32Hash } from './hash';
 /** Prefix used for exact page-document detection snapshot records. */
 export const DETECTION_SESSION_SNAPSHOT_PREFIX = 'rd:session:';
 
+/** Prefix used for content-owned lifecycle records separate from detector snapshots. */
+export const CONTENT_SESSION_LIFECYCLE_PREFIX = 'rd:content-session:';
+
 /** Prefix used for the newest detection snapshot associated with an origin hash. */
 export const DETECTION_ORIGIN_SNAPSHOT_PREFIX = 'rd:origin:';
 
@@ -100,6 +103,16 @@ export function createDetectionStorageHash(value: string): string {
 export function getDetectionSessionSnapshotKey(key: DetectionSessionKey): string {
 	return [
 		DETECTION_SESSION_SNAPSHOT_PREFIX.slice(0, -1),
+		String(key.tabId),
+		String(key.frameId),
+		encodeStorageKeyPart(key.documentId),
+	].join(':');
+}
+
+/** Build the storage key for content-owned lifecycle updates for one page session. */
+export function getContentSessionLifecycleKey(key: DetectionSessionKey): string {
+	return [
+		CONTENT_SESSION_LIFECYCLE_PREFIX.slice(0, -1),
 		String(key.tabId),
 		String(key.frameId),
 		encodeStorageKeyPart(key.documentId),

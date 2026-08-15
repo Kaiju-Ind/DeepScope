@@ -5,8 +5,16 @@ import type {
 } from '../contracts/detection-session';
 import type { SiteAnalysis } from '../detection/types';
 
+import { browser } from 'wxt/browser';
+
 import { DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION } from '../contracts/detection-session';
+import { browserDetectionSnapshotStore } from '../persistence';
 import type { DetectionSnapshotReader, DetectionSnapshotWriter } from '../persistence';
+import {
+	getContentSessionLifecycleKey,
+	getDetectionOriginSnapshotKey,
+	getDetectionSessionSnapshotKey,
+} from '../storage/contracts';
 
 /**
  * Input for publishing content-owned progress to the durable popup stream.
@@ -29,6 +37,9 @@ export interface WriteContentPageSessionSnapshotInput {
 	readonly reason?: string;
 }
 
+/** Store shape used when content publishes lifecycle-only page-session revisions. */
+export type ContentPageSessionSnapshotStore = Pick<DetectionSnapshotReader, 'getLatestSessionSnapshot'> & DetectionSnapshotWriter;
+
 /**
  * Publish a content-owned snapshot revision for the current page session.
  *
@@ -40,7 +51,7 @@ export interface WriteContentPageSessionSnapshotInput {
  */
 export async function writeContentPageSessionSnapshot(
 	input: WriteContentPageSessionSnapshotInput,
-	store: Pick<DetectionSnapshotReader, 'getLatestSessionSnapshot'> & DetectionSnapshotWriter,
+	store: ContentPageSessionSnapshotStore = createBrowserContentPageSessionSnapshotStore(),
 ): Promise<DetectionSessionSnapshot | null> {
 	if (input.target.incognito) {
 		return null;
@@ -76,6 +87,72 @@ export async function writeContentPageSessionSnapshot(
 	const result = await store.saveSnapshot(snapshot);
 
 	return result.accepted ? result.snapshot : null;
+}
+
+/**
+ * Browser-backed store that keeps content lifecycle writes separate from detector snapshots.
+ *
+ * Content should advance the durable lifecycle stream without overwriting the
+ * detector-owned exact-session record. Reads still consider the latest detector
+ * and lifecycle revision so content can keep incrementing the same session.
+ */
+export function createBrowserContentPageSessionSnapshotStore(): ContentPageSessionSnapshotStore {
+	return {
+		async getLatestSessionSnapshot(key) {
+			const [detectorSnapshot, lifecycleSnapshot] = await Promise.all([
+				browserDetectionSnapshotStore.getLatestSessionSnapshot(key),
+				getLatestContentSessionLifecycleSnapshot(key),
+			]);
+
+			if (!lifecycleSnapshot) {
+				return detectorSnapshot;
+			}
+			if (!detectorSnapshot) {
+				return lifecycleSnapshot;
+			}
+
+			return lifecycleSnapshot.revision > detectorSnapshot.revision
+				? lifecycleSnapshot
+				: detectorSnapshot;
+		},
+		async saveSnapshot(snapshot) {
+			const normalized = structuredClone(snapshot);
+			await browser.storage.local.set({
+				[getContentSessionLifecycleKey(snapshot.key)]: normalized,
+			});
+
+			return {
+				accepted: true,
+				sessionStorageKey: getDetectionSessionSnapshotKey(snapshot.key),
+				originStorageKey: getDetectionOriginSnapshotKey(snapshot.key.originHash),
+				snapshot: normalized,
+			};
+		},
+	};
+}
+
+async function getLatestContentSessionLifecycleSnapshot(
+	key: DetectionSessionSnapshot['key'],
+): Promise<DetectionSessionSnapshot | null> {
+	const storageKey = getContentSessionLifecycleKey(key);
+	const raw = await browser.storage.local.get(storageKey);
+	const value = raw[storageKey];
+
+	return isDetectionSessionSnapshot(value) ? value : null;
+}
+
+function isDetectionSessionSnapshot(value: unknown): value is DetectionSessionSnapshot {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'schemaVersion' in value &&
+		'key' in value &&
+		'urlHash' in value &&
+		'hostname' in value &&
+		'analysis' in value &&
+		'detectionCount' in value &&
+		'updatedAt' in value
+	);
 }
 
 /** Create the minimal public analysis envelope used before detector output exists. */

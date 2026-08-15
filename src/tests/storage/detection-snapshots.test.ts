@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+	getContentSessionLifecycleKey,
 	getDetectionOriginSnapshotKey,
 	getDetectionOriginSummaryKey,
 	DETECTION_STORAGE_STATUS_KEY,
@@ -260,7 +261,7 @@ describe.sequential('detection session snapshots', () => {
 		});
 	});
 
-	it('preserves richer exact-session analysis across a later lower-count final run', async () => {
+	it('accepts a later lower-count final run for the same exact session', async () => {
 		const storage = await loadStorageHarness();
 		const richerAnalysis = makeAnalysis([
 			makeDetection('react'),
@@ -293,8 +294,9 @@ describe.sequential('detection session snapshots', () => {
 
 		expect(stored).toMatchObject({
 			revision: 5,
-			detectionCount: 2,
-			analysis: { results: [{ technologyId: 'react' }, { technologyId: 'nextjs' }] },
+			detectionCount: 1,
+			analysis: { results: [{ technologyId: 'react' }] },
+			replaySummary: expect.objectContaining({ runId: 'poorer-final-run', resultCount: 1 }),
 		});
 	});
 
@@ -643,12 +645,46 @@ describe.sequential('detection session snapshots', () => {
 		const snapshot = makeDetectionSessionSnapshot({
 			key: { tabId: 11, frameId: 0, documentId: 'session-1', originHash: 'origin-example' },
 		});
+		storage.values.set(getContentSessionLifecycleKey(snapshot.key), makeDetectionSessionSnapshot({
+			key: snapshot.key,
+			source: 'content',
+			status: 'observing',
+		}));
 		await storage.saveDetectionSessionSnapshot(snapshot);
 
 		await storage.removeDetectionSessionIndex(11);
 
 		expect(await storage.getDetectionSessionIndex(11)).toMatchObject({ entries: [] });
 		expect(storage.values.has(getDetectionSessionIndexKey(11))).toBe(false);
+		expect(storage.values.has(getDetectionSessionSnapshotKey(snapshot.key))).toBe(false);
+		expect(storage.values.has(getContentSessionLifecycleKey(snapshot.key))).toBe(false);
+	});
+
+	it('removes evicted exact-session snapshots when the tab index exceeds its cap', async () => {
+		const storage = await loadStorageHarness();
+		const snapshots = Array.from({ length: 21 }, (_item, index) => makeDetectionSessionSnapshot({
+			key: { tabId: 14, frameId: 0, documentId: `session-${index + 1}`, originHash: 'origin-example' },
+			revision: 1,
+			updatedAt: 1_700_000_000_000 + index,
+		}));
+
+		for (const snapshot of snapshots) {
+			storage.values.set(getContentSessionLifecycleKey(snapshot.key), makeDetectionSessionSnapshot({
+				key: snapshot.key,
+				source: 'content',
+				status: 'observing',
+				updatedAt: snapshot.updatedAt,
+			}));
+			await storage.saveDetectionSessionSnapshot(snapshot);
+		}
+
+		const index = await storage.getDetectionSessionIndex(14);
+		const oldestSnapshot = snapshots[0]!;
+
+		expect(index.entries).toHaveLength(20);
+		expect(index.entries.some((entry) => entry.key.documentId === oldestSnapshot.key.documentId)).toBe(false);
+		expect(storage.values.has(getDetectionSessionSnapshotKey(oldestSnapshot.key))).toBe(false);
+		expect(storage.values.has(getContentSessionLifecycleKey(oldestSnapshot.key))).toBe(false);
 	});
 
 });

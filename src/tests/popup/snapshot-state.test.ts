@@ -1,17 +1,18 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { DetectionSessionSnapshot } from '@/lib/contracts/detection-session';
 import type { VisibleTabIdentity } from '@/lib/messaging';
-import type { DetectionSnapshotRevisionSource } from '@/lib/persistence';
-import type { PopupSnapshotPersistence } from '@/lib/popup/snapshot-state';
 import {
-	createStoredPopupVisibleRevision,
-	isNewerSnapshotRevision,
-	readStoredPopupAnalysis,
-	subscribeToPopupSnapshotRevisions,
-} from '@/lib/popup/snapshot-state';
-import { createDetectionStorageHash } from '@/lib/storage/contracts';
+	getContentSessionLifecycleKey,
+	createDetectionStorageHash,
+	getDetectionOriginSnapshotKey,
+	getDetectionSessionIndexKey,
+	getDetectionSessionSnapshotKey,
+} from '@/lib/storage/contracts';
 import { makeAnalysis, makeDetection, makeDetectionSessionSnapshot } from '../support/factories';
+import {
+	createMockBrowserStorageArea,
+	createMockBrowserStorageChangeEvent,
+} from '../support/mock-browser';
 
 const ACTIVE_IDENTITY: VisibleTabIdentity = {
 	tabId: 7,
@@ -23,49 +24,30 @@ const ACTIVE_IDENTITY: VisibleTabIdentity = {
 	incognito: false,
 };
 
-function createPopupPersistence(input: {
-	readonly sessionSnapshots?: readonly DetectionSessionSnapshot[];
-	readonly originSnapshot?: DetectionSessionSnapshot | null;
-} = {}): PopupSnapshotPersistence {
-	const sessionSnapshots = input.sessionSnapshots ?? [];
-	return {
-		getSessionIndex: vi.fn(async (tabId) => ({
-			tabId,
-			entries: sessionSnapshots.map((snapshot) => ({
-				key: snapshot.key,
-				urlHash: snapshot.urlHash,
-				status: snapshot.status,
-				updatedAt: snapshot.updatedAt,
-			})),
-			updatedAt: sessionSnapshots[0]?.updatedAt ?? 0,
-		})),
-		getLatestSessionSnapshot: vi.fn(async (key) =>
-			sessionSnapshots.find((snapshot) => snapshot.key.documentId === key.documentId) ?? null),
-		getLatestOriginSnapshot: vi.fn(async () => input.originSnapshot ?? null),
-		getReplayTrace: vi.fn(async () => null),
-		getReplayHistory: vi.fn(async () => []),
-	};
-}
+async function loadSnapshotStateHarness(initialValues: Record<string, unknown> = {}) {
+	vi.resetModules();
+	const storage = createMockBrowserStorageArea(initialValues);
+	const onChanged = createMockBrowserStorageChangeEvent();
 
-function createRevisionSource() {
-	let handler: ((snapshot: DetectionSessionSnapshot) => void) | undefined;
-	const unsubscribe = vi.fn();
-	const source: DetectionSnapshotRevisionSource = {
-		subscribeOriginSnapshot: vi.fn((_originHash, onRevision) => {
-			handler = onRevision;
-			return unsubscribe;
-		}),
-	};
-	return {
-		source,
-		emit(snapshot: DetectionSessionSnapshot) {
-			handler?.(snapshot);
+	vi.doMock('wxt/browser', () => ({
+		browser: {
+			storage: {
+				local: storage.local,
+				onChanged,
+			},
 		},
-		unsubscribe,
-	};
+	}));
+
+	const snapshotState = await import('@/lib/popup/snapshot-state');
+	return { ...snapshotState, storage, onChanged };
 }
 
-describe('popup snapshot state', () => {
+afterEach(() => {
+	vi.doUnmock('wxt/browser');
+	vi.resetModules();
+});
+
+describe.sequential('popup snapshot state', () => {
 	it('reads a same-tab origin snapshot as the startup source', async () => {
 		const snapshot = makeDetectionSessionSnapshot({
 			key: { tabId: ACTIVE_IDENTITY.tabId, frameId: ACTIVE_IDENTITY.frameId, documentId: 'document-1', originHash: ACTIVE_IDENTITY.originHash },
@@ -73,9 +55,11 @@ describe('popup snapshot state', () => {
 			revision: 2,
 			status: 'complete',
 		});
-		const persistence = createPopupPersistence({ originSnapshot: snapshot });
+		const harness = await loadSnapshotStateHarness({
+			[getDetectionOriginSnapshotKey(ACTIVE_IDENTITY.originHash)]: snapshot,
+		});
 
-		const stored = await readStoredPopupAnalysis(ACTIVE_IDENTITY, persistence);
+		const stored = await harness.readStoredPopupAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toMatchObject({
 			source: 'origin-snapshot',
@@ -99,9 +83,22 @@ describe('popup snapshot state', () => {
 			updatedAt: 1_700_000_000_002,
 			source: 'background',
 		});
-		const persistence = createPopupPersistence({ sessionSnapshots: [exactSnapshot], originSnapshot });
+		const harness = await loadSnapshotStateHarness({
+			[getDetectionOriginSnapshotKey(ACTIVE_IDENTITY.originHash)]: originSnapshot,
+			[getDetectionSessionSnapshotKey(exactSnapshot.key)]: exactSnapshot,
+			[getDetectionSessionIndexKey(ACTIVE_IDENTITY.tabId)]: {
+				tabId: ACTIVE_IDENTITY.tabId,
+				entries: [{
+					key: exactSnapshot.key,
+					urlHash: exactSnapshot.urlHash,
+					status: exactSnapshot.status,
+					updatedAt: exactSnapshot.updatedAt,
+				}],
+				updatedAt: exactSnapshot.updatedAt,
+			},
+		});
 
-		const stored = await readStoredPopupAnalysis(ACTIVE_IDENTITY, persistence);
+		const stored = await harness.readStoredPopupAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toMatchObject({
 			source: 'session-snapshot',
@@ -116,15 +113,63 @@ describe('popup snapshot state', () => {
 		});
 	});
 
+	it('merges separate content lifecycle metadata into the stored exact-session revision', async () => {
+		const exactSnapshot = makeDetectionSessionSnapshot({
+			key: { tabId: ACTIVE_IDENTITY.tabId, frameId: ACTIVE_IDENTITY.frameId, documentId: 'exact-document', originHash: ACTIVE_IDENTITY.originHash },
+			analysis: makeAnalysis([makeDetection('solidjs')], { source: 'fresh' }),
+			urlHash: ACTIVE_IDENTITY.urlHash,
+			updatedAt: 1_700_000_000_002,
+			status: 'complete',
+			source: 'background',
+		});
+		const lifecycleSnapshot = makeDetectionSessionSnapshot({
+			key: exactSnapshot.key,
+			analysis: exactSnapshot.analysis,
+			urlHash: ACTIVE_IDENTITY.urlHash,
+			updatedAt: 1_700_000_000_003,
+			status: 'observing',
+			source: 'content',
+		});
+		const harness = await loadSnapshotStateHarness({
+			[getDetectionSessionSnapshotKey(exactSnapshot.key)]: exactSnapshot,
+			[getContentSessionLifecycleKey(exactSnapshot.key)]: lifecycleSnapshot,
+			[getDetectionSessionIndexKey(ACTIVE_IDENTITY.tabId)]: {
+				tabId: ACTIVE_IDENTITY.tabId,
+				entries: [{
+					key: exactSnapshot.key,
+					urlHash: exactSnapshot.urlHash,
+					status: exactSnapshot.status,
+					updatedAt: exactSnapshot.updatedAt,
+				}],
+				updatedAt: exactSnapshot.updatedAt,
+			},
+		});
+
+		const stored = await harness.readStoredPopupAnalysis(ACTIVE_IDENTITY);
+
+		expect(stored).toMatchObject({
+			snapshot: { key: exactSnapshot.key },
+			lifecycleSnapshot: { status: 'observing', source: 'content' },
+			revision: {
+				sessionSnapshotStatus: 'observing',
+				sessionSnapshotSource: 'content',
+			},
+		});
+	});
+
 	it('returns null when no matching snapshot exists for the visible tab', async () => {
-		const stored = await readStoredPopupAnalysis(ACTIVE_IDENTITY, createPopupPersistence());
+		const harness = await loadSnapshotStateHarness();
+
+		const stored = await harness.readStoredPopupAnalysis(ACTIVE_IDENTITY);
+
 		expect(stored).toBeNull();
 	});
 
-	it('filters subscribed revisions to the active visible tab', () => {
-		const revisions = createRevisionSource();
+	it('subscribes to newer same-tab snapshot revisions while ignoring other tabs and page URLs', async () => {
+		const harness = await loadSnapshotStateHarness();
 		const onRevision = vi.fn();
-		const unsubscribe = subscribeToPopupSnapshotRevisions(ACTIVE_IDENTITY, revisions.source, onRevision);
+		const unsubscribe = harness.subscribeToPopupSnapshotRevisions(ACTIVE_IDENTITY, null, onRevision);
+		const storageKey = getDetectionOriginSnapshotKey(ACTIVE_IDENTITY.originHash);
 		const otherTabSnapshot = makeDetectionSessionSnapshot({ key: { tabId: 11, frameId: 0, documentId: 'document-1', originHash: ACTIVE_IDENTITY.originHash } });
 		const previousPageSnapshot = makeDetectionSessionSnapshot({
 			key: { tabId: ACTIVE_IDENTITY.tabId, frameId: ACTIVE_IDENTITY.frameId, documentId: 'document-1', originHash: ACTIVE_IDENTITY.originHash },
@@ -132,37 +177,61 @@ describe('popup snapshot state', () => {
 		});
 		const matchingSnapshot = makeDetectionSessionSnapshot({ key: { tabId: ACTIVE_IDENTITY.tabId, frameId: ACTIVE_IDENTITY.frameId, documentId: 'document-1', originHash: ACTIVE_IDENTITY.originHash }, revision: 3 });
 
-		revisions.emit(otherTabSnapshot);
-		revisions.emit(previousPageSnapshot);
-		revisions.emit(matchingSnapshot);
+		harness.onChanged.emit({ [storageKey]: { newValue: otherTabSnapshot } });
+		harness.onChanged.emit({ [storageKey]: { newValue: previousPageSnapshot } });
+		harness.onChanged.emit({ other: { newValue: matchingSnapshot } });
+		harness.onChanged.emit({ [storageKey]: { newValue: matchingSnapshot } });
 		unsubscribe();
 
 		expect(onRevision).toHaveBeenCalledTimes(1);
 		expect(onRevision).toHaveBeenCalledWith(expect.objectContaining({ revision: 3 }));
-		expect(revisions.source.subscribeOriginSnapshot).toHaveBeenCalledWith(ACTIVE_IDENTITY.originHash, expect.any(Function));
-		expect(revisions.unsubscribe).toHaveBeenCalledOnce();
+		expect(harness.onChanged.addListener).toHaveBeenCalledOnce();
+		expect(harness.onChanged.removeListener).toHaveBeenCalledOnce();
 	});
 
-	it('applies only newer revisions for the active popup snapshot', () => {
+	it('subscribes to the exact session snapshot key once the visible session is known', async () => {
+		const harness = await loadSnapshotStateHarness();
+		const onRevision = vi.fn();
+		const exactSessionKey = {
+			tabId: ACTIVE_IDENTITY.tabId,
+			frameId: ACTIVE_IDENTITY.frameId,
+			documentId: 'exact-document',
+			originHash: ACTIVE_IDENTITY.originHash,
+		};
+		const exactStorageKey = getDetectionSessionSnapshotKey(exactSessionKey);
+		const lifecycleStorageKey = getContentSessionLifecycleKey(exactSessionKey);
+		const originStorageKey = getDetectionOriginSnapshotKey(ACTIVE_IDENTITY.originHash);
+		const matchingSnapshot = makeDetectionSessionSnapshot({ key: exactSessionKey, revision: 4, urlHash: ACTIVE_IDENTITY.urlHash });
+		const lifecycleSnapshot = makeDetectionSessionSnapshot({ key: exactSessionKey, revision: 5, urlHash: ACTIVE_IDENTITY.urlHash, status: 'observing', source: 'content' });
+		const otherDocumentOriginSnapshot = makeDetectionSessionSnapshot({
+			key: { ...exactSessionKey, documentId: 'other-document' },
+			revision: 9,
+			urlHash: ACTIVE_IDENTITY.urlHash,
+		});
+
+		const unsubscribe = harness.subscribeToPopupSnapshotRevisions(ACTIVE_IDENTITY, exactSessionKey, onRevision);
+
+		harness.onChanged.emit({ [originStorageKey]: { newValue: otherDocumentOriginSnapshot } });
+		harness.onChanged.emit({ [exactStorageKey]: { newValue: matchingSnapshot } });
+		harness.onChanged.emit({ [lifecycleStorageKey]: { newValue: lifecycleSnapshot } });
+		unsubscribe();
+
+		expect(onRevision).toHaveBeenCalledTimes(2);
+		expect(onRevision).toHaveBeenCalledWith(expect.objectContaining({ key: exactSessionKey, revision: 4 }));
+		expect(onRevision).toHaveBeenCalledWith(expect.objectContaining({ key: exactSessionKey, revision: 5, source: 'content' }));
+	});
+
+	it('applies only newer revisions for the active popup snapshot', async () => {
+		const harness = await loadSnapshotStateHarness();
 		const current = makeDetectionSessionSnapshot({ revision: 2, updatedAt: 1_700_000_000_002 });
 		const olderSameDocument = makeDetectionSessionSnapshot({ revision: 1, updatedAt: 1_700_000_000_003 });
 		const newerSameDocument = makeDetectionSessionSnapshot({ revision: 3, updatedAt: 1_700_000_000_001 });
 		const newerDifferentDocument = makeDetectionSessionSnapshot({ key: { ...current.key, documentId: 'document-2' }, revision: 1, updatedAt: 1_700_000_000_004 });
 
-		expect(isNewerSnapshotRevision(null, current)).toBe(true);
-		expect(isNewerSnapshotRevision(current, olderSameDocument)).toBe(false);
-		expect(isNewerSnapshotRevision(current, newerSameDocument)).toBe(true);
-		expect(isNewerSnapshotRevision(current, newerDifferentDocument)).toBe(true);
+		expect(harness.isNewerSnapshotRevision(null, current)).toBe(true);
+		expect(harness.isNewerSnapshotRevision(current, olderSameDocument)).toBe(false);
+		expect(harness.isNewerSnapshotRevision(current, newerSameDocument)).toBe(true);
+		expect(harness.isNewerSnapshotRevision(current, newerDifferentDocument)).toBe(true);
 		expect(createDetectionStorageHash(ACTIVE_IDENTITY.url)).toBeTypeOf('string');
-	});
-
-	it('keeps stored revisions compatible with the existing popup view model', () => {
-		const snapshot = makeDetectionSessionSnapshot({ analysis: makeAnalysis([makeDetection('solidjs')]) });
-		const revision = createStoredPopupVisibleRevision({
-			source: 'session-snapshot',
-			analysis: snapshot.analysis,
-			snapshot,
-		});
-		expect(revision.analysis.results).toHaveLength(1);
 	});
 });

@@ -163,10 +163,7 @@ describe.sequential('content API observation baseline', () => {
 			status: 'observing',
 			observedAt: observing.startedAt,
 			reason: 'observation-session-started',
-		}, expect.objectContaining({
-			getLatestSessionSnapshot: expect.any(Function),
-			saveSnapshot: expect.any(Function),
-		}));
+		});
 
 		await api.stopObservationSession();
 		expect(observedSignals.stopObservationSession).toHaveBeenCalledWith('manual');
@@ -378,10 +375,7 @@ describe.sequential('content API observation baseline', () => {
 			status: 'observing',
 			observedAt: lateBatch.observedAt,
 			reason: 'observation-batch-flushed',
-		}, expect.objectContaining({
-			getLatestSessionSnapshot: expect.any(Function),
-			saveSnapshot: expect.any(Function),
-		}));
+		});
 	});
 
 
@@ -430,10 +424,7 @@ describe.sequential('content API observation baseline', () => {
 			status: 'observing',
 			observedAt: 1_700_000_000_250,
 			reason: 'observation-batch-queued',
-		}, expect.objectContaining({
-			getLatestSessionSnapshot: expect.any(Function),
-			saveSnapshot: expect.any(Function),
-		}));
+		});
 		expect(sendMessage).toHaveBeenCalledWith({
 			type: 'kaiju-site-scope.observation-dirty.v1',
 			sessionId: 'session-1',

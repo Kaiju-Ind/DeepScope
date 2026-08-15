@@ -30,6 +30,7 @@ import {
 	DETECTION_STORAGE_STATUS_SCHEMA_VERSION,
 } from '../contracts/detection-session';
 import {
+	getContentSessionLifecycleKey,
 	DETECTION_ORIGIN_SUMMARY_PREFIX,
 	DETECTION_STORAGE_STATUS_KEY,
 	getDetectionOriginSnapshotKey,
@@ -197,7 +198,16 @@ export async function getDetectionSessionIndex(
 
 /** Remove the tab-session index after a tab closes and volatile state is gone. */
 export async function removeDetectionSessionIndex(tabId: number): Promise<void> {
-	await browser.storage.local.remove(getDetectionSessionIndexKey(tabId));
+	const index = await getDetectionSessionIndex(tabId);
+	const keys = [
+		getDetectionSessionIndexKey(tabId),
+		...index.entries.flatMap((entry) => [
+			getDetectionSessionSnapshotKey(entry.key),
+			getContentSessionLifecycleKey(entry.key),
+		]),
+	];
+
+	await browser.storage.local.remove(keys);
 }
 
 /**
@@ -256,12 +266,16 @@ async function upsertDetectionSessionIndex(snapshot: DetectionSessionSnapshot): 
 		status: snapshot.status,
 		updatedAt: snapshot.updatedAt,
 	};
-	const entries = [
+	const allEntries = [
 		entry,
 		...index.entries.filter((item) => !isSameDetectionSessionKey(item.key, snapshot.key)),
-	]
+	];
+	const entries = allEntries
 		.sort((left, right) => right.updatedAt - left.updatedAt)
 		.slice(0, 20);
+	const evictedEntries = allEntries.filter((candidate) =>
+		!entries.some((retained) => isSameDetectionSessionKey(retained.key, candidate.key))
+	);
 
 	await browser.storage.local.set({
 		[getDetectionSessionIndexKey(tabId)]: {
@@ -270,6 +284,13 @@ async function upsertDetectionSessionIndex(snapshot: DetectionSessionSnapshot): 
 			updatedAt: snapshot.updatedAt,
 		} satisfies DetectionSessionIndexRecord,
 	});
+
+	if (evictedEntries.length > 0) {
+		await browser.storage.local.remove(evictedEntries.flatMap((evicted) => [
+			getDetectionSessionSnapshotKey(evicted.key),
+			getContentSessionLifecycleKey(evicted.key),
+		]));
+	}
 }
 
 /** Compare exact session keys without depending on object identity from storage mocks. */
@@ -382,6 +403,15 @@ function shouldPreserveExistingAnalysisForCandidate(
 	}
 
 	if (candidate.detectionCount >= existing.detectionCount) {
+		return false;
+	}
+
+	const candidateEvidenceRank = getEvidenceCompletenessRank(candidate.evidence);
+	const existingEvidenceRank = getEvidenceCompletenessRank(existing.evidence);
+	if (candidateEvidenceRank < existingEvidenceRank) {
+		return true;
+	}
+	if (candidate.replaySummary) {
 		return false;
 	}
 
