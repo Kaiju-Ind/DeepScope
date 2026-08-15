@@ -21,19 +21,19 @@
     "bench:rules:gate": "KAIJU_SITE_SCOPE_RULE_BENCH_REGISTRY_SCAN=1 KAIJU_SITE_SCOPE_RULE_BENCH_GENERATED_PASS_SCAN=1 KAIJU_SITE_SCOPE_RULE_BENCH_FAIL_ON_BUDGET=1 vitest bench src/benchmarks/rule-detection-profile.bench.ts"
   },
   "dependencies": {
-    "@dagrejs/graphlib": "^4.0.1",
-    "@logtape/logtape": "^2.1.5",
+    "@dagrejs/graphlib": "^4.0.5",
+    "@logtape/logtape": "^2.3.1",
     "@std/encoding": "npm:@jsr/std__encoding@^1.0.11",
     "comctx": "1.7.5",
-    "postcss-selector-parser": "^7.1.1",
-    "solid-js": "1.9.13",
-    "zod": "^4.0.0"
+    "postcss-selector-parser": "^7.1.5",
+    "solid-js": "1.9.14",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@fast-check/vitest": "0.4.1",
     "@wxt-dev/module-solid": "1.1.4",
-    "typescript": "6.0.3",
-    "vitest": "4.1.9",
-    "wxt": "0.20.26"
+    "typescript": "7.0.2",
+    "vitest": "4.1.10",
+    "wxt": "0.21.4"
   }
 }
