@@ -25,6 +25,31 @@ describe('registry source schema', () => {
 		expect(result.diagnostics).toEqual([]);
 	});
 
+	it('accepts rendered image rules and catalog component metadata', () => {
+		const result = validateRegistrySource({
+			schemaVersion: REGISTRY_SOURCE_SCHEMA_VERSION,
+			technologies: [{
+				id: 'image-catalog-tech',
+				name: 'Image Catalog Tech',
+				website: 'https://image-catalog.example',
+				categories: ['infrastructure-hosting'],
+				rules: [{ kind: 'imageSrc', pattern: /image-catalog\.example/ }],
+				component: {
+					kind: 'feature-provider',
+					sourceIdentities: [{
+						kind: 'repository',
+						value: 'example/image-catalog-tech',
+						url: 'https://github.com/example/image-catalog-tech',
+					}],
+				},
+				versioning: { enabled: true, scheme: 'semver' },
+			}],
+		});
+
+		expect(result.valid).toBe(true);
+		expect(result.diagnostics).toEqual([]);
+	});
+
 	it('returns diagnostics for malformed source fields', () => {
 		const result = validateRegistrySource({
 			schemaVersion: REGISTRY_SOURCE_SCHEMA_VERSION,

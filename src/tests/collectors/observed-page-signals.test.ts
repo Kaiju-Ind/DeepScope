@@ -12,6 +12,16 @@ function makeScript(input: { src?: string; text?: string }): HTMLScriptElement {
 	} as HTMLScriptElement;
 }
 
+function makeImage(src: string, currentSrc = ''): HTMLImageElement {
+	return {
+		src,
+		currentSrc,
+		getAttribute(name: string) {
+			return name === 'src' ? src : null;
+		},
+	} as HTMLImageElement;
+}
+
 function makeStylesheetLink(href: string): HTMLLinkElement {
 	return {
 		href,
@@ -51,6 +61,7 @@ function makeStyle(text: string): HTMLStyleElement {
 }
 
 function makeDocument(): Document {
+	const images = [makeImage('/images/fallback.jpg', 'https://cdn.example.com/rendered.webp')];
 	const scripts = [
 		makeScript({ src: '/assets/app.js' }),
 		makeScript({ text: 'window.__HYDRATED__ = true' }),
@@ -62,6 +73,7 @@ function makeDocument(): Document {
 	return {
 		styleSheets: [],
 		querySelectorAll(selector: string) {
+			if (selector === 'img[src], img[srcset]') return images;
 			if (selector === 'script') return scripts;
 			if (selector === 'link[rel~="stylesheet"]') return links;
 			if (selector === 'link[href]') return links;
@@ -179,6 +191,7 @@ describe('observed page signals', () => {
 		});
 
 		await expect(observedSignals.snapshot()).resolves.toMatchObject({
+			images: ['https://cdn.example.com/rendered.webp'],
 			scripts: ['https://example.com/assets/app.js'],
 			stylesheets: ['https://example.com/assets/app.css'],
 			resources: [
@@ -225,7 +238,7 @@ describe('observed page signals', () => {
 		expect(flushed.session).toMatchObject({ status: 'observing' });
 		expect(flushed.batch?.target).toEqual({ url: 'https://example.com/products', hostname: 'example.com' });
 		expect(flushed.batch?.observations.map((observation) => observation.kind)).toEqual(
-			expect.arrayContaining(['scriptSrc', 'stylesheetHref', 'resourceUrl', 'requestUrl', 'scriptContent', 'stylesheetContent', 'meta']),
+			expect.arrayContaining(['imageSrc', 'scriptSrc', 'stylesheetHref', 'resourceUrl', 'requestUrl', 'scriptContent', 'stylesheetContent', 'meta']),
 		);
 	});
 

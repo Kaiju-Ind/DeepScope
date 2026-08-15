@@ -103,9 +103,24 @@ describe('packaged registry artifacts', () => {
 		expect(headerShard[0]?.rules[0]?.sourceRuleIndex).toBe(2);
 	});
 
+	it('creates a rendered-image shard for image-backed technology rules', () => {
+		const registry: readonly TechnologyDefinition[] = [{
+			id: 'image-backed-tech',
+			name: 'Image Backed Tech',
+			website: 'https://image-backed.example',
+			categories: ['infrastructure-hosting'],
+			rules: [{ kind: 'imageSrc', pattern: /cdn\.image-backed\.example/ }],
+		}];
+		const shard = createObservationKindTechnologyRegistry(registry, 'imageSrc');
+
+		expect(shard).toHaveLength(1);
+		expect(shard[0]?.rules).toMatchObject([{ kind: 'imageSrc', sourceRuleIndex: 0 }]);
+	});
+
 	it('keeps packaged registry paths relative to the extension root', () => {
 		expect(PACKAGED_REGISTRY_ASSET_PATHS.enrichment).toBe('kaiju-site-scope-registry/registry.enrichment.json');
 		expect(PACKAGED_REGISTRY_ASSET_PATHS.enrichment.startsWith('/')).toBe(false);
+		expect(getPackagedRegistryShardAssetPath('imageSrc')).toBe('kaiju-site-scope-registry/registry.kind.imageSrc.json');
 		expect(getPackagedRegistryShardAssetPath('scriptSrc')).toBe('kaiju-site-scope-registry/registry.kind.scriptSrc.json');
 	});
 

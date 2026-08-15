@@ -109,6 +109,18 @@ describe('detection helpers', () => {
 		).toBeNull();
 	});
 
+	it('rejects too many rendered image source entries', () => {
+		expect(
+			validatePageSignals(
+				createSignals({
+					images: Array.from({ length: SOURCE_LIMITS.imageSrc + 1 }, (_value, index) =>
+						`https://images.example.com/${index}.webp`,
+					),
+				}),
+			),
+		).toBe('Too many image source entries');
+	});
+
 	it('rejects oversized meta signals', () => {
 		expect(
 			validatePageSignals(
@@ -186,6 +198,31 @@ describe('analyzeSite', () => {
 		);
 
 		expect(analysis.results.some((item) => item.technologyId === 'google-analytics')).toBe(true);
+	});
+
+	it('does not detect Google Analytics from the generic _ga cookie alone', () => {
+		const analysis = analyzeSite(
+			createSignals({ cookies: { _ga: true } }),
+			technologyDefinitions,
+		);
+
+		expect(analysis.results.some((item) => item.technologyId === 'google-analytics')).toBe(false);
+	});
+
+	it('detects image-backed technologies from rendered image URLs', () => {
+		const registry: TechnologyDefinition[] = [{
+			id: 'image-backed-tech',
+			name: 'Image Backed Tech',
+			website: 'https://image-backed.example',
+			categories: ['infrastructure-hosting'],
+			rules: [{ kind: 'imageSrc', pattern: /cdn\.image-backed\.example/ }],
+		}];
+		const analysis = analyzeSite(
+			createSignals({ images: ['https://cdn.image-backed.example/product.webp'] }),
+			registry,
+		);
+
+		expect(analysis.results.map((item) => item.technologyId)).toEqual(['image-backed-tech']);
 	});
 
 	it('detects jsGlobal values collected by injected JS context', () => {

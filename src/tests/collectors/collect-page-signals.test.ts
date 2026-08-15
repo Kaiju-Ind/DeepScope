@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
 	collectCookieNames,
+	collectImageSources,
 	collectLinkTags,
 	collectMetaTags,
 	collectScriptContents,
@@ -52,6 +53,16 @@ function makeMeta(input: Record<string, string>): HTMLMetaElement {
 	} as HTMLMetaElement;
 }
 
+function makeImage(input: { src: string; currentSrc?: string }): HTMLImageElement {
+	return {
+		src: input.src,
+		currentSrc: input.currentSrc ?? '',
+		getAttribute(name: string) {
+			return name === 'src' ? input.src : null;
+		},
+	} as HTMLImageElement;
+}
+
 function makeStyle(text: string): HTMLStyleElement {
 	return {
 		textContent: text,
@@ -79,6 +90,18 @@ describe('content page signal collectors', () => {
 		])).toEqual([
 			'https://example.com/products/app.css',
 			'https://cdn.example.com/theme.css',
+		]);
+	});
+
+	it('collects rendered image URLs and prefers currentSrc', () => {
+		vi.stubGlobal('location', { href: 'https://example.com/products/index.html' });
+
+		expect(collectImageSources([
+			makeImage({ src: '/images/fallback.jpg', currentSrc: 'https://cdn.example.com/rendered.webp' }),
+			makeImage({ src: './relative.png' }),
+		])).toEqual([
+			'https://cdn.example.com/rendered.webp',
+			'https://example.com/products/relative.png',
 		]);
 	});
 

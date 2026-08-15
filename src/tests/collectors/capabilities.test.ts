@@ -10,6 +10,7 @@ import type { RuntimeDetectionKind } from '@/lib/detection/types';
 const RUNTIME_DETECTION_KINDS: readonly RuntimeDetectionKind[] = [
 	'dom',
 	'html',
+	'imageSrc',
 	'scriptSrc',
 	'stylesheetHref',
 	'resourceUrl',

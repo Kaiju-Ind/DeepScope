@@ -25,6 +25,7 @@ describe('matcher partitions', () => {
 		const batch = normalizePageSignals(makePageSignals({
 			url: 'https://example.com/products',
 			meta: { generator: ['Example CMS'] },
+			images: ['https://images.example/product.webp'],
 			scripts: ['https://cdn.example/runtime.js'],
 			scriptContents: ['window.__heavy = true'],
 		}));
@@ -34,6 +35,7 @@ describe('matcher partitions', () => {
 		expect(partitions.map((partition) => [partition.kind, partition.priority])).toEqual([
 			['meta', 1],
 			['url', 1],
+			['imageSrc', 3],
 			['scriptSrc', 3],
 			['html', 4],
 			['scriptContent', 4],
