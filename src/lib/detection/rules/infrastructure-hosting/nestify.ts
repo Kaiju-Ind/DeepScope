@@ -1,19 +1,19 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const nestifyTechnologyDefinition = {
-	id: "nestify",
-	name: "Nestify",
-	website: "https://nestify.io",
-	description: "Nestify is a fully managed WordPress hosting platform that runs on AWS graviton processors.",
-	icon: "Nestify.png",
+export const nestifyTechnologyDefinition: TechnologyDefinition = {
+	id: 'nestify',
+	name: 'Nestify',
+	website: 'https://nestify.io',
+	description: 'Nestify is a fully managed WordPress hosting platform that runs on AWS graviton processors.',
+	icon: 'Nestify.png',
 	categories: [
-		"infrastructure-hosting",
+		'infrastructure-hosting',
 	],
 	rules: [],
 	metadata: {
 		pricing: [
-			"payg",
-			"recurring",
+			'payg',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

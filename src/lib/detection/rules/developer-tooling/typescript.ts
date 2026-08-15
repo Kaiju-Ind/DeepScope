@@ -1,13 +1,13 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const typescriptTechnologyDefinition = {
-	id: "typescript",
-	name: "TypeScript",
-	website: "https://www.typescriptlang.org",
-	description: "TypeScript is an open-source language which builds on JavaScript  by adding static type definitions.",
-	icon: "TypeScript.svg",
+export const typescriptTechnologyDefinition: TechnologyDefinition = {
+	id: 'typescript',
+	name: 'TypeScript',
+	website: 'https://www.typescriptlang.org',
+	description: 'TypeScript is an open-source language which builds on JavaScript  by adding static type definitions.',
+	icon: 'TypeScript.svg',
 	categories: [
-		"developer-tooling",
+		'developer-tooling',
 	],
 	rules: [],
 	metadata: {

@@ -1,38 +1,38 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const sarkaSpipTechnologyDefinition = {
-	id: "sarka-spip",
-	name: "Sarka-SPIP",
-	website: "https://sarka-spip.net",
-	icon: "Sarka-SPIP.png",
+export const sarkaSpipTechnologyDefinition: TechnologyDefinition = {
+	id: 'sarka-spip',
+	name: 'Sarka-SPIP',
+	website: 'https://sarka-spip.net',
+	icon: 'Sarka-SPIP.png',
 	categories: [
-		"platform-cms-builder",
+		'platform-cms-builder',
 	],
 	rules: [
 		{
-			id: "sarka-spip:meta:0",
-			kind: "meta",
-			key: "generator",
-			valuePattern: new RegExp("Sarka-SPIP(?:\\s([\\d.]+))?", "i"),
+			id: 'sarka-spip:meta:0',
+			kind: 'meta',
+			key: 'generator',
+			valuePattern: new RegExp('Sarka-SPIP(?:\\s([\\d.]+))?', 'i'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Meta tag matches a known technology marker.",
+			description: 'Meta tag matches a known technology marker.',
 		},
 		{
-			id: "sarka-spip:meta:1",
-			kind: "meta",
-			key: "generator",
-			valuePattern: new RegExp("sarka-spip(?:\\s([\\d.]+))?", "i"),
+			id: 'sarka-spip:meta:1',
+			kind: 'meta',
+			key: 'generator',
+			valuePattern: new RegExp('sarka-spip(?:\\s([\\d.]+))?', 'i'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Meta tag matches a known technology marker.",
+			description: 'Meta tag matches a known technology marker.',
 		},
 	],
 	implies: [
-		"spip",
+		'spip',
 	],
 } as const satisfies TechnologyDefinition;

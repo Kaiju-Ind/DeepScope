@@ -1,12 +1,15 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const shopifyDuxTechnologyDefinition = {
+export const shopifyDuxTechnologyDefinition: TechnologyDefinition = {
 	id: 'shopify-dux',
 	name: 'Shopify DUX',
 	website: 'https://www.shopify.com/',
 	description: 'Shopify DUX records brochure-site interaction and performance events through Shopify-owned endpoints.',
 	icon: 'Shopify.svg',
-	categories: ['analytics'],
+
+	categories: [
+		'analytics',
+	],
 	rules: [
 		{
 			id: 'shopify-dux:html:0',

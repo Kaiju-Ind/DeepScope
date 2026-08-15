@@ -1,27 +1,27 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const fleeteeTechnologyDefinition = {
-	id: "fleetee",
-	name: "Fleetee",
-	website: "https://en.fleetee.io",
-	description: "Fleetee is a platform that enables users to develop and manage rental operations.",
-	icon: "Fleetee.svg",
+export const fleeteeTechnologyDefinition: TechnologyDefinition = {
+	id: 'fleetee',
+	name: 'Fleetee',
+	website: 'https://en.fleetee.io',
+	description: 'Fleetee is a platform that enables users to develop and manage rental operations.',
+	icon: 'Fleetee.svg',
 	categories: [
-		"business-tools",
+		'business-tools',
 	],
 	rules: [
 		{
-			id: "fleetee:scriptContent:0",
-			kind: "scriptContent",
-			pattern: new RegExp("app\\.fleetee\\.io"),
-			description: "Script content contains a bounded technology signature.",
+			id: 'fleetee:scriptContent:0',
+			kind: 'scriptContent',
+			pattern: new RegExp('app\\.fleetee\\.io'),
+			description: 'Script content contains a bounded technology signature.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"low",
-			"recurring",
+			'low',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

@@ -1,20 +1,21 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const conwordTechnologyDefinition = {
-	id: "conword",
-	name: "Conword",
-	website: "https://conword.io",
-	description: "Conword is a platform that provides automatic translations for websites, enabling multilingual content delivery without manual intervention.",
-	icon: "Conword.svg",
+export const conwordTechnologyDefinition: TechnologyDefinition = {
+	id: 'conword',
+	name: 'Conword',
+	website: 'https://conword.io',
+	description:
+		'Conword is a platform that provides automatic translations for websites, enabling multilingual content delivery without manual intervention.',
+	icon: 'Conword.svg',
 	categories: [
-		"translations",
+		'translations',
 	],
 	rules: [
 		{
-			id: "conword:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("static\\.conword\\.io"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'conword:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('static\\.conword\\.io'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {

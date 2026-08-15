@@ -1,24 +1,24 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const bowserTechnologyDefinition = {
-	id: "bowser",
-	name: "bowser",
-	website: "https://opencollective.com/bowser",
-	description: "A small, fast and rich-API browser/platform/engine detector for both browser and node.",
+export const bowserTechnologyDefinition: TechnologyDefinition = {
+	id: 'bowser',
+	name: 'bowser',
+	website: 'https://opencollective.com/bowser',
+	description: 'A small, fast and rich-API browser/platform/engine detector for both browser and node.',
 	categories: [
-		"api-pattern",
-		"developer-tooling",
+		'api-pattern',
+		'developer-tooling',
 	],
 	rules: [
 		{
-			id: "bowser:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("(?:((?:\\d+\\.)+\\d+)\\/)?bowser(?:\\.min)?(?:[-\\.][\\d\\w]{0,64})?\\.js"),
+			id: 'bowser:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('(?:((?:\\d{1,9}\\.){1,12}\\d+)\\/)?bowser(?:\\.min)?(?:[-\\.][\\d\\w]{0,64})?\\.js'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {

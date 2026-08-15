@@ -1,22 +1,22 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const jqplotTechnologyDefinition = {
-	id: "jqplot",
-	name: "jqPlot",
-	website: "https://www.jqplot.com",
-	icon: "jqPlot.png",
+export const jqplotTechnologyDefinition: TechnologyDefinition = {
+	id: 'jqplot',
+	name: 'jqPlot',
+	website: 'https://www.jqplot.com',
+	icon: 'jqPlot.png',
 	categories: [
-		"graphics-visualization",
+		'graphics-visualization',
 	],
 	rules: [
 		{
-			id: "jqplot:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("jqplot.*\\.js"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'jqplot:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('jqplot.*\\.js'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	implies: [
-		"jquery",
+		'jquery',
 	],
 } as const satisfies TechnologyDefinition;

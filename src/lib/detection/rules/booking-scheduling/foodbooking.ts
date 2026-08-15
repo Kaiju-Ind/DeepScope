@@ -1,37 +1,38 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const foodbookingTechnologyDefinition = {
-	id: "foodbooking",
-	name: "FoodBooking",
-	website: "https://www.foodbooking.com",
-	description: "FoodBooking is a virtual food court based on a curated list of restaurants that use the GloriaFood ordering system.",
-	icon: "FoodBooking.png",
+export const foodbookingTechnologyDefinition: TechnologyDefinition = {
+	id: 'foodbooking',
+	name: 'FoodBooking',
+	website: 'https://www.foodbooking.com',
+	description:
+		'FoodBooking is a virtual food court based on a curated list of restaurants that use the GloriaFood ordering system.',
+	icon: 'FoodBooking.png',
 	categories: [
-		"booking-scheduling",
+		'booking-scheduling',
 	],
 	rules: [
 		{
-			id: "foodbooking:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\.(?:fbgcdn|foodbooking)\\.com\\/"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'foodbooking:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\.(?:fbgcdn|foodbooking)\\.com\\/'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 		{
-			id: "foodbooking:dom:1",
-			kind: "dom",
+			id: 'foodbooking:dom:1',
+			kind: 'dom',
 			selector: "a[href*='.foodbooking.com/ordering/restaurant/'][target='_blank']",
-			description: "DOM selector matches a known technology marker.",
+			description: 'DOM selector matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"low",
-			"onetime",
-			"recurring",
+			'low',
+			'onetime',
+			'recurring',
 		],
 	},
 	implies: [
-		"gloriafood",
+		'gloriafood',
 	],
 } as const satisfies TechnologyDefinition;

@@ -1,27 +1,27 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const zipteamsTechnologyDefinition = {
-	id: "zipteams",
-	name: "Zipteams",
-	website: "https://zipteams.com",
-	description: "Zipteams is a live chat solution.",
-	icon: "Zipteams.png",
+export const zipteamsTechnologyDefinition: TechnologyDefinition = {
+	id: 'zipteams',
+	name: 'Zipteams',
+	website: 'https://zipteams.com',
+	description: 'Zipteams is a live chat solution.',
+	icon: 'Zipteams.png',
 	categories: [
-		"email-messaging",
+		'email-messaging',
 	],
 	rules: [
 		{
-			id: "zipteams:jsGlobal:0",
-			kind: "jsGlobal",
-			property: "ZipteamsWidget",
-			description: "Page-owned global matches a known technology marker.",
+			id: 'zipteams:jsGlobal:0',
+			kind: 'jsGlobal',
+			property: 'ZipteamsWidget',
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"low",
-			"recurring",
+			'low',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

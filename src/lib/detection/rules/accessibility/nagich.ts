@@ -1,41 +1,41 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const nagichTechnologyDefinition = {
-	id: "nagich",
-	name: "Nagich",
-	website: "https://www.nagich.co.il",
-	description: "Nagich is a website accessibility overlay provider from Israel.",
-	icon: "Nagich.svg",
+export const nagichTechnologyDefinition: TechnologyDefinition = {
+	id: 'nagich',
+	name: 'Nagich',
+	website: 'https://www.nagich.co.il',
+	description: 'Nagich is a website accessibility overlay provider from Israel.',
+	icon: 'Nagich.svg',
 	categories: [
-		"accessibility",
+		'accessibility',
 	],
 	rules: [
 		{
-			id: "nagich:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\.nagich\\.co(?:m|\\.il)\\/core\\/([\\d.]+)\\/accessibility\\.js"),
+			id: 'nagich:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\.nagich\\.co(?:m|\\.il)\\/core\\/([\\d.]+)\\/accessibility\\.js'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 		{
-			id: "nagich:jsGlobal:1",
-			kind: "jsGlobal",
-			property: "interdeal.version",
-			valuePattern: new RegExp("([\\d.]+)"),
+			id: 'nagich:jsGlobal:1',
+			kind: 'jsGlobal',
+			property: 'interdeal.version',
+			valuePattern: new RegExp('([\\d.]+)'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Page-owned global matches a known technology marker.",
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"poa",
+			'poa',
 		],
 	},
 } as const satisfies TechnologyDefinition;

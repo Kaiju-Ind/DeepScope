@@ -1,12 +1,15 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const dashiconsTechnologyDefinition = {
+export const dashiconsTechnologyDefinition: TechnologyDefinition = {
 	id: 'dashicons',
 	name: 'Dashicons',
 	website: 'https://developer.wordpress.org/resource/dashicons/',
 	description: 'Dashicons is the icon font used by WordPress admin and related WordPress interfaces.',
 	icon: 'WordPress.svg',
-	categories: ['widgets-misc'],
+
+	categories: [
+		'widgets-misc',
+	],
 	rules: [
 		{
 			id: 'dashicons:stylesheetHref:0',

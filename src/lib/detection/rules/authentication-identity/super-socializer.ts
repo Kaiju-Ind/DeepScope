@@ -1,32 +1,32 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const superSocializerTechnologyDefinition = {
-	id: "super-socializer",
-	name: "Super Socializer",
-	website: "https://super-socializer-wordpress.heateor.com",
-	description: "Super Socializer is a multipurpose social media plugin for WordPress.",
-	icon: "Super Socializer.png",
+export const superSocializerTechnologyDefinition: TechnologyDefinition = {
+	id: 'super-socializer',
+	name: 'Super Socializer',
+	website: 'https://super-socializer-wordpress.heateor.com',
+	description: 'Super Socializer is a multipurpose social media plugin for WordPress.',
+	icon: 'Super Socializer.png',
 	categories: [
-		"authentication-identity",
-		"wordpress-ecosystem",
+		'authentication-identity',
+		'wordpress-ecosystem',
 	],
 	rules: [
 		{
-			id: "super-socializer:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("plugins\\/super-socializer\\/.+?ver=([\\d.]+)"),
+			id: 'super-socializer:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('plugins\\/super-socializer\\/.+?ver=([\\d.]+)'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		oss: true,
-		cpe: "cpe:2.3:a:heateor:super_socializer:*:*:*:*:*:wordpress:*:*",
+		cpe: 'cpe:2.3:a:heateor:super_socializer:*:*:*:*:*:wordpress:*:*',
 	},
 	requires: [
-		"wordpress",
+		'wordpress',
 	],
 } as const satisfies TechnologyDefinition;

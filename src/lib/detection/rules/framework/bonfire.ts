@@ -1,42 +1,42 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const bonfireTechnologyDefinition = {
-	id: "bonfire",
-	name: "Bonfire",
-	website: "https://cibonfire.com",
-	icon: "Bonfire.png",
+export const bonfireTechnologyDefinition: TechnologyDefinition = {
+	id: 'bonfire',
+	name: 'Bonfire',
+	website: 'https://cibonfire.com',
+	icon: 'Bonfire.png',
 	categories: [
-		"framework",
+		'framework',
 	],
 	rules: [
 		{
-			id: "bonfire:html:0",
-			kind: "html",
-			pattern: new RegExp("Powered by <a[^>]+href=\"https?:\\/\\/(?:www\\.)?cibonfire\\.com[^>]*>Bonfire v([^<]+)"),
+			id: 'bonfire:html:0',
+			kind: 'html',
+			pattern: new RegExp('Powered by <a[^>]+href="https?:\\/\\/(?:www\\.)?cibonfire\\.com[^>]*>Bonfire v([^<]+)'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "HTML contains a known technology signature.",
+			description: 'HTML contains a known technology signature.',
 		},
 		{
-			id: "bonfire:cookie:1",
-			kind: "cookie",
-			keyPattern: new RegExp("^bf_session$", "i"),
-			description: "Cookie name matches a known technology marker.",
+			id: 'bonfire:cookie:1',
+			kind: 'cookie',
+			keyPattern: new RegExp('^bf_session$', 'i'),
+			description: 'Cookie name matches a known technology marker.',
 		},
 		{
-			id: "bonfire:html:2",
-			kind: "html",
-			pattern: new RegExp("powered by <a[^>]+href=\"https?:\\/\\/(?:www\\.)?cibonfire\\.com[^>]*>bonfire v([^<]+)"),
+			id: 'bonfire:html:2',
+			kind: 'html',
+			pattern: new RegExp('powered by <a[^>]+href="https?:\\/\\/(?:www\\.)?cibonfire\\.com[^>]*>bonfire v([^<]+)'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "HTML contains a known technology signature.",
+			description: 'HTML contains a known technology signature.',
 		},
 	],
 	implies: [
-		"codeigniter",
+		'codeigniter',
 	],
 } as const satisfies TechnologyDefinition;

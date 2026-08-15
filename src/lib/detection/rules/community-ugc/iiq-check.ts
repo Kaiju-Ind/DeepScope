@@ -1,20 +1,20 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const iiqCheckTechnologyDefinition = {
-	id: "iiq-check",
-	name: "iiQ Check",
-	website: "https://www.iiq-check.de",
-	description: "iiQ Check is a system designed to optimize hotel guest communication and manage review distribution.",
-	icon: "iiQCheck.svg",
+export const iiqCheckTechnologyDefinition: TechnologyDefinition = {
+	id: 'iiq-check',
+	name: 'iiQ Check',
+	website: 'https://www.iiq-check.de',
+	description: 'iiQ Check is a system designed to optimize hotel guest communication and manage review distribution.',
+	icon: 'iiQCheck.svg',
 	categories: [
-		"community-ugc",
+		'community-ugc',
 	],
 	rules: [
 		{
-			id: "iiq-check:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("app\\.iiq-check\\.de"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'iiq-check:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('app\\.iiq-check\\.de'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {

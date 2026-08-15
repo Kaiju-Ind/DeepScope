@@ -188,6 +188,7 @@ import { cartComTechnologyDefinition } from './cart-com';
 import { cartFunctionalityTechnologyDefinition } from './cart-functionality';
 import { carteraTechnologyDefinition } from './cartera';
 import { cartflowsTechnologyDefinition } from './cartflows';
+import { cartlineTechnologyDefinition } from './cartline';
 import { cartpandaTechnologyDefinition } from './cartpanda';
 import { cartpopsTechnologyDefinition } from './cartpops';
 import { cartumTechnologyDefinition } from './cartum';
@@ -247,6 +248,7 @@ import { commercehqTechnologyDefinition } from './commercehq';
 import { commercelayerTechnologyDefinition } from './commercelayer';
 import { commercetoolsTechnologyDefinition } from './commercetools';
 import { commercioTechnologyDefinition } from './commercio';
+import { commercyTechnologyDefinition } from './commercy';
 import { commonGroundTechnologyDefinition } from './common-ground';
 import { commsTechnologyDefinition } from './comms';
 import { compositeProductsTechnologyDefinition } from './composite-products';
@@ -1214,6 +1216,7 @@ import { skyShopTechnologyDefinition } from './sky-shop';
 import { skycmsByNetkonceptTechnologyDefinition } from './skycms-by-netkoncept';
 import { smallboxTechnologyDefinition } from './smallbox';
 import { smartLGovTechnologyDefinition } from './smart-l-gov';
+import { smartfrontTechnologyDefinition } from './smartfront';
 import { smartsiteTechnologyDefinition } from './smartsite';
 import { smartstoreBizTechnologyDefinition } from './smartstore-biz';
 import { smartstorePageBuilderTechnologyDefinition } from './smartstore-page-builder';
@@ -1741,6 +1744,7 @@ export const platformCmsBuilderTechnologyDefinitions = [
 	cartFunctionalityTechnologyDefinition,
 	carteraTechnologyDefinition,
 	cartflowsTechnologyDefinition,
+	cartlineTechnologyDefinition,
 	cartpandaTechnologyDefinition,
 	cartpopsTechnologyDefinition,
 	cartumTechnologyDefinition,
@@ -1800,6 +1804,7 @@ export const platformCmsBuilderTechnologyDefinitions = [
 	commercelayerTechnologyDefinition,
 	commercetoolsTechnologyDefinition,
 	commercioTechnologyDefinition,
+	commercyTechnologyDefinition,
 	commonGroundTechnologyDefinition,
 	commsTechnologyDefinition,
 	compositeProductsTechnologyDefinition,
@@ -2767,6 +2772,7 @@ export const platformCmsBuilderTechnologyDefinitions = [
 	skycmsByNetkonceptTechnologyDefinition,
 	smallboxTechnologyDefinition,
 	smartLGovTechnologyDefinition,
+	smartfrontTechnologyDefinition,
 	smartsiteTechnologyDefinition,
 	smartstoreBizTechnologyDefinition,
 	smartstorePageBuilderTechnologyDefinition,

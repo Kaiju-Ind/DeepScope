@@ -1,20 +1,21 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const veonrTechnologyDefinition = {
-	id: "veonr",
-	name: "Veonr",
-	website: "https://veonr.com",
-	description: "Veonr is an analytics and tracking suite designed for business websites, offering tools to monitor site activities and optimize conversions.",
-	icon: "Veonr.svg",
+export const veonrTechnologyDefinition: TechnologyDefinition = {
+	id: 'veonr',
+	name: 'Veonr',
+	website: 'https://veonr.com',
+	description:
+		'Veonr is an analytics and tracking suite designed for business websites, offering tools to monitor site activities and optimize conversions.',
+	icon: 'Veonr.svg',
 	categories: [
-		"analytics",
+		'analytics',
 	],
 	rules: [
 		{
-			id: "veonr:scriptContent:0",
-			kind: "scriptContent",
-			pattern: new RegExp("\\.fsb\\.veonr\\.com"),
-			description: "Script content contains a bounded technology signature.",
+			id: 'veonr:scriptContent:0',
+			kind: 'scriptContent',
+			pattern: new RegExp('\\.fsb\\.veonr\\.com'),
+			description: 'Script content contains a bounded technology signature.',
 		},
 	],
 	metadata: {

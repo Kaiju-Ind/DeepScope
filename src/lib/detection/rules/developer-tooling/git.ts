@@ -1,27 +1,27 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const gitTechnologyDefinition = {
-	id: "git",
-	name: "git",
-	website: "https://git-scm.com",
-	icon: "git.svg",
+export const gitTechnologyDefinition: TechnologyDefinition = {
+	id: 'git',
+	name: 'git',
+	website: 'https://git-scm.com',
+	icon: 'git.svg',
 	categories: [
-		"developer-tooling",
+		'developer-tooling',
 	],
 	rules: [
 		{
-			id: "git:meta:0",
-			kind: "meta",
-			key: "generator",
-			valuePattern: new RegExp("\\bgit\\/([\\d.]+\\d)", "i"),
+			id: 'git:meta:0',
+			kind: 'meta',
+			key: 'generator',
+			valuePattern: new RegExp('\\bgit\\/([\\d.]+\\d)', 'i'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Meta tag matches a known technology marker.",
+			description: 'Meta tag matches a known technology marker.',
 		},
 	],
 	metadata: {
-		cpe: "cpe:2.3:a:git-scm:git:*:*:*:*:*:*:*:*",
+		cpe: 'cpe:2.3:a:git-scm:git:*:*:*:*:*:*:*:*',
 	},
 } as const satisfies TechnologyDefinition;

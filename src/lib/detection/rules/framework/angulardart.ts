@@ -1,26 +1,26 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const angulardartTechnologyDefinition = {
-	id: "angulardart",
-	name: "AngularDart",
-	website: "https://webdev.dartlang.org/angular/",
-	icon: "AngularDart.svg",
+export const angulardartTechnologyDefinition: TechnologyDefinition = {
+	id: 'angulardart',
+	name: 'AngularDart',
+	website: 'https://webdev.dartlang.org/angular/',
+	icon: 'AngularDart.svg',
 	categories: [
-		"framework",
+		'framework',
 	],
 	rules: [
 		{
-			id: "angulardart:jsGlobal:0",
-			kind: "jsGlobal",
-			property: "ngTestabilityRegistries",
-			description: "Page-owned global matches a known technology marker.",
+			id: 'angulardart:jsGlobal:0',
+			kind: 'jsGlobal',
+			property: 'ngTestabilityRegistries',
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 	implies: [
-		"dart",
+		'dart',
 	],
 	excludes: [
-		"angular",
-		"angularjs",
+		'angular',
+		'angularjs',
 	],
 } as const satisfies TechnologyDefinition;

@@ -1,42 +1,45 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const woocommercePaypalCheckoutPaymentGatewayTechnologyDefinition = {
-	id: "woocommerce-paypal-checkout-payment-gateway",
-	name: "WooCommerce PayPal Checkout Payment Gateway",
-	website: "https://github.com/woocommerce/woocommerce-gateway-paypal-express-checkout",
-	description: "WooCommerce PayPal Checkout Payment Gateway is a WordPress plugin which allows you to securely sell your products and subscriptions online using in-context checkout.",
-	icon: "WooCommerce PayPal.png",
+export const woocommercePaypalCheckoutPaymentGatewayTechnologyDefinition: TechnologyDefinition = {
+	id: 'woocommerce-paypal-checkout-payment-gateway',
+	name: 'WooCommerce PayPal Checkout Payment Gateway',
+	website: 'https://github.com/woocommerce/woocommerce-gateway-paypal-express-checkout',
+	description:
+		'WooCommerce PayPal Checkout Payment Gateway is a WordPress plugin which allows you to securely sell your products and subscriptions online using in-context checkout.',
+	icon: 'WooCommerce PayPal.png',
 	categories: [
-		"wordpress-ecosystem",
+		'wordpress-ecosystem',
 	],
 	rules: [
 		{
-			id: "woocommerce-paypal-checkout-payment-gateway:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\/wp-content\\/plugins\\/woocommerce-gateway-paypal-express-checkout\\/.+\\.js(?:\\?ver=(\\d+(?:\\.\\d+)+))?"),
+			id: 'woocommerce-paypal-checkout-payment-gateway:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp(
+				'\\/wp-content\\/plugins\\/woocommerce-gateway-paypal-express-checkout\\/.+\\.js(?:\\?ver=(\\d+(?:\\.\\d+)+))?',
+			),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 		{
-			id: "woocommerce-paypal-checkout-payment-gateway:dom:1",
-			kind: "dom",
+			id: 'woocommerce-paypal-checkout-payment-gateway:dom:1',
+			kind: 'dom',
 			selector: "link[href*='/wp-content/plugins/woocommerce-gateway-paypal-express-checkout/']",
-			description: "DOM selector matches a known technology marker.",
+			description: 'DOM selector matches a known technology marker.',
 		},
 	],
 	metadata: {
 		oss: true,
 		pricing: [
-			"freemium",
+			'freemium',
 		],
 	},
 	implies: [
-		"paypal",
+		'paypal',
 	],
 	requires: [
-		"wordpress",
+		'wordpress',
 	],
 } as const satisfies TechnologyDefinition;

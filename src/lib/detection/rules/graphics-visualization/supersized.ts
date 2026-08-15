@@ -1,23 +1,23 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const supersizedTechnologyDefinition = {
-	id: "supersized",
-	name: "Supersized",
-	website: "https://buildinternet.com/project/supersized",
-	icon: "Supersized.png",
+export const supersizedTechnologyDefinition: TechnologyDefinition = {
+	id: 'supersized',
+	name: 'Supersized',
+	website: 'https://buildinternet.com/project/supersized',
+	icon: 'Supersized.png',
 	categories: [
-		"graphics-visualization",
+		'graphics-visualization',
 	],
 	rules: [
 		{
-			id: "supersized:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("supersized(?:\\.([\\d.]*[\\d]))?.*\\.js"),
+			id: 'supersized:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('supersized(?:\\.([\\d.]*[\\d]))?.*\\.js'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 } as const satisfies TechnologyDefinition;

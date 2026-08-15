@@ -1,37 +1,37 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const sourceyTechnologyDefinition = {
-	id: "sourcey",
-	name: "Sourcey",
-	website: "https://sourcey.com",
-	description: "Sourcey is an open-source documentation platform and static site generator.",
-	icon: "default.svg",
+export const sourceyTechnologyDefinition: TechnologyDefinition = {
+	id: 'sourcey',
+	name: 'Sourcey',
+	website: 'https://sourcey.com',
+	description: 'Sourcey is an open-source documentation platform and static site generator.',
+	icon: 'default.svg',
 	categories: [
-		"content-publishing",
-		"framework",
+		'content-publishing',
+		'framework',
 	],
 	rules: [
 		{
-			id: "sourcey:meta:0",
-			kind: "meta",
-			key: "generator",
-			valuePattern: new RegExp("Sourcey(?: ([\\d.]+))?", "i"),
+			id: 'sourcey:meta:0',
+			kind: 'meta',
+			key: 'generator',
+			valuePattern: new RegExp('Sourcey(?: ([\\d.]+))?', 'i'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Meta tag matches a known technology marker.",
+			description: 'Meta tag matches a known technology marker.',
 		},
 		{
-			id: "sourcey:meta:1",
-			kind: "meta",
-			key: "generator",
-			valuePattern: new RegExp("sourcey(?: ([\\d.]+))?", "i"),
+			id: 'sourcey:meta:1',
+			kind: 'meta',
+			key: 'generator',
+			valuePattern: new RegExp('sourcey(?: ([\\d.]+))?', 'i'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Meta tag matches a known technology marker.",
+			description: 'Meta tag matches a known technology marker.',
 		},
 	],
 	metadata: {

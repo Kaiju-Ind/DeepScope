@@ -1,28 +1,28 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const videoGreetTechnologyDefinition = {
-	id: "video-greet",
-	name: "Video Greet",
-	website: "https://apps.shopify.com/videogreet-gift-messages",
-	description: "Video Greet lets your customers add a video message to gifts with QR codes.",
-	icon: "Video Greet.png",
+export const videoGreetTechnologyDefinition: TechnologyDefinition = {
+	id: 'video-greet',
+	name: 'Video Greet',
+	website: 'https://apps.shopify.com/videogreet-gift-messages',
+	description: 'Video Greet lets your customers add a video message to gifts with QR codes.',
+	icon: 'Video Greet.png',
 	categories: [
-		"ecommerce-extensions",
+		'ecommerce-extensions',
 	],
 	rules: [
 		{
-			id: "video-greet:jsGlobal:0",
-			kind: "jsGlobal",
-			property: "__vg.video_greet_button_src",
-			description: "Page-owned global matches a known technology marker.",
+			id: 'video-greet:jsGlobal:0',
+			kind: 'jsGlobal',
+			property: '__vg.video_greet_button_src',
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 	metadata: {
 		pricing: [
-			"freemium",
+			'freemium',
 		],
 	},
 	requires: [
-		"shopify",
+		'shopify',
 	],
 } as const satisfies TechnologyDefinition;

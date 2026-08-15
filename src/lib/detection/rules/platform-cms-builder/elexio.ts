@@ -1,20 +1,20 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const elexioTechnologyDefinition = {
-	id: "elexio",
-	name: "Elexio",
-	website: "https://www.elexio.com",
-	description: "Elexio is a software solution designed to manage church databases and websites.",
-	icon: "Elexio.svg",
+export const elexioTechnologyDefinition: TechnologyDefinition = {
+	id: 'elexio',
+	name: 'Elexio',
+	website: 'https://www.elexio.com',
+	description: 'Elexio is a software solution designed to manage church databases and websites.',
+	icon: 'Elexio.svg',
 	categories: [
-		"platform-cms-builder",
+		'platform-cms-builder',
 	],
 	rules: [
 		{
-			id: "elexio:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\/\\/elexiocms\\.com\\/"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'elexio:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\/\\/elexiocms\\.com\\/'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {

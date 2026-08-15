@@ -147,6 +147,7 @@ import { ultimateBulletinBoardTechnologyDefinition } from './ultimate-bulletin-b
 import { utterancesTechnologyDefinition } from './utterances';
 import { vanillaTechnologyDefinition } from './vanilla';
 import { vbulletinTechnologyDefinition } from './vbulletin';
+import { verificadoTechnologyDefinition } from './verificado';
 import { viziumTechnologyDefinition } from './vizium';
 import { vocalreferencesTechnologyDefinition } from './vocalreferences';
 import { vouchleyTechnologyDefinition } from './vouchley';
@@ -313,6 +314,7 @@ export const communityUgcTechnologyDefinitions = [
 	utterancesTechnologyDefinition,
 	vanillaTechnologyDefinition,
 	vbulletinTechnologyDefinition,
+	verificadoTechnologyDefinition,
 	viziumTechnologyDefinition,
 	vocalreferencesTechnologyDefinition,
 	vouchleyTechnologyDefinition,

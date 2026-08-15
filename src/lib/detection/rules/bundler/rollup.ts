@@ -1,6 +1,6 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const rollupTechnologyDefinition = {
+export const rollupTechnologyDefinition: TechnologyDefinition = {
 	id: 'rollup',
 	name: 'rollup',
 	website: 'https://rollupjs.org/',
@@ -13,7 +13,8 @@ export const rollupTechnologyDefinition = {
 		{
 			id: 'rollup:scriptContent:explicit-banner:0',
 			kind: 'scriptContent',
-			pattern: /var\s*\w+\s*=\s*\(function\s*\(exports\)\s*\{\s*['"]use strict['"]\s*;\s*\/\*\s*Rollup\s*[^*]*\*\//i,
+			pattern:
+				/var\s*\w+\s*=\s*\(function\s*\(exports\)\s*\{\s*['"]use strict['"]\s*;\s*\/\*\s*Rollup\s*[^*]{0,400}\*\//i,
 			confidence: 75,
 			description: 'Script content includes an explicit Rollup banner near the generated wrapper.',
 		},

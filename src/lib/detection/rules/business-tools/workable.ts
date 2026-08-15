@@ -1,33 +1,33 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const workableTechnologyDefinition = {
-	id: "workable",
-	name: "Workable",
-	website: "https://www.workable.com",
-	description: "Workable is the all-in-one hiring solution.",
-	icon: "Workable.svg",
+export const workableTechnologyDefinition: TechnologyDefinition = {
+	id: 'workable',
+	name: 'Workable',
+	website: 'https://www.workable.com',
+	description: 'Workable is the all-in-one hiring solution.',
+	icon: 'Workable.svg',
 	categories: [
-		"business-tools",
+		'business-tools',
 	],
 	rules: [
 		{
-			id: "workable:dom:0",
-			kind: "dom",
+			id: 'workable:dom:0',
+			kind: 'dom',
 			selector: "a[href*='.workable.com/']",
-			description: "DOM selector matches a known technology marker.",
+			description: 'DOM selector matches a known technology marker.',
 		},
 		{
-			id: "workable:jsGlobal:1",
-			kind: "jsGlobal",
-			property: "webpackChunk_workable_candidate",
-			description: "Page-owned global matches a known technology marker.",
+			id: 'workable:jsGlobal:1',
+			kind: 'jsGlobal',
+			property: 'webpackChunk_workable_candidate',
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"mid",
-			"recurring",
+			'mid',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

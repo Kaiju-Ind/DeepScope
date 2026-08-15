@@ -1,12 +1,16 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const wordpressComLandpackTechnologyDefinition = {
+export const wordpressComLandpackTechnologyDefinition: TechnologyDefinition = {
 	id: 'wordpress-com-landpack',
 	name: 'WordPress.com Landpack',
 	website: 'https://wordpress.com/',
-	description: 'WordPress.com Landpack provides landing-page blocks, layout classes, and animations for WordPress.com marketing pages.',
+	description:
+		'WordPress.com Landpack provides landing-page blocks, layout classes, and animations for WordPress.com marketing pages.',
 	icon: 'WordPress.svg',
-	categories: ['component-library'],
+
+	categories: [
+		'component-library',
+	],
 	rules: [
 		{
 			id: 'wordpress-com-landpack:html:0',

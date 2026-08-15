@@ -1,20 +1,20 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const colissimoTechnologyDefinition = {
-	id: "colissimo",
-	name: "Colissimo",
-	website: "https://www.colissimo.entreprise.laposte.fr",
+export const colissimoTechnologyDefinition: TechnologyDefinition = {
+	id: 'colissimo',
+	name: 'Colissimo',
+	website: 'https://www.colissimo.entreprise.laposte.fr',
 	description: "Colissimo is a 'drop off' parcel delivery service.",
-	icon: "DPD.svg",
+	icon: 'DPD.svg',
 	categories: [
-		"commerce-operations",
+		'commerce-operations',
 	],
 	rules: [
 		{
-			id: "colissimo:text:0",
-			kind: "text",
-			pattern: new RegExp("\\bColissimo\\b"),
-			description: "Page text contains a known technology marker.",
+			id: 'colissimo:text:0',
+			kind: 'text',
+			pattern: new RegExp('\\bColissimo\\b'),
+			description: 'Page text contains a known technology marker.',
 		},
 	],
 } as const satisfies TechnologyDefinition;

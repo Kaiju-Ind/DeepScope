@@ -1,27 +1,27 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const dopplerTechnologyDefinition = {
-	id: "doppler",
-	name: "Doppler",
-	website: "https://www.fromdoppler.com",
-	description: "Doppler is an email marketing and transactional email service.",
-	icon: "Doppler.svg",
+export const dopplerTechnologyDefinition: TechnologyDefinition = {
+	id: 'doppler',
+	name: 'Doppler',
+	website: 'https://www.fromdoppler.com',
+	description: 'Doppler is an email marketing and transactional email service.',
+	icon: 'Doppler.svg',
 	categories: [
-		"email-messaging",
+		'email-messaging',
 	],
 	rules: [
 		{
-			id: "doppler:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\/\\/(?:hub|cdn)\\.fromdoppler\\.com\\/"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'doppler:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\/\\/(?:hub|cdn)\\.fromdoppler\\.com\\/'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"payg",
-			"recurring",
+			'payg',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

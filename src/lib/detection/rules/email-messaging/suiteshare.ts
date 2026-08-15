@@ -1,20 +1,20 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const suiteshareTechnologyDefinition = {
-	id: "suiteshare",
-	name: "Suiteshare",
-	website: "https://suiteshare.com/",
-	description: "Suiteshare powers conversational shopping experiences.",
-	icon: "Suiteshare.png",
+export const suiteshareTechnologyDefinition: TechnologyDefinition = {
+	id: 'suiteshare',
+	name: 'Suiteshare',
+	website: 'https://suiteshare.com/',
+	description: 'Suiteshare powers conversational shopping experiences.',
+	icon: 'Suiteshare.png',
 	categories: [
-		"email-messaging",
+		'email-messaging',
 	],
 	rules: [
 		{
-			id: "suiteshare:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("static\\.suiteshare\\.com"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'suiteshare:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('static\\.suiteshare\\.com'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {

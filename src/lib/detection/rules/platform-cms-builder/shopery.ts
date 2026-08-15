@@ -1,17 +1,17 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const shoperyTechnologyDefinition = {
-	id: "shopery",
-	name: "Shopery",
-	website: "https://shopery.com",
-	icon: "Shopery.svg",
+export const shoperyTechnologyDefinition: TechnologyDefinition = {
+	id: 'shopery',
+	name: 'Shopery',
+	website: 'https://shopery.com',
+	icon: 'Shopery.svg',
 	categories: [
-		"platform-cms-builder",
+		'platform-cms-builder',
 	],
 	rules: [],
 	implies: [
-		"elcodi",
-		"php",
-		"symfony",
+		'elcodi',
+		'php',
+		'symfony',
 	],
 } as const satisfies TechnologyDefinition;

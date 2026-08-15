@@ -1,30 +1,31 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const materializeCssTechnologyDefinition = {
-	id: "materialize-css",
-	name: "Materialize CSS",
-	website: "https://materializecss.com",
-	description: "Materialize CSS is a front-end framework that helps developers create responsive and mobile-first web applications. It is based on Google's Material Design guidelines.",
-	icon: "Materialize CSS.svg",
+export const materializeCssTechnologyDefinition: TechnologyDefinition = {
+	id: 'materialize-css',
+	name: 'Materialize CSS',
+	website: 'https://materializecss.com',
+	description:
+		"Materialize CSS is a front-end framework that helps developers create responsive and mobile-first web applications. It is based on Google's Material Design guidelines.",
+	icon: 'Materialize CSS.svg',
 	categories: [
-		"component-library",
+		'component-library',
 	],
 	rules: [
 		{
-			id: "materialize-css:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("([\\d\\.]+)\\/.*\\/materialize\\.min\\.js"),
+			id: 'materialize-css:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('([\\d.]{1,20})\\/[^/]{0,200}\\/materialize\\.min\\.js'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 		{
-			id: "materialize-css:dom:1",
-			kind: "dom",
+			id: 'materialize-css:dom:1',
+			kind: 'dom',
 			selector: "link[href*='/materialize.min.css']",
-			description: "DOM selector matches a known technology marker.",
+			description: 'DOM selector matches a known technology marker.',
 		},
 	],
 	metadata: {

@@ -5,21 +5,22 @@ import type { TechnologyDefinition } from '../../types';
  * evidence. These rules intentionally use protocol markers and API calls rather
  * than prose references so the card reflects runtime behavior.
  */
-export const performanceObserverApiTechnologyDefinition = {
-	id: "performance-observer-api",
-	name: "PerformanceObserver API",
-	website: "https://developer.mozilla.org/en-US/docs/Web/API/PerformanceObserver",
-	description: "PerformanceObserver streams browser performance entries for analytics, observability, and UX measurement.",
+export const performanceObserverApiTechnologyDefinition: TechnologyDefinition = {
+	id: 'performance-observer-api',
+	name: 'PerformanceObserver API',
+	website: 'https://developer.mozilla.org/en-US/docs/Web/API/PerformanceObserver',
+	description:
+		'PerformanceObserver streams browser performance entries for analytics, observability, and UX measurement.',
 	categories: [
-		"widgets-misc",
+		'widgets-misc',
 	],
 	rules: [
 		{
-			id: "performance-observer-api:scriptContent:0",
-			kind: "scriptContent",
+			id: 'performance-observer-api:scriptContent:0',
+			kind: 'scriptContent',
 			pattern: /\bnew\s+PerformanceObserver\s*\(|\bPerformanceObserver\b/i,
 			confidence: 80,
-			description: "Bundled script content references PerformanceObserver.",
+			description: 'Bundled script content references PerformanceObserver.',
 		},
 	],
 } as const satisfies TechnologyDefinition;

@@ -1,19 +1,19 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const zeaburTechnologyDefinition = {
-	id: "zeabur",
-	name: "Zeabur",
-	website: "https://zeabur.com",
-	description: "Zeabur is a platform for running full stack apps and databases.",
-	icon: "zeabur.svg",
+export const zeaburTechnologyDefinition: TechnologyDefinition = {
+	id: 'zeabur',
+	name: 'Zeabur',
+	website: 'https://zeabur.com',
+	description: 'Zeabur is a platform for running full stack apps and databases.',
+	icon: 'zeabur.svg',
 	categories: [
-		"infrastructure-hosting",
+		'infrastructure-hosting',
 	],
 	rules: [],
 	metadata: {
 		pricing: [
-			"freemium",
-			"payg",
+			'freemium',
+			'payg',
 		],
 	},
 } as const satisfies TechnologyDefinition;

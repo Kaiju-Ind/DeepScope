@@ -1,12 +1,15 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const wordpressComStatsTechnologyDefinition = {
+export const wordpressComStatsTechnologyDefinition: TechnologyDefinition = {
 	id: 'wordpress-com-stats',
 	name: 'WordPress.com Stats',
 	website: 'https://wordpress.com/support/stats/',
 	description: 'WordPress.com Stats measures page views and events through Automattic-hosted tracking endpoints.',
 	icon: 'WordPress.svg',
-	categories: ['analytics'],
+
+	categories: [
+		'analytics',
+	],
 	rules: [
 		{
 			id: 'wordpress-com-stats:requestUrl:0',

@@ -1,41 +1,41 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const resinTechnologyDefinition = {
-	id: "resin",
-	name: "Resin",
-	website: "https://caucho.com",
-	icon: "Resin.png",
+export const resinTechnologyDefinition: TechnologyDefinition = {
+	id: 'resin',
+	name: 'Resin',
+	website: 'https://caucho.com',
+	icon: 'Resin.png',
 	categories: [
-		"server-runtime-infra",
+		'server-runtime-infra',
 	],
 	rules: [
 		{
-			id: "resin:header:0",
-			kind: "header",
-			key: "Server",
-			valuePattern: new RegExp("^Resin(?:\\/(\\S*))?", "i"),
+			id: 'resin:header:0',
+			kind: 'header',
+			key: 'Server',
+			valuePattern: new RegExp('^Resin(?:\\/(\\S*))?', 'i'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Response header matches a known technology marker.",
+			description: 'Response header matches a known technology marker.',
 		},
 		{
-			id: "resin:header:1",
-			kind: "header",
-			key: "server",
-			valuePattern: new RegExp("^resin(?:\\/(\\s*))?", "i"),
+			id: 'resin:header:1',
+			kind: 'header',
+			key: 'server',
+			valuePattern: new RegExp('^resin(?:\\/(\\s*))?', 'i'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Response header matches a known technology marker.",
+			description: 'Response header matches a known technology marker.',
 		},
 	],
 	metadata: {
-		cpe: "cpe:2.3:a:caucho:resin:*:*:*:*:*:*:*:*",
+		cpe: 'cpe:2.3:a:caucho:resin:*:*:*:*:*:*:*:*',
 	},
 	implies: [
-		"java",
+		'java',
 	],
 } as const satisfies TechnologyDefinition;

@@ -1,35 +1,37 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const gptAiPowerTechnologyDefinition = {
-	id: "gpt-ai-power",
-	name: "GPT AI Power",
-	website: "https://gptaipower.com",
-	description: "GPT AI Power is a WordPress plugin that offers a comprehensive AI package.",
-	icon: "GPT AI Power.png",
+export const gptAiPowerTechnologyDefinition: TechnologyDefinition = {
+	id: 'gpt-ai-power',
+	name: 'GPT AI Power',
+	website: 'https://gptaipower.com',
+	description: 'GPT AI Power is a WordPress plugin that offers a comprehensive AI package.',
+	icon: 'GPT AI Power.png',
 	categories: [
-		"wordpress-ecosystem",
+		'wordpress-ecosystem',
 	],
 	rules: [
 		{
-			id: "gpt-ai-power:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\/wp-content\\/plugins\\/gpt3-ai-content-generator\\/.+\\.js(?:\\?ver=(\\d+(?:\\.\\d+)+))?"),
+			id: 'gpt-ai-power:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp(
+				'\\/wp-content\\/plugins\\/gpt3-ai-content-generator\\/.+\\.js(?:\\?ver=(\\d+(?:\\.\\d+)+))?',
+			),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		pricing: [
-			"freemium",
-			"low",
-			"recurring",
+			'freemium',
+			'low',
+			'recurring',
 		],
-		cpe: "cpe:2.3:a:gptaipower:gpt_ai_power:*:*:*:*:*:wordpress:*:*",
+		cpe: 'cpe:2.3:a:gptaipower:gpt_ai_power:*:*:*:*:*:wordpress:*:*',
 	},
 	requires: [
-		"wordpress",
+		'wordpress',
 	],
 } as const satisfies TechnologyDefinition;

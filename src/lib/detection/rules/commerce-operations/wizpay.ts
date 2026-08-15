@@ -1,30 +1,30 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const wizpayTechnologyDefinition = {
-	id: "wizpay",
-	name: "Wizpay",
-	website: "https://www.wizpay.com.au",
-	description: "Wizpay is a buy now pay later solution.",
-	icon: "Wizpay.png",
+export const wizpayTechnologyDefinition: TechnologyDefinition = {
+	id: 'wizpay',
+	name: 'Wizpay',
+	website: 'https://www.wizpay.com.au',
+	description: 'Wizpay is a buy now pay later solution.',
+	icon: 'Wizpay.png',
 	categories: [
-		"commerce-operations",
+		'commerce-operations',
 	],
 	rules: [
 		{
-			id: "wizpay:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("wp-content\\/plugins\\/creditcorp-wizardpay\\/.+\\?ver=([\\d\\.]+)"),
+			id: 'wizpay:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('wp-content\\/plugins\\/creditcorp-wizardpay\\/.+\\?ver=([\\d\\.]+)'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"payg",
+			'payg',
 		],
 	},
 } as const satisfies TechnologyDefinition;

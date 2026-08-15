@@ -6,50 +6,57 @@ import type { TechnologyDefinition } from '../../types';
  * Next served the current payload, including stale-time and precomputed route
  * matching.
  */
-export const nextJsPrerenderCacheTechnologyDefinition = {
-	id: "next-js-prerender-cache",
-	name: "Next.js Prerender Cache",
-	website: "https://nextjs.org/docs/app/building-your-application/rendering/server-components",
-	description: "Next.js prerendering and cache headers expose statically rendered or precomputed route responses served by the framework runtime.",
+export const nextJsPrerenderCacheTechnologyDefinition: TechnologyDefinition = {
+	id: 'next-js-prerender-cache',
+	name: 'Next.js Prerender Cache',
+	website: 'https://nextjs.org/docs/app/building-your-application/rendering/server-components',
+	description:
+		'Next.js prerendering and cache headers expose statically rendered or precomputed route responses served by the framework runtime.',
 	categories: [
-		"framework",
-		"server-runtime-infra",
+		'framework',
+		'server-runtime-infra',
 	],
 	rules: [
 		{
-			id: "next-js-prerender-cache:header:prerender",
-			kind: "header",
-			key: "x-nextjs-prerender",
-			valuePattern: /^(?:1|true)$/i,
-			confidence: 95,
-			description: "Main document response reports a Next.js prerendered payload.",
+			id: 'next-js-prerender-cache:header:gap0',
+			kind: 'header',
+			key: 'x-nextjs-cache',
+			description: 'Capture Next.js Header.',
 		},
 		{
-			id: "next-js-prerender-cache:responseHeader:prerender",
-			kind: "responseHeader",
-			key: "x-nextjs-prerender",
+			id: 'next-js-prerender-cache:header:prerender',
+			kind: 'header',
+			key: 'x-nextjs-prerender',
 			valuePattern: /^(?:1|true)$/i,
 			confidence: 95,
-			description: "Captured response reports a Next.js prerendered payload.",
+			description: 'Main document response reports a Next.js prerendered payload.',
 		},
 		{
-			id: "next-js-prerender-cache:responseHeader:stale-time",
-			kind: "responseHeader",
-			key: "x-nextjs-stale-time",
+			id: 'next-js-prerender-cache:responseHeader:prerender',
+			kind: 'responseHeader',
+			key: 'x-nextjs-prerender',
+			valuePattern: /^(?:1|true)$/i,
+			confidence: 95,
+			description: 'Captured response reports a Next.js prerendered payload.',
+		},
+		{
+			id: 'next-js-prerender-cache:responseHeader:stale-time',
+			kind: 'responseHeader',
+			key: 'x-nextjs-stale-time',
 			valuePattern: /^\d+$/,
 			confidence: 90,
-			description: "Captured response exposes the Next.js stale-time cache header.",
+			description: 'Captured response exposes the Next.js stale-time cache header.',
 		},
 		{
-			id: "next-js-prerender-cache:responseHeader:matched-precomputed-path",
-			kind: "responseHeader",
-			key: "x-matched-path",
+			id: 'next-js-prerender-cache:responseHeader:matched-precomputed-path',
+			kind: 'responseHeader',
+			key: 'x-matched-path',
 			valuePattern: /\/precomputed\//i,
 			confidence: 85,
-			description: "Captured response maps the request to a precomputed Next.js route.",
+			description: 'Captured response maps the request to a precomputed Next.js route.',
 		},
 	],
 	implies: [
-		"next-js",
+		'next-js',
 	],
 } as const satisfies TechnologyDefinition;

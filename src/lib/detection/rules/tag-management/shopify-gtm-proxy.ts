@@ -1,12 +1,16 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const shopifyGtmProxyTechnologyDefinition = {
+export const shopifyGtmProxyTechnologyDefinition: TechnologyDefinition = {
 	id: 'shopify-gtm-proxy',
 	name: 'Shopify GTM Proxy',
 	website: 'https://www.shopify.com/',
-	description: 'Shopify-hosted Google Tag Manager proxy endpoints forward analytics and advertising events through Shopify domains.',
+	description:
+		'Shopify-hosted Google Tag Manager proxy endpoints forward analytics and advertising events through Shopify domains.',
 	icon: 'Shopify.svg',
-	categories: ['tag-management'],
+
+	categories: [
+		'tag-management',
+	],
 	rules: [
 		{
 			id: 'shopify-gtm-proxy:requestUrl:0',

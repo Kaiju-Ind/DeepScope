@@ -14,6 +14,7 @@ import { apacheTomcatTechnologyDefinition } from './apache-tomcat';
 import { apacheTrafficServerTechnologyDefinition } from './apache-traffic-server';
 import { applicationRequestRoutingTechnologyDefinition } from './application-request-routing';
 import { artifactoryWebServerTechnologyDefinition } from './artifactory-web-server';
+import { aspNetMvcTechnologyDefinition } from './asp-net-mvc';
 import { azureFrontDoorTechnologyDefinition } from './azure-front-door';
 import { cactivecloudTechnologyDefinition } from './cactivecloud';
 import { caddyTechnologyDefinition } from './caddy';
@@ -187,6 +188,7 @@ export const serverRuntimeInfraTechnologyDefinitions = [
 	apacheTrafficServerTechnologyDefinition,
 	applicationRequestRoutingTechnologyDefinition,
 	artifactoryWebServerTechnologyDefinition,
+	aspNetMvcTechnologyDefinition,
 	azureFrontDoorTechnologyDefinition,
 	cactivecloudTechnologyDefinition,
 	caddyTechnologyDefinition,

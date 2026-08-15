@@ -1,12 +1,15 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const shopifyBrochureKitTechnologyDefinition = {
+export const shopifyBrochureKitTechnologyDefinition: TechnologyDefinition = {
 	id: 'shopify-brochure-kit',
 	name: 'Shopify Brochure Kit',
 	website: 'https://www.shopify.com/',
 	description: 'Shopify Brochure Kit is Shopify’s internal component system for public marketing pages.',
 	icon: 'Shopify.svg',
-	categories: ['component-library'],
+
+	categories: [
+		'component-library',
+	],
 	rules: [
 		{
 			id: 'shopify-brochure-kit:html:0',

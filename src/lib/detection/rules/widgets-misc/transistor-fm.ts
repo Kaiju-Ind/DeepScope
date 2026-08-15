@@ -1,27 +1,27 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const transistorFmTechnologyDefinition = {
-	id: "transistor-fm",
-	name: "Transistor.fm",
-	website: "https://transistor.fm",
-	description: "Transistor.fm is a podcast host, distribution and management platform.",
-	icon: "Transistor.fm.svg",
+export const transistorFmTechnologyDefinition: TechnologyDefinition = {
+	id: 'transistor-fm',
+	name: 'Transistor.fm',
+	website: 'https://transistor.fm',
+	description: 'Transistor.fm is a podcast host, distribution and management platform.',
+	icon: 'Transistor.fm.svg',
 	categories: [
-		"widgets-misc",
+		'widgets-misc',
 	],
 	rules: [
 		{
-			id: "transistor-fm:dom:0",
-			kind: "dom",
+			id: 'transistor-fm:dom:0',
+			kind: 'dom',
 			selector: "iframe[src*='.transistor.fm/']",
-			description: "DOM selector matches a known technology marker.",
+			description: 'DOM selector matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"low",
-			"recurring",
+			'low',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

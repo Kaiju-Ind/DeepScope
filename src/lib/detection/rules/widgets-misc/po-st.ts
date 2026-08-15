@@ -1,19 +1,19 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const poStTechnologyDefinition = {
-	id: "po-st",
-	name: "Po.st",
-	website: "https://www.po.st/",
-	icon: "Po.st.png",
+export const poStTechnologyDefinition: TechnologyDefinition = {
+	id: 'po-st',
+	name: 'Po.st',
+	website: 'https://www.po.st/',
+	icon: 'Po.st.png',
 	categories: [
-		"widgets-misc",
+		'widgets-misc',
 	],
 	rules: [
 		{
-			id: "po-st:jsGlobal:0",
-			kind: "jsGlobal",
-			property: "pwidget_config",
-			description: "Page-owned global matches a known technology marker.",
+			id: 'po-st:jsGlobal:0',
+			kind: 'jsGlobal',
+			property: 'pwidget_config',
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 } as const satisfies TechnologyDefinition;

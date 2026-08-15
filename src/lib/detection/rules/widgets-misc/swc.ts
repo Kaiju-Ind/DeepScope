@@ -1,13 +1,13 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const swcTechnologyDefinition = {
-	id: "swc",
-	name: "SWC",
-	website: "https://swc.rs",
-	description: "SWC is an extensible Rust-based platform for the next generation of fast developer tools.",
-	icon: "swc.svg",
+export const swcTechnologyDefinition: TechnologyDefinition = {
+	id: 'swc',
+	name: 'SWC',
+	website: 'https://swc.rs',
+	description: 'SWC is an extensible Rust-based platform for the next generation of fast developer tools.',
+	icon: 'swc.svg',
 	categories: [
-		"widgets-misc",
+		'widgets-misc',
 	],
 	rules: [],
 	metadata: {

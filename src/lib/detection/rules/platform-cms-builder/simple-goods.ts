@@ -1,28 +1,28 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const simpleGoodsTechnologyDefinition = {
-	id: "simple-goods",
-	name: "Simple Goods",
-	website: "https://simplegoods.co",
-	description: "Simple Goods is a platform that enables online selling through a website.",
-	icon: "SimpleGoods.svg",
+export const simpleGoodsTechnologyDefinition: TechnologyDefinition = {
+	id: 'simple-goods',
+	name: 'Simple Goods',
+	website: 'https://simplegoods.co',
+	description: 'Simple Goods is a platform that enables online selling through a website.',
+	icon: 'SimpleGoods.svg',
 	categories: [
-		"platform-cms-builder",
+		'platform-cms-builder',
 	],
 	rules: [
 		{
-			id: "simple-goods:dom:0",
-			kind: "dom",
+			id: 'simple-goods:dom:0',
+			kind: 'dom',
 			selector: "link[href*='app.simplegoods.co/']",
-			description: "DOM selector matches a known technology marker.",
+			description: 'DOM selector matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"freemium",
-			"low",
-			"recurring",
+			'freemium',
+			'low',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

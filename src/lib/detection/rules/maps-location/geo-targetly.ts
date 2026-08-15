@@ -1,26 +1,26 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const geoTargetlyTechnologyDefinition = {
-	id: "geo-targetly",
-	name: "Geo Targetly",
-	website: "https://geotargetly.com",
-	description: "Geo Targetly is a website geo personalisation software.",
-	icon: "Geo Targetly.svg",
+export const geoTargetlyTechnologyDefinition: TechnologyDefinition = {
+	id: 'geo-targetly',
+	name: 'Geo Targetly',
+	website: 'https://geotargetly.com',
+	description: 'Geo Targetly is a website geo personalisation software.',
+	icon: 'Geo Targetly.svg',
 	categories: [
-		"maps-location",
+		'maps-location',
 	],
 	rules: [
 		{
-			id: "geo-targetly:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("geotargetly\\.co\\/"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'geo-targetly:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('geotargetly\\.co\\/'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"payg",
+			'payg',
 		],
 	},
 } as const satisfies TechnologyDefinition;

@@ -1,29 +1,29 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const themeansarNewsupTechnologyDefinition = {
-	id: "themeansar-newsup",
-	name: "Themeansar Newsup",
-	website: "https://themeansar.com/free-themes/newsup",
-	description: "Themeansar Newsup is a fast, clean, modern-looking responsive news magazine WordPress theme.",
-	icon: "Themeansar.png",
+export const themeansarNewsupTechnologyDefinition: TechnologyDefinition = {
+	id: 'themeansar-newsup',
+	name: 'Themeansar Newsup',
+	website: 'https://themeansar.com/free-themes/newsup',
+	description: 'Themeansar Newsup is a fast, clean, modern-looking responsive news magazine WordPress theme.',
+	icon: 'Themeansar.png',
 	categories: [
-		"wordpress-ecosystem",
+		'wordpress-ecosystem',
 	],
 	rules: [
 		{
-			id: "themeansar-newsup:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\/wp-content\\/themes\\/newsup(?:-pro)?\\/"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'themeansar-newsup:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\/wp-content\\/themes\\/newsup(?:-pro)?\\/'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		pricing: [
-			"freemium",
-			"onetime",
+			'freemium',
+			'onetime',
 		],
 	},
 	requires: [
-		"wordpress",
+		'wordpress',
 	],
 } as const satisfies TechnologyDefinition;

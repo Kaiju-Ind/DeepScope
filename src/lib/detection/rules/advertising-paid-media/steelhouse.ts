@@ -1,30 +1,31 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const steelhouseTechnologyDefinition = {
-	id: "steelhouse",
-	name: "SteelHouse",
-	website: "https://steelhouse.com",
-	description: "SteelHouse is an advertising software company which provides services for brands, agencies, and direct marketers.",
-	icon: "SteelHouse.png",
+export const steelhouseTechnologyDefinition: TechnologyDefinition = {
+	id: 'steelhouse',
+	name: 'SteelHouse',
+	website: 'https://steelhouse.com',
+	description:
+		'SteelHouse is an advertising software company which provides services for brands, agencies, and direct marketers.',
+	icon: 'SteelHouse.png',
 	categories: [
-		"advertising-paid-media",
+		'advertising-paid-media',
 	],
 	rules: [
 		{
-			id: "steelhouse:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\.steelhousemedia\\.com\\/(?:spx\\?dxver=([\\d.]+))?"),
+			id: 'steelhouse:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\.steelhousemedia\\.com\\/(?:spx\\?dxver=([\\d.]+))?'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"poa",
+			'poa',
 		],
 	},
 } as const satisfies TechnologyDefinition;

@@ -1,20 +1,21 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const postachTechnologyDefinition = {
-	id: "postach",
-	name: "Postach",
-	website: "https://postach.io",
-	description: "Postach is a blogging platform integrated with Evernote, allowing users to create and manage blog posts directly from their Evernote account.",
-	icon: "Postach.svg",
+export const postachTechnologyDefinition: TechnologyDefinition = {
+	id: 'postach',
+	name: 'Postach',
+	website: 'https://postach.io',
+	description:
+		'Postach is a blogging platform integrated with Evernote, allowing users to create and manage blog posts directly from their Evernote account.',
+	icon: 'Postach.svg',
 	categories: [
-		"content-publishing",
+		'content-publishing',
 	],
 	rules: [
 		{
-			id: "postach:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\.postach\\.io\\/"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'postach:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\.postach\\.io\\/'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {

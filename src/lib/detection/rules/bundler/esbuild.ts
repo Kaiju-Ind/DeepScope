@@ -1,6 +1,6 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const esbuildTechnologyDefinition = {
+export const esbuildTechnologyDefinition: TechnologyDefinition = {
 	id: 'esbuild',
 	name: 'esbuild',
 	website: 'https://esbuild.github.io/',

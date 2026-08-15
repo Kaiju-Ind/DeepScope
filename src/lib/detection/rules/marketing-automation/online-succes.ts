@@ -1,27 +1,28 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const onlineSuccesTechnologyDefinition = {
-	id: "online-succes",
-	name: "Online Succes",
-	website: "https://www.onlinesucces.nl",
-	description: "Online Succes is a Netherlands-based platform offering marketing automation and website visitor tracking.",
-	icon: "OnlineSucces.svg",
+export const onlineSuccesTechnologyDefinition: TechnologyDefinition = {
+	id: 'online-succes',
+	name: 'Online Succes',
+	website: 'https://www.onlinesucces.nl',
+	description:
+		'Online Succes is a Netherlands-based platform offering marketing automation and website visitor tracking.',
+	icon: 'OnlineSucces.svg',
 	categories: [
-		"marketing-automation",
+		'marketing-automation',
 	],
 	rules: [
 		{
-			id: "online-succes:scriptContent:0",
-			kind: "scriptContent",
-			pattern: new RegExp("connect\\.onlinesucces\\.nl"),
-			description: "Script content contains a bounded technology signature.",
+			id: 'online-succes:scriptContent:0',
+			kind: 'scriptContent',
+			pattern: new RegExp('connect\\.onlinesucces\\.nl'),
+			description: 'Script content contains a bounded technology signature.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"low",
-			"recurring",
+			'low',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

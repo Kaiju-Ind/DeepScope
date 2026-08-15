@@ -1,28 +1,29 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const satoriStudioBentoTechnologyDefinition = {
-	id: "satori-studio-bento",
-	name: "Satori Studio Bento",
-	website: "https://satoristudio.net/bento-free-wordpress-theme",
-	description: "Satori Studio Bento is a powerful yet user-friendly free WordPress theme intended for use in the broadest range of web projects.",
-	icon: "Satori Studio.svg",
+export const satoriStudioBentoTechnologyDefinition: TechnologyDefinition = {
+	id: 'satori-studio-bento',
+	name: 'Satori Studio Bento',
+	website: 'https://satoristudio.net/bento-free-wordpress-theme',
+	description:
+		'Satori Studio Bento is a powerful yet user-friendly free WordPress theme intended for use in the broadest range of web projects.',
+	icon: 'Satori Studio.svg',
 	categories: [
-		"wordpress-ecosystem",
+		'wordpress-ecosystem',
 	],
 	rules: [
 		{
-			id: "satori-studio-bento:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\/wp-content\\/themes\\/bento\\/"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'satori-studio-bento:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\/wp-content\\/themes\\/bento\\/'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		pricing: [
-			"freemium",
+			'freemium',
 		],
 	},
 	requires: [
-		"wordpress",
+		'wordpress',
 	],
 } as const satisfies TechnologyDefinition;

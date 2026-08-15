@@ -1,13 +1,13 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const lagoonTechnologyDefinition = {
-	id: "lagoon",
-	name: "Lagoon",
-	website: "https://lagoon.sh/",
-	description: "The Open Source Application Delivery Platform for Kubernetes.",
-	icon: "lagoon.svg",
+export const lagoonTechnologyDefinition: TechnologyDefinition = {
+	id: 'lagoon',
+	name: 'Lagoon',
+	website: 'https://lagoon.sh/',
+	description: 'The Open Source Application Delivery Platform for Kubernetes.',
+	icon: 'lagoon.svg',
 	categories: [
-		"infrastructure-hosting",
+		'infrastructure-hosting',
 	],
 	rules: [],
 	metadata: {

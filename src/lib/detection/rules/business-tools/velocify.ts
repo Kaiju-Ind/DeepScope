@@ -1,19 +1,20 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const velocifyTechnologyDefinition = {
-	id: "velocify",
-	name: "Velocify",
-	website: "https://mortgagetech.ice.com/products/velocify",
-	description: "Velocify is a conversion optimization sales tool designed to improve sales processes and increase lead conversion rates.",
+export const velocifyTechnologyDefinition: TechnologyDefinition = {
+	id: 'velocify',
+	name: 'Velocify',
+	website: 'https://mortgagetech.ice.com/products/velocify',
+	description:
+		'Velocify is a conversion optimization sales tool designed to improve sales processes and increase lead conversion rates.',
 	categories: [
-		"business-tools",
+		'business-tools',
 	],
 	rules: [
 		{
-			id: "velocify:scriptContent:0",
-			kind: "scriptContent",
-			pattern: new RegExp("\\.velocify\\.com"),
-			description: "Script content contains a bounded technology signature.",
+			id: 'velocify:scriptContent:0',
+			kind: 'scriptContent',
+			pattern: new RegExp('\\.velocify\\.com'),
+			description: 'Script content contains a bounded technology signature.',
 		},
 	],
 	metadata: {

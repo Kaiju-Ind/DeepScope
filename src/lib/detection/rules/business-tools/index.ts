@@ -341,6 +341,7 @@ import { vcitaTechnologyDefinition } from './vcita';
 import { veloceTechnologyDefinition } from './veloce';
 import { velocifyTechnologyDefinition } from './velocify';
 import { vepaarTechnologyDefinition } from './vepaar';
+import { vertaflowTechnologyDefinition } from './vertaflow';
 import { vincereTechnologyDefinition } from './vincere';
 import { virtuagymTechnologyDefinition } from './virtuagym';
 import { vtigerTechnologyDefinition } from './vtiger';
@@ -704,6 +705,7 @@ export const businessToolsTechnologyDefinitions = [
 	veloceTechnologyDefinition,
 	velocifyTechnologyDefinition,
 	vepaarTechnologyDefinition,
+	vertaflowTechnologyDefinition,
 	vincereTechnologyDefinition,
 	virtuagymTechnologyDefinition,
 	vtigerTechnologyDefinition,

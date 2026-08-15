@@ -1,25 +1,26 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const arborJsTechnologyDefinition = {
-	id: "arbor-js",
-	name: "Arbor.js",
-	website: "https://arborjs.org",
-	description: "Arbor.js is a graph visualization library that uses web workers for performance and relies on jQuery for DOM manipulation and interaction.",
+export const arborJsTechnologyDefinition: TechnologyDefinition = {
+	id: 'arbor-js',
+	name: 'Arbor.js',
+	website: 'https://arborjs.org',
+	description:
+		'Arbor.js is a graph visualization library that uses web workers for performance and relies on jQuery for DOM manipulation and interaction.',
 	categories: [
-		"graphics-visualization",
+		'graphics-visualization',
 	],
 	rules: [
 		{
-			id: "arbor-js:jsGlobal:0",
-			kind: "jsGlobal",
-			property: "arbor",
-			description: "Page-owned global matches a known technology marker.",
+			id: 'arbor-js:jsGlobal:0',
+			kind: 'jsGlobal',
+			property: 'arbor',
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 	},
 	requires: [
-		"jquery",
+		'jquery',
 	],
 } as const satisfies TechnologyDefinition;

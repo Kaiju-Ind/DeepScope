@@ -1,12 +1,15 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const shopifyCdnTechnologyDefinition = {
+export const shopifyCdnTechnologyDefinition: TechnologyDefinition = {
 	id: 'shopify-cdn',
 	name: 'Shopify CDN',
 	website: 'https://cdn.shopify.com/',
 	description: 'Shopify CDN serves Shopify-hosted storefront, brochure, font, image, and JavaScript assets.',
 	icon: 'Shopify.svg',
-	categories: ['infrastructure-hosting'],
+
+	categories: [
+		'infrastructure-hosting',
+	],
 	rules: [
 		{
 			id: 'shopify-cdn:resourceUrl:0',

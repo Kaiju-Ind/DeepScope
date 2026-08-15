@@ -1,42 +1,42 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const openswooleTechnologyDefinition = {
-	id: "openswoole",
-	name: "OpenSwoole",
-	website: "https://openswoole.com",
-	description: "OpenSwoole is a high-performance, asynchronous, event-driven, coroutine-based PHP framework.",
-	icon: "OpenSwoole.svg",
+export const openswooleTechnologyDefinition: TechnologyDefinition = {
+	id: 'openswoole',
+	name: 'OpenSwoole',
+	website: 'https://openswoole.com',
+	description: 'OpenSwoole is a high-performance, asynchronous, event-driven, coroutine-based PHP framework.',
+	icon: 'OpenSwoole.svg',
 	categories: [
-		"framework",
+		'framework',
 	],
 	rules: [
 		{
-			id: "openswoole:header:0",
-			kind: "header",
-			key: "Server",
-			valuePattern: new RegExp("OpenSwoole(?:\\/([\\d.]+))?", "i"),
+			id: 'openswoole:header:0',
+			kind: 'header',
+			key: 'Server',
+			valuePattern: new RegExp('OpenSwoole(?:\\/([\\d.]+))?', 'i'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Response header matches a known technology marker.",
+			description: 'Response header matches a known technology marker.',
 		},
 		{
-			id: "openswoole:header:1",
-			kind: "header",
-			key: "server",
-			valuePattern: new RegExp("openswoole(?:\\/([\\d.]+))?", "i"),
+			id: 'openswoole:header:1',
+			kind: 'header',
+			key: 'server',
+			valuePattern: new RegExp('openswoole(?:\\/([\\d.]+))?', 'i'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Response header matches a known technology marker.",
+			description: 'Response header matches a known technology marker.',
 		},
 	],
 	metadata: {
 		oss: true,
 	},
 	implies: [
-		"php",
+		'php',
 	],
 } as const satisfies TechnologyDefinition;

@@ -1,38 +1,39 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const dengroTechnologyDefinition = {
-	id: "dengro",
-	name: "DenGro",
-	website: "https://dengro.com",
-	description: "DenGro is a software solution tailored for dental practitioners, facilitating streamlined practice operations.",
-	icon: "DenGro.svg",
+export const dengroTechnologyDefinition: TechnologyDefinition = {
+	id: 'dengro',
+	name: 'DenGro',
+	website: 'https://dengro.com',
+	description:
+		'DenGro is a software solution tailored for dental practitioners, facilitating streamlined practice operations.',
+	icon: 'DenGro.svg',
 	categories: [
-		"business-tools",
+		'business-tools',
 	],
 	rules: [
 		{
-			id: "dengro:dom:0",
-			kind: "dom",
+			id: 'dengro:dom:0',
+			kind: 'dom',
 			selector: "form[action*='app.dengro.com/']",
-			description: "DOM selector matches a known technology marker.",
+			description: 'DOM selector matches a known technology marker.',
 		},
 		{
-			id: "dengro:jsGlobal:1",
-			kind: "jsGlobal",
-			property: "dengro.version",
-			valuePattern: new RegExp("^([\\d\\.]+)$"),
+			id: 'dengro:jsGlobal:1',
+			kind: 'jsGlobal',
+			property: 'dengro.version',
+			valuePattern: new RegExp('^([\\d\\.]+)$'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Page-owned global matches a known technology marker.",
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"mid",
-			"recurring",
+			'mid',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

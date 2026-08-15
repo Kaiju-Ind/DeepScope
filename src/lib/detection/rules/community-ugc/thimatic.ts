@@ -1,32 +1,32 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const thimaticTechnologyDefinition = {
-	id: "thimatic",
-	name: "Thimatic",
-	website: "https://thimatic-apps.com/",
-	description: "Thimatic is a Shopify app for product reviews.",
-	icon: "Thimatic.png",
+export const thimaticTechnologyDefinition: TechnologyDefinition = {
+	id: 'thimatic',
+	name: 'Thimatic',
+	website: 'https://thimatic-apps.com/',
+	description: 'Thimatic is a Shopify app for product reviews.',
+	icon: 'Thimatic.png',
 	categories: [
-		"community-ugc",
-		"ecommerce-extensions",
+		'community-ugc',
+		'ecommerce-extensions',
 	],
 	rules: [
 		{
-			id: "thimatic:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("thimatic-apps\\.com\\/product_review\\/.*?v=([\\d.]+)"),
+			id: 'thimatic:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('thimatic-apps\\.com\\/product_review\\/.*?v=([\\d.]+)'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"low",
-			"recurring",
+			'low',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

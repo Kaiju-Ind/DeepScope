@@ -1,20 +1,20 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const dimmlTechnologyDefinition = {
-	id: "dimml",
-	name: "Dimml",
-	website: "https://www.dimml.io",
-	description: "Dimml is a data flow management software.",
-	icon: "Dimml.svg",
+export const dimmlTechnologyDefinition: TechnologyDefinition = {
+	id: 'dimml',
+	name: 'Dimml',
+	website: 'https://www.dimml.io',
+	description: 'Dimml is a data flow management software.',
+	icon: 'Dimml.svg',
 	categories: [
-		"developer-tooling",
+		'developer-tooling',
 	],
 	rules: [
 		{
-			id: "dimml:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\.dimml\\.io\\/"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'dimml:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\.dimml\\.io\\/'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {

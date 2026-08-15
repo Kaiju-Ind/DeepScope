@@ -1,12 +1,15 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const wordpressComHelpCenterTechnologyDefinition = {
+export const wordpressComHelpCenterTechnologyDefinition: TechnologyDefinition = {
 	id: 'wordpress-com-help-center',
 	name: 'WordPress.com Help Center',
 	website: 'https://wordpress.com/support/',
 	description: 'WordPress.com Help Center loads Automattic support UI assets and a floating help launcher.',
 	icon: 'WordPress.svg',
-	categories: ['widgets-misc'],
+
+	categories: [
+		'widgets-misc',
+	],
 	rules: [
 		{
 			id: 'wordpress-com-help-center:scriptSrc:0',

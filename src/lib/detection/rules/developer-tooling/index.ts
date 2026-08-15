@@ -2,6 +2,7 @@ import type { TechnologyDefinition } from '../../types';
 import { acquiaCloudIdeTechnologyDefinition } from './acquia-cloud-ide';
 import { adobeFlashTechnologyDefinition } from './adobe-flash';
 import { animaTechnologyDefinition } from './anima';
+import { anthropicTechnologyDefinition } from './anthropic';
 import { apiSpreadsheetsTechnologyDefinition } from './api-spreadsheets';
 import { apiaryTechnologyDefinition } from './apiary';
 import { apilayerTechnologyDefinition } from './apilayer';
@@ -39,6 +40,7 @@ import { conduitTechnologyDefinition } from './conduit';
 import { construct3TechnologyDefinition } from './construct-3';
 import { cssuseragentTechnologyDefinition } from './cssuseragent';
 import { cstateTechnologyDefinition } from './cstate';
+import { cursorTechnologyDefinition } from './cursor';
 import { dartTechnologyDefinition } from './dart';
 import { devbloxHubTechnologyDefinition } from './devblox-hub';
 import { developingAzerbaijanTechnologyDefinition } from './developing-azerbaijan';
@@ -173,6 +175,7 @@ import { usersnapTechnologyDefinition } from './usersnap';
 import { uservoiceTechnologyDefinition } from './uservoice';
 import { vigilTechnologyDefinition } from './vigil';
 import { webassemblyTechnologyDefinition } from './webassembly';
+import { windsurfTechnologyDefinition } from './windsurf';
 import { wordpressProjectManagerTechnologyDefinition } from './wordpress-project-manager';
 import { wpPolyfillTechnologyDefinition } from './wp-polyfill';
 import { xUaCompatibleTechnologyDefinition } from './x-ua-compatible';
@@ -188,6 +191,7 @@ export const developerToolingTechnologyDefinitions = [
 	acquiaCloudIdeTechnologyDefinition,
 	adobeFlashTechnologyDefinition,
 	animaTechnologyDefinition,
+	anthropicTechnologyDefinition,
 	apiSpreadsheetsTechnologyDefinition,
 	apiaryTechnologyDefinition,
 	apilayerTechnologyDefinition,
@@ -225,6 +229,7 @@ export const developerToolingTechnologyDefinitions = [
 	construct3TechnologyDefinition,
 	cssuseragentTechnologyDefinition,
 	cstateTechnologyDefinition,
+	cursorTechnologyDefinition,
 	dartTechnologyDefinition,
 	devbloxHubTechnologyDefinition,
 	developingAzerbaijanTechnologyDefinition,
@@ -359,6 +364,7 @@ export const developerToolingTechnologyDefinitions = [
 	uservoiceTechnologyDefinition,
 	vigilTechnologyDefinition,
 	webassemblyTechnologyDefinition,
+	windsurfTechnologyDefinition,
 	wordpressProjectManagerTechnologyDefinition,
 	wpPolyfillTechnologyDefinition,
 	xUaCompatibleTechnologyDefinition,

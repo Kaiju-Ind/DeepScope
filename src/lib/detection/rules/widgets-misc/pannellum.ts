@@ -1,23 +1,23 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const pannellumTechnologyDefinition = {
-	id: "pannellum",
-	name: "Pannellum",
-	website: "https://pannellum.org/",
-	description: "Pannellum is a lightweight, free, and open source panorama viewer for the web.",
+export const pannellumTechnologyDefinition: TechnologyDefinition = {
+	id: 'pannellum',
+	name: 'Pannellum',
+	website: 'https://pannellum.org/',
+	description: 'Pannellum is a lightweight, free, and open source panorama viewer for the web.',
 	categories: [
-		"widgets-misc",
+		'widgets-misc',
 	],
 	rules: [
 		{
-			id: "pannellum:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("(?:((?:\\d+\\.)+\\d+)\\/(?:build\\/)?)?pannellum(?:-plugin)?\\.js"),
+			id: 'pannellum:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('(?:((?:\\d{1,9}\\.){1,12}\\d+)\\/(?:build\\/)?)?pannellum(?:-plugin)?\\.js'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {

@@ -1,36 +1,36 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const javascriptInfovisToolkitTechnologyDefinition = {
-	id: "javascript-infovis-toolkit",
-	name: "JavaScript Infovis Toolkit",
-	website: "https://philogb.github.io/jit/",
-	icon: "JavaScript Infovis Toolkit.png",
+export const javascriptInfovisToolkitTechnologyDefinition: TechnologyDefinition = {
+	id: 'javascript-infovis-toolkit',
+	name: 'JavaScript Infovis Toolkit',
+	website: 'https://philogb.github.io/jit/',
+	icon: 'JavaScript Infovis Toolkit.png',
 	categories: [
-		"graphics-visualization",
+		'graphics-visualization',
 	],
 	rules: [
 		{
-			id: "javascript-infovis-toolkit:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("jit(?:-yc)?\\.js"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'javascript-infovis-toolkit:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('jit(?:-yc)?\\.js'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 		{
-			id: "javascript-infovis-toolkit:jsGlobal:1",
-			kind: "jsGlobal",
-			property: "$jit",
-			description: "Page-owned global matches a known technology marker.",
+			id: 'javascript-infovis-toolkit:jsGlobal:1',
+			kind: 'jsGlobal',
+			property: '$jit',
+			description: 'Page-owned global matches a known technology marker.',
 		},
 		{
-			id: "javascript-infovis-toolkit:jsGlobal:2",
-			kind: "jsGlobal",
-			property: "$jit.version",
-			valuePattern: new RegExp("^(.+)$"),
+			id: 'javascript-infovis-toolkit:jsGlobal:2',
+			kind: 'jsGlobal',
+			property: '$jit.version',
+			valuePattern: new RegExp('^(.+)$'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Page-owned global matches a known technology marker.",
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 } as const satisfies TechnologyDefinition;

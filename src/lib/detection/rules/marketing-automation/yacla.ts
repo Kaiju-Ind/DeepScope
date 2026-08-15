@@ -1,20 +1,21 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const yaclaTechnologyDefinition = {
-	id: "yacla",
-	name: "Yacla",
-	website: "https://yacla.com",
-	description: "Yacla is a service that delivers prequalified, engaged sales contacts directly to a CRM at a predetermined fixed price.",
-	icon: "Yacla.svg",
+export const yaclaTechnologyDefinition: TechnologyDefinition = {
+	id: 'yacla',
+	name: 'Yacla',
+	website: 'https://yacla.com',
+	description:
+		'Yacla is a service that delivers prequalified, engaged sales contacts directly to a CRM at a predetermined fixed price.',
+	icon: 'Yacla.svg',
 	categories: [
-		"marketing-automation",
+		'marketing-automation',
 	],
 	rules: [
 		{
-			id: "yacla:scriptContent:0",
-			kind: "scriptContent",
-			pattern: new RegExp("\\.yac\\.la"),
-			description: "Script content contains a bounded technology signature.",
+			id: 'yacla:scriptContent:0',
+			kind: 'scriptContent',
+			pattern: new RegExp('\\.yac\\.la'),
+			description: 'Script content contains a bounded technology signature.',
 		},
 	],
 	metadata: {

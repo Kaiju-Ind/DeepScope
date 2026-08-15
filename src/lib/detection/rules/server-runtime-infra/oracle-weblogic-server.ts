@@ -1,22 +1,23 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const oracleWeblogicServerTechnologyDefinition = {
-	id: "oracle-weblogic-server",
-	name: "Oracle WebLogic Server",
-	website: "https://www.oracle.com/java/weblogic/",
-	description: "Oracle WebLogic Server is a Java-based application server that provides a platform for developing, deploying, and running enterprise-level Java applications.",
-	icon: "Oracle.svg",
+export const oracleWeblogicServerTechnologyDefinition: TechnologyDefinition = {
+	id: 'oracle-weblogic-server',
+	name: 'Oracle WebLogic Server',
+	website: 'https://www.oracle.com/java/weblogic/',
+	description:
+		'Oracle WebLogic Server is a Java-based application server that provides a platform for developing, deploying, and running enterprise-level Java applications.',
+	icon: 'Oracle.svg',
 	categories: [
-		"server-runtime-infra",
+		'server-runtime-infra',
 	],
 	rules: [],
 	metadata: {
 		pricing: [
-			"poa",
+			'poa',
 		],
-		cpe: "cpe:2.3:a:bea:weblogic_server:*:*:*:*:*:*:*:*",
+		cpe: 'cpe:2.3:a:bea:weblogic_server:*:*:*:*:*:*:*:*',
 	},
 	implies: [
-		"java",
+		'java',
 	],
 } as const satisfies TechnologyDefinition;

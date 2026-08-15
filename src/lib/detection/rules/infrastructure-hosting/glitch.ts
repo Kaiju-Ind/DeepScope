@@ -1,27 +1,28 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const glitchTechnologyDefinition = {
-	id: "glitch",
-	name: "Glitch",
-	website: "https://glitch.com",
-	description: "Glitch is a collaborative programming environment that lives in your browser and deploys code as you type.",
-	icon: "Glitch.svg",
+export const glitchTechnologyDefinition: TechnologyDefinition = {
+	id: 'glitch',
+	name: 'Glitch',
+	website: 'https://glitch.com',
+	description:
+		'Glitch is a collaborative programming environment that lives in your browser and deploys code as you type.',
+	icon: 'Glitch.svg',
 	categories: [
-		"infrastructure-hosting",
+		'infrastructure-hosting',
 	],
 	rules: [
 		{
-			id: "glitch:url:0",
-			kind: "url",
-			pattern: new RegExp("https:\\/\\/[^.]+\\.glitch\\.me"),
-			description: "Page URL matches a known technology marker.",
+			id: 'glitch:url:0',
+			kind: 'url',
+			pattern: new RegExp('https:\\/\\/[^.]+\\.glitch\\.me'),
+			description: 'Page URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		pricing: [
-			"freemium",
-			"low",
-			"recurring",
+			'freemium',
+			'low',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

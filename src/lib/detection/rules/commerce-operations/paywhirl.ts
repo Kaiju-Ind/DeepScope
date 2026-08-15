@@ -1,26 +1,26 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const paywhirlTechnologyDefinition = {
-	id: "paywhirl",
-	name: "PayWhirl",
-	website: "https://app.paywhirl.com/",
-	description: "PayWhirl provides widgets and tools to handle recurring payments.",
-	icon: "paywhirl.png",
+export const paywhirlTechnologyDefinition: TechnologyDefinition = {
+	id: 'paywhirl',
+	name: 'PayWhirl',
+	website: 'https://app.paywhirl.com/',
+	description: 'PayWhirl provides widgets and tools to handle recurring payments.',
+	icon: 'paywhirl.png',
 	categories: [
-		"commerce-operations",
+		'commerce-operations',
 	],
 	rules: [
 		{
-			id: "paywhirl:jsGlobal:0",
-			kind: "jsGlobal",
-			property: "paywhirlForShopifySettings",
-			description: "Page-owned global matches a known technology marker.",
+			id: 'paywhirl:jsGlobal:0',
+			kind: 'jsGlobal',
+			property: 'paywhirlForShopifySettings',
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 	metadata: {
 		pricing: [
-			"payg",
-			"recurring",
+			'payg',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

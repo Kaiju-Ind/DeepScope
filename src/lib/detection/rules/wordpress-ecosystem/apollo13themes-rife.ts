@@ -1,34 +1,35 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const apollo13themesRifeTechnologyDefinition = {
-	id: "apollo13themes-rife",
-	name: "Apollo13Themes Rife",
-	website: "https://apollo13themes.com/rife",
-	description: "Apollo13Themes Rife is a great portfolio and photography WordPress theme with 7 ready-to-use demo layouts.",
-	icon: "Apollo13Themes.png",
+export const apollo13themesRifeTechnologyDefinition: TechnologyDefinition = {
+	id: 'apollo13themes-rife',
+	name: 'Apollo13Themes Rife',
+	website: 'https://apollo13themes.com/rife',
+	description:
+		'Apollo13Themes Rife is a great portfolio and photography WordPress theme with 7 ready-to-use demo layouts.',
+	icon: 'Apollo13Themes.png',
 	categories: [
-		"wordpress-ecosystem",
+		'wordpress-ecosystem',
 	],
 	rules: [
 		{
-			id: "apollo13themes-rife:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\/wp-content\\/themes\\/rife(?:-free)?\\/(?:.+script\\.min\\.js(?:\\?ver=([\\d\\.]+)))?"),
+			id: 'apollo13themes-rife:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\/wp-content\\/themes\\/rife(?:-free)?\\/(?:.+script\\.min\\.js(?:\\?ver=([\\d\\.]+)))?'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		pricing: [
-			"freemium",
-			"low",
-			"recurring",
+			'freemium',
+			'low',
+			'recurring',
 		],
 	},
 	requires: [
-		"wordpress",
+		'wordpress',
 	],
 } as const satisfies TechnologyDefinition;

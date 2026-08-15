@@ -1,6 +1,6 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const gsapTechnologyDefinition = {
+export const gsapTechnologyDefinition: TechnologyDefinition = {
 	id: 'gsap',
 	name: 'GSAP',
 	website: 'https://greensock.com/gsap',

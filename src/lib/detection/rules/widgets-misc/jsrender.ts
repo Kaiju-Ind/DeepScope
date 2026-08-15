@@ -1,30 +1,31 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const jsrenderTechnologyDefinition = {
-	id: "jsrender",
-	name: "JsRender",
-	website: "https://www.jsviews.com/#jsrender",
-	description: "JsRender is the template library. The library is developed and maintained by Microsoft employee Boris Moore and is used in projects such as Outlook.com and Windows Azure.",
-	icon: "JsRender.svg",
+export const jsrenderTechnologyDefinition: TechnologyDefinition = {
+	id: 'jsrender',
+	name: 'JsRender',
+	website: 'https://www.jsviews.com/#jsrender',
+	description:
+		'JsRender is the template library. The library is developed and maintained by Microsoft employee Boris Moore and is used in projects such as Outlook.com and Windows Azure.',
+	icon: 'JsRender.svg',
 	categories: [
-		"widgets-misc",
+		'widgets-misc',
 	],
 	rules: [
 		{
-			id: "jsrender:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("([\\d\\.]+)?\\/jsrender(?:\\.min)?\\.js"),
+			id: 'jsrender:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('([\\d.]{1,20})?\\/jsrender(?:\\.min)?\\.js'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		oss: true,
 	},
 	implies: [
-		"jsviews",
+		'jsviews',
 	],
 } as const satisfies TechnologyDefinition;

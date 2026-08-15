@@ -1,27 +1,27 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const graphlyTechnologyDefinition = {
-	id: "graphly",
-	name: "Graphly",
-	website: "https://graphly.io",
-	description: "Graphly is a visual reporting and business intelligence platform.",
-	icon: "Graphly.svg",
+export const graphlyTechnologyDefinition: TechnologyDefinition = {
+	id: 'graphly',
+	name: 'Graphly',
+	website: 'https://graphly.io',
+	description: 'Graphly is a visual reporting and business intelligence platform.',
+	icon: 'Graphly.svg',
 	categories: [
-		"analytics",
+		'analytics',
 	],
 	rules: [
 		{
-			id: "graphly:jsGlobal:0",
-			kind: "jsGlobal",
-			property: "GraphlyTracking",
-			description: "Page-owned global matches a known technology marker.",
+			id: 'graphly:jsGlobal:0',
+			kind: 'jsGlobal',
+			property: 'GraphlyTracking',
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"mid",
-			"recurring",
+			'mid',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

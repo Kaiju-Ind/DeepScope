@@ -1,37 +1,37 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const generatepressGpPremiumTechnologyDefinition = {
-	id: "generatepress-gp-premium",
-	name: "GeneratePress GP Premium",
-	website: "https://docs.generatepress.com/article/installing-gp-premium/",
-	description: "GP Premium is a premium add-on plugin for the GeneratePress WordPress theme.",
-	icon: "generatepress.png",
+export const generatepressGpPremiumTechnologyDefinition: TechnologyDefinition = {
+	id: 'generatepress-gp-premium',
+	name: 'GeneratePress GP Premium',
+	website: 'https://docs.generatepress.com/article/installing-gp-premium/',
+	description: 'GP Premium is a premium add-on plugin for the GeneratePress WordPress theme.',
+	icon: 'generatepress.png',
 	categories: [
-		"wordpress-ecosystem",
+		'wordpress-ecosystem',
 	],
 	rules: [
 		{
-			id: "generatepress-gp-premium:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\/wp-content\\/plugins\\/gp-premium\\/.+\\.js(?:\\?ver=(\\d+(?:\\.\\d+)+))?"),
+			id: 'generatepress-gp-premium:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\/wp-content\\/plugins\\/gp-premium\\/.+\\.js(?:\\?ver=(\\d+(?:\\.\\d+)+))?'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"onetime",
-			"recurring",
+			'onetime',
+			'recurring',
 		],
 	},
 	implies: [
-		"generatepress",
+		'generatepress',
 	],
 	requires: [
-		"wordpress",
+		'wordpress',
 	],
 } as const satisfies TechnologyDefinition;

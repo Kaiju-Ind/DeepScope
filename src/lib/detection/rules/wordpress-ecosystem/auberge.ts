@@ -1,40 +1,40 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const aubergeTechnologyDefinition = {
-	id: "auberge",
-	name: "Auberge",
-	website: "https://www.webmandesign.eu/portfolio/auberge-wordpress-theme/",
-	description: "Auberge is a responsive WordPress theme designed for restaurants, cafes, and recipe blogs.",
-	icon: "Auberge.svg",
+export const aubergeTechnologyDefinition: TechnologyDefinition = {
+	id: 'auberge',
+	name: 'Auberge',
+	website: 'https://www.webmandesign.eu/portfolio/auberge-wordpress-theme/',
+	description: 'Auberge is a responsive WordPress theme designed for restaurants, cafes, and recipe blogs.',
+	icon: 'Auberge.svg',
 	categories: [
-		"wordpress-ecosystem",
+		'wordpress-ecosystem',
 	],
 	rules: [
 		{
-			id: "auberge:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\/wp-content\\/themes\\/auberge\\/.+\\.js\\?ver=([\\d\\.]+)"),
+			id: 'auberge:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\/wp-content\\/themes\\/auberge\\/.+\\.js\\?ver=([\\d\\.]+)'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 		{
-			id: "auberge:dom:1",
-			kind: "dom",
+			id: 'auberge:dom:1',
+			kind: 'dom',
 			selector: "link[href*='/wp-content/themes/auberge/']",
-			description: "DOM selector matches a known technology marker.",
+			description: 'DOM selector matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		oss: true,
 		pricing: [
-			"freemium",
+			'freemium',
 		],
 	},
 	requires: [
-		"wordpress",
+		'wordpress',
 	],
 } as const satisfies TechnologyDefinition;

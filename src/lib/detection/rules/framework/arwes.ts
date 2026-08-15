@@ -1,27 +1,27 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const arwesTechnologyDefinition = {
-	id: "arwes",
-	name: "Arwes",
-	website: "https://arwes.dev",
-	description: "Arwes is a futuristic sci-fi UI web framework.",
-	icon: "Arwes.svg",
+export const arwesTechnologyDefinition: TechnologyDefinition = {
+	id: 'arwes',
+	name: 'Arwes',
+	website: 'https://arwes.dev',
+	description: 'Arwes is a futuristic sci-fi UI web framework.',
+	icon: 'Arwes.svg',
 	categories: [
-		"framework",
+		'framework',
 	],
 	rules: [
 		{
-			id: "arwes:dom:0",
-			kind: "dom",
+			id: 'arwes:dom:0',
+			kind: 'dom',
 			selector: "style[data-meta^='ArwesSounds(t)']",
-			description: "DOM selector matches a known technology marker.",
+			description: 'DOM selector matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		oss: true,
 		pricing: [
-			"freemium",
+			'freemium',
 		],
 	},
 } as const satisfies TechnologyDefinition;

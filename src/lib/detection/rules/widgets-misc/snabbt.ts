@@ -1,33 +1,33 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const snabbtTechnologyDefinition = {
-	id: "snabbt",
-	name: "Snabbt",
-	website: "https://daniel-lundin.github.io/snabbt.js/",
-	description: "Minimalistic animation library in javascript Snabbt.js.",
+export const snabbtTechnologyDefinition: TechnologyDefinition = {
+	id: 'snabbt',
+	name: 'Snabbt',
+	website: 'https://daniel-lundin.github.io/snabbt.js/',
+	description: 'Minimalistic animation library in javascript Snabbt.js.',
 	categories: [
-		"widgets-misc",
+		'widgets-misc',
 	],
 	rules: [
 		{
-			id: "snabbt:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("(?:((?:\\d+\\.)+\\d+)\\/)?snabbt(?:[\\.-]min)?\\.js"),
+			id: 'snabbt:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('(?:((?:\\d{1,9}\\.){1,12}\\d+)\\/)?snabbt(?:[\\.-]min)?\\.js'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 		{
-			id: "snabbt:scriptSrc:1",
-			kind: "scriptSrc",
-			pattern: new RegExp("snabbt(?:[\\.-]min)?\\.js(?:\\?v(?:er)?=((?:\\d+\\.)+\\d+))?"),
+			id: 'snabbt:scriptSrc:1',
+			kind: 'scriptSrc',
+			pattern: new RegExp('snabbt(?:[\\.-]min)?\\.js(?:\\?v(?:er)?=((?:\\d+\\.)+\\d+))?'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {

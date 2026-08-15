@@ -669,6 +669,7 @@ import { yoastSeoForShopifyTechnologyDefinition } from './yoast-seo-for-shopify'
 import { yoastSeoPremiumTechnologyDefinition } from './yoast-seo-premium';
 import { yotpoSmsbumpTechnologyDefinition } from './yotpo-smsbump';
 import { youleadTechnologyDefinition } from './youlead';
+import { zapierTechnologyDefinition } from './zapier';
 import { zapnitoTechnologyDefinition } from './zapnito';
 import { zaxaaTechnologyDefinition } from './zaxaa';
 import { zenrezTechnologyDefinition } from './zenrez';
@@ -1351,6 +1352,7 @@ export const marketingAutomationTechnologyDefinitions = [
 	yoastSeoPremiumTechnologyDefinition,
 	yotpoSmsbumpTechnologyDefinition,
 	youleadTechnologyDefinition,
+	zapierTechnologyDefinition,
 	zapnitoTechnologyDefinition,
 	zaxaaTechnologyDefinition,
 	zenrezTechnologyDefinition,

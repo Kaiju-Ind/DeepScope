@@ -1,12 +1,15 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const automatticCookieBannerTechnologyDefinition = {
+export const automatticCookieBannerTechnologyDefinition: TechnologyDefinition = {
 	id: 'automattic-cookie-banner',
 	name: 'Automattic Cookie Banner',
 	website: 'https://automattic.com/cookies/',
 	description: 'Automattic Cookie Banner presents cookie consent and privacy preferences on Automattic-operated sites.',
 	icon: 'WordPress.svg',
-	categories: ['privacy-compliance'],
+
+	categories: [
+		'privacy-compliance',
+	],
 	rules: [
 		{
 			id: 'automattic-cookie-banner:html:0',

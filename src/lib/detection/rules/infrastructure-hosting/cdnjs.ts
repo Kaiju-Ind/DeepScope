@@ -1,32 +1,32 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const cdnjsTechnologyDefinition = {
-	id: "cdnjs",
-	name: "cdnjs",
-	website: "https://cdnjs.com",
-	description: "cdnjs is a free distributed JS library delivery service.",
-	icon: "cdnjs.svg",
+export const cdnjsTechnologyDefinition: TechnologyDefinition = {
+	id: 'cdnjs',
+	name: 'cdnjs',
+	website: 'https://cdnjs.com',
+	description: 'cdnjs is a free distributed JS library delivery service.',
+	icon: 'cdnjs.svg',
 	categories: [
-		"infrastructure-hosting",
+		'infrastructure-hosting',
 	],
 	rules: [
 		{
-			id: "cdnjs:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("cdnjs\\.cloudflare\\.com"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'cdnjs:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('cdnjs\\.cloudflare\\.com'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 		{
-			id: "cdnjs:dom:1",
-			kind: "dom",
+			id: 'cdnjs:dom:1',
+			kind: 'dom',
 			selector: "link[href*='cdnjs.cloudflare.com/']",
-			description: "DOM selector matches a known technology marker.",
+			description: 'DOM selector matches a known technology marker.',
 		},
 	],
 	metadata: {
 		oss: true,
 	},
 	implies: [
-		"cloudflare",
+		'cloudflare',
 	],
 } as const satisfies TechnologyDefinition;

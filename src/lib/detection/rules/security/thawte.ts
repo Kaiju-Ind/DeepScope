@@ -1,27 +1,28 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const thawteTechnologyDefinition = {
-	id: "thawte",
-	name: "Thawte",
-	website: "https://www.thawte.com",
-	description: "Thawte is a provider of SSL certificates, offering a site seal as a visual indicator of website security.",
-	icon: "Thawte.svg",
+export const thawteTechnologyDefinition: TechnologyDefinition = {
+	id: 'thawte',
+	name: 'Thawte',
+	website: 'https://www.thawte.com',
+	description:
+		'Thawte is a provider of SSL certificates, offering a site seal as a visual indicator of website security.',
+	icon: 'Thawte.svg',
 	categories: [
-		"security",
+		'security',
 	],
 	rules: [
 		{
-			id: "thawte:certIssuer:0",
-			kind: "certIssuer",
-			pattern: new RegExp("Thawte"),
-			description: "Certificate issuer matches a known technology marker.",
+			id: 'thawte:certIssuer:0',
+			kind: 'certIssuer',
+			pattern: new RegExp('Thawte'),
+			description: 'Certificate issuer matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"low",
-			"recurring",
+			'low',
+			'recurring',
 		],
 	},
 } as const satisfies TechnologyDefinition;

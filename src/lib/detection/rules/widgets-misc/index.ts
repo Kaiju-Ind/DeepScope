@@ -165,6 +165,8 @@ import { gokwikTechnologyDefinition } from './gokwik';
 import { gooberTechnologyDefinition } from './goober';
 import { googleCloudStorageTechnologyDefinition } from './google-cloud-storage';
 import { googleCodePrettifyTechnologyDefinition } from './google-code-prettify';
+import { googleFontsTechnologyDefinition } from './google-fonts';
+import { googleTranslateWidgetTechnologyDefinition } from './google-translate-widget';
 import { granimJsTechnologyDefinition } from './granim-js';
 import { gravatarTechnologyDefinition } from './gravatar';
 import { gravitecTechnologyDefinition } from './gravitec';
@@ -739,6 +741,8 @@ export const widgetsMiscTechnologyDefinitions = [
 	gooberTechnologyDefinition,
 	googleCloudStorageTechnologyDefinition,
 	googleCodePrettifyTechnologyDefinition,
+	googleFontsTechnologyDefinition,
+	googleTranslateWidgetTechnologyDefinition,
 	granimJsTechnologyDefinition,
 	gravatarTechnologyDefinition,
 	gravitecTechnologyDefinition,

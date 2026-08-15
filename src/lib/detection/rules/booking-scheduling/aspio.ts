@@ -1,30 +1,30 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const aspioTechnologyDefinition = {
-	id: "aspio",
-	name: "Aspio",
-	website: "https://aspio.io",
-	description: "Aspio is a platform that streamlines bookings and manages sales.",
-	icon: "Aspio.svg",
+export const aspioTechnologyDefinition: TechnologyDefinition = {
+	id: 'aspio',
+	name: 'Aspio',
+	website: 'https://aspio.io',
+	description: 'Aspio is a platform that streamlines bookings and manages sales.',
+	icon: 'Aspio.svg',
 	categories: [
-		"booking-scheduling",
+		'booking-scheduling',
 	],
 	rules: [
 		{
-			id: "aspio:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\/aspio-io-customer\\/public\\/js\\/aspio-io-customer-public\\.js"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'aspio:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\/aspio-io-customer\\/public\\/js\\/aspio-io-customer-public\\.js'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"low",
-			"recurring",
+			'low',
+			'recurring',
 		],
 	},
 	requires: [
-		"wordpress",
+		'wordpress',
 	],
 } as const satisfies TechnologyDefinition;

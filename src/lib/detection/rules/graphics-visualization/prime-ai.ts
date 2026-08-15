@@ -1,20 +1,21 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const primeAiTechnologyDefinition = {
-	id: "prime-ai",
-	name: "Prime AI",
-	website: "https://www.primeai.co.uk",
-	description: "Prime AI is a platform that uses AI-powered technology to match customers' body shapes with garment SKU specifications, helping them choose the best-fitting clothing size.",
-	icon: "PrimeAI.svg",
+export const primeAiTechnologyDefinition: TechnologyDefinition = {
+	id: 'prime-ai',
+	name: 'Prime AI',
+	website: 'https://www.primeai.co.uk',
+	description:
+		"Prime AI is a platform that uses AI-powered technology to match customers' body shapes with garment SKU specifications, helping them choose the best-fitting clothing size.",
+	icon: 'PrimeAI.svg',
 	categories: [
-		"graphics-visualization",
+		'graphics-visualization',
 	],
 	rules: [
 		{
-			id: "prime-ai:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\.primeai\\.co\\.uk"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'prime-ai:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\.primeai\\.co\\.uk'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {

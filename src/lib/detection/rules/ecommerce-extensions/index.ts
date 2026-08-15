@@ -71,6 +71,7 @@ import { instafeedTechnologyDefinition } from './instafeed';
 import { jiltAppTechnologyDefinition } from './jilt-app';
 import { juphyTechnologyDefinition } from './juphy';
 import { justunoAppTechnologyDefinition } from './justuno-app';
+import { kaliCartBridgeTechnologyDefinition } from './kalicart-bridge';
 import { kilatechTechnologyDefinition } from './kilatech';
 import { klipTechnologyDefinition } from './klip';
 import { langshopTechnologyDefinition } from './langshop';
@@ -220,6 +221,7 @@ export const ecommerceExtensionsTechnologyDefinitions = [
 	jiltAppTechnologyDefinition,
 	juphyTechnologyDefinition,
 	justunoAppTechnologyDefinition,
+	kaliCartBridgeTechnologyDefinition,
 	kilatechTechnologyDefinition,
 	klipTechnologyDefinition,
 	langshopTechnologyDefinition,

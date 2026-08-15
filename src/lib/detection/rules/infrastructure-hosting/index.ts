@@ -113,6 +113,7 @@ import { jsdelivrTechnologyDefinition } from './jsdelivr';
 import { keloncloudTechnologyDefinition } from './keloncloud';
 import { keycdnTechnologyDefinition } from './keycdn';
 import { kinstaTechnologyDefinition } from './kinsta';
+import { krtCdnTechnologyDefinition } from './krt-cdn';
 import { kuronekoserverCdnTechnologyDefinition } from './kuronekoserver-cdn';
 import { lagoonTechnologyDefinition } from './lagoon';
 import { leasewebTechnologyDefinition } from './leaseweb';
@@ -204,6 +205,7 @@ import { vercelBlobStorageTechnologyDefinition } from './vercel-blob-storage';
 import { vercelMicrofrontendsTechnologyDefinition } from './vercel-microfrontends';
 
 import { shopifyCdnTechnologyDefinition } from './shopify-cdn';
+
 export const infrastructureHostingTechnologyDefinitions = [
 	technology34spComTechnologyDefinition,
 	technology5centscdnTechnologyDefinition,
@@ -319,6 +321,7 @@ export const infrastructureHostingTechnologyDefinitions = [
 	keloncloudTechnologyDefinition,
 	keycdnTechnologyDefinition,
 	kinstaTechnologyDefinition,
+	krtCdnTechnologyDefinition,
 	kuronekoserverCdnTechnologyDefinition,
 	lagoonTechnologyDefinition,
 	leasewebTechnologyDefinition,

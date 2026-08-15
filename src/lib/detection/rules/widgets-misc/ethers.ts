@@ -1,20 +1,20 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const ethersTechnologyDefinition = {
-	id: "ethers",
-	name: "Ethers",
-	website: "https://ethers.org/",
-	description: "Ethers is a complete, tiny and simple Ethereum library.",
-	icon: "Ethers.svg",
+export const ethersTechnologyDefinition: TechnologyDefinition = {
+	id: 'ethers',
+	name: 'Ethers',
+	website: 'https://ethers.org/',
+	description: 'Ethers is a complete, tiny and simple Ethereum library.',
+	icon: 'Ethers.svg',
 	categories: [
-		"widgets-misc",
+		'widgets-misc',
 	],
 	rules: [
 		{
-			id: "ethers:jsGlobal:0",
-			kind: "jsGlobal",
-			property: "_ethers",
-			description: "Page-owned global matches a known technology marker.",
+			id: 'ethers:jsGlobal:0',
+			kind: 'jsGlobal',
+			property: '_ethers',
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 	metadata: {

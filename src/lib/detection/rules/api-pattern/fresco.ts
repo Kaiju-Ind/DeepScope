@@ -1,33 +1,34 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const frescoTechnologyDefinition = {
-	id: "fresco",
-	name: "Fresco",
-	website: "https://github.com/staaky/fresco",
-	description: "Fresco is a responsive lightbox. Fresco comes with thumbnail support, fullscreen zoom, Youtube and Vimeo integration for HTML5 video and a powerful Javascript API.",
-	icon: "default.svg",
+export const frescoTechnologyDefinition: TechnologyDefinition = {
+	id: 'fresco',
+	name: 'Fresco',
+	website: 'https://github.com/staaky/fresco',
+	description:
+		'Fresco is a responsive lightbox. Fresco comes with thumbnail support, fullscreen zoom, Youtube and Vimeo integration for HTML5 video and a powerful Javascript API.',
+	icon: 'default.svg',
 	categories: [
-		"api-pattern",
-		"developer-tooling",
+		'api-pattern',
+		'developer-tooling',
 	],
 	rules: [
 		{
-			id: "fresco:jsGlobal:0",
-			kind: "jsGlobal",
-			property: "Fresco.version",
-			valuePattern: new RegExp("^([\\d\\.]+)$"),
+			id: 'fresco:jsGlobal:0',
+			kind: 'jsGlobal',
+			property: 'Fresco.version',
+			valuePattern: new RegExp('^([\\d\\.]+)$'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Page-owned global matches a known technology marker.",
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: false,
 		oss: true,
 		pricing: [
-			"freemium",
+			'freemium',
 		],
 	},
 } as const satisfies TechnologyDefinition;

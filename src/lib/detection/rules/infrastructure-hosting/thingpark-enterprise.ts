@@ -1,20 +1,21 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const thingparkEnterpriseTechnologyDefinition = {
-	id: "thingpark-enterprise",
-	name: "ThingPark Enterprise",
-	website: "https://www.thingpark.com/thingpark-enterprise",
-	description: "ThingPark Enterprise is an enterprise IoT connectivity solution designed with a strong focus on security.",
-	icon: "ThingPark.svg",
+export const thingparkEnterpriseTechnologyDefinition: TechnologyDefinition = {
+	id: 'thingpark-enterprise',
+	name: 'ThingPark Enterprise',
+	website: 'https://www.thingpark.com/thingpark-enterprise',
+	description:
+		'ThingPark Enterprise is an enterprise IoT connectivity solution designed with a strong focus on security.',
+	icon: 'ThingPark.svg',
 	categories: [
-		"infrastructure-hosting",
+		'infrastructure-hosting',
 	],
 	rules: [
 		{
-			id: "thingpark-enterprise:dom:0",
-			kind: "dom",
+			id: 'thingpark-enterprise:dom:0',
+			kind: 'dom',
 			selector: "input[value*='.thingpark.com']",
-			description: "DOM selector matches a known technology marker.",
+			description: 'DOM selector matches a known technology marker.',
 		},
 	],
 	metadata: {

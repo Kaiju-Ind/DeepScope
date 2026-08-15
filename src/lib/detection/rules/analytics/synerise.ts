@@ -1,23 +1,23 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const syneriseTechnologyDefinition = {
-	id: "synerise",
-	name: "Synerise",
-	website: "https://synerise.com/",
-	icon: "Synerise.svg",
+export const syneriseTechnologyDefinition: TechnologyDefinition = {
+	id: 'synerise',
+	name: 'Synerise',
+	website: 'https://synerise.com/',
+	icon: 'Synerise.svg',
 	categories: [
-		"analytics",
+		'analytics',
 	],
 	rules: [
 		{
-			id: "synerise:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("snrcdn\\.net\\/sdk\\/(3\\.0)\\/synerise-javascript-sdk\\.min\\.js"),
+			id: 'synerise:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('snrcdn\\.net\\/sdk\\/(3\\.0)\\/synerise-javascript-sdk\\.min\\.js'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 } as const satisfies TechnologyDefinition;

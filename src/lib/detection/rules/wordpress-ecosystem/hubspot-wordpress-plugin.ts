@@ -1,32 +1,33 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const hubspotWordpressPluginTechnologyDefinition = {
-	id: "hubspot-wordpress-plugin",
-	name: "HubSpot WordPress plugin",
-	website: "https://wordpress.org/plugins/leadin/",
-	description: "HubSpot is a platform with all the tools and integrations you need for marketing, sales, and customer service. HubSpot WordPress plugin allows you to manage contacts (CRM), engage visitors with live chat and chatbots, add beautiful forms to pages, create engaging email marketing campaigns, and more.",
-	icon: "HubSpot.svg",
+export const hubspotWordpressPluginTechnologyDefinition: TechnologyDefinition = {
+	id: 'hubspot-wordpress-plugin',
+	name: 'HubSpot WordPress plugin',
+	website: 'https://wordpress.org/plugins/leadin/',
+	description:
+		'HubSpot is a platform with all the tools and integrations you need for marketing, sales, and customer service. HubSpot WordPress plugin allows you to manage contacts (CRM), engage visitors with live chat and chatbots, add beautiful forms to pages, create engaging email marketing campaigns, and more.',
+	icon: 'HubSpot.svg',
 	categories: [
-		"wordpress-ecosystem",
+		'wordpress-ecosystem',
 	],
 	rules: [
 		{
-			id: "hubspot-wordpress-plugin:jsGlobal:0",
-			kind: "jsGlobal",
-			property: "leadin_wordpress.leadinPluginVersion",
-			valuePattern: new RegExp("^([\\d.]+)$"),
+			id: 'hubspot-wordpress-plugin:jsGlobal:0',
+			kind: 'jsGlobal',
+			property: 'leadin_wordpress.leadinPluginVersion',
+			valuePattern: new RegExp('^([\\d.]+)$'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Page-owned global matches a known technology marker.",
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 	implies: [
-		"hubspot",
-		"hubspot-analytics",
+		'hubspot',
+		'hubspot-analytics',
 	],
 	requires: [
-		"wordpress",
+		'wordpress',
 	],
 } as const satisfies TechnologyDefinition;

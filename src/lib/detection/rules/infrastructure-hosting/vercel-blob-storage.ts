@@ -5,39 +5,40 @@ import type { TechnologyDefinition } from '../../types';
  * intentionally specific so normal Vercel deployment URLs do not imply Blob
  * Storage unless the page actually loads blob-backed assets.
  */
-export const vercelBlobStorageTechnologyDefinition = {
-	id: "vercel-blob-storage",
-	name: "Vercel Blob Storage",
-	website: "https://vercel.com/docs/vercel-blob",
-	description: "Vercel Blob Storage stores and serves user files or generated assets through public blob-backed Vercel storage hosts.",
+export const vercelBlobStorageTechnologyDefinition: TechnologyDefinition = {
+	id: 'vercel-blob-storage',
+	name: 'Vercel Blob Storage',
+	website: 'https://vercel.com/docs/vercel-blob',
+	description:
+		'Vercel Blob Storage stores and serves user files or generated assets through public blob-backed Vercel storage hosts.',
 	categories: [
-		"infrastructure-hosting",
+		'infrastructure-hosting',
 	],
 	rules: [
 		{
-			id: "vercel-blob-storage:resourceUrl:public-blob-host",
-			kind: "resourceUrl",
+			id: 'vercel-blob-storage:resourceUrl:public-blob-host',
+			kind: 'resourceUrl',
 			pattern: /https?:\/\/[^/]+\.public\.blob\.vercel-storage\.com\//i,
 			confidence: 95,
-			description: "Loaded resource URL uses a public Vercel Blob Storage host.",
+			description: 'Loaded resource URL uses a public Vercel Blob Storage host.',
 		},
 		{
-			id: "vercel-blob-storage:requestUrl:public-blob-host",
-			kind: "requestUrl",
+			id: 'vercel-blob-storage:requestUrl:public-blob-host',
+			kind: 'requestUrl',
 			pattern: /https?:\/\/[^/]+\.public\.blob\.vercel-storage\.com\//i,
 			confidence: 95,
-			description: "Captured request URL uses a public Vercel Blob Storage host.",
+			description: 'Captured request URL uses a public Vercel Blob Storage host.',
 		},
 		{
-			id: "vercel-blob-storage:html:public-blob-host",
-			kind: "html",
+			id: 'vercel-blob-storage:html:public-blob-host',
+			kind: 'html',
 			pattern: /https?:\/\/[^"'\s<>]+\.public\.blob\.vercel-storage\.com\//i,
 			confidence: 85,
-			description: "Document markup references a public Vercel Blob Storage asset host.",
+			description: 'Document markup references a public Vercel Blob Storage asset host.',
 		},
 	],
 	implies: [
-		"vercel",
+		'vercel',
 	],
 	metadata: {
 		saas: true,

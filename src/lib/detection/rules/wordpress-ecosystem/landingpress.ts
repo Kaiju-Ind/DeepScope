@@ -1,34 +1,36 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const landingpressTechnologyDefinition = {
-	id: "landingpress",
-	name: "LandingPress",
-	website: "https://landingpress.net",
-	description: "LandingPress is a WordPress theme.",
-	icon: "LandingPress.png",
+export const landingpressTechnologyDefinition: TechnologyDefinition = {
+	id: 'landingpress',
+	name: 'LandingPress',
+	website: 'https://landingpress.net',
+	description: 'LandingPress is a WordPress theme.',
+	icon: 'LandingPress.png',
 	categories: [
-		"wordpress-ecosystem",
+		'wordpress-ecosystem',
 	],
 	rules: [
 		{
-			id: "landingpress:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\/wp-content\\/themes\\/landingpress-wp\\/.+script\\.min\\.js(?:\\?ver=(\\d+(?:\\.\\d+)+))?"),
+			id: 'landingpress:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp(
+				'\\/wp-content\\/themes\\/landingpress-wp\\/.+script\\.min\\.js(?:\\?ver=(\\d+(?:\\.\\d+)+))?',
+			),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 	],
 	metadata: {
 		pricing: [
-			"low",
-			"onetime",
-			"recurring",
+			'low',
+			'onetime',
+			'recurring',
 		],
 	},
 	requires: [
-		"wordpress",
+		'wordpress',
 	],
 } as const satisfies TechnologyDefinition;

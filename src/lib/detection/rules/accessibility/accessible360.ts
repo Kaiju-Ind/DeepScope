@@ -1,46 +1,46 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const accessible360TechnologyDefinition = {
-	id: "accessible360",
-	name: "Accessible360",
-	website: "https://accessible360.com",
-	description: "Accessible360 is a web accessibility company based in Edina, Minnesota.",
-	icon: "Accessible360.png",
+export const accessible360TechnologyDefinition: TechnologyDefinition = {
+	id: 'accessible360',
+	name: 'Accessible360',
+	website: 'https://accessible360.com',
+	description: 'Accessible360 is a web accessibility company based in Edina, Minnesota.',
+	icon: 'Accessible360.png',
 	categories: [
-		"accessibility",
+		'accessibility',
 	],
 	rules: [
 		{
-			id: "accessible360:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\/npm\\/@accessible360\\/accessible-slick@([\\d\\.]+)\\/"),
+			id: 'accessible360:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\/npm\\/@accessible360\\/accessible-slick@([\\d\\.]+)\\/'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 		{
-			id: "accessible360:scriptSrc:1",
-			kind: "scriptSrc",
-			pattern: new RegExp("\\/accessible360\\/accessible-slick\\/slick\\/slick\\.min\\.js\\?v=([\\d\\.]+)"),
+			id: 'accessible360:scriptSrc:1',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\/accessible360\\/accessible-slick\\/slick\\/slick\\.min\\.js\\?v=([\\d\\.]+)'),
 			version: {
-				source: "match",
+				source: 'match',
 				group: 1,
 			},
-			description: "Script source URL matches a known technology marker.",
+			description: 'Script source URL matches a known technology marker.',
 		},
 		{
-			id: "accessible360:dom:2",
-			kind: "dom",
+			id: 'accessible360:dom:2',
+			kind: 'dom',
 			selector: "a[href*='accessible360.com/'][target='_blank'], a[href*='accessible360.com/'] > img",
-			description: "DOM selector matches a known technology marker.",
+			description: 'DOM selector matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"poa",
+			'poa',
 		],
 	},
 } as const satisfies TechnologyDefinition;

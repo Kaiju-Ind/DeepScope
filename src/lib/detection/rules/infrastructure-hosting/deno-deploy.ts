@@ -1,31 +1,32 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const denoDeployTechnologyDefinition = {
-	id: "deno-deploy",
-	name: "Deno Deploy",
-	website: "https://deno.land/",
-	description: "Deno Deploy is a distributed system that runs JavaScript, TypeScript, and WebAssembly at the edge, worldwide.",
-	icon: "deno.svg",
+export const denoDeployTechnologyDefinition: TechnologyDefinition = {
+	id: 'deno-deploy',
+	name: 'Deno Deploy',
+	website: 'https://deno.land/',
+	description:
+		'Deno Deploy is a distributed system that runs JavaScript, TypeScript, and WebAssembly at the edge, worldwide.',
+	icon: 'deno.svg',
 	categories: [
-		"infrastructure-hosting",
+		'infrastructure-hosting',
 	],
 	rules: [
 		{
-			id: "deno-deploy:header:0",
-			kind: "header",
-			key: "server",
-			valuePattern: new RegExp("^deno\\/*", "i"),
-			description: "Response header matches a known technology marker.",
+			id: 'deno-deploy:header:0',
+			kind: 'header',
+			key: 'server',
+			valuePattern: new RegExp('^deno\\/*', 'i'),
+			description: 'Response header matches a known technology marker.',
 		},
 	],
 	metadata: {
 		saas: true,
 		pricing: [
-			"freemium",
-			"low",
+			'freemium',
+			'low',
 		],
 	},
 	implies: [
-		"deno",
+		'deno',
 	],
 } as const satisfies TechnologyDefinition;

@@ -1,26 +1,26 @@
 import type { TechnologyDefinition } from '../../types';
 
-export const gumstackTechnologyDefinition = {
-	id: "gumstack",
-	name: "Gumstack",
-	website: "https://gumstack.com/",
-	description: "Gumstack provides a live video shopping solution for eCommerce.",
-	icon: "Gumstack.svg",
+export const gumstackTechnologyDefinition: TechnologyDefinition = {
+	id: 'gumstack',
+	name: 'Gumstack',
+	website: 'https://gumstack.com/',
+	description: 'Gumstack provides a live video shopping solution for eCommerce.',
+	icon: 'Gumstack.svg',
 	categories: [
-		"widgets-misc",
+		'widgets-misc',
 	],
 	rules: [
 		{
-			id: "gumstack:scriptSrc:0",
-			kind: "scriptSrc",
-			pattern: new RegExp("w\\.gumstack\\.com"),
-			description: "Script source URL matches a known technology marker.",
+			id: 'gumstack:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('w\\.gumstack\\.com'),
+			description: 'Script source URL matches a known technology marker.',
 		},
 		{
-			id: "gumstack:jsGlobal:1",
-			kind: "jsGlobal",
-			property: "Gumstack",
-			description: "Page-owned global matches a known technology marker.",
+			id: 'gumstack:jsGlobal:1',
+			kind: 'jsGlobal',
+			property: 'Gumstack',
+			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
 	metadata: {
