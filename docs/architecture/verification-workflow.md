@@ -41,7 +41,6 @@ Run targeted tests when the full suite is unavailable or when the patch only tou
 npx vitest run src/tests/popup/view-model.test.ts --reporter=verbose
 npx vitest run src/tests/storage/cache.test.ts --reporter=verbose
 npx vitest run src/tests/collectors/planning.test.ts --reporter=verbose
-npx vitest run src/tests/graph/compiled-analysis.test.ts --reporter=verbose
 npx vitest run src/tests/messaging/messages.test.ts --reporter=verbose
 ```
 
@@ -58,7 +57,7 @@ Run this checklist after changes that touch popup, background, content, lifecycl
 3. Open an unsupported page such as `chrome://extensions` and confirm the popup shows `UNSUPPORTED_URL` without hanging.
 4. Open the popup twice on the same origin and confirm the snapshot-hit path renders without starting live observation.
 5. Click Refresh and confirm analysis bypasses stored snapshot reuse and starts observation again.
-6. Close the popup and confirm observation stops for the visible tab.
+6. Close the popup and confirm the UI unsubscribes from live revisions without starting a new scan on reopen. If you explicitly click Stop observation, confirm the visible tab's observation session stops.
 7. Test a page that lazy-loads scripts, links, or meta tags and confirm late detections can appear while the popup is subscribed to storage revisions.
 8. Navigate within the tab and confirm old observation state does not refresh the new page.
 

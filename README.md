@@ -10,7 +10,7 @@ The runtime now follows one event-shaped detector path for the extension:
 
 ```text
 popup request
-  -> background active-tab check
+  -> background tab check
   -> content-script observation batch
   -> background-only observation enrichment
   -> indexed rule matching
@@ -26,19 +26,19 @@ Dirty observation refreshes do not merge final detection results. The background
 
 ## Current extension behavior
 
-1. The popup asks the background service worker to analyze the active tab with `mode: "cache-first"` and `observe: "while-popup-open"`.
-2. The background validates that the tab is inspectable and checks the per-origin cache.
-3. On a cache hit, the popup renders cached normalized analysis and any cached replay trace without injecting the content script.
-4. On a cache miss, or after manual refresh, the background runtime-injects the content script, collects an enriched observation batch, runs the event pipeline, stores the analysis and replay trace, and optionally starts observation.
+1. The popup asks the background service worker to analyze the active tab with `mode: "snapshot-first"` and `observe: "while-popup-open"`.
+2. The background validates that the tab is inspectable and checks the exact visible-session snapshot first, then uses origin-level fallback metadata only when no exact snapshot is available.
+3. On a snapshot hit, the popup renders stored normalized analysis and any stored replay trace immediately without forcing fresh detector work.
+4. On a snapshot miss, or after manual refresh, the background runtime-injects the content script, collects an enriched observation batch, runs the event pipeline, stores the analysis and replay trace, and optionally starts observation.
 5. While observation is active, the content script watches late-added scripts, stylesheet links, metadata, and resource timing entries within bounded policy limits.
-6. The popup polls observation state while open. Dirty sessions flush late observation batches and rerun the event pipeline over combined observations.
-7. Closing the popup or clicking Stop observation tears down the active observation session.
+6. The popup follows live updates through storage revisions for the current visible session. Dirty sessions flush late observation batches and rerun the event pipeline over combined observations.
+7. Closing the popup unsubscribes the UI from live updates, but the bounded observation session can continue until it stops naturally or the user clicks Stop observation.
 
 The popup includes the completed pipeline mode in its metrics area so browser QA can confirm that extension output came from the event path.
 
 ## Messaging architecture
 
-The extension uses `comctx` to expose small typed RPC surfaces between the popup, background service worker, and content script. The background API owns privileged orchestration such as active-tab validation, runtime injection, cache lookup, fresh analysis, replay storage, and observation-session control. The content API owns page-local observation capture and bounded observation sessions only. Detection logic does not run in the content script.
+The extension uses `comctx` to expose small typed RPC surfaces between the popup, background service worker, and content script. The background API owns privileged orchestration such as tab validation, runtime injection, cache lookup, fresh analysis, replay storage, and observation-session control. The content API owns page-local observation capture and bounded observation sessions only. Detection logic does not run in the content script.
 
 `comctx` is used instead of raw `browser.runtime.sendMessage` and `browser.tabs.sendMessage` discriminated unions because each extension context can consume an explicit TypeScript interface while the adapters still route over normal Manifest V3 extension messaging. Runtime calls that cross into the content script are wrapped with a timeout so a missing or stale content script returns `CONTENT_SCRIPT_UNAVAILABLE` instead of leaving the popup waiting indefinitely.
 
@@ -60,13 +60,13 @@ Run the extension in Chrome and verify:
 - A page with no content-script response returns `CONTENT_SCRIPT_UNAVAILABLE`.
 - Opening the popup on a cached origin renders cached analysis without starting live observation.
 - Refresh bypasses cache, reruns event analysis, and starts a fresh observation session.
-- Closing the popup stops live observation for the active tab.
+- Closing the popup stops live UI updates, and clicking Stop observation stops the active observation session for the visible tab.
 - Late-loaded signals on a supported page can trigger event analysis while the popup stays open.
 - Dirty refresh does not append final results blindly. Existing and late observations are evaluated together, so `implies`, `requires`, and `excludes` are recalculated as one candidate graph.
 
 ## Tooling
 
-This scaffold uses `mise` to pin project tools and `aube` as the package manager/script runner.
+This repo uses `mise` to pin project tools and `pnpm` for package scripts and dependency management.
 
 Common commands:
 
@@ -95,24 +95,26 @@ pnpm bench:rules
 pnpm bench:rules:gate
 ```
 
-Aube will install dependencies before running scripts when the manifest or lockfile has changed.
+If you prefer `mise`, it keeps the repo's Node and pnpm versions aligned before you run the package scripts above.
 
 ## Project areas
 
-- `src/entrypoints/` — WXT popup, background service worker, and content script entrypoints.
-- `src/entrypoints/popup/` — Solid popup shell for triggering analysis and displaying results.
+- `src/entry/` — WXT popup, background service worker, and content script entrypoints.
+- `src/entry/popup/` — Solid popup shell for triggering analysis and displaying results.
 - `src/components/` — reusable popup result, empty, and error presentation components.
 - `src/lib/content/` — DOM collection and observation-session state owned by the content script.
 - `src/lib/collectors/` — extension collection planning plus background-only observation enrichment.
+- `src/lib/api/` — cross-context contracts shared across background, content, popup, and storage layers.
 - `src/lib/observations/` — normalized observation contracts, snapshot adapters, and bounded batch controls.
-- `src/lib/detection/` — detector types, rules, normalizers, indexed observation matching, graph helpers, validation, and version helpers.
+- `src/lib/detection/` — detector types, rules, normalize, indexed observation matching, graph helpers, validation, and version helpers.
 - `src/lib/evidence/` — event-pipeline evidence contracts, builders, and in-memory repository helpers.
 - `src/lib/candidates/` — candidate aggregation and relationship refinement from evidence entries before final detection emission.
-- `src/lib/emission/` — final `SiteAnalysis` emission from refined candidates.
+- `src/lib/dom/` — DOM selector offscreen contracts shared by the content and offscreen entrypoints.
+- `src/lib/emit/` — final `SiteAnalysis` emission from refined candidates.
 - `src/lib/pipeline/` — event pipeline runtime, observation-batch runtime, replay trace, and explanation generation.
 - `src/lib/messaging/` — typed `comctx` message contracts and adapters for popup, background, and content contexts.
 - `src/lib/storage/` — per-origin normalized analysis cache, replay trace cache, and aggregate status helpers.
-- `src/lib/browser/` — active-tab helpers owned by privileged contexts.
+- `src/lib/browser/` — tab helpers owned by privileged contexts.
 - `src/data/` — category labels and bundled technology registry exports.
 - `src/tests/` — Vitest coverage for detector behavior, event pipeline stages, collector planning, content observation, popup view models, storage cache semantics, and shared test fixtures.
 - `public/icons/` — placeholder extension icon files.
