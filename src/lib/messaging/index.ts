@@ -28,3 +28,5 @@ export {
 } from '../contracts/analysis';
 export * from './adapters/background';
 export * from './adapters/content';
+
+export * from './side-panel-notifications';

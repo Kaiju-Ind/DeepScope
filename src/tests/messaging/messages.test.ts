@@ -6,6 +6,10 @@ import {
 } from '@/lib/messaging/adapters/background';
 import { CONTENT_RPC_CHANNEL, CONTENT_RPC_NAMESPACE } from '@/lib/messaging/adapters/content';
 import { RpcTimeoutError, contentScriptFailure, withTimeout } from '@/lib/messaging/rpc';
+import {
+	SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
+	isSidePanelActionNotification,
+} from '@/lib/messaging/side-panel-notifications';
 import { errorResponse, ok } from '@/lib/shared/result';
 
 describe('messaging contract helpers', () => {
@@ -53,6 +57,18 @@ describe('messaging contract helpers', () => {
 				message: 'Timed out',
 			},
 		});
+	});
+
+	it('validates side-panel action notifications', () => {
+		expect(isSidePanelActionNotification({
+			type: SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
+			tabId: 7,
+		})).toBe(true);
+		expect(isSidePanelActionNotification({
+			type: SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
+			tabId: '7',
+		})).toBe(false);
+		expect(isSidePanelActionNotification({ type: 'other', tabId: 7 })).toBe(false);
 	});
 
 	it('uses stable namespaces and channels', () => {

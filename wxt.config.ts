@@ -7,6 +7,7 @@ export default defineConfig({
 		name: 'Kaiju Site Scope',
 		description: 'Detect web technologies on the active tab and show the evidence behind each result.',
 		version: '0.1.0',
+		minimum_chrome_version: '116',
 		icons: {
 			16: '/icons/icon-16.png',
 			32: '/icons/icon-32.png',
@@ -15,7 +16,6 @@ export default defineConfig({
 		},
 		action: {
 			default_title: 'Kaiju Site Scope',
-			default_popup: 'popup.html',
 			default_icon: {
 				16: '/icons/icon-16.png',
 				32: '/icons/icon-32.png',

@@ -2,7 +2,7 @@
 
 Use this file as the source text for the Chrome Web Store privacy dashboard,
 store listing review notes, and the public privacy policy page. Keep this file,
-the popup copy, and the final built manifest aligned before each release.
+the side-panel copy, and the final built manifest aligned before each release.
 
 ## Single purpose
 
@@ -22,16 +22,16 @@ Kaiju Site Scope does not intentionally collect passwords, cookie values,
 localStorage values, sessionStorage values, payment details, health information,
 precise location, authentication secrets, or personal communications. Because
 website pages can contain incidental personal or sensitive text, persisted
-evidence values are bounded and redacted before they are stored for popup
+evidence values are bounded and redacted before they are stored for side-panel
 rendering or replay summaries.
 
 ## Storage and retention
 
 Detection results, snapshot records, matcher job state, and replay summaries are
-stored in Chrome extension local storage so reopening the popup can show recent
+stored in Chrome extension local storage so reopening the side panel can show recent
 results without repeating all work immediately. Cached detector records are local
 to the user's browser profile. Users can clear stored detector data from the
-popup or remove the extension to delete extension storage.
+side panel or remove the extension to delete extension storage.
 
 ## Sharing and remote services
 
@@ -51,17 +51,20 @@ parties.
   after user action so the extension can collect page signals used for
   technology detection.
 - `storage`: stores local detection results, redacted replay summaries, and
-  cache records so reopening the popup can show recent results without
+  cache records so reopening the side panel can show recent results without
   immediately rerunning all analysis.
-- `offscreen`: runs local matcher work outside the popup and background service
-  worker so heavier analysis does not block the popup and remains reliable under
+- `offscreen`: runs local matcher work outside the side panel and background service
+  worker so heavier analysis does not block the side panel and remains reliable under
   Manifest V3 service-worker lifecycle behavior. It does not display hidden UI,
   play media, record audio, or communicate with remote code.
+- `sidePanel`: keeps the user-initiated analysis UI in Chrome's persistent side
+  panel so browser-owned prompts or page focus changes do not dismiss progress and
+  results. The panel is enabled per tab after a toolbar action.
 
 ## Remote code answer
 
 No. Kaiju Site Scope does not load or execute remotely hosted extension code.
-Detector rules, matcher workers, popup assets, and registry artifacts are bundled
+Detector rules, matcher workers, side-panel assets, and registry artifacts are bundled
 inside the extension package.
 
 ## Dashboard data disclosure summary

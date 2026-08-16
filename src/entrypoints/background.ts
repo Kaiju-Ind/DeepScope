@@ -20,6 +20,7 @@ import {
 	createContentClientAdapter,
 	type BackgroundApi,
 	type ContentApi,
+	SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
 } from '@/lib/messaging';
 import {
 	browserDetectionPersistence,
@@ -122,6 +123,42 @@ function formatBackgroundLogValue(value: unknown): string {
 	return JSON.stringify(value);
 }
 
+const SIDE_PANEL_PATH = 'sidepanel.html';
+
+/**
+ * Open a tab-scoped side panel directly from the action-click user gesture.
+ *
+ * `sidePanel.open()` must run synchronously from the click handler. The options
+ * call is intentionally started in the same turn without awaiting first so the
+ * user gesture is not lost while Chrome configures the tab-specific panel.
+ */
+function openSidePanelForActionTab(tabId: number): void {
+	const configurePanel = browser.sidePanel.setOptions({
+		tabId,
+		path: SIDE_PANEL_PATH,
+		enabled: true,
+	});
+	const openPanel = browser.sidePanel.open({ tabId });
+
+	void Promise.all([configurePanel, openPanel])
+		.then(() => {
+			void browser.runtime.sendMessage({
+				type: SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
+				tabId,
+			}).catch((error) => {
+				logBackgroundEvent('side-panel-action-notification-failed', {
+					tabId,
+					message: error instanceof Error ? error.message : String(error),
+				});
+			});
+		})
+		.catch((error) => {
+			logBackgroundEvent('side-panel-open-failed', {
+				tabId,
+				message: error instanceof Error ? error.message : String(error),
+			});
+		});
+}
 
 /**
  * Compose the background application runtime from concrete browser adapters.
@@ -158,6 +195,23 @@ const [provideBackgroundApi] = defineProxy(() => backgroundRuntime.api, {
 });
 
 export default defineBackground(() => {
+	// The manifest needs a default path for Chrome's Side Panel API, but analysis
+	// access stays opt-in per tab. Action clicks enable only the tab that received
+	// the activeTab user gesture, so merely switching tabs cannot start a scan.
+	void browser.sidePanel.setOptions({ enabled: false }).catch((error) => {
+		logBackgroundEvent('side-panel-default-disable-failed', {
+			message: error instanceof Error ? error.message : String(error),
+		});
+	});
+
+	browser.action.onClicked.addListener((tab) => {
+		if (typeof tab.id !== 'number') {
+			logBackgroundEvent('side-panel-open-skipped', { reason: 'missing-tab-id' });
+			return;
+		}
+
+		openSidePanelForActionTab(tab.id);
+	});
 	browser.runtime.onMessage.addListener((message, sender) => {
 		backgroundRuntime.handleRuntimeMessage(message, sender);
 	});

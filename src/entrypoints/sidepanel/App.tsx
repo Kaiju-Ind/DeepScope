@@ -12,7 +12,12 @@ import type {
   AnalysisStatus,
   SiteAnalysis,
 } from "@/lib/detection/types";
-import type { DetectionEvidenceState, DetectionReplaySummary, DetectionSessionSnapshot } from "@/lib/contracts/detection-session";
+import type {
+  DetectionEvidenceState,
+  DetectionReplaySummary,
+  DetectionSessionKey,
+  DetectionSessionSnapshot,
+} from "@/lib/contracts/detection-session";
 import type { DetectionReplayTrace } from "@/lib/pipeline";
 import type {
   VisibleTabIdentity,
@@ -24,6 +29,7 @@ import type {
 import {
   BACKGROUND_RPC_NAMESPACE,
   createBackgroundClientAdapter,
+  isSidePanelActionNotification,
 } from "@/lib/messaging";
 import {
   buildPopupAnalysisUpdate,
@@ -53,10 +59,7 @@ import {
   readStoredPopupAnalysis,
   subscribeToPopupSnapshotRevisions,
 } from "@/lib/popup/snapshot-state";
-import {
-  browserDetectionPersistence,
-  browserDetectionSnapshotRevisionSource,
-} from "@/lib/persistence";
+import { browserDetectionPersistence } from "@/lib/persistence";
 
 import "./App.css";
 
@@ -252,8 +255,10 @@ export default function App() {
   const [clearStoredDataInFlight, setClearStoredDataInFlight] = createSignal(false);
   const [pendingVisibleTabIdentitySync, setPendingVisibleTabIdentitySync] =
     createSignal<VisibleTabIdentitySyncReason | null>(null);
-  const [visibleSnapshotRevision, setVisibleSnapshotRevision] = createSignal<DetectionSessionSnapshot | null>(null);
+  const [visibleDetectorSnapshotRevision, setVisibleDetectorSnapshotRevision] = createSignal<DetectionSessionSnapshot | null>(null);
+  const [visibleLifecycleSnapshotRevision, setVisibleLifecycleSnapshotRevision] = createSignal<DetectionSessionSnapshot | null>(null);
   let unsubscribeSnapshotRevisions: (() => void) | undefined;
+  let subscribedSnapshotSessionKey: DetectionSessionKey | null = null;
 
   const analysisRequestInFlight = createMemo(() => analysisRequestTarget() !== null);
   const visibleAnalysisRequestInFlight = createMemo(() => {
@@ -268,7 +273,7 @@ export default function App() {
   });
   const workflowBusy = createMemo(() => isPopupWorkflowBusy(workflow()));
   const busy = createMemo(() => isPopupWorkflowBusy(workflow()) || analysisRequestInFlight());
-  const matcherProgress = createMemo(() => visibleSnapshotRevision()?.matcherProgress);
+  const matcherProgress = createMemo(() => visibleDetectorSnapshotRevision()?.matcherProgress);
   const analysisActivity = createMemo(() => getPopupAnalysisActivity({
     matcherStatus: matcherStatus(),
     workflowBusy: workflowBusy(),
@@ -357,14 +362,65 @@ export default function App() {
     if (status) setMatcherStatus(status);
   }
 
+  function isSameDetectionSessionKey(
+    left: DetectionSessionKey | null,
+    right: DetectionSessionKey | null,
+  ): boolean {
+    return Boolean(
+      left &&
+        right &&
+        left.tabId === right.tabId &&
+        left.frameId === right.frameId &&
+        left.documentId === right.documentId &&
+        left.originHash === right.originHash,
+    );
+  }
+
+  /**
+   * Keep the live storage listener on the origin until the first detector snapshot
+   * reveals the exact document session, then narrow it to that detector/lifecycle pair.
+   */
+  function subscribeToVisibleSnapshotRevisions(
+    identity: VisibleTabIdentity,
+    exactSessionKey: DetectionSessionKey | null,
+  ): void {
+    if (
+      unsubscribeSnapshotRevisions &&
+      ((exactSessionKey === null && subscribedSnapshotSessionKey === null) ||
+        isSameDetectionSessionKey(subscribedSnapshotSessionKey, exactSessionKey))
+    ) {
+      return;
+    }
+
+    unsubscribeSnapshotRevisions?.();
+    subscribedSnapshotSessionKey = exactSessionKey ? { ...exactSessionKey } : null;
+    unsubscribeSnapshotRevisions = subscribeToPopupSnapshotRevisions(
+      identity,
+      exactSessionKey,
+      applySnapshotRevision,
+    );
+  }
+
   function applySnapshotRevision(snapshot: DetectionSessionSnapshot) {
-    if (!isNewerSnapshotRevision(visibleSnapshotRevision(), snapshot)) {
+    const currentSnapshot = snapshot.source === "content"
+      ? visibleLifecycleSnapshotRevision()
+      : visibleDetectorSnapshotRevision();
+    if (!isNewerSnapshotRevision(currentSnapshot, snapshot)) {
       logPopupEvent("snapshot-revision-ignored", { revision: snapshot.revision, updatedAt: snapshot.updatedAt });
       return;
     }
 
+    const identity = visibleTabIdentity();
+    if (identity && snapshot.source !== "content") {
+      subscribeToVisibleSnapshotRevisions(identity, snapshot.key);
+    }
+
     if (!shouldApplyPopupSnapshotRevision({ currentAnalysis: analysis(), snapshot })) {
-      setVisibleSnapshotRevision(snapshot);
+      if (snapshot.source === "content") {
+        setVisibleLifecycleSnapshotRevision(snapshot);
+      } else {
+        setVisibleDetectorSnapshotRevision(snapshot);
+      }
       updateMatcherStatusFromSnapshot(snapshot);
       const nextMode = getPopupObservationModeFromSnapshot(snapshot);
       setLiveUpdateMode(nextMode);
@@ -389,7 +445,11 @@ export default function App() {
       return;
     }
 
-    setVisibleSnapshotRevision(snapshot);
+    if (snapshot.source === "content") {
+      setVisibleLifecycleSnapshotRevision(snapshot);
+    } else {
+      setVisibleDetectorSnapshotRevision(snapshot);
+    }
     if (snapshot.replaySummary) {
       setLatestReplaySummary(snapshot.replaySummary);
     }
@@ -436,8 +496,10 @@ export default function App() {
         resultCount: stored.analysis.results.length,
         revision: stored.snapshot?.revision ?? 0,
       });
-      setVisibleSnapshotRevision(stored.snapshot ?? null);
+      setVisibleDetectorSnapshotRevision(stored.snapshot ?? null);
+      setVisibleLifecycleSnapshotRevision(stored.lifecycleSnapshot ?? null);
       if (stored.snapshot) {
+        subscribeToVisibleSnapshotRevisions(identity, stored.snapshot.key);
         updateMatcherStatusFromSnapshot(stored.snapshot);
       } else {
         setMatcherStatus("idle");
@@ -475,7 +537,8 @@ export default function App() {
     try {
       const removedCount = await browserDetectionPersistence.clearStoredData();
       setAnalysis(null);
-      setVisibleSnapshotRevision(null);
+      setVisibleDetectorSnapshotRevision(null);
+      setVisibleLifecycleSnapshotRevision(null);
       setReplayHistory([]);
       setLatestReplaySummary(null);
       setEvidenceState(null);
@@ -639,6 +702,13 @@ export default function App() {
       return;
     }
 
+    // A refresh can create a new observation/session id. Listen at the origin
+    // until that new exact key is known so the first matcher revision cannot race
+    // past a listener that is still pinned to the previous document session.
+    if (options.input.mode === "refresh" || !visibleDetectorSnapshotRevision()) {
+      subscribeToVisibleSnapshotRevisions(identity, null);
+    }
+
     setAnalysisRequestTarget(identity);
     const isUserVisibleRefresh = options.source !== "auto" && !(options.source === "initial" && analysis());
     if (isUserVisibleRefresh) {
@@ -696,6 +766,15 @@ export default function App() {
           expectedUrl: identity.url,
         });
         return;
+      }
+
+      if (response.value.sessionTarget && !response.value.sessionTarget.incognito) {
+        subscribeToVisibleSnapshotRevisions(identity, {
+          tabId: response.value.sessionTarget.tabId,
+          frameId: identity.frameId,
+          documentId: response.value.sessionTarget.sessionId,
+          originHash: identity.originHash,
+        });
       }
 
       if (shouldPreserveVisibleAnalysisForQueuedPlaceholder(response.value, identity, analysis())) {
@@ -802,18 +881,17 @@ export default function App() {
 
   function resetVisibleStateForVisibleTab(identity: VisibleTabIdentity): void {
     unsubscribeSnapshotRevisions?.();
-    unsubscribeSnapshotRevisions = subscribeToPopupSnapshotRevisions(
-      identity,
-      browserDetectionSnapshotRevisionSource,
-      applySnapshotRevision,
-    );
+    unsubscribeSnapshotRevisions = undefined;
+    subscribedSnapshotSessionKey = null;
+    subscribeToVisibleSnapshotRevisions(identity, null);
     logPopupEvent("visible-state-reset", {
       previousUrl: analysis()?.url,
       previousResultCount: analysis()?.results.length ?? 0,
       nextUrl: identity.url,
       sameVisibleIdentity: isSameVisibleTabIdentity(visibleTabIdentity(), identity),
     });
-    setVisibleSnapshotRevision(null);
+    setVisibleDetectorSnapshotRevision(null);
+    setVisibleLifecycleSnapshotRevision(null);
     setVisibleTabIdentity(identity);
     setSessionTarget(null);
     setLiveUpdateMode("unknown");
@@ -914,12 +992,13 @@ export default function App() {
   }
 
   onMount(() => {
-    const handleActivated = (): void => {
-      void syncVisibleTabIdentity("tab-change");
-    };
-    const handleUpdated = (tabId: number, changeInfo: { readonly status?: string; readonly url?: string }): void => {
+    const handleUpdated = (
+      tabId: number,
+      changeInfo: { readonly status?: string; readonly url?: string },
+      tab: { readonly active?: boolean },
+    ): void => {
       const identity = visibleTabIdentity();
-      if (!identity || identity.tabId !== tabId) {
+      if (!identity || identity.tabId !== tabId || tab.active !== true) {
         return;
       }
 
@@ -927,9 +1006,31 @@ export default function App() {
         void syncVisibleTabIdentity("tab-change");
       }
     };
+    const handleVisibilityChange = (): void => {
+      if (document.visibilityState === "visible") {
+        void syncVisibleTabIdentity("tab-change");
+      }
+    };
+    const handleRuntimeMessage = (message: unknown): void => {
+      if (!isSidePanelActionNotification(message)) {
+        return;
+      }
 
-    browser.tabs.onActivated.addListener(handleActivated);
+      const identity = visibleTabIdentity();
+      if (identity && identity.tabId !== message.tabId) {
+        return;
+      }
+
+      // An already-mounted panel may need to re-read the tab after a toolbar
+      // click grants activeTab for a newly navigated origin. The normal identity
+      // sync starts analysis only when the target actually changed, avoiding a
+      // duplicate first-launch scan for a panel that just mounted.
+      void syncVisibleTabIdentity("tab-change");
+    };
+
     browser.tabs.onUpdated.addListener(handleUpdated);
+    browser.runtime.onMessage.addListener(handleRuntimeMessage);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     void (async () => {
       logPopupEvent("mount");
       await refreshStatus();
@@ -937,14 +1038,16 @@ export default function App() {
     })();
 
     onCleanup(() => {
-      browser.tabs.onActivated.removeListener(handleActivated);
       browser.tabs.onUpdated.removeListener(handleUpdated);
+      browser.runtime.onMessage.removeListener(handleRuntimeMessage);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     });
   });
 
   onCleanup(() => {
     unsubscribeSnapshotRevisions?.();
     unsubscribeSnapshotRevisions = undefined;
+    subscribedSnapshotSessionKey = null;
     const target = sessionTarget();
     logPopupEvent(target ? "cleanup-retain-observation" : "cleanup-without-owned-session", target
       ? { sessionId: target.sessionId, tabId: target.tabId }

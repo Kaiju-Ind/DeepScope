@@ -8,9 +8,11 @@ Use this checklist against the final zip, not only the source tree.
 - `manifest_version` is `3`.
 - `name`, `description`, and `action.default_title` all say Kaiju Site Scope.
 - `description` has no trailing quote or stale placeholder copy.
-- `permissions` contains only `activeTab`, `scripting`, `storage`, and
-  `offscreen` for the first release.
+- `permissions` contains only `activeTab`, `scripting`, `storage`, `offscreen`,
+  and `sidePanel` for the first release.
 - `host_permissions` is empty for the first release.
+- `minimum_chrome_version` is `116` or newer.
+- `action` has no `default_popup`; `side_panel.default_path` points to `sidepanel.html`.
 
 ## Privacy and permissions
 
@@ -18,7 +20,7 @@ Use this checklist against the final zip, not only the source tree.
   `docs/release/chrome-web-store-privacy.md`.
 - Permission justifications are copied from
   `docs/release/chrome-web-store-privacy.md`.
-- The remote-code answer says detector rules, matcher workers, popup assets, and
+- The remote-code answer says detector rules, matcher workers, side-panel assets, and
   registry artifacts are bundled inside the extension package.
 - The data disclosure covers active-tab page analysis, page URL/hostname,
   DOM/meta/resource/header-derived signals, cookie names, storage key names,
