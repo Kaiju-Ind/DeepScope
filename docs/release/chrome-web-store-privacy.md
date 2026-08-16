@@ -6,14 +6,16 @@ the side-panel copy, and the final built manifest aligned before each release.
 
 ## Single purpose
 
-Kaiju Site Scope detects web technologies used by the active website tab and
-shows the evidence behind each detection.
+Kaiju Site Scope detects web technologies used by active website pages and
+shows the evidence behind each detection. Automatic scanning can be disabled
+from the side panel.
 
 ## Data handled
 
-Kaiju Site Scope analyzes page signals from the active tab after the user opens
-or runs the extension. Depending on the detector rules needed for the current
-page, this can include the page URL and hostname, DOM markers, meta tags, script
+Kaiju Site Scope can analyze page signals automatically when an active HTTP or
+HTTPS page finishes loading. Automatic scanning is enabled by default and can be
+turned off from the side panel; users can still start analysis manually. Depending
+on the detector rules needed for the current page, this can include the page URL and hostname, DOM markers, meta tags, script
 and resource URLs, selected response/request header data available to the
 extension, cookie names, storage key names, JavaScript global names, and short
 bounded evidence snippets.
@@ -43,16 +45,17 @@ parties.
 
 ## Permission justifications
 
-- `activeTab`: allows the extension to inspect the current tab only after the
-  user opens or invokes the extension. Chrome grants this access temporarily for
-  the active page, instead of giving the extension persistent access to every
-  site.
-- `scripting`: injects the packaged content analysis script into the active tab
-  after user action so the extension can collect page signals used for
-  technology detection.
-- `storage`: stores local detection results, redacted replay summaries, and
-  cache records so reopening the side panel can show recent results without
-  immediately rerunning all analysis.
+- HTTP/HTTPS host access (`http://*/*`, `https://*/*`): allows the extension to
+  start local technology analysis automatically when an active normal web page
+  finishes loading. The **Scan pages automatically** side-panel toggle controls
+  whether those background starts occur.
+- `activeTab`: supports explicit toolbar-driven access for the manual analysis
+  flow and remains compatible with user-initiated tab interaction.
+- `scripting`: injects the packaged content analysis script and performs bounded
+  MAIN-world probes used for technology detection during automatic or manual scans.
+- `storage`: stores local detection results, redacted replay summaries, cache
+  records, and the automatic-scan preference so reopening the side panel can show
+  recent results without immediately rerunning all analysis.
 - `offscreen`: runs local matcher work outside the side panel and background service
   worker so heavier analysis does not block the side panel and remains reliable under
   Manifest V3 service-worker lifecycle behavior. It does not display hidden UI,
@@ -70,8 +73,9 @@ inside the extension package.
 ## Dashboard data disclosure summary
 
 Disclose website content/page content because Kaiju Site Scope inspects
-page-derived signals to identify technologies. Disclose active-tab browsing
-context because analysis is tied to the current visible page URL and hostname.
+page-derived signals to identify technologies. Disclose browsing activity/context
+because automatic analysis can start when active HTTP/HTTPS pages load and uses
+the current page URL and hostname.
 Do not select data categories that the extension does not intentionally collect,
 such as payment information, health information, precise location,
 authentication information, or personal communications.

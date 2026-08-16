@@ -21,6 +21,20 @@ describe('background composition-root boundary', () => {
 		expect(source).not.toContain('createMatcherPipelineResult(');
 	});
 
+	it('starts toggleable automatic analysis from active page load and activation events', () => {
+		const source = readFileSync(BACKGROUND_ENTRYPOINT, 'utf8');
+		const config = readFileSync(WXT_CONFIG, 'utf8');
+		const sidePanel = readFileSync(SIDE_PANEL_APP, 'utf8');
+
+		expect(source).toContain('browser.tabs.onUpdated.addListener');
+		expect(source).toContain("scanVisibleTab(tabId, 'refresh', 'page-load')");
+		expect(source).toContain('browser.tabs.onActivated.addListener');
+		expect(source).toContain("scanVisibleTab(tabId, 'snapshot-first', 'tab-activated')");
+		expect(config).toContain("host_permissions: ['http://*/*', 'https://*/*']");
+		expect(sidePanel).toContain('Scan pages automatically');
+		expect(sidePanel).toContain('persistAutoScanEnabled');
+	});
+
 	it('opens the persistent UI as a tab-scoped side panel from the toolbar action', () => {
 		const source = readFileSync(BACKGROUND_ENTRYPOINT, 'utf8');
 		const config = readFileSync(WXT_CONFIG, 'utf8');

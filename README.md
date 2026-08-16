@@ -2,7 +2,7 @@
 
 A Chrome-first Manifest V3 technology detector built with WXT, TypeScript, Solid, and `comctx`.
 
-The extension analyzes the active `http` or `https` tab locally, turns collected page facts into normalized observations, runs the shared event pipeline, and caches normalized `SiteAnalysis` output with an optional redacted replay trace. Raw page payloads are used only during local analysis and are not stored as cache records.
+The extension analyzes active `http` or `https` pages locally, turns collected page facts into normalized observations, runs the shared event pipeline, and caches normalized `SiteAnalysis` output with an optional redacted replay trace. Automatic page-load scanning is enabled by default and can be turned off from the side panel. Raw page payloads are used only during local analysis and are not stored as cache records.
 
 ## Current event flow
 
@@ -26,10 +26,10 @@ Dirty observation refreshes do not merge final detection results. The background
 
 ## Current extension behavior
 
-1. The side panel asks the background service worker to analyze the active tab with `mode: "snapshot-first"` and `observe: "while-popup-open"`.
-2. The background validates that the tab is inspectable and checks the exact visible-session snapshot first, then uses origin-level fallback metadata only when no exact snapshot is available.
-3. On a snapshot hit, the side panel renders stored normalized analysis and any stored replay trace immediately without forcing fresh detector work.
-4. On a snapshot miss, or after manual refresh, the background runtime-injects the content script, collects an enriched observation batch, runs the event pipeline, stores the analysis and replay trace, and optionally starts observation.
+1. Automatic scanning is enabled by default. When an active HTTP/HTTPS page finishes loading, the background starts a fresh bounded analysis; activating an already-loaded tab uses snapshot-first recovery and scans only when no matching snapshot exists. The side-panel toggle can disable these automatic starts.
+2. Opening the side panel still asks the background to synchronize the active tab with `mode: "snapshot-first"` and `observe: "while-popup-open"`, so manual inspection works even when automatic scanning is disabled.
+3. The background validates that the tab is inspectable and checks the exact visible-session snapshot first, then uses origin-level fallback metadata only when no exact snapshot is available. On a hit, the side panel renders stored normalized analysis and replay state immediately.
+4. On an automatic page-load scan, snapshot miss, or manual refresh, the background runtime-injects the content script, collects an enriched observation batch, runs the event pipeline, stores the analysis and replay trace, and optionally starts observation.
 5. While observation is active, the content script watches late-added scripts, stylesheet links, metadata, and resource timing entries within bounded policy limits.
 6. The side panel follows live updates through storage revisions for the current visible session. Dirty sessions flush late observation batches and rerun the event pipeline over combined observations.
 7. Closing the side panel unsubscribes the UI from live updates, but the bounded observation session can continue until it stops naturally or the user clicks Stop observation.
@@ -42,24 +42,24 @@ The extension uses `comctx` to expose small typed RPC surfaces between the side 
 
 `comctx` is used instead of raw `browser.runtime.sendMessage` and `browser.tabs.sendMessage` discriminated unions because each extension context can consume an explicit TypeScript interface while the adapters still route over normal Manifest V3 extension messaging. Runtime calls that cross into the content script are wrapped with a timeout so a missing or stale content script returns `CONTENT_SCRIPT_UNAVAILABLE` instead of leaving the side panel waiting indefinitely.
 
-The current permission model is intentionally narrow:
+The current permission model supports both automatic and manual analysis:
 
-- `activeTab` gates tab access behind explicit user action.
+- `host_permissions` for `http://*/*` and `https://*/*` allow automatic page-load analysis without requiring a toolbar click first.
+- `activeTab` remains available for explicit toolbar-driven interaction and compatibility with the manual flow.
 - `scripting` is used for runtime content-script injection and MAIN-world JavaScript-global probing.
-- `storage` persists normalized analysis and redacted replay traces.
+- `storage` persists normalized analysis, redacted replay traces, and the automatic-scan preference.
 - `sidePanel` hosts the persistent, tab-scoped analysis UI so browser-owned prompts cannot dismiss it by taking focus.
-- No broad `host_permissions` are requested.
 
 ## Manual QA checklist
 
 Run the extension in Chrome and verify:
 
-- A normal `https://` page returns either detected technologies or a stable empty result.
+- With **Scan pages automatically** enabled, loading a normal `https://` page starts analysis before the side panel is opened.
 - The side-panel metrics show `Pipeline: event` after fresh analysis and cache-backed replay responses.
 - `chrome://extensions` returns `UNSUPPORTED_URL` and the side panel remains responsive.
 - Browser/internal or PDF-like pages that do not run the content script do not hang the side panel.
 - A page with no content-script response returns `CONTENT_SCRIPT_UNAVAILABLE`.
-- Opening the side panel on a cached origin renders cached analysis without starting live observation.
+- Opening the side panel after an automatic scan renders the stored result immediately; turning automatic scanning off leaves manual side-panel analysis and Refresh working.
 - Refresh bypasses cache, reruns event analysis, and starts a fresh observation session.
 - Closing the side panel stops live UI updates, and clicking Stop observation stops the active observation session for the visible tab.
 - Late-loaded signals on a supported page can trigger event analysis while the side panel stays open.
@@ -126,6 +126,6 @@ The bundled registry is generated from the TypeScript rule tree under `src/lib/d
 
 ## Privacy notes
 
-Analysis is local-first and user-initiated for the active tab. The extension reads page-derived signals such as the current URL and hostname, DOM markers, metadata, resource URLs, cookie names, storage key names, selected header-derived signals, JavaScript global names, and bounded evidence snippets so it can explain technology detections. It does not send visited URLs, HTML, cookies, headers, replay traces, or detection results to a backend in the first release. Cached data is limited to local detector snapshots, redacted evidence, and replay summaries that can be cleared from the side panel.
+Analysis is local-first. Automatic analysis of active HTTP/HTTPS pages is enabled by default and can be disabled from the side panel; manual side-panel analysis remains available. The extension reads page-derived signals such as the current URL and hostname, DOM markers, metadata, resource URLs, cookie names, storage key names, selected header-derived signals, JavaScript global names, and bounded evidence snippets so it can explain technology detections. It does not send visited URLs, HTML, cookies, headers, replay traces, or detection results to a backend in the first release. Cached data is limited to local detector snapshots, redacted evidence, and replay summaries that can be cleared from the side panel.
 
 Unsupported pages such as `chrome://` return a stable error instead of attempting analysis.

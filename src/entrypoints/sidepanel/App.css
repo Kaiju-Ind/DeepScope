@@ -579,3 +579,47 @@
 .replay-event-list {
 	margin-top: 10px;
 }
+
+.auto-scan-setting {
+	margin: 16px 0;
+	padding: 14px 16px;
+	border: 1px solid rgba(71, 95, 24, 0.16);
+	border-radius: 18px;
+	background: rgba(239, 246, 222, 0.72);
+}
+
+.auto-scan-toggle {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	cursor: pointer;
+}
+
+.auto-scan-toggle input {
+	width: 18px;
+	height: 18px;
+	margin: 2px 0 0;
+	accent-color: #587629;
+	flex: 0 0 auto;
+}
+
+.auto-scan-toggle input:disabled {
+	cursor: wait;
+	opacity: 0.65;
+}
+
+.auto-scan-toggle span {
+	display: grid;
+	gap: 4px;
+}
+
+.auto-scan-toggle strong {
+	font-size: 0.84rem;
+	color: var(--ink-strong);
+}
+
+.auto-scan-toggle small {
+	font-size: 0.78rem;
+	line-height: 1.45;
+	color: rgba(46, 54, 38, 0.78);
+}

@@ -8,6 +8,11 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { PopupShell } from "./PopupRegions";
 import { getKaijuSiteScopeLogger } from "@/lib/diagnostics/logging";
+import {
+  DEFAULT_AUTO_SCAN_ENABLED,
+  getAutoScanEnabled,
+  setAutoScanEnabled as persistAutoScanEnabled,
+} from "@/lib/autostart/settings";
 import type {
   AnalysisStatus,
   SiteAnalysis,
@@ -253,6 +258,8 @@ export default function App() {
   const [queuedManualRefreshIdentity, setQueuedManualRefreshIdentity] = createSignal<VisibleTabIdentity | null>(null);
   const [visibleTabIdentitySyncInFlight, setVisibleTabIdentitySyncInFlight] = createSignal(false);
   const [clearStoredDataInFlight, setClearStoredDataInFlight] = createSignal(false);
+  const [autoScanEnabled, setAutoScanEnabled] = createSignal(DEFAULT_AUTO_SCAN_ENABLED);
+  const [autoScanSettingInFlight, setAutoScanSettingInFlight] = createSignal(false);
   const [pendingVisibleTabIdentitySync, setPendingVisibleTabIdentitySync] =
     createSignal<VisibleTabIdentitySyncReason | null>(null);
   const [visibleDetectorSnapshotRevision, setVisibleDetectorSnapshotRevision] = createSignal<DetectionSessionSnapshot | null>(null);
@@ -529,6 +536,28 @@ export default function App() {
     }
   }
 
+
+  async function updateAutoScanSetting(enabled: boolean): Promise<void> {
+    if (autoScanSettingInFlight()) {
+      return;
+    }
+
+    setAutoScanSettingInFlight(true);
+    try {
+      await persistAutoScanEnabled(enabled);
+      setAutoScanEnabled(enabled);
+      setNotice({
+        variant: "success",
+        text: enabled
+          ? "Automatic scanning is on. New active pages will scan as soon as they finish loading."
+          : "Automatic scanning is off. You can still scan manually from this panel.",
+      });
+    } catch (error) {
+      setErrorMessage(normalizeError(error));
+    } finally {
+      setAutoScanSettingInFlight(false);
+    }
+  }
 
   async function clearStoredData() {
     setClearStoredDataInFlight(true);
@@ -1033,6 +1062,11 @@ export default function App() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     void (async () => {
       logPopupEvent("mount");
+      try {
+        setAutoScanEnabled(await getAutoScanEnabled());
+      } catch (error) {
+        logPopupEvent("auto-scan-setting-read-failed", { message: normalizeError(error) });
+      }
       await refreshStatus();
       await syncVisibleTabIdentity("initial");
     })();
@@ -1137,14 +1171,31 @@ export default function App() {
       </PopupShell.Feedback>
 
 
+      <section class="auto-scan-setting" aria-label="Automatic scanning">
+        <label class="auto-scan-toggle">
+          <input
+            type="checkbox"
+            checked={autoScanEnabled()}
+            disabled={autoScanSettingInFlight()}
+            onChange={(event) => void updateAutoScanSetting(event.currentTarget.checked)}
+          />
+          <span>
+            <strong>Scan pages automatically</strong>
+            <small>
+              Start a bounded local analysis when an active HTTP or HTTPS page finishes loading.
+              Turn this off to scan only when you open this panel or press Refresh.
+            </small>
+          </span>
+        </label>
+      </section>
+
       <section class="privacy-disclosure" aria-label="Privacy and local storage">
         <div>
-          <strong>Local active-tab analysis</strong>
+          <strong>Local page analysis</strong>
           <p>
-            Kaiju Site Scope inspects page signals from the active tab to identify
-            website technologies and explain the evidence behind each detection.
-            Detection results, replay summaries, and cache records stay in local
-            extension storage unless you clear them or uninstall the extension.
+            When automatic scanning is enabled, Kaiju Site Scope can inspect normal HTTP/HTTPS
+            pages as they become active. Detection runs locally; results, replay summaries, and
+            cache records stay in extension storage unless you clear them or uninstall the extension.
           </p>
         </div>
         <button

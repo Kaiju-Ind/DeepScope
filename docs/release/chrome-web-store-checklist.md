@@ -10,7 +10,7 @@ Use this checklist against the final zip, not only the source tree.
 - `description` has no trailing quote or stale placeholder copy.
 - `permissions` contains only `activeTab`, `scripting`, `storage`, `offscreen`,
   and `sidePanel` for the first release.
-- `host_permissions` is empty for the first release.
+- `host_permissions` contains only `http://*/*` and `https://*/*` for automatic normal-page scanning.
 - `minimum_chrome_version` is `116` or newer.
 - `action` has no `default_popup`; `side_panel.default_path` points to `sidepanel.html`.
 
@@ -22,7 +22,7 @@ Use this checklist against the final zip, not only the source tree.
   `docs/release/chrome-web-store-privacy.md`.
 - The remote-code answer says detector rules, matcher workers, side-panel assets, and
   registry artifacts are bundled inside the extension package.
-- The data disclosure covers active-tab page analysis, page URL/hostname,
+- The data disclosure covers automatic and manual page analysis, page URL/hostname,
   DOM/meta/resource/header-derived signals, cookie names, storage key names,
   JavaScript global names, and bounded evidence snippets.
 - The disclosure does not claim that the extension avoids page access entirely.

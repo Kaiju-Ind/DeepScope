@@ -2,6 +2,8 @@ import { defineProxy } from 'comctx';
 import { browser } from 'wxt/browser';
 
 import { registerBackgroundLifecycleListeners } from '@/lib/background/lifecycle';
+import { createAutoScanController } from '@/lib/autostart/controller';
+import { getAutoScanEnabled } from '@/lib/autostart/settings';
 import { createBackgroundRuntime } from '@/lib/background/runtime';
 import { getActiveTab } from '@/lib/browser/active-tab';
 import { collectExtensionObservationBatch } from '@/lib/collectors/extension-page-collector';
@@ -183,6 +185,13 @@ const backgroundRuntime = createBackgroundRuntime({
 	logAnalysisSummary,
 });
 
+const autoScanController = createAutoScanController({
+	getEnabled: getAutoScanEnabled,
+	getVisibleTabIdentity: () => backgroundRuntime.api.getVisibleTabIdentity(),
+	analyzeVisibleTab: (input) => backgroundRuntime.api.analyzeVisibleTab(input),
+	log: logBackgroundEvent,
+});
+
 /** Compatibility export used by tests and non-browser callers. */
 export function createBackgroundApi(): BackgroundApi {
 	return backgroundRuntime.api;
@@ -195,9 +204,9 @@ const [provideBackgroundApi] = defineProxy(() => backgroundRuntime.api, {
 });
 
 export default defineBackground(() => {
-	// The manifest needs a default path for Chrome's Side Panel API, but analysis
-	// access stays opt-in per tab. Action clicks enable only the tab that received
-	// the activeTab user gesture, so merely switching tabs cannot start a scan.
+	// Keep the persistent UI opt-in per tab even though automatic analysis can run
+	// in the background. Toolbar clicks only control where the side panel is shown;
+	// the separate auto-scan setting controls page-load analysis.
 	void browser.sidePanel.setOptions({ enabled: false }).catch((error) => {
 		logBackgroundEvent('side-panel-default-disable-failed', {
 			message: error instanceof Error ? error.message : String(error),
@@ -211,6 +220,27 @@ export default defineBackground(() => {
 		}
 
 		openSidePanelForActionTab(tab.id);
+	});
+	browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+		if (changeInfo.status !== 'complete' || tab.active !== true) {
+			return;
+		}
+
+		void autoScanController.scanVisibleTab(tabId, 'refresh', 'page-load');
+	});
+	browser.tabs.onActivated.addListener(({ tabId }) => {
+		void browser.tabs.get(tabId).then((tab) => {
+			if (tab.status !== 'complete') {
+				return;
+			}
+
+			return autoScanController.scanVisibleTab(tabId, 'snapshot-first', 'tab-activated');
+		}).catch((error) => {
+			logBackgroundEvent('auto-scan-activation-read-failed', {
+				tabId,
+				message: error instanceof Error ? error.message : String(error),
+			});
+		});
 	});
 	browser.runtime.onMessage.addListener((message, sender) => {
 		backgroundRuntime.handleRuntimeMessage(message, sender);

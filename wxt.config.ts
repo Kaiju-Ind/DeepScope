@@ -5,7 +5,7 @@ export default defineConfig({
 	modules: ['@wxt-dev/module-solid'],
 	manifest: {
 		name: 'Kaiju Site Scope',
-		description: 'Detect web technologies on the active tab and show the evidence behind each result.',
+		description: 'Detect web technologies automatically on active web pages and show the evidence behind each result.',
 		version: '0.1.0',
 		minimum_chrome_version: '116',
 		icons: {
@@ -24,7 +24,7 @@ export default defineConfig({
 			},
 		},
 		permissions: ['activeTab', 'scripting', 'storage', 'offscreen'],
-		host_permissions: [],
+		host_permissions: ['http://*/*', 'https://*/*'],
 	},
 
 	// @ts-ignore
