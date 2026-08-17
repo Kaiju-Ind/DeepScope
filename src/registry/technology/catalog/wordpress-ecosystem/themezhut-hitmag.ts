@@ -1,0 +1,30 @@
+import type { TechnologyDefinition } from '@/lib/detection/types';
+
+export const themezhutHitmagTechnologyDefinition: TechnologyDefinition = {
+	id: 'themezhut-hitmag',
+	name: 'ThemezHut HitMag',
+	website: 'https://themezhut.com/themes/hitmag',
+	description:
+		'ThemezHut HitMag is a stylish and powerful WordPress theme crafted for magazines, newspapers or personal blogs.',
+	icon: 'ThemezHut.png',
+	categories: [
+		'wordpress-ecosystem',
+	],
+	rules: [
+		{
+			id: 'themezhut-hitmag:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\/wp-content\\/themes\\/hitmag(?:-pro)?\\/'),
+			description: 'Script source URL matches a known technology marker.',
+		},
+	],
+	metadata: {
+		pricing: [
+			'freemium',
+			'onetime',
+		],
+	},
+	requires: [
+		'wordpress',
+	],
+} as const satisfies TechnologyDefinition;

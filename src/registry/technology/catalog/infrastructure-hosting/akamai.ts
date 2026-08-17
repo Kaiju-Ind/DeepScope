@@ -1,0 +1,20 @@
+import type { TechnologyDefinition } from '@/lib/detection/types';
+
+export const akamaiTechnologyDefinition: TechnologyDefinition = {
+	id: 'akamai',
+	name: 'Akamai',
+	website: 'https://akamai.com',
+	description:
+		'Akamai is global content delivery network (CDN) services provider for media and software delivery, and cloud security solutions.',
+	icon: 'Akamai.svg',
+	categories: [
+		'infrastructure-hosting',
+	],
+	rules: [],
+	metadata: {
+		saas: true,
+		pricing: [
+			'poa',
+		],
+	},
+} as const satisfies TechnologyDefinition;

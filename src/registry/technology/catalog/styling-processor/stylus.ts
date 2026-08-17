@@ -1,0 +1,98 @@
+import type { TechnologyDefinition } from '@/lib/detection/types';
+
+export const stylusTechnologyDefinition: TechnologyDefinition = {
+	id: 'stylus',
+	name: 'Stylus',
+	website: 'http://stylus-lang.com',
+	description:
+		'Stylus is a preprocessor that allows you to write CSS with a syntax that is more concise and easier to read. It supports variables, nesting, and mixins.',
+	categories: [
+		'styling-processor',
+	],
+	rules: [
+		{
+			id: 'stylus:stylesheetContent:modern:0',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('^[\\w-]+\\s+[\\w-]+\\s+[\\w-]+$', 'm'),
+			confidence: 45,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'stylus:stylesheetContent:modern:1',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('^&:[\\w-]+\\s+[\\w-]+$', 'm'),
+			confidence: 45,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'stylus:stylesheetContent:modern:2',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('\\^[0-9]+\\s*\\{'),
+			confidence: 45,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'stylus:stylesheetContent:modern:3',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('@[\\w-]+\\[[0-9]+\\]'),
+			confidence: 45,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'stylus:stylesheetContent:modern:4',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('^\\s*[\\w-]+\\s*\\?=\\s*[^\\n;{}]{1,160}$', 'm'),
+			confidence: 45,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'stylus:stylesheetContent:modern:6',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('\\@[\\w-]+\\[[\\w\\d]+\\]'),
+			confidence: 45,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'stylus:stylesheetContent:modern:7',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('for\\s+[\\w-]+\\s+in\\s+\\(1\\.\\.\\d+\\)'),
+			confidence: 45,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'stylus:stylesheetContent:modern:8',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('\\/\\/\\s*@stylus'),
+			confidence: 45,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'stylus:stylesheetContent:modern:10',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('\\/\\*\\s*@stylus-generated\\s*\\*\\/'),
+			confidence: 45,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'stylus:stylesheetContent:modern:11',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('\\b(?:push|unshift|lookup|define|operate)\\s*\\([^)]*\\)'),
+			confidence: 45,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'stylus:stylesheetContent:modern:12',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('\\b(?:lightness|desaturate|invert)\\s*\\([^)]*\\)\\s*\\+\\s*\\d+%'),
+			confidence: 45,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'stylus:stylesheetContent:modern:13',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('unit\\s*\\([^)]+,\\s*([\'"])?[a-z%]+\\1\\s*\\)'),
+			confidence: 45,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+	],
+} as const satisfies TechnologyDefinition;

@@ -1,0 +1,138 @@
+import type { TechnologyDefinition } from '@/lib/detection/types';
+
+export const atatusTechnologyDefinition: TechnologyDefinition = {
+	id: 'atatus',
+	name: 'Atatus',
+	website: 'https://www.atatus.com',
+	description:
+		'Atatus is a full-stack observability tool that let you identify the performance bottlenecks and helps you optimise your application at the right time.',
+	icon: 'Atatus.svg',
+	categories: [
+		'monitoring-error-tracking',
+		'developer-tooling',
+	],
+	rules: [
+		{
+			id: 'atatus:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp('\\/atatus\\.js'),
+			description: 'Script source URL matches a known technology marker.',
+		},
+		{
+			id: 'atatus:jsGlobal:1',
+			kind: 'jsGlobal',
+			property: 'atatus.VERSION',
+			valuePattern: new RegExp('([\\d\\.]+)'),
+			version: {
+				source: 'match',
+				group: 1,
+			},
+			description: 'Page-owned global matches a known technology marker.',
+		},
+		{
+			id: 'atatus:scriptContent:modern:0',
+			kind: 'scriptContent',
+			pattern: new RegExp(
+				"[a-zA-Z_$][a-zA-Z0-9_$]{0,40}\\.log\\(['\"']Atatus Reset User['\"'], [a-zA-Z_$][a-zA-Z0-9_$]*\\)",
+			),
+			confidence: 75,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'atatus:scriptContent:modern:1',
+			kind: 'scriptContent',
+			pattern: new RegExp(
+				"[a-zA-Z_$][a-zA-Z0-9_$]{0,40}\\.log\\(['\"']Atatus Set User: Invalid JSON object in LocalStorage['\"'], [a-zA-Z_$][a-zA-Z0-9_$]*\\)",
+			),
+			confidence: 75,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'atatus:scriptContent:modern:2',
+			kind: 'scriptContent',
+			pattern: new RegExp('log\\(\\s*[\'"]Atatus: Caught unhandled promise rejection:[\'"]'),
+			confidence: 75,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'atatus:scriptContent:modern:3',
+			kind: 'scriptContent',
+			pattern: new RegExp(
+				"[a-zA-Z_$][a-zA-Z0-9_$]{0,40}\\.log\\(['\"']Atatus API key has not been configured, make sure you call atatus\\.config\\(yourApiKey\\)",
+			),
+			confidence: 75,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'atatus:scriptContent:modern:4',
+			kind: 'scriptContent',
+			pattern: new RegExp(
+				"['\"']atatusjs=['\"']\\s*\\+\\s*[a-zA-Z_$][a-zA-Z0-9_$]*\\s*\\+\\s*['\"']=['\"']\\s*\\+\\s*[a-zA-Z_$][a-zA-Z0-9_$]*\\.getRandomInt\\(\\)",
+			),
+			confidence: 75,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'atatus:scriptContent:modern:5',
+			kind: 'scriptContent',
+			pattern: new RegExp('endsWith\\([^)]{0,120}?[\'"]\\/atatus\\.js[\'"]\\s*\\)'),
+			confidence: 75,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'atatus:scriptContent:modern:6',
+			kind: 'scriptContent',
+			pattern: new RegExp("['\"']&callback=atatus\\._setFeatures&['\"']"),
+			confidence: 75,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'atatus:scriptContent:modern:7',
+			kind: 'scriptContent',
+			pattern: new RegExp('[a-zA-Z_$][a-zA-Z0-9_$]{0,40}\\.atatus\\s*=\\s*[a-zA-Z_$][a-zA-Z0-9_$]*'),
+			confidence: 75,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'atatus:scriptContent:modern:8',
+			kind: 'scriptContent',
+			pattern: new RegExp('postMessage\\(\\s*[\'"]RUM_EPISODES:done[\'"]'),
+			confidence: 75,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'atatus:scriptContent:modern:9',
+			kind: 'scriptContent',
+			pattern: new RegExp('[a-zA-Z_$][a-zA-Z0-9_$]{0,40}\\.indexOf\\([a-zA-Z_$][a-zA-Z0-9_$]*\\.atatusHost\\)'),
+			confidence: 75,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'atatus:scriptContent:modern:10',
+			kind: 'scriptContent',
+			pattern: new RegExp("distributedTracingHeaderName:\\s*['\"']atatus-apm-traceparent['\"']"),
+			confidence: 75,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'atatus:resourceUrl:modern:11',
+			kind: 'resourceUrl',
+			pattern: new RegExp('atatus\\.js'),
+			confidence: 75,
+			description: 'Resource filename or URL matches a modern tooling marker.',
+		},
+		{
+			id: 'atatus:resourceUrl:modern:12',
+			kind: 'resourceUrl',
+			pattern: new RegExp('atatus\\.com'),
+			confidence: 75,
+			description: 'Resource filename or URL matches a modern tooling marker.',
+		},
+	],
+	metadata: {
+		saas: true,
+		pricing: [
+			'payg',
+		],
+	},
+} as const satisfies TechnologyDefinition;

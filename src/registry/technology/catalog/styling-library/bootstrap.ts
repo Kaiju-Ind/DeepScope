@@ -1,0 +1,215 @@
+import type { TechnologyDefinition } from '@/lib/detection/types';
+
+export const bootstrapTechnologyDefinition: TechnologyDefinition = {
+	id: 'bootstrap',
+	name: 'Bootstrap',
+	website: 'https://getbootstrap.com',
+	description:
+		'Bootstrap is a free and open-source CSS framework directed at responsive, mobile-first front-end web development. It contains CSS and JavaScript-based design templates for typography, forms, buttons, navigation, and other interface components.',
+	icon: 'Bootstrap.svg',
+	categories: [
+		'styling-library',
+		'component-library',
+	],
+	rules: [
+		{
+			id: 'bootstrap:scriptSrc:0',
+			kind: 'scriptSrc',
+			pattern: new RegExp(
+				'(?:^|/|-)bootstrap(?:[.-](?:bundle|esm|popover|tooltip))?(?:[.-]([0-9]+(?:\\.[0-9]+){1,2}))?(?:\\.min)?\\.js(?:[?#]|$)',
+				'i',
+			),
+			version: {
+				source: 'match',
+				group: 1,
+			},
+			description: 'Script source URL matches a known technology marker.',
+		},
+		{
+			id: 'bootstrap:stylesheetContent:banner',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('\\/\\*!\\s+\\* Bootstrap v(\\d\\.\\d\\.\\d)'),
+			version: {
+				source: 'match',
+				group: 1,
+			},
+			description: 'Stylesheet content contains the Bootstrap version banner.',
+		},
+		{
+			id: 'bootstrap:stylesheetHref:css-file',
+			kind: 'stylesheetHref',
+			pattern: new RegExp(
+				'(?:^|/|-)bootstrap(?:[.-](?:grid|reboot|utilities))?(?:[.-]([0-9]+(?:\\.[0-9]+){1,2}))?(?:\\.min)?\\.css(?:[?#]|$)',
+				'i',
+			),
+			version: {
+				source: 'match',
+				group: 1,
+			},
+			description: 'Stylesheet URL matches a Bootstrap CSS file.',
+		},
+		{
+			id: 'bootstrap:jsGlobal:3',
+			kind: 'jsGlobal',
+			property: 'bootstrap.Alert.VERSION',
+			valuePattern: new RegExp('^(.+)$'),
+			version: {
+				source: 'match',
+				group: 1,
+			},
+			description: 'Page-owned global matches a known technology marker.',
+		},
+		{
+			id: 'bootstrap:jsGlobal:4',
+			kind: 'jsGlobal',
+			property: 'jQuery.fn.tooltip.Constructor.VERSION',
+			valuePattern: new RegExp('^(.+)$'),
+			version: {
+				source: 'match',
+				group: 1,
+			},
+			description: 'Page-owned global matches a known technology marker.',
+		},
+		{
+			id: 'bootstrap:dom:5',
+			kind: 'dom',
+			selector: 'body[data-bs-theme]',
+			description: 'DOM selector matches a known technology marker.',
+		},
+		{
+			id: 'bootstrap:dom:6',
+			kind: 'dom',
+			selector: 'link[href*="cdn.jsdelivr.net/npm/bootstrap"]',
+			description: 'DOM selector matches a known technology marker.',
+		},
+		{
+			id: 'bootstrap:dom:data-bs-attributes',
+			kind: 'dom',
+			selector:
+				'[data-bs-toggle], [data-bs-target], [data-bs-dismiss], [data-bs-ride], [data-bs-slide-to], [data-bs-theme], [data-bs-placement]',
+			confidence: 85,
+			description: 'DOM contains Bootstrap JavaScript data attributes.',
+		},
+		{
+			id: 'bootstrap:stylesheetContent:css-vars',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('--bs-(?:gutter|emphasis|space-x|tertiary-bg|secondary-color)'),
+			confidence: 65,
+			description: 'Stylesheet content contains Bootstrap CSS custom properties.',
+		},
+		{
+			id: 'bootstrap:jsGlobal:9',
+			kind: 'jsGlobal',
+			property: 'bootstrap.Alert',
+			description: 'Page-owned global matches a known technology marker.',
+		},
+		{
+			id: 'bootstrap:stylesheetContent:banner:modern',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('\\/\\*!\\s+\\* bootstrap v(\\d\\.\\d\\.\\d)', 'i'),
+			version: {
+				source: 'match',
+				group: 1,
+			},
+			description: 'Stylesheet content contains the Bootstrap version banner.',
+		},
+		{
+			id: 'bootstrap:scriptContent:modern:0',
+			kind: 'scriptContent',
+			pattern: new RegExp(
+				'data-bs-(?:toggle|target|parent|container|placement|trigger|content|template|theme|dismiss|ride|slide-to)="[^"]{1,50}"',
+			),
+			confidence: 55,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'bootstrap:scriptContent:modern:1',
+			kind: 'scriptContent',
+			pattern: new RegExp('data-bs-backdrop="(?:true|false|static)"'),
+			confidence: 55,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'bootstrap:stylesheetContent:modern:2',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('data-bs-[a-zA-Z0-9-]+(?:="[^"]*")?'),
+			confidence: 55,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'bootstrap:stylesheetContent:modern:3',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('\\.bs-tooltip-(top|bottom|left|right|auto)'),
+			confidence: 55,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'bootstrap:stylesheetContent:modern:4',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('\\.bs-popover-(top|bottom|left|right|auto)'),
+			confidence: 55,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'bootstrap:stylesheetContent:modern:5',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('\\.sticky-(sm|md|lg|xl|xxl)-(top|bottom)'),
+			confidence: 55,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'bootstrap:stylesheetContent:modern:6',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('\\* Bootstrap\\s+v\\d+\\.\\d+\\.\\d+\\s+\\(https:\\/\\/getbootstrap\\.com\\/\\)'),
+			confidence: 65,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'bootstrap:stylesheetContent:modern:7',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('\\[data-bs-theme=(["\'])?[a-zA-Z0-9-]+(["\'])?\\]'),
+			confidence: 65,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'bootstrap:scriptContent:modern:8',
+			kind: 'scriptContent',
+			pattern: new RegExp("Bootstrap doesn't allow more than one instance per element\\. Bound instance:"),
+			confidence: 75,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'bootstrap:scriptContent:modern:9',
+			kind: 'scriptContent',
+			pattern: new RegExp(
+				'throw new TypeError\\("Bootstrap\'s dropdowns require Popper \\(https:\\/\\/popper\\.js\\.org\\)"\\)',
+			),
+			confidence: 75,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'bootstrap:scriptContent:modern:10',
+			kind: 'scriptContent',
+			pattern: new RegExp('\\.getPropertyValue\\(["\']--bs-position["\']\\)'),
+			confidence: 65,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'bootstrap:stylesheetContent:modern:11',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('--bs-[a-zA-Z0-9-]+:\\s*[^;]+;'),
+			confidence: 65,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+		{
+			id: 'bootstrap:stylesheetContent:modern:12',
+			kind: 'stylesheetContent',
+			pattern: new RegExp('var\\(--bs-[a-zA-Z0-9-]+\\)'),
+			confidence: 65,
+			description: 'Stylesheet content matches a modern styling marker.',
+		},
+	],
+	metadata: {
+		cpe: 'cpe:2.3:a:getbootstrap:bootstrap:*:*:*:*:*:*:*:*',
+	},
+} as const satisfies TechnologyDefinition;

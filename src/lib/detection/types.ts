@@ -1,4 +1,4 @@
-import type { AppError } from '../shared/errors';
+import type { ExtensionError } from '@/lib/messaging/failure';
 
 export type DetectionKind =
 	| 'dom'
@@ -461,7 +461,7 @@ export type SiteAnalysis = {
 	analyzedAt: number;
 	source: 'fresh' | 'cache';
 	results: DetectionResult[];
-	errors: AppError[];
+	errors: ExtensionError[];
 };
 
 export type AnalysisStatus = {

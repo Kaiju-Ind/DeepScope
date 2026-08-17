@@ -1,0 +1,18 @@
+import type { TechnologyDefinition } from '@/lib/detection/types';
+
+export const commerceServerTechnologyDefinition: TechnologyDefinition = {
+	id: 'commerce-server',
+	name: 'Commerce Server',
+	website: 'https://commerceserver.net',
+	icon: 'Commerce Server.png',
+	categories: [
+		'platform-cms-builder',
+	],
+	rules: [],
+	metadata: {
+		cpe: 'cpe:2.3:a:microsoft:commerce_server:*:*:*:*:*:*:*:*',
+	},
+	implies: [
+		'microsoft-asp-net',
+	],
+} as const satisfies TechnologyDefinition;

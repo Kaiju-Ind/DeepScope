@@ -1,0 +1,89 @@
+import type { TechnologyDefinition } from '@/lib/detection/types';
+
+export const stitchesTechnologyDefinition: TechnologyDefinition = {
+	id: 'stitches',
+	name: 'Stitches',
+	website: 'https://stitches.dev',
+	description:
+		'Stitches is an is a CSS-in-JS styling framework with near-zero runtime, SSR, and multi-variant support.',
+	icon: 'Stitches.svg',
+	categories: [
+		'styling-processor',
+		'ui-library',
+		'developer-tooling',
+	],
+	rules: [
+		{
+			id: 'stitches:dom:0',
+			kind: 'dom',
+			selector: 'style#stitches',
+			description: 'DOM selector matches a known technology marker.',
+		},
+		{
+			id: 'stitches:meta:1',
+			kind: 'meta',
+			key: 'generator',
+			valuePattern: new RegExp('^c-[A-Za-z]{5}$', 'i'),
+			description: 'Meta tag matches a known technology marker.',
+		},
+		{
+			id: 'stitches:meta:2',
+			kind: 'meta',
+			key: 'generator',
+			valuePattern: new RegExp('^c-[a-za-z]{5}$', 'i'),
+			description: 'Meta tag matches a known technology marker.',
+		},
+		{
+			id: 'stitches:scriptContent:modern:0',
+			kind: 'scriptContent',
+			pattern: new RegExp('__stitches=\\{prefix:"[\\w-]+",insertionMethod:[\\d]+'),
+			confidence: 45,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'stitches:scriptContent:modern:1',
+			kind: 'scriptContent',
+			pattern: new RegExp('insertionMethod:[\\d]+,[\\w]+:"[\\w-]+-(?:keyframes|global|themed)"'),
+			confidence: 45,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'stitches:scriptContent:modern:2',
+			kind: 'scriptContent',
+			pattern: new RegExp('createTheme\\(["\'](?:light|dark|[\\w-]+)_theme["\']\\)'),
+			confidence: 45,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'stitches:scriptContent:modern:3',
+			kind: 'scriptContent',
+			pattern: new RegExp('\\{media:\\{[^}]+\\},theme:\\{[^}]+\\},utils:\\{[^}]+\\},prefix:["\'][\\w-]+["\']\\}'),
+			confidence: 45,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'stitches:scriptContent:modern:4',
+			kind: 'scriptContent',
+			pattern: new RegExp('styled\\([^)]+,\\{variants:\\{[\\w-]+:\\{[\\w-]+:\\{transform:'),
+			confidence: 45,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'stitches:scriptContent:modern:5',
+			kind: 'scriptContent',
+			pattern: new RegExp('compoundVariants:\\[\\{variants:\\{[\\w-]+:["\'][\\w-]+["\']\\}'),
+			confidence: 45,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+		{
+			id: 'stitches:scriptContent:modern:6',
+			kind: 'scriptContent',
+			pattern: new RegExp('type\\s+\\w+Props=ComponentProps<typeof\\s+\\w+>&\\{variants:\\{'),
+			confidence: 45,
+			description: 'Bundled script content matches a modern tooling marker.',
+		},
+	],
+	metadata: {
+		oss: true,
+	},
+} as const satisfies TechnologyDefinition;

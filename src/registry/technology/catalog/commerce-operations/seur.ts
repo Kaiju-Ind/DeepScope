@@ -1,0 +1,13 @@
+import type { TechnologyDefinition } from '@/lib/detection/types';
+
+export const seurTechnologyDefinition: TechnologyDefinition = {
+	id: 'seur',
+	name: 'SEUR',
+	website: 'https://www.seur.com',
+	description: 'SEUR is a Spanish shipments and express transport company.',
+	icon: 'DPD.svg',
+	categories: [
+		'commerce-operations',
+	],
+	rules: [],
+} as const satisfies TechnologyDefinition;
