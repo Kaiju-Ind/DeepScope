@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const BACKGROUND_ENTRYPOINT = fileURLToPath(new URL('../../entrypoints/background.ts', import.meta.url));
-const BACKGROUND_RUNTIME = fileURLToPath(new URL('../../packages/background/runtime.ts', import.meta.url));
+const BACKGROUND_RUNTIME = fileURLToPath(new URL('../../lib/background/runtime.ts', import.meta.url));
 const SIDE_PANEL_PROVIDER = fileURLToPath(new URL('../../app/provider.tsx', import.meta.url));
 const SIDE_PANEL_TAB = fileURLToPath(new URL('../../app/tab.ts', import.meta.url));
 const SIDE_PANEL_SETTINGS = fileURLToPath(new URL('../../app/pages/settings.tsx', import.meta.url));
