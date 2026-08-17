@@ -12,7 +12,7 @@ import {
 	isSidePanelActionNotification,
 	isSidePanelTabNotification,
 	isSidePanelTabUpdateChange,
-} from '@/lib/messaging/side-panel-notifications';
+} from '@/lib/messaging';
 import { errorResponse, extensionSuccess } from '@/lib/messaging/result';
 
 describe('messaging contract helpers', () => {

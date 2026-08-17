@@ -1,11 +1,11 @@
-import { isSideTabUpdateChange, type SideTabUpdateChange } from '@/lib/messaging';
+import { isSidePanelTabUpdateChange, type SidePanelTabUpdateChange } from '@/lib/messaging';
 
 /** Browser tab update fields needed to decide whether the mounted panel must resync. */
 export type TabUpdate = {
 	readonly tabId: number;
 	readonly panelWindowId: number | null;
 	readonly visibleTabId: number | null;
-	readonly changeInfo: SideTabUpdateChange;
+	readonly changeInfo: SidePanelTabUpdateChange;
 	readonly tab: { readonly active?: boolean; readonly windowId?: number };
 };
 
@@ -20,5 +20,5 @@ export function shouldSyncTabUpdate(input: TabUpdate): boolean {
 		return false;
 	}
 
-	return isSideTabUpdateChange(input.changeInfo);
+	return isSidePanelTabUpdateChange(input.changeInfo);
 }
