@@ -4,7 +4,7 @@ import { browser, type Browser } from 'wxt/browser';
 export const BACKGROUND_RPC_NAMESPACE = 'kaiju-site-scope.background-rpc.v1';
 export const BACKGROUND_RPC_CHANNEL = 'background-rpc';
 
-export type BackgroundClientKind = 'content' | 'popup' | 'options' | 'sidepanel' | 'devtools';
+export type BackgroundClientKind = 'content' | 'options' | 'sidepanel' | 'devtools';
 
 export type BackgroundRpcMeta = MessageMeta & {
   channel: typeof BACKGROUND_RPC_CHANNEL;

@@ -22,36 +22,36 @@ import {
   getDetectionOriginSnapshotKey,
   getDetectionSessionSnapshotKey,
 } from '../storage/contracts';
-import type { PopupVisibleRevision } from './view-model';
+import type { PanelVisibleRevision } from './view-model';
 
 /** Handler invoked when storage publishes a matching snapshot revision. */
-export type PopupSnapshotRevisionHandler = (snapshot: DetectionSessionSnapshot) => void;
+export type PanelSnapshotRevisionHandler = (snapshot: DetectionSessionSnapshot) => void;
 
-/** Cleanup callback for removing the popup's storage change listener. */
-export type PopupSnapshotUnsubscribe = () => void;
+/** Cleanup callback for removing the side panel's storage change listener. */
+export type PanelSnapshotUnsubscribe = () => void;
 
-/** Persistence capabilities required to hydrate popup snapshot state. */
-export type PopupSnapshotPersistence = Pick<
+/** Persistence capabilities required to hydrate side panel snapshot state. */
+export type PanelSnapshotPersistence = Pick<
   DetectionSnapshotReader,
   'getSessionIndex' | 'getLatestSessionSnapshot' | 'getLatestOriginSnapshot'
 > & Pick<DetectionReplayStore, 'getReplayTrace' | 'getReplayHistory'>;
 
-/** Stored analysis source that can paint the popup before background analysis runs. */
-export type PopupStoredAnalysisSource = 'session-snapshot' | 'origin-snapshot';
+/** Stored analysis source that can paint the side panel before background analysis runs. */
+export type PanelStoredAnalysisSource = 'session-snapshot' | 'origin-snapshot';
 
 /**
- * Stored detector output that can be rendered during popup startup.
+ * Stored detector output that can be rendered during side panel startup.
  *
- * Origin snapshots are the popup's startup stream because they carry revision,
+ * Origin snapshots are the side panel's startup stream because they carry revision,
  * enrichment, executor, and replay summary state. Analysis-snapshot response records stay as a lower-level persistence detail and no longer
  * drive first paint.
  */
-export type PopupStoredAnalysisResult = {
-  /** Storage path that produced the analysis shown in the popup. */
-  readonly source: PopupStoredAnalysisSource;
-  /** Popup-visible revision derived from storage state. */
-  readonly revision: PopupVisibleRevision;
-  /** Normalized analysis output safe for current popup rendering. */
+export type PanelStoredAnalysisResult = {
+  /** Storage path that produced the analysis shown in the side panel. */
+  readonly source: PanelStoredAnalysisSource;
+  /** Panel-visible revision derived from storage state. */
+  readonly revision: PanelVisibleRevision;
+  /** Normalized analysis output safe for current side panel rendering. */
   readonly analysis: AnalyzeVisibleTabOutput['analysis'];
   /** Snapshot revision used when the storage-backed stream already has state. */
   readonly snapshot?: DetectionSessionSnapshot;
@@ -64,16 +64,16 @@ export type PopupStoredAnalysisResult = {
 };
 
 /**
- * Read the best stored detector result for the active popup target.
+ * Read the best stored detector result for the active side panel target.
  *
  * Incognito tabs skip persistent storage reads for the same reason they skip
  * writes: visible state should come from the live page command, not from durable
  * records that can outlive the private browsing context.
  */
-export async function readStoredPopupAnalysis(
+export async function readStoredPanelAnalysis(
   identity: VisibleTabIdentity,
-  persistence: PopupSnapshotPersistence = browserDetectionPersistence,
-): Promise<PopupStoredAnalysisResult | null> {
+  persistence: PanelSnapshotPersistence = browserDetectionPersistence,
+): Promise<PanelStoredAnalysisResult | null> {
   if (identity.incognito) {
     return null;
   }
@@ -95,11 +95,11 @@ export async function readStoredPopupAnalysis(
     ...(storedSnapshot.lifecycleSnapshot ? { lifecycleSnapshot: storedSnapshot.lifecycleSnapshot } : {}),
     ...replay,
   };
-  return { ...stored, revision: createStoredPopupVisibleRevision(stored) };
+  return { ...stored, revision: createStoredPanelVisibleRevision(stored) };
 }
 
 type StoredVisibleSnapshot = {
-	readonly source: PopupStoredAnalysisSource;
+	readonly source: PanelStoredAnalysisSource;
 	readonly snapshot: DetectionSessionSnapshot;
   readonly lifecycleSnapshot?: DetectionSessionSnapshot;
 };
@@ -107,7 +107,7 @@ type StoredVisibleSnapshot = {
 /** Prefer exact session snapshots for the visible tab, falling back to old origin pointers. */
 async function getStoredVisibleSnapshot(
   identity: VisibleTabIdentity,
-  persistence: PopupSnapshotPersistence,
+  persistence: PanelSnapshotPersistence,
 ): Promise<StoredVisibleSnapshot | null> {
 	const index = await persistence.getSessionIndex(identity.tabId);
   const exactSnapshots: StoredVisibleSnapshot[] = [];
@@ -146,17 +146,17 @@ async function getStoredVisibleSnapshot(
 }
 
 /**
- * Read replay data next to startup analysis so explanations survive popup reopen.
+ * Read replay data next to startup analysis so explanations survive side panel reopen.
  *
  * Snapshots keep only a compact replay summary to avoid duplicating full traces
- * across every visible revision. The popup can still recover the newest full
+ * across every visible revision. The side panel can still recover the newest full
  * trace and bounded history from the dedicated replay storage namespace before
  * the background service worker has to start a fresh analysis command.
  */
 async function readStoredReplayState(
   analysis: AnalyzeVisibleTabOutput['analysis'],
-  persistence: PopupSnapshotPersistence,
-): Promise<Pick<PopupStoredAnalysisResult, 'replayTrace' | 'replayHistory'>> {
+  persistence: PanelSnapshotPersistence,
+): Promise<Pick<PanelStoredAnalysisResult, 'replayTrace' | 'replayHistory'>> {
   const [replayTrace, replayHistory] = await Promise.all([
     persistence.getReplayTrace(analysis.url),
     persistence.getReplayHistory(analysis.url),
@@ -184,7 +184,7 @@ function isReplaySummaryForAnalysis(
   );
 }
 
-/** Detector-owned or detection-bearing snapshots are safe as the first popup paint. */
+/** Detector-owned or detection-bearing snapshots are safe as the first side panel paint. */
 function isDetectorStartupSnapshot(snapshot: DetectionSessionSnapshot): boolean {
   if (snapshot.source === 'background' || snapshot.source === 'cache') {
     return true;
@@ -194,13 +194,13 @@ function isDetectorStartupSnapshot(snapshot: DetectionSessionSnapshot): boolean 
 }
 
 /**
- * Convert stored popup state into the existing analysis response shape.
+ * Convert stored side panel state into the existing analysis response shape.
  *
- * Reusing `AnalyzeVisibleTabOutput` lets the popup keep one rendering path while
+ * Reusing `AnalyzeVisibleTabOutput` lets the side panel keep one rendering path while
  * separating storage-first display from the later background command that starts
  * synchronization or observation work.
  */
-export function createStoredPopupAnalysisOutput(stored: PopupStoredAnalysisResult): AnalyzeVisibleTabOutput {
+export function createStoredPanelAnalysisOutput(stored: PanelStoredAnalysisResult): AnalyzeVisibleTabOutput {
   return {
     analysis: stored.revision.analysis,
     snapshot: { ...stored.revision.snapshot },
@@ -211,8 +211,8 @@ export function createStoredPopupAnalysisOutput(stored: PopupStoredAnalysisResul
   };
 }
 
-/** Convert stored snapshot state into the popup's revision model. */
-export function createStoredPopupVisibleRevision(stored: Omit<PopupStoredAnalysisResult, 'revision'>): PopupVisibleRevision {
+/** Convert stored snapshot state into the side panel's revision model. */
+export function createStoredPanelVisibleRevision(stored: Omit<PanelStoredAnalysisResult, 'revision'>): PanelVisibleRevision {
   const lifecycleSnapshot = stored.lifecycleSnapshot ?? stored.snapshot;
   const replaySummary = isReplaySummaryForAnalysis(stored.snapshot?.replaySummary, stored.analysis)
     ? stored.snapshot?.replaySummary
@@ -240,7 +240,7 @@ export function createStoredPopupVisibleRevision(stored: Omit<PopupStoredAnalysi
   };
 }
 
-/** Only exact visible-tab snapshots can update the open popup's visible current-tab result. */
+/** Only exact visible-tab snapshots can update the open side panel's visible current-tab result. */
 export function isSnapshotForActiveTab(identity: VisibleTabIdentity, snapshot: DetectionSessionSnapshot): boolean {
 	return (
 		snapshot.key.tabId === identity.tabId &&
@@ -251,17 +251,17 @@ export function isSnapshotForActiveTab(identity: VisibleTabIdentity, snapshot: D
 
 
 /**
- * Subscribe the open popup to snapshot revisions for its visible tab.
+ * Subscribe the open side panel to snapshot revisions for its visible tab.
  *
  * Storage becomes the receive stream: background or content writes a newer
- * origin snapshot, the browser emits a storage change, and the popup applies the
+ * origin snapshot, the browser emits a storage change, and the side panel applies the
  * revision only when it still belongs to the visible tab identity.
  */
-export function subscribeToPopupSnapshotRevisions(
+export function subscribeToPanelSnapshotRevisions(
   identity: VisibleTabIdentity,
   exactSessionKey: DetectionSessionKey | null,
-  onRevision: PopupSnapshotRevisionHandler,
-): PopupSnapshotUnsubscribe {
+  onRevision: PanelSnapshotRevisionHandler,
+): PanelSnapshotUnsubscribe {
   const storageKeys = exactSessionKey
     ? [
       getDetectionSessionSnapshotKey(exactSessionKey),

@@ -31,7 +31,7 @@ export type RefreshableObservationSessionStatus =
 /**
  * Returns whether a fresh analysis should open page watching afterwards.
  *
- * `bounded` and `while-popup-open` both start the same content-script observation
+ * `bounded` and `while-panel-open` both start the same content-script observation
  * session today. The helper keeps that product choice in one place so the modes
  * can diverge without changing every visible-tab call site.
  */
@@ -60,7 +60,7 @@ export function canRefreshObservationSession(
  *
  * The background stores the URL it expected when observation started. A hash-only
  * change still counts as the same document, but a path or origin change means
- * the popup is now looking at a different page than the session was created for.
+ * the side panel is now looking at a different page than the session was created for.
  */
 export function isObservationSessionForUrl(
 	session: Pick<ObservationSessionState, 'expectedUrl'>,
