@@ -5,7 +5,6 @@ import { registerBackgroundLifecycleListeners } from '@/lib/background/lifecycle
 import { createAutoScanController } from '@/lib/autostart/controller';
 import { getAutoScanEnabled } from '@/lib/autostart/settings';
 import { createBackgroundRuntime } from '@/lib/background/runtime';
-import { getActiveTab } from '@/lib/browser/active-tab';
 import { collectExtensionObservationBatch } from '@/lib/collectors/extension-page-collector';
 import { bundledTechnologyRegistryProvider } from '@/lib/detection/registry-provider';
 import { configureKaijuSiteScopeLogging, getKaijuSiteScopeLogger } from '@/lib/diagnostics/logging';
@@ -20,9 +19,12 @@ import {
 	CONTENT_RPC_NAMESPACE,
 	createBackgroundServerAdapter,
 	createContentClientAdapter,
+	isSidePanelTabUpdateChange,
 	type BackgroundApi,
 	type ContentApi,
+	type SidePanelTabNotificationReason,
 	SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
+	SIDE_PANEL_TAB_NOTIFICATION_TYPE,
 } from '@/lib/messaging';
 import {
 	browserDetectionPersistence,
@@ -33,7 +35,7 @@ configureKaijuSiteScopeLogging('background');
 
 const backgroundLogger = getKaijuSiteScopeLogger('background');
 
-/** Build a content-script RPC client for one tab/frame at the browser boundary. */
+/** Build a content-script RPC client for one tab/frame at the browser interface. */
 function createContentApiClient(tabId: number, frameId = 0): ContentApi {
 	const [, injectContentApi] = defineProxy(() => ({}) as ContentApi, {
 		namespace: CONTENT_RPC_NAMESPACE,
@@ -125,31 +127,24 @@ function formatBackgroundLogValue(value: unknown): string {
 	return JSON.stringify(value);
 }
 
-const SIDE_PANEL_PATH = 'sidepanel.html';
-
 /**
- * Open a tab-scoped side panel directly from the action-click user gesture.
+ * Open the window-scoped side panel directly from the action-click user gesture.
  *
- * `sidePanel.open()` must run synchronously from the click handler. The options
- * call is intentionally started in the same turn without awaiting first so the
- * user gesture is not lost while Chrome configures the tab-specific panel.
+ * The panel belongs to the browser window, not to the tab that happened to open
+ * it. The mounted panel can therefore follow later active-tab changes in that
+ * same window without Chrome replacing it with a tab-specific panel instance.
  */
-function openSidePanelForActionTab(tabId: number): void {
-	const configurePanel = browser.sidePanel.setOptions({
-		tabId,
-		path: SIDE_PANEL_PATH,
-		enabled: true,
-	});
-	const openPanel = browser.sidePanel.open({ tabId });
-
-	void Promise.all([configurePanel, openPanel])
+function openSidePanelForActionTab(tabId: number, windowId: number): void {
+	void browser.sidePanel.open({ windowId })
 		.then(() => {
 			void browser.runtime.sendMessage({
 				type: SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
 				tabId,
+				windowId,
 			}).catch((error) => {
 				logBackgroundEvent('side-panel-action-notification-failed', {
 					tabId,
+					windowId,
 					message: error instanceof Error ? error.message : String(error),
 				});
 			});
@@ -157,9 +152,26 @@ function openSidePanelForActionTab(tabId: number): void {
 		.catch((error) => {
 			logBackgroundEvent('side-panel-open-failed', {
 				tabId,
+				windowId,
 				message: error instanceof Error ? error.message : String(error),
 			});
 		});
+}
+
+/** Forward an active-tab lifecycle event to any mounted side panel in the same window. */
+function notifySidePanelTab(
+	tabId: number,
+	windowId: number,
+	reason: SidePanelTabNotificationReason,
+): void {
+	void browser.runtime.sendMessage({
+		type: SIDE_PANEL_TAB_NOTIFICATION_TYPE,
+		tabId,
+		windowId,
+		reason,
+	}).catch(() => {
+		// No receiving panel is the normal state when the side panel is closed.
+	});
 }
 
 /**
@@ -169,7 +181,6 @@ function openSidePanelForActionTab(tabId: number): void {
  * register browser listeners, and expose the RPC server.
  */
 const backgroundRuntime = createBackgroundRuntime({
-	getActiveTab,
 	getTab: (tabId) => browser.tabs.get(tabId),
 	executeContentScript,
 	createContentApiClient,
@@ -187,7 +198,7 @@ const backgroundRuntime = createBackgroundRuntime({
 
 const autoScanController = createAutoScanController({
 	getEnabled: getAutoScanEnabled,
-	getVisibleTabIdentity: () => backgroundRuntime.api.getVisibleTabIdentity(),
+	getVisibleTabIdentity: (input) => backgroundRuntime.api.getVisibleTabIdentity(input),
 	analyzeVisibleTab: (input) => backgroundRuntime.api.analyzeVisibleTab(input),
 	log: logBackgroundEvent,
 });
@@ -204,37 +215,37 @@ const [provideBackgroundApi] = defineProxy(() => backgroundRuntime.api, {
 });
 
 export default defineBackground(() => {
-	// Keep the persistent UI opt-in per tab even though automatic analysis can run
-	// in the background. Toolbar clicks only control where the side panel is shown;
-	// the separate auto-scan setting controls page-load analysis.
-	void browser.sidePanel.setOptions({ enabled: false }).catch((error) => {
-		logBackgroundEvent('side-panel-default-disable-failed', {
-			message: error instanceof Error ? error.message : String(error),
-		});
-	});
-
 	browser.action.onClicked.addListener((tab) => {
 		if (typeof tab.id !== 'number') {
 			logBackgroundEvent('side-panel-open-skipped', { reason: 'missing-tab-id' });
 			return;
 		}
 
-		openSidePanelForActionTab(tab.id);
+		openSidePanelForActionTab(tab.id, tab.windowId);
 	});
 	browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-		if (changeInfo.status !== 'complete' || tab.active !== true) {
+		if (tab.active !== true) {
 			return;
 		}
 
-		void autoScanController.scanVisibleTab(tabId, 'refresh', 'page-load');
+		if (isSidePanelTabUpdateChange(changeInfo)) {
+			notifySidePanelTab(tabId, tab.windowId, 'updated');
+		}
+
+		if (changeInfo.status !== 'complete') {
+			return;
+		}
+
+		void autoScanController.scanVisibleTab(tabId, tab.windowId, 'refresh', 'page-load');
 	});
-	browser.tabs.onActivated.addListener(({ tabId }) => {
+	browser.tabs.onActivated.addListener(({ tabId, windowId }) => {
+		notifySidePanelTab(tabId, windowId, 'activated');
 		void browser.tabs.get(tabId).then((tab) => {
 			if (tab.status !== 'complete') {
 				return;
 			}
 
-			return autoScanController.scanVisibleTab(tabId, 'snapshot-first', 'tab-activated');
+			return autoScanController.scanVisibleTab(tabId, windowId, 'snapshot-first', 'tab-activated');
 		}).catch((error) => {
 			logBackgroundEvent('auto-scan-activation-read-failed', {
 				tabId,
