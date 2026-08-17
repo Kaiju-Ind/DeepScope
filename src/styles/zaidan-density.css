@@ -1,0 +1,452 @@
+/**
+ * Zaidan density layer.
+ *
+ * `base.css` hard-codes size decisions inside each `z-*` hook (`h-11`, `p-3`,
+ * `text-sm`). That reads fine on a marketing page and far too loose inside a
+ * product screenshot, and the only escape was to stop using the components.
+ *
+ * This file re-declares the size-sensitive hooks in terms of custom properties
+ * instead of literals. Every default below is byte-equivalent to what
+ * `base.css` already produces, so importing this file changes nothing on its
+ * own. What it buys you is a scope: put `z-density-compact` on any subtree and
+ * every Zaidan component inside it retunes together.
+ *
+ * Import AFTER `./base.css` — these rules win on source order, not
+ * specificity, and both sit in `@layer components`.
+ *
+ * Adding a knob:
+ *   1. give it a default in `@theme` that matches today's rendered value
+ *   2. consume it in the matching `z-*` rule below
+ *   3. override it in `z-density-compact` (and any future density scope)
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Tokens                                                                     */
+/* -------------------------------------------------------------------------- */
+
+@theme {
+	/* Type -------------------------------------------------------------- */
+	--z-density-text: var(--text-sm); /* 0.875rem */
+	--z-density-text-input: 0.9375rem;
+	--z-density-label: 0.6875rem; /* mono uppercase eyebrows */
+
+	/* Rhythm ------------------------------------------------------------ */
+	--z-density-gutter: calc(var(--spacing) * 2); /* 0.5rem  — sidebar sections */
+	--z-density-cell-x: calc(var(--spacing) * 3); /* 0.75rem — table columns */
+	--z-density-cell-y: calc(var(--spacing) * 3); /* 0.75rem — table rows */
+
+	/* Heights ----------------------------------------------------------- */
+	--z-density-row-height: calc(var(--spacing) * 11); /* 2.75rem — table head */
+	--z-density-input-height: calc(var(--spacing) * 10); /* 2.5rem */
+	--z-density-menu-height: calc(var(--spacing) * 8); /* 2rem — sidebar item */
+	--z-density-menu-height-sm: calc(var(--spacing) * 7);
+	--z-density-group-label-height: calc(var(--spacing) * 8);
+	--z-density-badge-height: calc(var(--spacing) * 6); /* 1.5rem */
+
+	/* Inline padding ---------------------------------------------------- */
+	--z-density-badge-x: calc(var(--spacing) * 2.5);
+	--z-density-tab-x: calc(var(--spacing) * 4);
+	--z-density-tab-y: calc(var(--spacing) * 2);
+	--z-density-menu-x: calc(var(--spacing) * 2);
+	--z-density-menu-y: calc(var(--spacing) * 2);
+
+	/* Sizes ------------------------------------------------------------- */
+	--z-density-checkbox: calc(var(--spacing) * 4); /* 1rem */
+	--z-density-checkbox-gap: calc(var(--spacing) * 3);
+	--z-density-icon: calc(var(--spacing) * 4);
+	--z-density-progress-track: calc(var(--spacing) * 2); /* 0.5rem */
+
+	/* Shape ------------------------------------------------------------- */
+	--z-density-radius: var(--radius-lg);
+	--z-density-radius-wide: var(--radius-2xl); /* the sm: bump in base.css */
+	--z-density-tabs-list-padding: calc(var(--spacing) * 1);
+}
+
+/**
+ * Product-chrome density. Roughly the scale of a real dashboard: 36px table
+ * headers and controls, 13px body, and 11px data labels. Apply it to the
+ * outermost element of the subtree — it only sets custom properties, so it
+ * inherits freely and costs
+ * nothing at runtime.
+ *
+ * Because it is a utility it also takes variants, including container queries:
+ * `@min-[46rem]:z-density-compact` retunes a component by the space it
+ * occupies rather than by viewport width.
+ */
+@utility z-density-compact {
+	--z-density-text: 0.8125rem;
+	--z-density-text-input: 0.8125rem;
+	--z-density-label: 0.6875rem;
+
+	--z-density-gutter: calc(var(--spacing) * 3);
+	--z-density-cell-x: calc(var(--spacing) * 4);
+	--z-density-cell-y: calc(var(--spacing) * 2);
+
+	--z-density-row-height: calc(var(--spacing) * 9);
+	--z-density-input-height: calc(var(--spacing) * 9);
+	--z-density-menu-height: calc(var(--spacing) * 9);
+	--z-density-menu-height-sm: calc(var(--spacing) * 8);
+	--z-density-group-label-height: calc(var(--spacing) * 7);
+	--z-density-badge-height: calc(var(--spacing) * 6);
+
+	--z-density-badge-x: calc(var(--spacing) * 2);
+	--z-density-tab-x: calc(var(--spacing) * 3);
+	--z-density-tab-y: calc(var(--spacing) * 2);
+	--z-density-menu-x: calc(var(--spacing) * 2);
+	--z-density-menu-y: calc(var(--spacing) * 1);
+
+	--z-density-checkbox: calc(var(--spacing) * 4);
+	--z-density-checkbox-gap: calc(var(--spacing) * 2);
+	--z-density-icon: calc(var(--spacing) * 4);
+	--z-density-progress-track: calc(var(--spacing) * 1);
+
+	/*
+	 * Density controls size, not shape.
+	 *
+	 * Collapsing radius alongside the type and height scale is what made the
+	 * workspace read as a grid of small rectangles while the rest of the site
+	 * stayed soft. Compact density keeps Zaidan's curvature and only tightens
+	 * what density is actually about: type size, heights, padding, and gaps.
+	 */
+	--z-density-radius: var(--radius-xl);
+	--z-density-radius-wide: var(--radius-2xl);
+	--z-density-tabs-list-padding: calc(var(--spacing) * 0.5);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Hooks                                                                      */
+/* -------------------------------------------------------------------------- */
+
+@layer components {
+	/* MARK: Table */
+	.z-table {
+		font-size: var(--z-density-text);
+		@apply w-full caption-bottom text-white;
+	}
+
+	.z-table-head {
+		height: var(--z-density-row-height);
+		padding-inline: var(--z-density-cell-x);
+		font-size: var(--z-density-label);
+		@apply text-left align-middle font-mono font-medium uppercase tracking-[0.058em] text-white/48;
+	}
+
+	.z-table-cell {
+		padding: var(--z-density-cell-y) var(--z-density-cell-x);
+		font-size: var(--z-density-text);
+		@apply align-middle text-white/72;
+	}
+
+	.z-table-caption {
+		font-size: var(--z-density-text);
+		@apply mt-4 text-white/48;
+	}
+
+	/* MARK: Badge */
+	.z-badge {
+		height: var(--z-density-badge-height);
+		padding-inline: var(--z-density-badge-x);
+		font-size: var(--z-density-label);
+		@apply gap-1 rounded-full border py-1 font-mono font-medium uppercase tracking-[0.058em] transition duration-200 [&>svg]:size-3!;
+	}
+
+	/* MARK: Checkbox */
+	.z-checkbox {
+		width: var(--z-density-checkbox);
+		height: var(--z-density-checkbox);
+		@apply flex items-center justify-center rounded-[4px] border border-white/15 bg-white/[0.035] text-kaiju-navy-deep outline-hidden transition duration-200 data-checked:border-kaiju-cyan data-checked:bg-kaiju-cyan focus-visible:border-kaiju-cyan focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+	}
+
+	.z-checkbox-root {
+		gap: var(--z-density-checkbox-gap);
+	}
+
+	.z-checkbox-label {
+		font-size: var(--z-density-text);
+		@apply cursor-pointer font-medium leading-none data-disabled:cursor-not-allowed data-disabled:opacity-70;
+	}
+
+	.z-checkbox-indicator > svg {
+		width: calc(var(--z-density-checkbox) - calc(var(--spacing) * 0.5));
+		height: calc(var(--z-density-checkbox) - calc(var(--spacing) * 0.5));
+	}
+
+	/* MARK: Tabs */
+	.z-tabs-list {
+		padding: var(--z-density-tabs-list-padding);
+		@apply gap-1 rounded-full border border-white/8 bg-white/[0.035];
+	}
+
+	.z-tabs-trigger {
+		padding: var(--z-density-tab-y) var(--z-density-tab-x);
+		font-size: var(--z-density-text);
+		@apply cursor-pointer gap-1.5 rounded-full border border-transparent font-semibold text-white/52 outline-hidden transition duration-200 hover:bg-white/5 hover:text-white aria-selected:bg-kaiju-cyan aria-selected:text-kaiju-navy-deep focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+	}
+
+	.z-tabs-trigger svg:not([class*="size-"]) {
+		width: var(--z-density-icon);
+		height: var(--z-density-icon);
+	}
+
+	.z-tabs-content {
+		padding-top: calc(var(--spacing) * 3);
+		font-size: var(--z-density-text);
+		@apply leading-6 text-white/62;
+	}
+
+	/* MARK: Input */
+	.z-input {
+		height: var(--z-density-input-height);
+		border-radius: var(--z-density-radius);
+		padding-inline: var(--z-density-cell-x);
+		font-size: var(--z-density-text);
+		@apply border border-white/8 bg-white/[0.035] text-white outline-hidden transition-[background-color,border-color,box-shadow] duration-200 placeholder:text-white/42 hover:border-white/14 hover:bg-white/5 focus-visible:border-kaiju-cyan/50 focus-visible:bg-kaiju-cyan/[0.055] focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50;
+
+		@media (width >= 40rem) {
+			border-radius: var(--z-density-radius-wide);
+		}
+	}
+
+	/* MARK: Input Group */
+	.z-input-group {
+		min-height: var(--z-density-input-height);
+		border-radius: var(--z-density-radius);
+		@apply border border-white/8 bg-white/[0.035] transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/5 has-[[data-slot=input-group-control]:focus-visible]:border-kaiju-cyan/50 has-[[data-slot=input-group-control]:focus-visible]:bg-kaiju-cyan/[0.055] has-[[data-slot=input-group-control]:focus-visible]:ring-2 has-[[data-slot=input-group-control]:focus-visible]:ring-kaiju-cyan/50;
+
+		@media (width >= 40rem) {
+			border-radius: var(--z-density-radius-wide);
+		}
+	}
+
+	.z-input-group-addon {
+		font-size: var(--z-density-text);
+		@apply h-auto gap-2 px-4 py-2 font-medium text-white/48;
+	}
+
+	.z-input-group-addon svg:not([class*="size-"]) {
+		width: var(--z-density-icon);
+		height: var(--z-density-icon);
+	}
+
+	.z-input-group-input {
+		font-size: var(--z-density-text-input);
+		@apply rounded-none border-0 bg-transparent px-0 text-white shadow-none ring-0 placeholder:text-white/42 focus-visible:ring-0;
+	}
+
+	/* MARK: Sidebar */
+	.z-sidebar-header,
+	.z-sidebar-footer,
+	.z-sidebar-group {
+		padding: var(--z-density-gutter);
+	}
+
+	.z-sidebar-header,
+	.z-sidebar-footer {
+		@apply gap-2;
+	}
+
+	.z-sidebar-group-label {
+		height: var(--z-density-group-label-height);
+		border-radius: var(--z-density-radius);
+		padding-inline: var(--z-density-menu-x);
+		font-size: var(--z-density-label);
+		@apply font-mono font-medium uppercase tracking-[0.058em] text-white/42 transition duration-200 focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+	}
+
+	.z-sidebar-menu-button {
+		border-radius: var(--z-density-radius);
+		padding: var(--z-density-menu-y) var(--z-density-menu-x);
+		@apply gap-2 text-left text-white/62 outline-hidden transition duration-200 hover:bg-kaiju-cyan/[0.055] hover:text-kaiju-cyan data-[active=true]:bg-kaiju-cyan/[0.08] data-[active=true]:font-semibold data-[active=true]:text-kaiju-cyan focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+	}
+
+	.z-sidebar-menu-button svg {
+		width: var(--z-density-icon);
+		height: var(--z-density-icon);
+	}
+
+	.z-sidebar-menu-button-size-default {
+		height: var(--z-density-menu-height);
+		font-size: var(--z-density-text);
+	}
+
+	.z-sidebar-menu-button-size-sm {
+		height: var(--z-density-menu-height-sm);
+		font-size: var(--z-density-label);
+	}
+
+	.z-sidebar-menu-badge {
+		border-radius: var(--z-density-radius);
+		font-size: var(--z-density-label);
+		@apply bg-white/5 px-1.5 font-mono text-white/48;
+	}
+
+	.z-sidebar-group-content {
+		font-size: var(--z-density-text);
+	}
+
+	/* MARK: Progress */
+	.z-progress-track {
+		height: var(--z-density-progress-track);
+		@apply overflow-hidden rounded-full bg-white/10;
+	}
+
+	/* MARK: Item */
+	.z-item {
+		font-size: var(--z-density-text);
+		@apply relative flex w-full items-center text-left transition duration-200;
+	}
+
+	.z-item-size-sm {
+		gap: calc(var(--spacing) * 3);
+		padding: var(--z-density-cell-y) var(--z-density-cell-x);
+	}
+
+	.z-item-size-xs {
+		gap: calc(var(--spacing) * 2);
+		padding: var(--z-density-menu-y) var(--z-density-menu-x);
+		font-size: var(--z-density-label);
+	}
+}
+/* -------------------------------------------------------------------------- */
+/* Product-chrome shape                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Zaidan's control language is a marketing language: pills, and a hover scale
+ * on every button. That reads well on a landing section and wrong inside an
+ * application frame, where a toolbar button growing 3% on hover looks like a
+ * call to action rather than a control.
+ *
+ * These rules apply only inside `z-density-compact`, so the marketing page is
+ * untouched. They sit later in `@layer components` than `base.css`, so they win
+ * on source order while any utility passed at a call site still overrides them.
+ */
+@layer components {
+	.z-density-compact .z-button {
+		border-radius: var(--z-density-radius);
+		@apply hover:scale-100 active:scale-100;
+	}
+
+	/* Keep primary toolbar controls aligned with the 36px input rhythm. */
+	.z-density-compact .z-button-size-sm,
+	.z-density-compact .z-button-size-icon-sm {
+		height: var(--z-density-input-height);
+	}
+
+	.z-density-compact .z-button-size-icon-sm {
+		width: var(--z-density-input-height);
+	}
+
+	/**
+	 * `.z-tabs-list-variant-line` only ever added `border-b`.
+	 *
+	 * The base `.z-tabs-list` rounded-full, border, and padding all survived it,
+	 * and `.z-tabs-trigger` kept its `aria-selected:bg-kaiju-cyan` pill, so the
+	 * line variant rendered as a full-width capsule with a solid cyan lozenge
+	 * inside it. This completes the variant instead of working around it.
+	 */
+	.z-tabs-list[data-variant="line"] {
+		@apply gap-0 rounded-none border-0 border-b border-white/10 bg-transparent p-0;
+	}
+
+	.z-tabs-list[data-variant="line"] .z-tabs-trigger {
+		border-radius: 0;
+		@apply relative border-0 bg-transparent font-medium aria-selected:bg-transparent aria-selected:text-kaiju-cyan;
+	}
+
+	/* The underline is the selected state, so it must not depend on a background. */
+	.z-tabs-list[data-variant="line"] .z-tabs-trigger[aria-selected="true"]::after {
+		content: "";
+		position: absolute;
+		inset-inline: 0;
+		bottom: -1px;
+		height: 1px;
+		background: var(--color-kaiju-cyan);
+	}
+}
+
+/* -------------------------------------------------------------------------- */
+/* Product-chrome type scale                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Six sizes and three weights, and nothing else inside a product surface.
+ *
+ * The demos had accumulated `text-[10px]` through `text-[15px]` as one-off
+ * arbitrary values, so two panels showing the same kind of content often
+ * disagreed by a pixel. Naming the steps means a component picks a role rather
+ * than a number, and the roles are few enough to hold in your head.
+ *
+ * eyebrow  mono uppercase section labels
+ * xs       counts, meta, timestamps
+ * sm       secondary text, captions, group notes
+ * base     rows, controls, body copy inside panels
+ * lg       panel titles
+ * xl       the one line in a report that matters most
+ */
+@theme {
+	--ui-eyebrow: 0.625rem; /* 10px */
+	--ui-text-xs: 0.6875rem; /* 11px */
+	--ui-text-sm: 0.75rem; /* 12px */
+	--ui-text-base: 0.8125rem; /* 13px */
+	--ui-text-lg: 0.9375rem; /* 15px */
+	--ui-text-xl: 1.125rem; /* 18px */
+}
+
+@utility ui-eyebrow {
+	font-family: var(--font-mono);
+	font-size: var(--ui-eyebrow);
+	font-weight: 500;
+	line-height: 1rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+}
+
+@utility ui-xs {
+	font-size: var(--ui-text-xs);
+	line-height: 1rem;
+}
+
+@utility ui-sm {
+	font-size: var(--ui-text-sm);
+	line-height: 1.125rem;
+}
+
+@utility ui-base {
+	font-size: var(--ui-text-base);
+	line-height: 1.25rem;
+}
+
+@utility ui-lg {
+	font-size: var(--ui-text-lg);
+	font-weight: 600;
+	line-height: 1.375rem;
+	letter-spacing: -0.01em;
+}
+
+@utility ui-xl {
+	font-size: var(--ui-text-xl);
+	font-weight: 600;
+	line-height: 1.5rem;
+	letter-spacing: -0.015em;
+	text-wrap: pretty;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Resizable rails                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The handle is a 1px line until you approach it.
+ *
+ * corvu already gives the handle a wide invisible hit area; this only makes the
+ * visible line respond, so a rail edge reads as draggable on hover without
+ * drawing a permanent divider heavier than the panel borders around it.
+ */
+.z-density-compact .z-resizable-handle {
+	@apply bg-white/8 transition-colors duration-150 hover:bg-kaiju-cyan/50 data-[dragging]:bg-kaiju-cyan;
+}
+
+.z-density-compact .z-resizable-handle:focus-visible {
+	@apply bg-kaiju-cyan outline-none ring-0;
+}

@@ -1,0 +1,115 @@
+/**
+ * Zaidan hook corrections.
+ *
+ * These are not size or taste changes. Each rule below fixes a hook in
+ * `base.css` that cannot do the job it was written to do. They are kept in a
+ * separate file so they read as a bug list and can be folded back into
+ * `base.css` a rule at a time, rather than being lost inside the density layer.
+ *
+ * Import order matters: `base.css`, then this file, then `zaidan-density.css`.
+ * All three sit in `@layer components`, so these win on source order while any
+ * utility passed at a call site still overrides them.
+ *
+ * ── Bug 1 ──────────────────────────────────────────────────────────────────
+ * Checkbox, radio, and switch render a visually styled `div` next to a hidden
+ * `input.peer.sr-only` that holds the real focus. Their hooks write
+ * `focus-visible:` on the `div`, which can never receive focus, so all three
+ * components have no keyboard focus indicator anywhere on the site. The `peer`
+ * class the components already set was never used by a rule.
+ *
+ * ── Bug 2 ──────────────────────────────────────────────────────────────────
+ * `InputGroupInput` renders `Input`, so `.z-input-group-input` sits on top of
+ * `.z-input`. It neutralises the static decoration (border, radius, background)
+ * but not the interactive states, so `.z-input`'s own `hover:bg-white/5` and
+ * `focus-visible:bg-kaiju-cyan/[0.055]` still paint a square block inside the
+ * rounded group while the group draws its own border and ring. A composed part
+ * has to surrender interactive state to its container completely, or the two
+ * render competing treatments.
+ */
+
+@layer components {
+	/* ---------------------------------------------------------------------- */
+	/* Bug 1: focus indication on controls with a hidden input                */
+	/* ---------------------------------------------------------------------- */
+
+	/**
+	 * Drawn with `outline` rather than `ring`.
+	 *
+	 * A ring needs `ring-offset-color` to match whatever surface sits behind it,
+	 * and these controls appear on the navy page, on panel surfaces, and on
+	 * table rows. An outline paints outside the box without needing to know the
+	 * background, so one rule is correct everywhere.
+	 *
+	 * The selectors carry the sibling form and the `:has()` form because the
+	 * hidden input is a sibling of the control in checkbox and radio, and a
+	 * descendant of the styled root in switch.
+	 */
+	.peer:focus-visible ~ .z-checkbox,
+	.peer:focus-visible ~ .z-radio-group-item,
+	.z-switch:has(> [data-slot="switch-input"]:focus-visible) {
+		outline: 2px solid var(--color-kaiju-cyan);
+		outline-offset: 2px;
+	}
+
+	/**
+	 * Hover feedback for the same three controls.
+	 *
+	 * The label is part of the control's hit area, so hovering the label must
+	 * move the box too. Without this the box only responds to a 14px target.
+	 */
+	[data-slot="checkbox"]:hover .z-checkbox:not([data-checked]),
+	[data-slot="radio-group-item"]:hover .z-radio-group-item:not([data-checked]) {
+		@apply border-white/32 bg-white/[0.06];
+	}
+
+	/* ---------------------------------------------------------------------- */
+	/* Bug 2: composed input controls must not style their own surface        */
+	/* ---------------------------------------------------------------------- */
+
+	.z-input-group-input,
+	.z-input-group-textarea {
+		outline: none;
+		@apply hover:border-transparent hover:bg-transparent focus-visible:border-transparent focus-visible:bg-transparent focus-visible:shadow-none focus-visible:ring-0;
+	}
+
+	/**
+	 * The group is the control, so the whole group reacts as one.
+	 *
+	 * Previously the addon was inert: hovering the field lit the input but left
+	 * the search icon at its resting colour, and focusing it did the same. The
+	 * addon now follows the group's state, and the group takes a text cursor so
+	 * the icon does not look like a button.
+	 */
+	.z-input-group {
+		cursor: text;
+	}
+
+	.z-input-group:hover .z-input-group-addon {
+		@apply text-white/64;
+	}
+
+	.z-input-group:has([data-slot="input-group-control"]:focus-visible) .z-input-group-addon {
+		@apply text-kaiju-cyan;
+	}
+
+	/* A button inside an addon is still a button, not part of the text field. */
+	.z-input-group-addon:has(> button),
+	.z-input-group-addon button {
+		cursor: pointer;
+	}
+
+	/* ---------------------------------------------------------------------- */
+	/* Bug 3: focus rings that vanish on their own surface                    */
+	/* ---------------------------------------------------------------------- */
+
+	/**
+	 * `.z-button` sets `ring-offset-kaiju-navy-deep`, which is correct on the
+	 * page and wrong on every panel that is not that colour: the offset paints a
+	 * dark band over a lighter surface. Inheriting the offset from a custom
+	 * property lets a container declare its own backdrop once.
+	 */
+	.z-button:focus-visible,
+	.z-toggle:focus-visible {
+		--tw-ring-offset-color: var(--z-surface, var(--color-kaiju-navy-deep));
+	}
+}

@@ -1,0 +1,1687 @@
+@keyframes z-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes z-overlay-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes z-surface-in {
+  from { opacity: 0; scale: 0.96; translate: 0 -0.25rem; }
+  to { opacity: 1; scale: 1; translate: 0 0; }
+}
+
+@keyframes z-surface-out {
+  from { opacity: 1; scale: 1; translate: 0 0; }
+  to { opacity: 0; scale: 0.97; translate: 0 -0.125rem; }
+}
+
+@keyframes z-dialog-in {
+  from { opacity: 0; scale: 0.96; }
+  to { opacity: 1; scale: 1; }
+}
+
+@keyframes z-dialog-out {
+  from { opacity: 1; scale: 1; }
+  to { opacity: 0; scale: 0.97; }
+}
+
+@keyframes z-sheet-right-in { from { translate: 100% 0; } to { translate: 0 0; } }
+@keyframes z-sheet-right-out { from { translate: 0 0; } to { translate: 100% 0; } }
+@keyframes z-sheet-left-in { from { translate: -100% 0; } to { translate: 0 0; } }
+@keyframes z-sheet-left-out { from { translate: 0 0; } to { translate: -100% 0; } }
+@keyframes z-sheet-top-in { from { translate: 0 -100%; } to { translate: 0 0; } }
+@keyframes z-sheet-top-out { from { translate: 0 0; } to { translate: 0 -100%; } }
+@keyframes z-sheet-bottom-in { from { translate: 0 100%; } to { translate: 0 0; } }
+@keyframes z-sheet-bottom-out { from { translate: 0 0; } to { translate: 0 100%; } }
+
+@keyframes z-collapse-in {
+  from { height: 0; opacity: 0; }
+  to { height: var(--kb-collapsible-content-height); opacity: 1; }
+}
+
+@keyframes z-collapse-out {
+  from { height: var(--kb-collapsible-content-height); opacity: 1; }
+  to { height: 0; opacity: 0; }
+}
+
+@keyframes z-tab-in {
+  from { opacity: 0; translate: 0 0.25rem; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes z-skeleton-shimmer {
+  from { translate: -120% 0; }
+  to { translate: 220% 0; }
+}
+
+@keyframes z-navigation-viewport-in {
+  from { opacity: 0; scale: 0.98; translate: 0 -0.25rem; }
+  to { opacity: 1; scale: 1; translate: 0 0; }
+}
+
+@keyframes z-navigation-viewport-out {
+  from { opacity: 1; scale: 1; translate: 0 0; }
+  to { opacity: 0; scale: 0.985; translate: 0 -0.125rem; }
+}
+
+@keyframes z-navigation-content-from-start {
+  from { opacity: 0; translate: -0.75rem 0; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes z-navigation-content-from-end {
+  from { opacity: 0; translate: 0.75rem 0; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes z-navigation-content-to-start {
+  from { opacity: 1; translate: 0 0; }
+  to { opacity: 0; translate: -0.5rem 0; }
+}
+
+@keyframes z-navigation-content-to-end {
+  from { opacity: 1; translate: 0 0; }
+  to { opacity: 0; translate: 0.5rem 0; }
+}
+
+@layer components {
+/* Zaidan components inherit the active Kaiju homepage typography and direct
+  * Tailwind utility clusters. The z-* hooks are component implementation hooks,
+  * not a parallel design system. */
+.z-font-heading {
+  @apply font-display font-semibold tracking-tight;
+}
+
+/* MARK: Accordion */
+.z-accordion-item {
+  @apply border-white/10 not-last:border-b;
+}
+
+.z-accordion-trigger {
+  @apply rounded-lg py-4 text-left text-sm font-medium text-white transition duration-200 hover:text-kaiju-cyan focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50 **:data-[slot=accordion-trigger-icon]:ml-auto **:data-[slot=accordion-trigger-icon]:size-4 **:data-[slot=accordion-trigger-icon]:text-white/48;
+}
+
+.z-accordion-content {
+  @apply overflow-hidden text-sm text-white/58;
+}
+
+.z-accordion-content-inner {
+  @apply pb-4 pt-0 leading-6;
+}
+
+/* MARK: Alert Dialog */
+.z-alert-dialog-overlay {
+  @apply bg-black/60 backdrop-blur-sm ;
+}
+
+.z-alert-dialog-content {
+  @apply max-w-[calc(100%-2rem)] gap-5 rounded-xl border border-white/12 bg-kaiju-navy p-4 text-sm text-white shadow-[0_24px_64px_rgb(0_0_0_/0.36)]  sm:max-w-lg sm:rounded-4xl sm:p-6;
+}
+
+.z-alert-dialog-header {
+  @apply grid gap-2 text-center sm:text-left;
+}
+
+.z-alert-dialog-media {
+  @apply mx-auto mb-2 inline-flex size-12 items-center justify-center rounded-2xl bg-kaiju-cyan/10 text-kaiju-cyan sm:mx-0;
+}
+
+.z-alert-dialog-title {
+  @apply text-lg font-semibold text-white;
+}
+
+.z-alert-dialog-description {
+  @apply text-sm leading-6 text-white/58 *:[a]:text-kaiju-cyan *:[a]:underline *:[a]:underline-offset-4;
+}
+
+/* MARK: Alert */
+.z-alert {
+  @apply grid gap-1 rounded-lg border border-white/10 bg-white/[0.035] px-3.5 py-3 text-left text-sm text-white sm:rounded-2xl sm:px-4 has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:sm:pr-24 has-[>svg]:grid-cols-[auto_minmax(0,1fr)] has-[>svg]:gap-x-2.5 *:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-kaiju-cyan *:[svg:not([class*=size-])]:size-4;
+}
+
+.z-alert-variant-default {
+  @apply border-white/10 bg-white/[0.035] text-white;
+}
+
+.z-alert-variant-destructive {
+  @apply border-red-400/20 bg-red-400/[0.08] text-red-200 *:data-[slot=alert-description]:text-red-200/80 *:[svg]:text-red-300;
+}
+
+.z-alert-title {
+  @apply font-semibold group-has-[>svg]/alert:col-start-2;
+}
+
+.z-alert-description {
+  @apply text-sm leading-6 text-white/58 group-has-[>svg]/alert:col-start-2;
+}
+
+.z-alert-action {
+  @apply col-start-2 mt-1 justify-self-start sm:absolute sm:right-3 sm:top-1/2 sm:mt-0 sm:-translate-y-1/2;
+}
+
+/* MARK: Avatar */
+.z-avatar {
+  @apply size-8 rounded-full after:rounded-full data-[size=lg]:size-10 data-[size=sm]:size-6;
+}
+
+.z-avatar-fallback {
+  @apply rounded-full bg-white/[0.09] font-semibold text-white/72;
+}
+
+.z-avatar-image {
+  @apply rounded-full;
+}
+
+.z-avatar-badge {
+  @apply bg-kaiju-cyan text-kaiju-navy-deep ring-2 ring-kaiju-navy-deep;
+}
+
+.z-avatar-group-count {
+  @apply bg-white/5 text-white/58 size-8 rounded-full text-sm group-has-data-[size=lg]/avatar-group:size-10 group-has-data-[size=sm]/avatar-group:size-6 [&>svg]:size-4 group-has-data-[size=lg]/avatar-group:[&>svg]:size-5 group-has-data-[size=sm]/avatar-group:[&>svg]:size-3;
+}
+
+/* MARK: Badge */
+.z-badge {
+  @apply h-6 gap-1 rounded-full border px-2.5 py-1 font-mono text-[0.6875rem] font-medium uppercase tracking-[0.058em] transition duration-200 [&>svg]:size-3!;
+}
+
+.z-badge-variant-default {
+  @apply border-kaiju-cyan/20 bg-kaiju-cyan/10 text-kaiju-cyan [a]:hover:bg-kaiju-cyan/18;
+}
+
+.z-badge-variant-secondary {
+  @apply border-white/10 bg-white/5 text-white/72 [a]:hover:bg-white/[0.09];
+}
+
+.z-badge-variant-outline {
+  @apply border-white/12 bg-transparent text-white/62 [a]:hover:border-kaiju-cyan/35 [a]:hover:text-kaiju-cyan;
+}
+
+.z-badge-variant-destructive {
+  @apply border-red-400/20 bg-red-400/10 text-red-300 [a]:hover:bg-red-400/18;
+}
+
+.z-badge-variant-ghost {
+  @apply border-transparent bg-transparent text-white/58 hover:bg-white/5 hover:text-white;
+}
+
+.z-badge-variant-link {
+  @apply border-transparent bg-transparent text-kaiju-cyan underline-offset-4 hover:underline;
+}
+
+/* MARK: Breadcrumb */
+.z-breadcrumb-list {
+  @apply gap-1.5 text-sm text-white/48 sm:gap-2.5;
+}
+
+.z-breadcrumb-item {
+  @apply gap-1.5;
+}
+
+.z-breadcrumb-link {
+  @apply rounded text-white/58 transition duration-200 hover:text-kaiju-cyan focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+}
+
+.z-breadcrumb-page {
+  @apply font-medium text-white;
+}
+
+.z-breadcrumb-separator {
+  @apply [&>svg]:size-3.5;
+}
+
+.z-breadcrumb-ellipsis {
+  @apply size-5 [&>svg]:size-4;
+}
+
+/* MARK: Button */
+.z-button {
+  @apply scale-100 rounded-full border border-transparent bg-clip-padding text-sm font-semibold outline-hidden transition duration-200 ease-out hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-kaiju-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-kaiju-navy-deep active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 motion-reduce:transform-none [&_svg:not([class*=size-])]:size-4;
+}
+
+.z-button-variant-default {
+  @apply bg-kaiju-cyan text-kaiju-navy-deep hover:bg-white;
+}
+
+.z-button-variant-outline {
+  @apply border-white/12 bg-transparent text-white hover:border-kaiju-cyan/35 hover:bg-white/5 hover:text-kaiju-cyan aria-expanded:border-kaiju-cyan/35 aria-expanded:bg-kaiju-cyan/[0.055];
+}
+
+.z-button-variant-secondary {
+  @apply border-white/10 bg-white/[0.09] text-white hover:bg-white/15 aria-expanded:bg-white/15;
+}
+
+.z-button-variant-ghost {
+  @apply bg-transparent text-white/62 hover:bg-white/5 hover:text-white aria-expanded:bg-white/5 aria-expanded:text-white;
+}
+
+.z-button-variant-destructive {
+  @apply border-red-400/20 bg-red-400/10 text-red-300 hover:bg-red-400/18 focus-visible:ring-red-400/50;
+}
+
+.z-button-variant-link {
+  @apply rounded text-kaiju-cyan underline-offset-4 hover:scale-100 hover:text-white hover:underline active:scale-100;
+}
+
+.z-button-size-xs {
+  @apply h-7 gap-1 px-2.5 text-xs [&_svg:not([class*=size-])]:size-3;
+}
+
+.z-button-size-sm {
+  @apply h-8 gap-1.5 px-3;
+}
+
+.z-button-size-default {
+  @apply h-9 gap-2 px-3.5;
+}
+
+.z-button-size-lg {
+  @apply min-h-11 gap-2 px-5 py-2.5;
+}
+
+.z-button-size-icon-xs {
+  @apply size-7 [&_svg:not([class*=size-])]:size-3;
+}
+
+.z-button-size-icon-sm {
+  @apply size-8;
+}
+
+.z-button-size-icon {
+  @apply size-9;
+}
+
+.z-button-size-icon-lg {
+  @apply size-11;
+}
+
+/* MARK: Button Group */
+.z-button-group {
+  @apply isolate h-9 overflow-hidden rounded-full border border-white/12 bg-transparent gap-0 has-[>[data-slot=button-group]]:h-auto has-[>[data-slot=button-group]]:overflow-visible has-[>[data-slot=button-group]]:rounded-none has-[>[data-slot=button-group]]:border-0 has-[>[data-slot=button-group]]:gap-2;
+}
+
+.z-button-group-orientation-horizontal {
+  @apply [&>[data-slot]]:h-full [&>[data-slot]]:rounded-none! [&>[data-slot]]:border-0!;
+}
+
+.z-button-group-orientation-vertical {
+  @apply h-auto flex-col rounded-xl [&>[data-slot]]:w-full [&>[data-slot]]:rounded-none! [&>[data-slot]]:border-0!;
+}
+
+.z-button-group-text {
+  @apply h-full gap-2 rounded-none border-0 bg-white/[0.035] px-2.5 text-sm font-medium text-white/72 [&_svg:not([class*=size-])]:size-4;
+}
+
+.z-button-group-separator {
+  @apply my-0! h-full! w-px! self-stretch bg-white/10;
+}
+
+/* MARK: Calendar */
+.z-calendar {
+  @apply w-full max-w-full rounded-xl border border-white/10 bg-white/[0.035] p-3 text-white sm:rounded-4xl sm:p-4 [--cell-radius:0.5rem] [--cell-size:--spacing(9)];
+}
+
+.z-calendar-dropdown-root {
+  @apply rounded-lg border border-white/12 bg-white/[0.035] focus-within:border-kaiju-cyan/50 focus-within:ring-2 focus-within:ring-kaiju-cyan/50;
+}
+
+.z-calendar-caption-label {
+  @apply h-8 pr-1 pl-2;
+}
+
+/* MARK: Card */
+.z-card {
+  @apply gap-5 overflow-hidden rounded-xl sm:rounded-3xl border border-white/12 bg-white/[0.035] py-2 sm:py-4 text-sm text-white sm:gap-6;
+}
+
+.z-card-header {
+  @apply gap-1.5 px-2 sm:px-4;
+}
+
+.z-card-title {
+  @apply text-base font-semibold leading-normal text-white sm:text-lg;
+}
+
+.z-card-description {
+  @apply text-xs sm:text-sm leading-5 sm:leading-6 text-white/58;
+}
+
+.z-card-content {
+  @apply px-2 sm:px-4;
+}
+
+.z-card-footer {
+  @apply gap-3 px-2 sm:px-4;
+}
+
+/* MARK: Carousel */
+.z-carousel-previous {
+  @apply rounded-full;
+}
+
+.z-carousel-next {
+  @apply rounded-full;
+}
+
+/* MARK: Chart */
+.z-chart-tooltip {
+  @apply gap-1.5 rounded-lg border border-white/10 bg-kaiju-navy px-3 py-2 text-xs text-white shadow-[0_18px_48px_rgb(0_0_0_/0.28)];
+}
+
+/* MARK: Checkbox */
+.z-checkbox {
+  @apply flex size-4 items-center justify-center rounded-[4px] border border-white/15 bg-white/[0.035] text-kaiju-navy-deep outline-hidden transition duration-200 data-checked:border-kaiju-cyan data-checked:bg-kaiju-cyan focus-visible:border-kaiju-cyan focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+}
+
+.z-checkbox-indicator {
+  @apply [&>svg]:size-3.5;
+}
+
+/* MARK: Combobox */
+.z-combobox-control {
+  @apply flex items-center;
+}
+
+.z-combobox-input {
+  @apply min-h-10 rounded-lg border border-white/8 bg-white/[0.035] transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/5 focus-within:border-kaiju-cyan/50 focus-within:bg-kaiju-cyan/[0.055] focus-within:ring-2 focus-within:ring-kaiju-cyan/50 sm:rounded-2xl;
+}
+
+.z-combobox-content {
+  @apply border border-white/12 bg-kaiju-navy text-white shadow-[0_18px_48px_rgb(0_0_0_/0.28)] max-h-72 min-w-40 overflow-hidden rounded-lg p-1 sm:rounded-2xl;
+}
+
+.z-combobox-label {
+  @apply text-white/58 px-2 py-1.5 text-xs;
+}
+
+.z-combobox-item {
+  @apply gap-2 rounded-lg px-3 py-2 text-sm text-white/72 outline-hidden transition duration-200 focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-highlighted:bg-kaiju-cyan/[0.08] data-highlighted:text-kaiju-cyan disabled:pointer-events-none disabled:opacity-50;
+}
+
+.z-combobox-item-indicator {
+  @apply pointer-events-none absolute right-2 flex size-4 items-center justify-center;
+}
+
+.z-combobox-empty {
+  @apply text-white/58 hidden w-full justify-center py-2 text-center text-sm group-data-empty/combobox-content:flex;
+}
+
+.z-combobox-list {
+  @apply no-scrollbar max-h-[min(calc(--spacing(72)---spacing(9)),calc(var(--available-height)---spacing(9)))] scroll-py-1 overflow-y-auto p-1 data-empty:p-0;
+}
+
+.z-combobox-item-text {
+  @apply flex flex-1 gap-2;
+}
+
+.z-combobox-separator {
+  @apply my-1 h-px border-0 bg-white/10;
+}
+
+.z-combobox-trigger {
+  @apply [&_svg:not([class*='size-'])]:size-4;
+}
+
+.z-combobox-trigger-icon {
+  @apply text-white/58 size-4;
+}
+
+.z-combobox-chips {
+  @apply bg-white/[0.035] border-white/12 focus-within:border-kaiju-cyan focus-within:ring-kaiju-cyan/40 has-aria-invalid:ring-red-400/20 has-aria-invalid:ring-red-400/40 has-aria-invalid:border-red-400 has-aria-invalid:border-red-400/50 flex min-h-9 flex-wrap items-center gap-1.5 rounded-lg border bg-transparent bg-clip-padding px-2.5 py-1.5 text-sm shadow-none transition-[color,box-shadow] focus-within:ring-2 has-aria-invalid:ring-2 has-data-[slot=combobox-chip]:px-1.5;
+}
+
+.z-combobox-chip {
+  @apply bg-white/5 text-white flex h-[calc(--spacing(5.5))] w-fit items-center justify-center gap-1 rounded-full px-1.5 text-xs font-medium whitespace-nowrap has-data-[slot=combobox-chip-remove]:pr-0;
+}
+
+.z-combobox-chip-remove {
+  @apply -ml-1 opacity-50 hover:opacity-100;
+}
+
+/* MARK: Command */
+.z-command {
+  @apply rounded-xl bg-kaiju-navy text-white;
+}
+
+.z-command-dialog {
+  @apply w-[min(32rem,calc(100vw-2rem))] max-w-none border border-white/12 bg-kaiju-navy text-white shadow-[0_24px_64px_rgb(0_0_0_/0.36)] max-h-[min(32rem,calc(100dvh-2rem))] min-w-0 overflow-hidden rounded-xl p-0 sm:rounded-3xl;
+}
+
+.z-command-input-wrapper {
+  @apply border-b border-white/10 p-3;
+}
+
+.z-command-input-group {
+  @apply min-h-10 rounded-lg border border-white/8 bg-white/[0.035] sm:rounded-xl;
+}
+
+.z-command-input-icon {
+  @apply size-4 shrink-0 opacity-50;
+}
+
+.z-command-input {
+  @apply h-10 min-w-0 flex-1 bg-transparent pl-0 pr-3 text-sm text-white outline-hidden placeholder:text-white/42;
+}
+
+.z-command-list {
+  @apply max-h-72 p-1;
+}
+
+.z-command-empty {
+  @apply px-4 py-8 text-center text-sm text-white/48;
+}
+
+.z-command-group {
+  @apply overflow-hidden p-1;
+}
+
+.z-command-group [cmdk-group-heading] {
+  @apply px-2 py-1.5 font-mono text-[0.6875rem] font-medium uppercase tracking-[0.058em] text-white/42;
+}
+
+.z-command-separator {
+  @apply my-1 h-px border-0 bg-white/10;
+}
+
+.z-command-item {
+  @apply gap-2 rounded-lg px-3 py-2 text-sm text-white/72 outline-hidden transition duration-200 focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-[selected=true]:bg-kaiju-cyan/[0.08] data-[selected=true]:text-kaiju-cyan data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50;
+}
+
+.z-command-shortcut {
+  @apply text-white/58 group-data-[selected=true]/command-item:text-white ml-auto text-xs tracking-widest;
+}
+
+/* MARK: Context Menu */
+.z-context-menu-content {
+  @apply border border-white/12 bg-kaiju-navy text-white shadow-[0_18px_48px_rgb(0_0_0_/0.28)] max-h-72 min-w-40 overflow-hidden rounded-lg p-1 sm:rounded-2xl;
+}
+
+.z-context-menu-item {
+  @apply gap-2 rounded-lg px-3 py-2 text-sm text-white/72 outline-hidden transition duration-200 focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-highlighted:bg-kaiju-cyan/[0.08] data-highlighted:text-kaiju-cyan disabled:pointer-events-none disabled:opacity-50;
+}
+
+.z-context-menu-checkbox-item {
+  @apply gap-2 rounded-lg px-3 py-2 text-sm text-white/72 outline-hidden transition duration-200 focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-highlighted:bg-kaiju-cyan/[0.08] data-highlighted:text-kaiju-cyan disabled:pointer-events-none disabled:opacity-50 pr-8 pl-8;
+}
+
+.z-context-menu-radio-item {
+  @apply gap-2 rounded-lg px-3 py-2 text-sm text-white/72 outline-hidden transition duration-200 focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-highlighted:bg-kaiju-cyan/[0.08] data-highlighted:text-kaiju-cyan disabled:pointer-events-none disabled:opacity-50 pr-8 pl-8;
+}
+
+.z-context-menu-item-indicator {
+  @apply absolute right-2;
+}
+
+.z-context-menu-label {
+  @apply px-3 py-2 font-mono text-[0.6875rem] font-medium uppercase tracking-[0.058em] text-white/42;
+}
+
+.z-context-menu-separator {
+  @apply my-1 h-px border-0 bg-white/10;
+}
+
+.z-context-menu-shortcut {
+  @apply text-white/58 group-focus/context-menu-item:text-kaiju-cyan ml-auto text-xs tracking-widest;
+}
+
+.z-context-menu-sub-trigger {
+  @apply focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-expanded:bg-kaiju-cyan/[0.08] data-expanded:text-kaiju-cyan rounded-lg px-2 py-1.5 text-sm [&_svg:not([class*='size-'])]:size-4;
+}
+
+.z-context-menu-sub-content {
+  @apply border border-white/12 bg-kaiju-navy text-white shadow-[0_18px_48px_rgb(0_0_0_/0.28)]  min-w-36 rounded-lg p-1 sm:rounded-2xl;
+}
+
+.z-context-menu-subcontent {
+  @apply shadow-[0_24px_64px_rgb(0_0_0_/0.36)];
+}
+
+/* MARK: Dialog */
+.z-dialog-overlay {
+  @apply bg-black/60 backdrop-blur-sm ;
+}
+
+.z-dialog-content {
+  @apply max-w-[calc(100%-2rem)] gap-5 rounded-xl border border-white/12 bg-kaiju-navy p-4 text-sm text-white shadow-[0_24px_64px_rgb(0_0_0_/0.36)]  sm:max-w-lg sm:rounded-4xl sm:p-6;
+}
+
+.z-dialog-close {
+  @apply absolute right-3 top-3 sm:right-4 sm:top-4;
+}
+
+.z-dialog-header {
+  @apply gap-2 text-center sm:text-left;
+}
+
+.z-dialog-footer {
+  @apply gap-3 border-t border-white/10 pt-4 sm:justify-end;
+}
+
+.z-dialog-title {
+  @apply text-lg font-semibold text-white;
+}
+
+.z-dialog-description {
+  @apply text-sm leading-6 text-white/58;
+}
+
+/* MARK: Drawer */
+.z-drawer-overlay {
+  @apply bg-black/60 backdrop-blur-sm ;
+}
+
+.z-drawer-content {
+  @apply border-white/12 bg-kaiju-navy text-white shadow-[0_24px_64px_rgb(0_0_0_/0.36)];
+}
+
+.z-drawer-handle {
+  @apply mx-auto mt-3 h-1.5 w-12 rounded-full bg-white/10;
+}
+
+.z-drawer-header {
+  @apply gap-2 px-4 pb-3 pt-5 text-center sm:px-6;
+}
+
+.z-drawer-title {
+  @apply text-lg font-semibold text-white;
+}
+
+.z-drawer-description {
+  @apply text-sm leading-6 text-white/58;
+}
+
+.z-drawer-footer {
+  @apply gap-3 border-t border-white/10 px-4 pb-6 pt-4 sm:px-6;
+}
+
+/* MARK: Dropdown Menu */
+.z-dropdown-menu-content {
+  @apply border border-white/12 bg-kaiju-navy text-white shadow-[0_18px_48px_rgb(0_0_0_/0.28)] max-h-72 min-w-40 overflow-hidden rounded-lg p-1 sm:rounded-2xl;
+}
+
+.z-dropdown-menu-item {
+  @apply gap-2 rounded-lg px-3 py-2 text-sm text-white/72 outline-hidden transition duration-200 focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-highlighted:bg-kaiju-cyan/[0.08] data-highlighted:text-kaiju-cyan disabled:pointer-events-none disabled:opacity-50;
+}
+
+.z-dropdown-menu-checkbox-item {
+  @apply gap-2 rounded-lg px-3 py-2 text-sm text-white/72 outline-hidden transition duration-200 focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-highlighted:bg-kaiju-cyan/[0.08] data-highlighted:text-kaiju-cyan disabled:pointer-events-none disabled:opacity-50 pr-8 pl-8;
+}
+
+.z-dropdown-menu-radio-item {
+  @apply gap-2 rounded-lg px-3 py-2 text-sm text-white/72 outline-hidden transition duration-200 focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-highlighted:bg-kaiju-cyan/[0.08] data-highlighted:text-kaiju-cyan disabled:pointer-events-none disabled:opacity-50 pr-8 pl-8;
+}
+
+.z-dropdown-menu-item-indicator {
+  @apply pointer-events-none absolute right-2 flex items-center justify-center;
+}
+
+.z-dropdown-menu-label {
+  @apply px-3 py-2 font-mono text-[0.6875rem] font-medium uppercase tracking-[0.058em] text-white/42;
+}
+
+.z-dropdown-menu-separator {
+  @apply my-1 h-px border-0 bg-white/10;
+}
+
+.z-dropdown-menu-shortcut {
+  @apply text-white/58 group-focus/dropdown-menu-item:text-kaiju-cyan ml-auto text-xs tracking-widest;
+}
+
+.z-dropdown-menu-sub-trigger {
+  @apply focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-expanded:bg-kaiju-cyan/[0.08] data-expanded:text-kaiju-cyan not-data-[variant=destructive]:focus:**:text-kaiju-cyan gap-2 rounded-lg px-2 py-1.5 text-sm [&_svg:not([class*='size-'])]:size-4;
+}
+
+.z-dropdown-menu-sub-content {
+  @apply border border-white/12 bg-kaiju-navy text-white shadow-[0_18px_48px_rgb(0_0_0_/0.28)]  min-w-36 rounded-lg p-1 sm:rounded-2xl;
+}
+
+.z-dropdown-menu-subcontent {
+  @apply shadow-[0_24px_64px_rgb(0_0_0_/0.36)];
+}
+
+/* MARK: Empty */
+.z-empty {
+  @apply rounded-xl border border-dashed border-white/12 bg-white/[0.035] p-5 text-center sm:rounded-4xl sm:p-6;
+}
+
+.z-empty-header {
+  @apply mx-auto grid max-w-md gap-2;
+}
+
+.z-empty-media {
+  @apply mb-2;
+}
+
+.z-empty-media-default {
+  @apply bg-transparent;
+}
+
+.z-empty-media-icon {
+  @apply mx-auto flex size-10 items-center justify-center rounded-xl bg-kaiju-cyan/10 text-kaiju-cyan sm:rounded-2xl;
+}
+
+.z-empty-title {
+  @apply text-lg font-semibold text-white;
+}
+
+.z-empty-description {
+  @apply text-xs sm:text-sm leading-5 sm:leading-6 text-white/58;
+}
+
+.z-empty-content {
+  @apply mt-4 flex flex-wrap justify-center gap-3;
+}
+
+/* MARK: Field */
+.z-field-set {
+  @apply gap-6 has-[>[data-slot=checkbox-group]]:gap-3 has-[>[data-slot=radio-group]]:gap-3;
+}
+
+.z-field-legend {
+  @apply mb-3 font-medium data-[variant=label]:text-sm data-[variant=legend]:text-base;
+}
+
+.z-field-group {
+  @apply grid gap-5;
+}
+
+.z-field {
+  @apply gap-2;
+}
+
+.z-field-content {
+  @apply gap-1.5;
+}
+
+.z-field-label {
+  @apply text-sm font-medium text-white/72;
+}
+
+.z-field-title {
+  @apply font-semibold text-white;
+}
+
+.z-field-description {
+  @apply text-sm leading-6 text-white/48;
+}
+
+.z-field-separator {
+  @apply -my-1 gap-3 py-1 text-sm group-data-[variant=outline]/field-group:-mb-1;
+}
+
+.z-field-separator-content {
+  @apply shrink-0 font-mono text-[0.625rem] font-medium uppercase tracking-[0.08em] text-white/42;
+}
+
+.z-field-error {
+  @apply text-sm leading-6 text-red-300;
+}
+
+/* MARK: Hover Card */
+.z-hover-card-content {
+  @apply border border-white/12 bg-kaiju-navy text-white shadow-[0_18px_48px_rgb(0_0_0_/0.28)]  rounded-lg p-4 sm:rounded-2xl;
+}
+
+/* MARK: Input */
+.z-input {
+  @apply h-10 rounded-lg border border-white/8 bg-white/[0.035] px-3 text-sm text-white outline-hidden transition-[background-color,border-color,box-shadow] duration-200 placeholder:text-white/42 hover:border-white/14 hover:bg-white/5 focus-visible:border-kaiju-cyan/50 focus-visible:bg-kaiju-cyan/[0.055] focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl;
+}
+
+/* MARK: Input OTP */
+.z-input-otp {
+  @apply gap-2;
+}
+
+.z-input-otp-group {
+  @apply has-aria-invalid:ring-red-400/20 has-aria-invalid:ring-red-400/40 has-aria-invalid:border-red-400 rounded-lg has-aria-invalid:ring-2;
+}
+
+.z-input-otp-slot {
+  @apply bg-white/[0.035] border-white/12 data-[active=true]:border-kaiju-cyan data-[active=true]:ring-kaiju-cyan/40 data-[active=true]:aria-invalid:ring-red-400/20 data-[active=true]:aria-invalid:ring-red-400/40 aria-invalid:border-red-400 data-[active=true]:aria-invalid:border-red-400 size-9 border-y border-r text-sm shadow-none transition duration-200 outline-hidden first:rounded-l-lg first:border-l last:rounded-r-lg data-[active=true]:ring-2;
+}
+
+.z-input-otp-caret-line {
+  @apply animate-caret-blink bg-white h-4 w-px duration-1000;
+}
+
+.z-input-otp-separator {
+  @apply [&_svg:not([class*='size-'])]:size-4;
+}
+
+/* MARK: Item */
+.z-item {
+  @apply relative flex w-full items-center text-left text-sm transition duration-200;
+}
+
+.z-item-variant-default {
+  @apply border-transparent bg-transparent;
+}
+
+.z-item-variant-outline {
+  @apply rounded-lg border border-white/10 bg-white/[0.035] sm:rounded-2xl;
+}
+
+.z-item-variant-muted {
+  @apply rounded-lg border border-transparent bg-white/5 sm:rounded-2xl;
+}
+
+.z-item-size-default {
+  @apply gap-3 p-4;
+}
+
+.z-item-size-sm {
+  @apply gap-3 px-3 py-2.5;
+}
+
+.z-item-size-xs {
+  @apply gap-2 px-2.5 py-2 text-xs;
+}
+
+.z-item-media {
+  @apply gap-2 group-has-data-[slot=item-description]/item:translate-y-0.5 group-has-data-[slot=item-description]/item:self-start;
+}
+
+.z-item-media-variant-default {
+  @apply bg-transparent;
+}
+
+.z-item-media-variant-icon {
+  @apply flex size-9 shrink-0 items-center justify-center rounded-2xl bg-kaiju-cyan/10 text-kaiju-cyan [&_svg:not([class*=size-])]:size-4.5;
+}
+
+.z-item-media-variant-image {
+  @apply size-10 overflow-hidden rounded-lg group-data-[size=sm]/item:size-8 group-data-[size=xs]/item:size-6 [&_img]:size-full [&_img]:object-cover;
+}
+
+.z-item-content {
+  @apply gap-1 group-data-[size=xs]/item:gap-0;
+}
+
+.z-item-title {
+  @apply font-semibold text-white;
+}
+
+.z-item-description {
+  @apply text-sm leading-6 text-white/58;
+}
+
+.z-item-actions {
+  @apply gap-2;
+}
+
+.z-item-header {
+  @apply gap-2;
+}
+
+.z-item-footer {
+  @apply gap-2;
+}
+
+.z-item-group {
+  @apply gap-4 has-data-[size=sm]:gap-2.5 has-data-[size=xs]:gap-2;
+}
+
+.z-item-separator {
+  @apply my-0 bg-white/10;
+}
+
+/* MARK: Kbd */
+.z-kbd {
+  @apply h-5 min-w-5 gap-1 rounded-lg border border-white/10 bg-white/5 px-1.5 font-mono text-[0.6875rem] font-medium text-white/58;
+}
+
+.z-kbd-group {
+  @apply gap-1;
+}
+
+/* MARK: Label */
+.z-label {
+  @apply text-sm font-medium text-white/72 peer-disabled:cursor-not-allowed peer-disabled:opacity-50;
+}
+
+/* MARK: Menubar */
+.z-menubar {
+  @apply rounded-full border border-white/10 bg-white/[0.035] p-1;
+}
+
+.z-menubar-trigger {
+  @apply rounded-full px-3 py-2 text-sm font-medium text-white/62 outline-hidden transition duration-200 hover:bg-white/5 hover:text-white data-expanded:bg-kaiju-cyan data-expanded:text-kaiju-navy-deep focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+}
+
+.z-menubar-content {
+  @apply border border-white/12 bg-kaiju-navy text-white shadow-[0_18px_48px_rgb(0_0_0_/0.28)] max-h-72 min-w-40 overflow-hidden rounded-lg p-1 sm:rounded-2xl;
+}
+
+.z-menubar-item {
+  @apply gap-2 rounded-lg px-3 py-2 text-sm text-white/72 outline-hidden transition duration-200 focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-highlighted:bg-kaiju-cyan/[0.08] data-highlighted:text-kaiju-cyan disabled:pointer-events-none disabled:opacity-50;
+}
+
+.z-menubar-checkbox-item {
+  @apply gap-2 rounded-lg px-3 py-2 text-sm text-white/72 outline-hidden transition duration-200 focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-highlighted:bg-kaiju-cyan/[0.08] data-highlighted:text-kaiju-cyan disabled:pointer-events-none disabled:opacity-50 pr-8 pl-8;
+}
+
+.z-menubar-checkbox-item-indicator {
+  @apply left-2 size-4 [&_svg:not([class*='size-'])]:size-4;
+}
+
+.z-menubar-radio-item {
+  @apply gap-2 rounded-lg px-3 py-2 text-sm text-white/72 outline-hidden transition duration-200 focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-highlighted:bg-kaiju-cyan/[0.08] data-highlighted:text-kaiju-cyan disabled:pointer-events-none disabled:opacity-50 pr-8 pl-8;
+}
+
+.z-menubar-radio-item-indicator {
+  @apply left-2 size-4 [&_svg:not([class*='size-'])]:size-4;
+}
+
+.z-menubar-label {
+  @apply px-3 py-2 font-mono text-[0.6875rem] font-medium uppercase tracking-[0.058em] text-white/42;
+}
+
+.z-menubar-separator {
+  @apply my-1 h-px border-0 bg-white/10;
+}
+
+.z-menubar-shortcut {
+  @apply text-white/58 group-focus/menubar-item:text-kaiju-cyan text-xs tracking-widest;
+}
+
+.z-menubar-sub-trigger {
+  @apply focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-expanded:bg-kaiju-cyan/[0.08] data-expanded:text-kaiju-cyan gap-2 rounded-lg px-2 py-1.5 text-sm data-inset:pl-8 [&_svg:not([class*='size-'])]:size-4;
+}
+
+.z-menubar-sub-content {
+  @apply border border-white/12 bg-kaiju-navy text-white shadow-[0_18px_48px_rgb(0_0_0_/0.28)]  min-w-36 rounded-lg p-1 sm:rounded-2xl;
+}
+
+/* MARK: Navigation Menu */
+.z-navigation-menu {
+  @apply relative z-20 flex w-fit max-w-full flex-wrap items-start justify-start gap-y-3;
+}
+
+.z-navigation-menu-list {
+  @apply w-full justify-start gap-1;
+}
+
+.z-navigation-menu-trigger {
+  @apply rounded-full px-4 py-2 text-sm font-semibold text-white/62 outline-hidden transition duration-200 hover:bg-white/5 hover:text-white data-expanded:bg-kaiju-cyan data-expanded:text-kaiju-navy-deep focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+}
+
+.z-navigation-menu-trigger-icon {
+  @apply relative top-px ml-1 size-3 transition duration-300 group-data-expanded/navigation-menu-trigger:rotate-180;
+}
+
+.z-navigation-menu-viewport {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  justify-content: center;
+  width: min(var(--kb-navigation-menu-viewport-width), calc(100vw - 2rem));
+  height: var(--kb-navigation-menu-viewport-height);
+  max-width: 100%;
+  overflow: clip;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 0.75rem;
+  background: var(--color-kaiju-navy-deep);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: var(--kb-menu-content-transform-origin, top left);
+  animation: z-navigation-viewport-out 150ms ease-in both;
+  transition: width 220ms cubic-bezier(0.22, 1, 0.36, 1), height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.z-navigation-menu-viewport[data-expanded] {
+  opacity: 1;
+  pointer-events: auto;
+  animation: z-navigation-viewport-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.z-navigation-menu-content {
+  @apply absolute left-0 top-0 h-full w-full p-2 text-white outline-hidden;
+  pointer-events: none;
+  animation-duration: 180ms;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.z-navigation-menu-content[data-expanded] {
+  pointer-events: auto;
+}
+
+.z-navigation-menu-content[data-motion="from-start"] {
+  animation-name: z-navigation-content-from-start;
+}
+
+.z-navigation-menu-content[data-motion="from-end"] {
+  animation-name: z-navigation-content-from-end;
+}
+
+.z-navigation-menu-content[data-motion="to-start"] {
+  animation-name: z-navigation-content-to-start;
+}
+
+.z-navigation-menu-content[data-motion="to-end"] {
+  animation-name: z-navigation-content-to-end;
+}
+
+.z-navigation-menu-link {
+  @apply rounded-lg p-3 text-sm text-white/62 outline-hidden transition duration-200 hover:bg-kaiju-cyan/[0.055] hover:text-kaiju-cyan focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50 sm:rounded-xl;
+}
+
+.z-navigation-menu-indicator {
+  @apply pointer-events-none absolute top-full flex h-2 items-end justify-center overflow-hidden;
+}
+
+.z-navigation-menu-indicator-arrow {
+  @apply size-2 rotate-45 rounded-tl-sm border-l border-t border-white/12 bg-kaiju-navy-deep;
+}
+
+.z-navigation-menu-positioner {
+  @apply transition-[top,left,right,bottom] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] data-[side=bottom]:before:top-[-10px] data-[side=bottom]:before:right-0 data-[side=bottom]:before:left-0;
+}
+
+.z-navigation-menu-popup {
+  @apply rounded-lg bg-kaiju-navy-deep text-white shadow ring-1 ring-white/10 outline-hidden transition duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] data-ending-style:scale-90 data-ending-style:opacity-0 data-ending-style:duration-200 data-starting-style:scale-90 data-starting-style:opacity-0;
+}
+
+/* MARK: Native Select */
+.z-native-select {
+  @apply h-10 rounded-lg border border-white/8 bg-white/[0.035] px-3 text-sm text-white outline-hidden transition-[background-color,border-color,box-shadow] duration-200 placeholder:text-white/42 hover:border-white/14 hover:bg-white/5 focus-visible:border-kaiju-cyan/50 focus-visible:bg-kaiju-cyan/[0.055] focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl appearance-none pr-10;
+}
+
+.z-native-select-icon {
+  @apply text-white/58 top-1/2 right-2.5 size-4 -translate-y-1/2;
+}
+
+/* MARK: Pagination */
+.z-pagination-content {
+  @apply gap-1;
+}
+
+.z-pagination-link {
+  @apply rounded-full;
+}
+
+.z-pagination-ellipsis {
+  @apply size-9 items-center justify-center [&_svg:not([class*='size-'])]:size-4;
+}
+
+.z-pagination-previous {
+  @apply pl-2!;
+}
+
+.z-pagination-next {
+  @apply pr-2!;
+}
+
+/* MARK: Popover */
+.z-popover-content {
+  @apply border border-white/12 bg-kaiju-navy text-white shadow-[0_18px_48px_rgb(0_0_0_/0.28)]  rounded-lg p-4 sm:rounded-2xl;
+}
+
+.z-popover-header {
+  @apply grid gap-1.5;
+}
+
+.z-popover-title {
+  @apply font-semibold text-white;
+}
+
+.z-popover-description {
+  @apply text-sm leading-6 text-white/58;
+}
+
+/* MARK: Progress */
+.z-progress {
+  @apply bg-white/5 h-1.5 rounded-full;
+}
+
+.z-progress-track {
+  @apply h-2 overflow-hidden rounded-full bg-white/10;
+}
+
+.z-progress-indicator {
+  @apply h-full bg-kaiju-cyan transition-all duration-300;
+}
+
+.z-progress-label {
+  @apply text-sm font-medium text-white/72;
+}
+
+.z-progress-value {
+  @apply font-mono text-xs text-kaiju-cyan;
+}
+
+/* MARK: Radio Group */
+.z-radio-group {
+  @apply grid gap-3;
+}
+
+.z-radio-group-item {
+  @apply flex size-4 items-center justify-center rounded-full border border-white/20 bg-white/[0.035] text-kaiju-cyan outline-hidden transition-[background-color,border-color,box-shadow] duration-200 data-checked:border-kaiju-cyan data-checked:bg-kaiju-cyan/10 focus-visible:border-kaiju-cyan focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+}
+
+.z-radio-group-indicator {
+  @apply flex size-full items-center justify-center text-kaiju-cyan group-aria-invalid/radio-group-item:text-red-300;
+}
+
+.z-radio-group-indicator-icon {
+  @apply block size-1.5 rounded-full bg-current shadow-[0_0_0_1px_rgb(84_222_240_/0.12)];
+}
+
+/* MARK: Resizable */
+.z-resizable-handle {
+  @apply bg-white/10 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+}
+
+.z-resizable-handle-icon {
+  @apply h-6 w-1 rounded-full bg-white/15;
+}
+
+/* MARK: Scroll Area */
+.z-scroll-area-scrollbar {
+  @apply rounded-full bg-white/[0.035];
+}
+
+.z-scroll-area-thumb {
+  @apply rounded-full bg-white/10 hover:bg-white/15;
+}
+
+/* MARK: Select */
+.z-select-trigger {
+  @apply h-10 rounded-lg border border-white/8 bg-white/[0.035] px-3 text-sm text-white outline-hidden transition-[background-color,border-color,box-shadow] duration-200 placeholder:text-white/42 hover:border-white/14 hover:bg-white/5 focus-visible:border-kaiju-cyan/50 focus-visible:bg-kaiju-cyan/[0.055] focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl gap-2 py-2 pr-3;
+}
+
+.z-select-value {
+  @apply flex flex-1 text-left;
+}
+
+.z-select-trigger-icon {
+  @apply text-white/58 size-4;
+}
+
+.z-select-content {
+  @apply w-[min(32rem,calc(100vw-2rem))] max-w-none border border-white/12 bg-kaiju-navy text-white shadow-[0_24px_64px_rgb(0_0_0_/0.36)] max-h-[min(32rem,calc(100dvh-2rem))] min-w-0 overflow-hidden rounded-xl p-0 sm:rounded-3xl;
+}
+
+.z-select-label {
+  @apply px-3 py-2 font-mono text-[0.6875rem] font-medium uppercase tracking-[0.058em] text-white/42;
+}
+
+.z-select-item {
+  @apply gap-2 rounded-lg px-3 py-2 text-sm text-white/72 outline-hidden transition duration-200 focus:bg-kaiju-cyan/[0.08] focus:text-kaiju-cyan data-highlighted:bg-kaiju-cyan/[0.08] data-highlighted:text-kaiju-cyan disabled:pointer-events-none disabled:opacity-50;
+}
+
+.z-select-item-indicator {
+  @apply pointer-events-none absolute right-2 flex size-4 items-center justify-center;
+}
+
+.z-select-group {
+  @apply scroll-my-1 px-0 py-1;
+}
+
+.z-select-item-text {
+  @apply flex flex-1 gap-2;
+}
+
+.z-select-separator {
+  @apply my-1 h-px border-0 bg-white/10;
+}
+
+.z-select-scroll-up-button {
+  @apply bg-kaiju-navy z-10 flex cursor-default items-center justify-center py-1 [&_svg:not([class*='size-'])]:size-4;
+}
+
+.z-select-scroll-down-button {
+  @apply bg-kaiju-navy z-10 flex cursor-default items-center justify-center py-1 [&_svg:not([class*='size-'])]:size-4;
+}
+
+/* MARK: Separator */
+.z-separator {
+  @apply shrink-0 bg-white/10 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px;
+}
+
+.z-separator-horizontal {
+  @apply h-px w-full;
+}
+
+.z-separator-vertical {
+  @apply h-full w-px;
+}
+
+/* MARK: Sheet */
+.z-sheet-overlay {
+  @apply bg-black/60 backdrop-blur-sm ;
+}
+
+.z-sheet-content {
+  @apply border-white/12 bg-kaiju-navy text-white shadow-[0_24px_64px_rgb(0_0_0_/0.36)] ;
+}
+
+.z-sheet-close {
+  @apply absolute right-4 top-4;
+}
+
+.z-sheet-header {
+  @apply gap-2 p-4 sm:p-6;
+}
+
+.z-sheet-footer {
+  @apply gap-3 border-t border-white/10 p-4 sm:p-6;
+}
+
+.z-sheet-title {
+  @apply text-lg font-semibold text-white;
+}
+
+.z-sheet-description {
+  @apply text-sm leading-6 text-white/58;
+}
+
+/* MARK: Sidebar */
+.z-sidebar-gap {
+  @apply transition-[width] duration-200 ease-linear;
+}
+
+.z-sidebar-inner {
+  /* @apply rounded-xl sm:rounded-4xl; */
+  @apply border border-white/10 bg-kaiju-navy text-white;
+}
+
+.z-sidebar-rail {
+  @apply hover:after:bg-white/10;
+}
+
+.z-sidebar-inset {
+  @apply bg-kaiju-navy-deep;
+}
+
+.z-sidebar-input {
+  @apply h-9 w-full rounded-lg border border-white/8 bg-white/[0.035] px-3 text-sm text-white outline-hidden placeholder:text-white/42 focus-visible:border-kaiju-cyan/50 focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+}
+
+.z-sidebar-header {
+  @apply gap-2 p-2;
+}
+
+.z-sidebar-content {
+  @apply no-scrollbar gap-2;
+}
+
+.z-sidebar-footer {
+  @apply gap-2 p-2;
+}
+
+.z-sidebar-separator {
+  @apply mx-2 bg-white/10;
+}
+
+.z-sidebar-group {
+  @apply p-2;
+}
+
+.z-sidebar-menu {
+  @apply gap-1;
+}
+
+.z-sidebar-group-content {
+  @apply text-sm;
+}
+
+.z-sidebar-group-label {
+  @apply h-8 rounded-lg px-2 font-mono text-[0.6875rem] font-medium uppercase tracking-[0.058em] text-white/42 transition duration-200 focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+}
+
+.z-sidebar-group-action {
+  @apply text-white ring-kaiju-cyan/40 hover:bg-kaiju-cyan/[0.08] hover:text-kaiju-cyan absolute top-3.5 right-3 w-5 rounded-lg p-0 focus-visible:ring-2 [&>svg]:size-4;
+}
+
+.z-sidebar-menu-button {
+  @apply gap-2 rounded-lg p-2 text-left text-sm text-white/62 outline-hidden transition duration-200 hover:bg-kaiju-cyan/[0.055] hover:text-kaiju-cyan data-[active=true]:bg-kaiju-cyan/[0.08] data-[active=true]:font-semibold data-[active=true]:text-kaiju-cyan focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+}
+
+.z-sidebar-menu-button-variant-default {
+  @apply hover:bg-kaiju-cyan/[0.08] hover:text-kaiju-cyan;
+}
+
+.z-sidebar-menu-button-variant-outline {
+  @apply border border-white/10 bg-white/[0.035] hover:border-kaiju-cyan/35;
+}
+
+.z-sidebar-menu-button-size-default {
+  @apply h-8 text-sm;
+}
+
+.z-sidebar-menu-button-size-sm {
+  @apply h-7 text-xs;
+}
+
+.z-sidebar-menu-button-size-lg {
+  @apply h-12 text-sm group-data-[collapsible=icon]:p-0!;
+}
+
+.z-sidebar-menu-action {
+  @apply rounded-lg text-white/48 outline-hidden transition duration-200 hover:bg-white/5 hover:text-kaiju-cyan focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+}
+
+.z-sidebar-menu-badge {
+  @apply rounded-full bg-white/5 px-1.5 font-mono text-[0.6875rem] text-white/48;
+}
+
+.z-sidebar-menu-skeleton {
+  @apply h-8 gap-2 rounded-lg px-2;
+}
+
+.z-sidebar-menu-skeleton-icon {
+  @apply size-4 rounded-lg;
+}
+
+.z-sidebar-menu-skeleton-text {
+  @apply h-4;
+}
+
+.z-sidebar-menu-sub {
+  @apply border-white/10;
+}
+
+.z-sidebar-menu-sub-button {
+  @apply rounded-lg px-2 text-white/58 outline-hidden transition duration-200 hover:bg-kaiju-cyan/[0.055] hover:text-kaiju-cyan data-[active=true]:bg-kaiju-cyan/[0.08] data-[active=true]:text-kaiju-cyan focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+}
+
+/* MARK: Skeleton */
+.z-skeleton {
+  @apply relative overflow-hidden rounded-lg bg-white/8 after:absolute after:inset-y-0 after:left-0 after:w-2/5 after:bg-linear-to-r after:from-transparent after:via-white/8 after:to-transparent after:content-[""];
+}
+
+/* MARK: Slider */
+.z-slider {
+  @apply data-[orientation=vertical]:min-h-40;
+}
+
+.z-slider-track {
+  @apply h-1.5 w-full rounded-full bg-white/10 data-[orientation=vertical]:h-full data-[orientation=vertical]:w-1.5;
+}
+
+.z-slider-range {
+  @apply bg-kaiju-cyan;
+}
+
+.z-slider-thumb {
+  @apply size-4 rounded-full border border-kaiju-cyan bg-white outline-hidden transition duration-200 hover:ring-2 hover:ring-kaiju-cyan/20 focus-visible:ring-2 focus-visible:ring-kaiju-cyan/40;
+}
+
+/* MARK: Sonner */
+.z-toast {
+  @apply rounded-2xl border border-white/12 bg-kaiju-navy text-white shadow-[0_18px_48px_rgb(0_0_0_/0.28)];
+}
+
+/* MARK: Switch */
+.z-switch {
+  @apply h-[18px] w-8 rounded-full border border-white/12 bg-white/[0.09] outline-hidden transition duration-200 data-checked:border-kaiju-cyan data-checked:bg-kaiju-cyan focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+}
+
+.z-switch-thumb {
+  @apply size-4 rounded-full bg-white transition-transform duration-200 data-checked:translate-x-[calc(100%-2px)];
+}
+
+/* MARK: Table */
+.z-table-container {
+  @apply relative w-full overflow-x-auto;
+}
+
+.z-table {
+  @apply w-full caption-bottom text-sm text-white;
+}
+
+.z-table-header {
+  @apply [&_tr]:border-b [&_tr]:border-white/10;
+}
+
+.z-table-body {
+  @apply [&_tr:last-child]:border-0;
+}
+
+.z-table-footer {
+  @apply border-t border-white/10 bg-white/[0.035] font-medium;
+}
+
+.z-table-row {
+  @apply border-b border-white/8 transition duration-200 hover:bg-white/[0.035] data-[state=selected]:bg-kaiju-cyan/[0.055];
+}
+
+.z-table-head {
+  @apply h-11 px-3 text-left align-middle font-mono text-[0.6875rem] font-medium uppercase tracking-[0.058em] text-white/48;
+}
+
+.z-table-cell {
+  @apply p-3 align-middle text-sm text-white/72;
+}
+
+.z-table-caption {
+  @apply mt-4 text-sm text-white/48;
+}
+
+/* MARK: Tabs */
+.z-tabs {
+  @apply gap-2;
+}
+
+.z-tabs-list {
+  @apply gap-1 rounded-full border border-white/8 bg-white/[0.035] p-1;
+}
+
+.z-tabs-trigger {
+  @apply cursor-pointer gap-1.5 rounded-full border border-transparent px-4 py-2 text-sm font-semibold text-white/52 outline-hidden transition duration-200 hover:bg-white/5 hover:text-white aria-selected:bg-kaiju-cyan aria-selected:text-kaiju-navy-deep focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50 [&_svg:not([class*=size-])]:size-4;
+}
+
+.z-tabs-content {
+  @apply pt-3 text-sm leading-6 text-white/62;
+}
+
+/* MARK: Textarea */
+.z-textarea {
+  @apply min-h-28 rounded-lg border border-white/8 bg-white/[0.035] px-3 py-2.5 text-sm leading-6 text-white outline-hidden transition-[background-color,border-color,box-shadow] duration-200 placeholder:text-white/42 hover:border-white/14 hover:bg-white/5 focus-visible:border-kaiju-cyan/50 focus-visible:bg-kaiju-cyan/[0.055] focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl;
+}
+
+/* MARK: Toggle */
+.z-toggle {
+  @apply shrink-0 cursor-pointer rounded-full border border-white/12 bg-transparent px-3 py-1.5 text-xs font-medium text-white/52 outline-hidden transition duration-200 hover:border-kaiju-cyan/35 hover:bg-kaiju-cyan/[0.055] hover:text-kaiju-cyan aria-pressed:border-kaiju-cyan aria-pressed:bg-kaiju-cyan aria-pressed:font-semibold aria-pressed:text-kaiju-navy-deep focus-visible:ring-2 focus-visible:ring-kaiju-cyan/50;
+}
+
+.z-toggle-variant-default {
+  @apply bg-transparent;
+}
+
+.z-toggle-variant-outline {
+  @apply border-white/12 hover:bg-white/5 border bg-transparent shadow-none;
+}
+
+.z-toggle-size-default {
+  @apply h-8 min-w-9 px-3;
+}
+
+.z-toggle-size-sm {
+  @apply h-7 min-w-8 px-2;
+}
+
+.z-toggle-size-lg {
+  @apply h-10 min-w-10 px-3.5;
+}
+
+/* MARK: Toggle Group */
+.z-toggle-group {
+  @apply rounded-lg data-[spacing=0]:data-[variant=outline]:shadow-none;
+}
+
+.z-toggle-group-item {
+  @apply aria-pressed:border-kaiju-cyan aria-pressed:bg-kaiju-cyan aria-pressed:text-kaiju-navy-deep group-data-[spacing=0]/toggle-group:rounded-none group-data-[spacing=0]/toggle-group:px-2 group-data-[spacing=0]/toggle-group:shadow-none group-data-[orientation=horizontal]/toggle-group:data-[spacing=0]:first:rounded-l-lg group-data-[orientation=vertical]/toggle-group:data-[spacing=0]:first:rounded-t-lg group-data-[orientation=horizontal]/toggle-group:data-[spacing=0]:last:rounded-r-lg group-data-[orientation=vertical]/toggle-group:data-[spacing=0]:last:rounded-b-lg;
+}
+
+/* MARK: Tooltip */
+.z-tooltip-content {
+  @apply rounded-lg border border-white/10 bg-white px-3 py-1.5 text-xs font-medium text-kaiju-navy-deep shadow-[0_18px_48px_rgb(0_0_0_/0.28)];
+}
+
+.z-tooltip-arrow {
+  @apply size-2.5 translate-y-[calc(-50%-2px)] rotate-45 rounded-[2px];
+}
+
+/* MARK: Input Group */
+.z-input-group {
+  @apply min-h-10 rounded-lg border border-white/8 bg-white/[0.035] transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/5 has-[[data-slot=input-group-control]:focus-visible]:border-kaiju-cyan/50 has-[[data-slot=input-group-control]:focus-visible]:bg-kaiju-cyan/[0.055] has-[[data-slot=input-group-control]:focus-visible]:ring-2 has-[[data-slot=input-group-control]:focus-visible]:ring-kaiju-cyan/50 sm:rounded-2xl;
+}
+
+.z-input-group-addon {
+  @apply h-auto gap-2 px-4 py-2 text-sm font-medium text-white/48 [&>svg:not([class*=size-])]:size-4;
+}
+
+.z-input-group-addon-align-inline-start {
+  @apply pl-2 has-[>button]:-ml-1 has-[>kbd]:ml-[-0.15rem];
+}
+
+.z-input-group-addon-align-inline-end {
+  @apply pr-2 has-[>button]:-mr-1 has-[>kbd]:mr-[-0.15rem];
+}
+
+.z-input-group-addon-align-block-start {
+  @apply min-h-10 border-b border-white/8 px-3 py-2 group-has-[>input]/input-group:pt-2;
+}
+
+.z-input-group-addon-align-block-end {
+  @apply min-h-10 border-t border-white/8 px-3 py-2 group-has-[>input]/input-group:pb-2;
+}
+
+.z-input-group-button {
+  @apply gap-2 text-sm;
+}
+
+.z-input-group-button-size-xs {
+  @apply h-6 gap-1 rounded-lg px-1.5 [&>svg:not([class*='size-'])]:size-3.5;
+}
+
+.z-input-group-button-size-sm {
+  @apply h-8 rounded-lg px-2.5;
+}
+
+.z-input-group-button-size-icon-xs {
+  @apply size-6 rounded-lg p-0 has-[>svg]:p-0;
+}
+
+.z-input-group-button-size-icon-sm {
+  @apply size-8 p-0 has-[>svg]:p-0;
+}
+
+.z-input-group-text {
+  @apply text-white/58 gap-2 text-sm [&_svg:not([class*='size-'])]:size-4;
+}
+
+.z-input-group-input {
+  @apply rounded-none border-0 bg-transparent px-0 text-[0.9375rem] text-white shadow-none ring-0 placeholder:text-white/42 focus-visible:ring-0;
+}
+
+.z-input-group-textarea {
+  @apply min-h-24 w-full rounded-none border-0 bg-transparent px-3 py-2.5 text-sm leading-6 text-white shadow-none ring-0 placeholder:text-white/42 focus-visible:ring-0;
+}
+
+  /* Shared structural hooks ------------------------------------------------- */
+  .z-alert-dialog-action,
+  .z-alert-dialog-cancel {
+    @apply min-h-10 rounded-full px-4 text-sm font-semibold transition duration-200 ease-out focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-kaiju-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-kaiju-navy-deep;
+  }
+
+  .z-alert-dialog-action {
+    @apply bg-kaiju-cyan text-kaiju-navy-deep hover:bg-white;
+  }
+
+  .z-alert-dialog-cancel {
+    @apply border border-white/12 bg-transparent text-white hover:border-kaiju-cyan/35 hover:bg-white/5 hover:text-kaiju-cyan;
+  }
+
+  .z-alert-dialog-footer {
+    @apply flex flex-col-reverse gap-2 sm:flex-row sm:justify-end;
+  }
+
+  .z-avatar-group {
+    @apply flex -space-x-2;
+  }
+
+  .z-combobox-clear,
+  .z-sidebar-trigger {
+    @apply text-white/48 hover:text-kaiju-cyan;
+  }
+
+  .z-popover-close-button {
+    @apply inline-flex min-h-10 items-center justify-center rounded-full border border-white/12 bg-transparent px-4 text-sm font-semibold text-white outline-hidden transition duration-200 ease-out hover:border-kaiju-cyan/35 hover:bg-white/5 hover:text-kaiju-cyan focus-visible:ring-2 focus-visible:ring-kaiju-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-kaiju-navy-deep;
+  }
+
+  .z-combobox-listbox,
+  .z-combobox-section,
+  .z-menubar-group,
+  .z-menubar-radio-group {
+    @apply m-0 p-0;
+  }
+
+  .z-combobox-section-label {
+    @apply px-3 py-2 font-mono text-[0.6875rem] font-medium uppercase tracking-[0.058em] text-white/42;
+  }
+
+  .z-field-orientation-vertical {
+    @apply flex-col gap-2;
+  }
+
+  .z-field-orientation-horizontal {
+    @apply flex-row items-center gap-3;
+  }
+
+  .z-field-orientation-responsive {
+    @apply flex-col gap-3;
+  }
+
+  .z-native-select-wrapper,
+  .z-pagination,
+  .z-progress-root,
+  .z-resizable-panel-group {
+    @apply min-w-0;
+  }
+
+  .z-popover-arrow {
+    @apply fill-kaiju-navy stroke-white/12;
+  }
+
+  .z-spinner {
+    @apply size-4 animate-spin text-current;
+  }
+
+  .z-tabs-list-variant-default {
+    @apply rounded-full border border-white/10 bg-white/5 p-1;
+  }
+
+  .z-tabs-list-variant-line {
+    @apply border-b border-white/10;
+  }
+
+  .z-button[data-size="lg"] {
+    @apply hover:scale-[1.035];
+  }
+
+  :is(.z-alert-dialog-overlay, .z-dialog-overlay, .z-sheet-overlay) {
+    animation: z-overlay-out 150ms ease-in both;
+  }
+
+  :is(.z-alert-dialog-overlay, .z-dialog-overlay, .z-sheet-overlay)[data-expanded] {
+    animation: z-overlay-in 180ms ease-out both;
+  }
+
+  :is(.z-alert-dialog-content, .z-dialog-content) {
+    animation: z-dialog-out 150ms ease-in both;
+    transform-origin: center;
+  }
+
+  :is(.z-alert-dialog-content, .z-dialog-content)[data-expanded] {
+    animation: z-dialog-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  :is(
+    .z-combobox-content,
+    .z-context-menu-content,
+    .z-context-menu-sub-content,
+    .z-dropdown-menu-content,
+    .z-dropdown-menu-sub-content,
+    .z-hover-card-content,
+    .z-menubar-content,
+    .z-menubar-sub-content,
+    .z-popover-content,
+    .z-select-content,
+    .z-tooltip-content
+  ) {
+    animation: z-surface-out 120ms ease-in both;
+    transform-origin: var(--kb-popper-content-transform-origin, center);
+  }
+
+  :is(
+    .z-combobox-content,
+    .z-context-menu-content,
+    .z-context-menu-sub-content,
+    .z-dropdown-menu-content,
+    .z-dropdown-menu-sub-content,
+    .z-hover-card-content,
+    .z-menubar-content,
+    .z-menubar-sub-content,
+    .z-popover-content,
+    .z-select-content,
+    .z-tooltip-content
+  )[data-expanded] {
+    animation: z-surface-in 170ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .z-sheet-content[data-side="right"] { animation: z-sheet-right-out 180ms ease-in both; }
+  .z-sheet-content[data-side="right"][data-expanded] { animation: z-sheet-right-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .z-sheet-content[data-side="left"] { animation: z-sheet-left-out 180ms ease-in both; }
+  .z-sheet-content[data-side="left"][data-expanded] { animation: z-sheet-left-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .z-sheet-content[data-side="top"] { animation: z-sheet-top-out 180ms ease-in both; }
+  .z-sheet-content[data-side="top"][data-expanded] { animation: z-sheet-top-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .z-sheet-content[data-side="bottom"] { animation: z-sheet-bottom-out 180ms ease-in both; }
+  .z-sheet-content[data-side="bottom"][data-expanded] { animation: z-sheet-bottom-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  .z-drawer-content {
+    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .z-drawer-overlay {
+    transition: background-color 280ms ease, backdrop-filter 280ms ease;
+  }
+
+  :is(.z-accordion-content, .z-collapsible-content) {
+    animation: z-collapse-out 160ms ease-in both;
+  }
+
+  :is(.z-accordion-content, .z-collapsible-content)[data-expanded] {
+    animation: z-collapse-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .z-tabs-content[data-selected] {
+    animation: z-tab-in 180ms ease-out both;
+  }
+
+  .z-skeleton::after {
+    animation: z-skeleton-shimmer 1.8s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :is(
+      .z-alert-dialog-overlay,
+      .z-dialog-overlay,
+      .z-sheet-overlay,
+      .z-alert-dialog-content,
+      .z-dialog-content,
+      .z-combobox-content,
+      .z-context-menu-content,
+      .z-context-menu-sub-content,
+      .z-dropdown-menu-content,
+      .z-dropdown-menu-sub-content,
+      .z-hover-card-content,
+      .z-menubar-content,
+      .z-menubar-sub-content,
+      .z-popover-content,
+      .z-select-content,
+      .z-tooltip-content,
+      .z-sheet-content,
+      .z-accordion-content,
+      .z-collapsible-content,
+      .z-tabs-content,
+      .z-navigation-menu-viewport,
+      .z-navigation-menu-content,
+      .z-skeleton::after
+    ) {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+    }
+
+    :is(.z-drawer-content, .z-drawer-overlay) {
+      transition-duration: 1ms !important;
+    }
+  }
+
+}

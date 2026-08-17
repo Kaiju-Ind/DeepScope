@@ -1,0 +1,137 @@
+@import 'tailwindcss' source('../');
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import './base.css';
+@import './zaidan-fixes.css';
+@import './zaidan-density.css';
+
+/* Package-contained fonts keep the extension self-hosted and offline-safe. */
+@import '@fontsource-variable/inter/wght.css';
+@import '@fontsource-variable/space-grotesk/wght.css';
+@import '@fontsource/space-mono/400.css';
+@import '@fontsource/space-mono/700.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+	--font-inter: 'Inter Variable', 'Inter', sans-serif;
+	--font-space-grotesk: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
+	--font-space-mono: 'Space Mono', monospace;
+	/* The Platform brand face is intentionally not duplicated as a binary asset here. */
+	--font-american-kestrel: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
+	--breakpoint-xs: 20rem;
+}
+
+@theme inline {
+	--font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif,
+		'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+	--font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+	--font-mono: var(--font-space-mono), ui-monospace, monospace;
+	--font-brand: var(--font-american-kestrel), var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+	--font-logo: var(--font-brand);
+
+	--color-kaiju-cyan: #54def0;
+	--color-kaiju-navy: #07162f;
+	--color-kaiju-navy-deep: #030812;
+
+	--animate-caret-blink: caret-blink 1s ease-out infinite;
+}
+
+@layer base {
+	:root {
+		color-scheme: dark;
+		--chart-1: #54def0;
+		--chart-2: #9ae6b4;
+		--chart-3: #93c5fd;
+		--chart-4: #c4b5fd;
+		--chart-5: #fda4af;
+		--sidebar-border: rgb(255 255 255 / 0.1);
+		--sidebar-accent: rgb(84 222 240 / 0.08);
+		--z-surface: var(--color-kaiju-navy-deep);
+	}
+
+	* {
+		box-sizing: border-box;
+	}
+
+	html {
+		min-width: 18rem;
+		font-family: var(--font-sans);
+		font-weight: var(--font-weight-light);
+		letter-spacing: var(--tracking-normal);
+		background: var(--color-kaiju-navy-deep);
+	}
+
+	body {
+		min-width: 18rem;
+		min-height: 100dvh;
+		margin: 0;
+		background: var(--color-kaiju-navy-deep);
+		color: white;
+	}
+
+	button,
+	input,
+	textarea,
+	select {
+		font: inherit;
+	}
+
+	::selection {
+		background: rgb(84 222 240 / 0.22);
+		color: white;
+	}
+}
+
+@utility no-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+
+@utility details-collapse {
+	interpolate-size: allow-keywords;
+
+	&::details-content {
+		height: 0;
+		overflow: clip;
+		transition:
+			height 300ms cubic-bezier(0.22, 1, 0.36, 1),
+			content-visibility 300ms allow-discrete;
+	}
+
+	&[open]::details-content {
+		height: auto;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		&::details-content {
+			transition: none;
+		}
+	}
+}
+
+@keyframes caret-blink {
+	0%, 70%, 100% { opacity: 1; }
+	20%, 50% { opacity: 0; }
+}
+
+@utility panel-section {
+	@apply rounded-2xl border border-white/10 bg-white/[0.025];
+}
+
+@utility panel-muted {
+	@apply text-white/48;
+}
+
+@utility panel-label {
+	@apply font-mono text-[0.6875rem] font-medium uppercase tracking-[0.058em] text-white/42;
+}
+
+@utility focus-kaiju {
+	@apply outline-hidden focus-visible:ring-2 focus-visible:ring-kaiju-cyan/60;
+}
