@@ -3,7 +3,7 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const bigdatacloudIpGeolocationTechnologyDefinition: TechnologyDefinition = {
 	id: 'bigdatacloud-ip-geolocation',
 	name: 'BigDataCloud IP Geolocation',
-	website: 'https://www.bigdatacloud.com/packages/ip-geolocation',
+	website: 'https://www.bigdatacloud.com/lib/ip-geolocation',
 	description:
 		'BigDataCloud IP Geolocation API provides detailed and accurate locality and security metrics of an IP address.',
 	icon: 'BigDataCloud-IPGeolocation.svg',

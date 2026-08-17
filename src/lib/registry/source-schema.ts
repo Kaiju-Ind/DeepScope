@@ -1,15 +1,15 @@
 import * as z from 'zod/mini';
 
-import { categories } from '../../data/categories';
-import type { CategoryId, TechnologyDefinition } from '../detection/types';
-import type { RegistryValidationResult } from './diagnostics';
-import { diagnosticsFromZodError } from './diagnostics';
-import { REGISTRY_SOURCE_SCHEMA_VERSION, type RegistrySourceSchemaVersion } from './source-schema-version';
+import { categories } from '../../registry/categories.ts';
+import type { CategoryId, TechnologyDefinition } from '../detection/types.ts';
+import type { RegistryValidationResult } from './diagnostics.ts';
+import { diagnosticsFromZodError } from './diagnostics.ts';
+import { REGISTRY_SOURCE_SCHEMA_VERSION, type RegistrySourceSchemaVersion } from './source-schema-version.ts';
 
 z.config({ jitless: true });
 z.config(z.locales.en());
 
-export { REGISTRY_SOURCE_SCHEMA_VERSION, type RegistrySourceSchemaVersion } from './source-schema-version';
+export { REGISTRY_SOURCE_SCHEMA_VERSION, type RegistrySourceSchemaVersion } from './source-schema-version.ts';
 
 /** Detection kinds accepted by the current TypeScript registry schema. */
 const runtimeDetectionKindSchema = z.enum([

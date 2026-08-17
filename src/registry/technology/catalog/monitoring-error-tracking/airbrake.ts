@@ -55,7 +55,7 @@ export const airbrakeTechnologyDefinition: TechnologyDefinition = {
 			id: 'airbrake:scriptContent:modern:6',
 			kind: 'scriptContent',
 			pattern: new RegExp(
-				"\\{\\s*name:\\s*[a-zA-Z_$][a-zA-Z0-9_$]*\\s*,\\s*version:\\s*[a-zA-Z_$][a-zA-Z0-9_$]*\\s*,\\s*url:\\s*['\"']https:\\/\\/github\\.com\\/airbrake\\/airbrake-js\\/tree\\/master\\/packages\\/browser['\"']\\s*\\},",
+				"\\{\\s*name:\\s*[a-zA-Z_$][a-zA-Z0-9_$]*\\s*,\\s*version:\\s*[a-zA-Z_$][a-zA-Z0-9_$]*\\s*,\\s*url:\\s*['\"']https:\\/\\/github\\.com\\/airbrake\\/airbrake-js\\/tree\\/master\\/lib\\/browser['\"']\\s*\\},",
 			),
 			confidence: 75,
 			description: 'Bundled script content matches a modern tooling marker.',

@@ -110,7 +110,7 @@ export const mobxTechnologyDefinition: TechnologyDefinition = {
 			id: 'mobx:scriptContent:modern:9',
 			kind: 'scriptContent',
 			pattern: new RegExp(
-				'https:\\/\\/github\\.com\\/mobxjs\\/mobx\\/blob\\/main\\/packages\\/mobx\\/src\\/errors\\.ts',
+				'https:\\/\\/github\\.com\\/mobxjs\\/mobx\\/blob\\/main\\/lib\\/mobx\\/src\\/errors\\.ts',
 			),
 			confidence: 65,
 			description: 'Bundled script content matches a modern tooling marker.',

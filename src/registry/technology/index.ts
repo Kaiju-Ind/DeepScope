@@ -1,5 +1,5 @@
 import type { CategoryId, DetectionRule, TechnologyDefinition } from '@/lib/detection/types';
-export { SOURCE_LIMITS } from '@/lib/detection/source-limits';
+export { SOURCE_LIMITS } from '../../lib/detection/source-limits.ts';
 import { frameworkTechnologyDefinitions } from './catalog/framework';
 import { uiLibraryTechnologyDefinitions } from './catalog/ui-library';
 import { routerTechnologyDefinitions } from './catalog/router';

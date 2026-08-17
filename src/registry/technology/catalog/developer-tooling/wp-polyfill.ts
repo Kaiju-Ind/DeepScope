@@ -3,7 +3,7 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const wpPolyfillTechnologyDefinition: TechnologyDefinition = {
 	id: 'wp-polyfill',
 	name: 'WordPress Polyfill',
-	website: 'https://developer.wordpress.org/block-editor/reference-guides/packages/packages-polyfill/',
+	website: 'https://developer.wordpress.org/block-editor/reference-guides/lib/lib-polyfill/',
 	description: 'WordPress Polyfill provides browser compatibility helpers for WordPress front-end and editor scripts.',
 	categories: [
 		'developer-tooling',

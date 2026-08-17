@@ -69,7 +69,7 @@ async function generateRegistryJsonAssets(
 ): Promise<void> {
 	const root = wxt.config.root;
 	const [{ technologies }, { compileTechnologyRegistry }] = await Promise.all([
-		import(resolve(root, 'src/data/technologies.ts')) as Promise<{ readonly technologies: readonly TechnologyDefinition[] }>,
+		import(resolve(root, 'src/registry/technologies.ts')) as Promise<{ readonly technologies: readonly TechnologyDefinition[] }>,
 		import(resolve(root, 'src/lib/registry/compiler.ts')) as Promise<{ compileTechnologyRegistry(input: { readonly technologies: readonly TechnologyDefinition[]; readonly sourceKind: 'typescript-definition' }): CompiledTechnologyRegistryArtifact }>,
 	]);
 	const fullArtifact = compileTechnologyRegistry({

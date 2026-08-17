@@ -3,7 +3,7 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const shelfTechnologyDefinition: TechnologyDefinition = {
 	id: 'shelf',
 	name: 'Shelf',
-	website: 'https://pub.dev/packages/shelf',
+	website: 'https://pub.dev/lib/shelf',
 	description: 'Shelf is a server framework for Dart.',
 	icon: 'Dart.svg',
 	categories: [

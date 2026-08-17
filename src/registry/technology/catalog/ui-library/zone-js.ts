@@ -3,7 +3,7 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const zoneJsTechnologyDefinition: TechnologyDefinition = {
 	id: 'zone-js',
 	name: 'Zone.js',
-	website: 'https://github.com/angular/angular/tree/master/packages/zone.js',
+	website: 'https://github.com/angular/angular/tree/master/lib/zone.js',
 	icon: 'Angular.svg',
 	categories: [
 		'ui-library',
