@@ -8,7 +8,7 @@
     "style": "xml",
     "parsableStyle": false,
     "compress": false,
-    "headerText": "Kaiju Site Scope LLM context profile.\n\nThis pack keeps runtime source, tests, architecture docs, build/configuration, and registry compiler/provider code in full. Individual technology rule files under src/lib/detection/rules/<category>/ are intentionally omitted because they form a very large repetitive catalog. The rule layout README and top-level rules/index.ts remain included. For tasks that edit a specific detection rule, generate a task-specific pack with that rule/category included.",
+    "headerText": "Kaiju Deepscope LLM context profile.\n\nThis pack keeps runtime source, tests, architecture docs, build/configuration, and registry compiler/provider code in full. Individual technology rule files under src/registry/technology/<category>/ are intentionally omitted because they form a very large repetitive catalog. The rule layout README and top-level technology/index.ts remain included. For tasks that edit a specific detection rule, generate a task-specific pack with that rule/category included.",
     "fileSummary": true,
     "directoryStructure": true,
     "files": true,
@@ -32,7 +32,7 @@
     "useGitignore": true,
     "useDefaultPatterns": true,
     "customPatterns": [
-      "src/lib/detection/rules/*/*.ts",
+      "src/registry/technology/*/*.ts",
       "public/icons/**",
       "pnpm-lock.yaml",
       "repomix-output.*"
