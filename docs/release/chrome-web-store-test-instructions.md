@@ -7,7 +7,7 @@ when submitting the first public release.
 
 1. Install the submitted extension package.
 2. Open `https://vercel.com/` in a normal tab and wait for the page to finish loading.
-3. Click the Kaiju Site Scope toolbar button.
+3. Click the Kaiju Deepscope toolbar button.
 4. Confirm the side panel opens on **Technologies**, follows the visible tab, and shows or continues the automatically started analysis.
 5. Open one technology result and confirm its evidence appears on the technology detail page.
 6. Open **Scans** and confirm scan state/replay history is separate from the primary technology list.

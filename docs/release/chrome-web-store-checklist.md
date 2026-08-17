@@ -6,12 +6,12 @@ Use this checklist against the final zip, not only the source tree.
 
 - `manifest.json` is at the zip root.
 - `manifest_version` is `3`.
-- `name`, `description`, and `action.default_title` all say Kaiju Site Scope.
+- `name`, `description`, and `action.default_title` all say Kaiju Deepscope.
 - `description` has no trailing quote or stale placeholder copy.
 - `permissions` contains only `activeTab`, `scripting`, `storage`, `offscreen`,
   `sidePanel`, and `clipboardWrite` for the first release.
 - `host_permissions` contains only `http://*/*` and `https://*/*` for automatic normal-page scanning.
-- `minimum_chrome_version` is `116` or newer.
+- `minimum_chrome_version` is `119` or newer.
 - `action` has no `default_popup`; `side_panel.default_path` points to `sidepanel.html`.
 - `options_page` or `options_ui` points to the independently built Diagnostics page.
 

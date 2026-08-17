@@ -1,6 +1,6 @@
 # Runtime concepts
 
-Kaiju Site Scope has several moving pieces because the popup, the background service worker, the content script, and the offscreen matcher can all be alive at different times. The safest mental model is to keep page identity, observation, matching, storage, and replay as separate lanes.
+Kaiju Deepscope has several moving pieces because the popup, the background service worker, the content script, and the offscreen matcher can all be alive at different times. The safest mental model is to keep page identity, observation, matching, storage, and replay as separate lanes.
 
 ## Core model
 

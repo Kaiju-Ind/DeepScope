@@ -38,7 +38,7 @@ When a command cannot be run or cannot complete, record the exact reason. Do not
 Run targeted tests when the full suite is unavailable or when the patch only touches one seam. These commands are examples, not substitutes for full validation before release.
 
 ```bash
-npx vitest run src/tests/panel-state/view-model.test.ts --reporter=verbose
+npx vitest run src/tests/app/model.test.ts --reporter=verbose
 npx vitest run src/tests/storage/cache.test.ts --reporter=verbose
 npx vitest run src/tests/collectors/planning.test.ts --reporter=verbose
 npx vitest run src/tests/messaging/messages.test.ts --reporter=verbose

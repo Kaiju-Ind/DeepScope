@@ -1,6 +1,8 @@
-# Kaiju Site Scope Web Extension
+# Kaiju Deepscope Web Extension
 
 A Chrome-first Manifest V3 technology detector built with WXT, TypeScript, Solid, and `comctx`.
+
+**Browser baseline:** Chrome 119 or newer. The current `comctx` runtime uses `Promise.withResolvers()`, which is part of the extension startup path.
 
 The extension analyzes active `http` or `https` pages locally, turns collected page facts into normalized observations, runs the shared event pipeline, and caches normalized `SiteAnalysis` output with an optional redacted replay trace. Automatic page-load scanning is enabled by default and can be turned off from Settings. Raw page payloads are used only during local analysis and are not stored as cache records.
 
@@ -119,35 +121,21 @@ If you prefer `mise`, it keeps the repo's Node and pnpm versions aligned before 
 ## Project areas
 
 - `src/entrypoints/` — WXT side panel, independent diagnostics/options page, background service worker, content script, and offscreen matcher entrypoints.
-- `src/entrypoints/sidepanel/` — WXT side-panel document and router mount. Shared Kaiju styling lives under `src/styles/`.
-- `src/panel/` — window/tab ownership, routed Technologies/Scans/Diagnostics/Settings pages, shared side-panel state, technology evidence views, and the compact panel shell.
-- `src/ui/` — complete current Platform Zaidan primitive catalogue, including its nested color-mode support, adapted only to the extension import alias and actively used by the routed UI.
-- `src/components/` — reusable cross-route presentation such as the Diagnostics support view shared by the side panel and options page.
-- `src/lib/content/` — DOM collection and observation-session state owned by the content script.
-- `src/lib/collectors/` — extension collection planning plus background-only observation enrichment.
-- `src/lib/contracts/` — serializable analysis and persisted detector contracts shared across runtime surfaces.
-- `src/lib/observations/` — normalized observation contracts, snapshot adapters, and bounded batch controls.
-- `src/lib/detection/` — detector types, rules, normalize, indexed observation matching, graph helpers, validation, and version helpers.
-- `src/lib/evidence/` — event-pipeline evidence contracts, builders, and in-memory repository helpers.
-- `src/lib/candidates/` — candidate aggregation and relationship refinement from evidence entries before final detection emission.
-- `src/lib/dom-selector/` — DOM selector offscreen contracts shared by the content and offscreen entrypoints.
-- `src/lib/emission/` — final `SiteAnalysis` emission from refined candidates.
-- `src/lib/pipeline/` — event pipeline runtime, observation-batch runtime, replay trace, and explanation generation.
-- `src/lib/messaging/` — typed `comctx` message contracts and adapters for side-panel, background, and content contexts.
-- `src/lib/background/` — browser-agnostic background orchestration plus matcher-interruption reconciliation.
-- `src/lib/diagnostics/` — LogTape configuration, crash hooks, bounded durable journal, and support-report generation.
-- `src/lib/persistence/` — persistence ports and browser-backed implementations that keep orchestration independent from storage APIs.
-- `src/lib/privacy/` — diagnostic and evidence redaction rules applied before durable support data is written.
-- `src/lib/panel/` — side-panel view-model and durable snapshot projection helpers that do not own browser routing or presentation.
-- `src/lib/storage/` — normalized analysis/replay caches, durable matcher lifecycle records, and aggregate status helpers.
-- `src/lib/browser/` — tab helpers owned by privileged contexts.
-- `src/data/` — category labels and bundled technology registry exports.
-- `src/tests/` — Vitest coverage for detector behavior, event pipeline stages, collector planning, content observation, tab-following lifecycle, routed UI architecture, durable diagnostics, storage semantics, and shared fixtures.
-- `public/icons/` — placeholder extension icon files.
+- `src/app/` — mounted side-panel application: browser-window/tab ownership, routed Summary/Technologies/Scans/Diagnostics/Settings pages, page-specific state projections, and presentation components.
+- `src/ui/` — complete current Platform Zaidan primitive catalogue, adapted only where the extension needs a local integration such as typed router links.
+- `src/hooks/` — UI hooks copied with the Zaidan component catalogue when a component directly depends on them.
+- `src/lib/` — concrete extension capabilities such as collection, detection, evidence, messaging, persistence, diagnostics, observation, matching, and browser orchestration.
+- `src/registry/` — declarative technology and category definitions. Registry files describe what can be detected; they do not own browser work or runtime orchestration.
+- `src/utils/` — generic TypeScript primitives whose APIs do not depend on Kaiju detector concepts.
+- `src/styles/` — Platform/Zaidan CSS foundations plus side-panel-specific composition styles.
+- `src/tests/` — Vitest behavior, lifecycle, architecture, storage, diagnostics, registry, and detector tests. Side-panel application tests live under `src/tests/app/`.
+- `public/icons/` — extension icon files consumed by the generated manifest.
+
+Concrete capabilities stay in `src/lib/`; declarative detector definitions stay in `src/registry/`; generic reusable primitives stay in `src/utils/`; and WXT entrypoints only compose those pieces into browser-owned execution surfaces.
 
 ## Registry baseline
 
-The bundled registry is generated from the TypeScript rule tree under `src/lib/detection/rules/` and re-exported through `src/data/technologies.ts`. The compiled registry artifact exposes matcher indexes, relationship graphs, collection plans, source maps, and diagnostics. The long-term architecture still allows a JSON or YAML source migration, but the current extension runtime already consumes compiled artifacts for event matching and graph refinement.
+The bundled registry is generated from the declarative TypeScript technology tree under `src/registry/technology/` and re-exported through `src/registry/technologies.ts`. The compiled registry artifact exposes matcher indexes, relationship graphs, collection plans, source maps, and diagnostics. The long-term architecture still allows a JSON or YAML source migration, but the current extension runtime already consumes compiled artifacts for event matching and graph refinement.
 
 ## Privacy notes
 
