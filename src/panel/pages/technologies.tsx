@@ -1,134 +1,141 @@
+import RefreshIcon from '~icons/fluent/arrow-clockwise-24-regular';
+import { Link } from '@tanstack/solid-router';
 import { For, Show } from 'solid-js';
 
-import { CategoryGroup } from '@/components/CategoryGroup';
-import { EmptyState } from '@/components/EmptyState';
-import type { DetectionReplaySummary } from '@/lib/contracts/detection-session';
-import type { DetectionReplayTrace } from '@/lib/pipeline';
 import { useTechnologies } from '@/panel/context';
-import { PanelShell } from '@/panel/shell';
+import { Alert, AlertDescription, AlertTitle } from '@/ui/alert';
+import { Badge } from '@/ui/badge';
+import { Button } from '@/ui/button';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/ui/empty';
+import { Spinner } from '@/ui/spinner';
 
-/** Format replay timestamps for the compact history list. */
-function formatReplayTime(trace: DetectionReplayTrace) {
-	return new Date(trace.analyzedAt).toLocaleString();
-}
-
-/** Summarize a full replay trace without exposing raw page observations. */
-function formatReplaySummary(trace: DetectionReplayTrace) {
-	return `${trace.resultCount} detection${trace.resultCount === 1 ? '' : 's'}`;
-}
-
-/** Summarize the latest stored replay receipt when full history is not hydrated yet. */
-function formatReplaySummarySnapshot(summary: DetectionReplaySummary) {
-	return `${summary.resultCount} detection${summary.resultCount === 1 ? '' : 's'} · ${summary.eventCount} replay event${summary.eventCount === 1 ? '' : 's'}`;
-}
-
-function LoadingState(props: { readonly headline: string; readonly message: string }) {
-	return (
-		<div class="loading-state" role="status" aria-live="polite">
-			<span class="loading-spinner" aria-hidden="true" />
-			<div>
-				<strong>{props.headline}</strong>
-				<p>{props.message}</p>
-			</div>
-		</div>
-	);
-}
-
-/** Latest normalized technology detections and their stored replay history. */
+/** Primary extension view: technologies detected on the currently active tab. */
 export function TechnologiesPage() {
-	const panel = useTechnologies();
+	const technologies = useTechnologies();
+	const count = () => technologies.analysis()?.results.length ?? 0;
 
 	return (
-		<PanelShell.ResultPanel
-			modeChip={(
-				<Show when={panel.analysis()}>
-					{(value) => <span class="mode-chip">{value().source}</span>}
+		<>
+			<header class="k-page-header">
+				<div class="k-page-heading">
+					<p class="k-page-eyebrow">Current tab</p>
+					<h1 class="k-page-title">Technologies</h1>
+					<p class="k-page-description">
+						{technologies.analysis()?.hostname ?? technologies.visibleTabIdentity()?.hostname ?? 'Open an HTTP or HTTPS page to inspect it.'}
+					</p>
+				</div>
+				<Button
+					variant="outline"
+					size="icon-sm"
+					aria-label="Refresh technology analysis"
+					disabled={technologies.busy()}
+					onClick={() => void technologies.refresh()}
+				>
+					<RefreshIcon />
+				</Button>
+			</header>
+
+			<div class="flex flex-wrap items-center gap-2">
+				<Badge>{count()} {count() === 1 ? 'technology' : 'technologies'}</Badge>
+				<Show when={technologies.analysis()}>
+					{(analysis) => <Badge variant="outline">{analysis().source}</Badge>}
 				</Show>
-			)}
-			meta={
-				panel.analysisActivity().busy
-					? panel.analysisActivity().description
-					: panel.hasLateDetections()
-						? `${panel.lateAddedIds().length} detection${panel.lateAddedIds().length === 1 ? '' : 's'} changed during recent analysis updates and are marked below.`
-						: panel.liveUpdateMode() === 'active'
-							? 'Initial scan is complete. Observed page updates will appear separately as new evidence arrives.'
-							: panel.liveUpdateMode() === 'stopped'
-								? 'Observation is stopped. The latest detector snapshot remains visible until refresh starts a new session.'
-								: 'Showing the latest detector snapshot for this page.'
-			}
-		>
+				<Show when={technologies.liveUpdateMode() === 'active'}>
+					<Badge variant="secondary">Observing</Badge>
+				</Show>
+			</div>
+
+			<Show when={technologies.errorMessage()}>
+				{(message) => (
+					<Alert variant="destructive">
+						<AlertTitle>Analysis failed</AlertTitle>
+						<AlertDescription>{message()}</AlertDescription>
+					</Alert>
+				)}
+			</Show>
+			<Show when={technologies.notice()}>
+				{(notice) => (
+					<Alert>
+						<AlertTitle>{notice().variant === 'success' ? 'Analysis updated' : 'Analysis status'}</AlertTitle>
+						<AlertDescription>{notice().text}</AlertDescription>
+					</Alert>
+				)}
+			</Show>
+
+			<Show when={technologies.analysisActivity().busy}>
+				<div class="panel-section flex items-start gap-3 p-3" role="status" aria-live="polite">
+					<Spinner class="mt-0.5 size-4 text-kaiju-cyan" />
+					<div>
+						<p class="text-sm font-medium text-white">{technologies.analysisActivity().headline}</p>
+						<p class="mt-1 text-xs leading-5 text-white/48">{technologies.analysisActivity().description}</p>
+					</div>
+				</div>
+			</Show>
+
 			<Show
-				when={panel.analysis()}
-				fallback={<EmptyState message="Opening the popup loads the latest detections automatically." />}
+				when={technologies.analysis()}
+				fallback={(
+					<Empty class="panel-section min-h-48 p-6">
+						<EmptyHeader>
+							<EmptyTitle>No site analysis yet</EmptyTitle>
+							<EmptyDescription>Kaiju scans the active page when this panel opens or when you press Refresh.</EmptyDescription>
+						</EmptyHeader>
+					</Empty>
+				)}
 			>
-				{(value) => (
+				{(analysis) => (
 					<Show
-						when={value().results.length}
+						when={analysis().results.length > 0}
 						fallback={(
-							<Show
-								when={panel.analysisActivity().busy}
-								fallback={<EmptyState message="No technologies detected yet." />}
-							>
-								<LoadingState
-									headline={panel.analysisActivity().headline}
-									message={panel.analysisActivity().description}
-								/>
-							</Show>
+							<Empty class="panel-section min-h-48 p-6">
+								<EmptyHeader>
+									<EmptyTitle>No technologies detected</EmptyTitle>
+									<EmptyDescription>The current evidence does not match a registry technology yet.</EmptyDescription>
+								</EmptyHeader>
+							</Empty>
 						)}
 					>
-						<For each={panel.groupedResults()}>
-							{(group) => (
-								<CategoryGroup
-									label={group.label}
-									results={group.results}
-									newDetectionIds={panel.lateAddedIds()}
-									explanationsByTechnologyId={panel.explanationsByTechnologyId()}
-								/>
-							)}
-						</For>
-						<Show when={!panel.analysisActivity().busy && (Boolean(panel.latestReplaySummary()) || panel.replayHistory().length > 0)}>
-							<PanelShell.ReplayHistory>
-								<div class="replay-history-heading">
-									<h3>Replay History</h3>
-									<p class="result-meta">
-										{panel.matcherStatus() === 'recording' || panel.matcherStatus() === 'matching'
-											? 'Current run is still recording. Stored summaries appear here as soon as snapshot persistence completes.'
-											: panel.liveUpdateMode() === 'active'
-												? 'A saved replay receipt is available, but page observation is still open and new detections can still arrive.'
-												: 'Replay receipts that match the visible detector run. Open one to inspect the saved explanation count.'}
-									</p>
-									<Show when={panel.latestReplaySummary()}>
-										{(summary) => (
-											<p class="result-meta">Latest stored summary: {formatReplaySummarySnapshot(summary())}</p>
-										)}
-									</Show>
-								</div>
-								<Show when={panel.replayHistory().length > 0}>
-									<ol class="replay-history-list">
-										<For each={panel.replayHistory().slice(0, 5)}>
-											{(trace) => (
-												<li>
-													<details>
-														<summary>
-															<span>{formatReplayTime(trace)}</span>
-															<span>{formatReplaySummary(trace)}</span>
-														</summary>
-														<ul class="evidence-list replay-event-list">
-															<For each={trace.events}>
-																{(event) => <li>{event.sequence + 1}. {event.stage}: {event.count}</li>}
-															</For>
-														</ul>
-													</details>
-												</li>
-											)}
-										</For>
-									</ol>
-								</Show>
-							</PanelShell.ReplayHistory>
-						</Show>
+						<div class="grid gap-5">
+							<For each={technologies.groupedResults()}>
+								{(group) => (
+									<section>
+										<div class="k-category-heading">
+											<h2 class="k-category-name">{group.label}</h2>
+											<span class="k-category-count">{group.results.length}</span>
+										</div>
+										<div class="k-card-list">
+											<For each={group.results}>
+												{(result) => (
+													<Link
+														to="/technology/$technologyId"
+														params={{ technologyId: result.technologyId }}
+														class="k-tech-row"
+													>
+														<div class="k-tech-icon" aria-hidden="true">{result.name.slice(0, 1).toUpperCase()}</div>
+														<div class="min-w-0 flex-1">
+															<div class="flex min-w-0 items-center gap-2">
+																<p class="k-tech-title">{result.name}</p>
+																<Show when={technologies.lateAddedIds().includes(result.technologyId)}>
+																	<Badge variant="outline">New</Badge>
+																</Show>
+															</div>
+															<div class="k-tech-meta">
+																<Show when={result.version}><span>v{result.version}</span></Show>
+																<span>{result.evidence.length} {result.evidence.length === 1 ? 'signal' : 'signals'}</span>
+																<span>{result.confidence.level}</span>
+															</div>
+														</div>
+													</Link>
+												)}
+											</For>
+										</div>
+									</section>
+								)}
+							</For>
+						</div>
 					</Show>
 				)}
 			</Show>
-		</PanelShell.ResultPanel>
+		</>
 	);
 }

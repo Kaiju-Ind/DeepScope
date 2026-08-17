@@ -17,7 +17,7 @@ export type ObservationBatchDropReason = 'duplicate' | 'queue-limit' | 'storm-li
  *
  * `maxBatchObservations` controls the size of each emitted batch. The other
  * limits control the in-memory queue so event storms cannot grow without bound
- * while the popup or background is waiting to refresh analysis.
+ * while the side panel or background is waiting to refresh analysis.
  */
 export interface ObservationBatchPolicy {
 	/** Maximum observations emitted by one `flush(...)` call. */

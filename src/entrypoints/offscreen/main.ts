@@ -1,3 +1,5 @@
+import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
+import { configureKaijuSiteScopeLogging, getKaijuSiteScopeLogger } from '@/lib/diagnostics/logging';
 import { browser } from 'wxt/browser';
 
 import {
@@ -18,6 +20,11 @@ import {
 	type RunMatcherJobRequest,
 } from '@/lib/matcher/contracts';
 import { createMatcherPartitionTasks, createMatcherPipelineResult } from '@/lib/matcher/partition';
+
+configureKaijuSiteScopeLogging('offscreen');
+installDiagnosticCrashHooks('offscreen');
+
+const offscreenLogger = getKaijuSiteScopeLogger('offscreen', 'matcher-host');
 
 /** Default worker count used before benchmark data justifies a larger pool. */
 const DEFAULT_WORKER_COUNT = 2;
@@ -96,8 +103,10 @@ class MatcherWorkerPool {
 /** Dedicated worker wrapper that runs one partition at a time. */
 class MatcherWorkerSlot {
 	readonly #worker: Worker;
+	readonly #index: number;
 
 	constructor(index: number) {
+		this.#index = index;
 		this.#worker = new Worker(new URL('./matcher.worker.ts', import.meta.url), {
 			type: 'module',
 			name: `kaiju-site-scope-matcher-${index}`,
@@ -109,6 +118,7 @@ class MatcherWorkerSlot {
 			const cleanup = (): void => {
 				this.#worker.removeEventListener('message', onMessage);
 				this.#worker.removeEventListener('error', onError);
+				this.#worker.removeEventListener('messageerror', onMessageError);
 			};
 			const onMessage = (event: MessageEvent<MatcherWorkerResponseMessage>): void => {
 				if (event.data.type === 'matcher-worker.partition-complete') {
@@ -118,21 +128,65 @@ class MatcherWorkerSlot {
 				}
 				if (event.data.partitionId === task.partitionId) {
 					cleanup();
-					reject(new Error(event.data.message));
+					const error = new Error(event.data.message);
+					offscreenLogger.error('Matcher worker reported a partition failure.', {
+						error,
+						workerIndex: this.#index,
+						jobId: task.job.jobId,
+						partitionId: task.partitionId,
+						kind: task.kind,
+					});
+					reject(error);
 				}
 			};
 			const onError = (event: ErrorEvent): void => {
 				cleanup();
-				reject(new Error(event.message));
+				const error = event.error instanceof Error ? event.error : new Error(event.message || 'Matcher worker failed.');
+				offscreenLogger.error('Matcher worker JavaScript error.', {
+					error,
+					workerIndex: this.#index,
+					jobId: task.job.jobId,
+					partitionId: task.partitionId,
+					kind: task.kind,
+					filename: event.filename,
+					line: event.lineno,
+					column: event.colno,
+				});
+				reject(error);
+			};
+			const onMessageError = (): void => {
+				cleanup();
+				const error = new Error('Matcher worker returned a message that could not be deserialized.');
+				offscreenLogger.error('Matcher worker message deserialization failed.', {
+					error,
+					workerIndex: this.#index,
+					jobId: task.job.jobId,
+					partitionId: task.partitionId,
+					kind: task.kind,
+				});
+				reject(error);
 			};
 
 			this.#worker.addEventListener('message', onMessage);
 			this.#worker.addEventListener('error', onError);
+			this.#worker.addEventListener('messageerror', onMessageError);
 			const message: MatcherWorkerRunMessage = {
 				type: 'matcher-worker.run-partition',
 				task,
 			};
-			this.#worker.postMessage(message);
+			try {
+				this.#worker.postMessage(message);
+			} catch (error) {
+				cleanup();
+				offscreenLogger.error('Matcher worker dispatch failed.', {
+					error,
+					workerIndex: this.#index,
+					jobId: task.job.jobId,
+					partitionId: task.partitionId,
+					kind: task.kind,
+				});
+				reject(error);
+			}
 		});
 	}
 

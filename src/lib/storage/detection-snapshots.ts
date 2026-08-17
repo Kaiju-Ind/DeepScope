@@ -43,7 +43,7 @@ import {
  * Persist the latest visible detection snapshot for one page session.
  *
  * Snapshot revisions are monotonic per session. A stale write returns the stored
- * snapshot instead of mutating storage, which protects the popup from applying an
+ * snapshot instead of mutating storage, which protects the side panel from applying an
  * older content or background response after a newer revision has already landed.
  */
 export async function saveDetectionSessionSnapshot(
@@ -118,7 +118,7 @@ export async function getLatestDetectionOriginSnapshot(
  * Exact page-session snapshots win because they prove the result belongs to the
  * active tab and URL. The origin pointer is only a fallback when it still matches
  * the exact visible identity, so a queued background response cannot erase the
- * popup with an empty placeholder after the tab already produced detections.
+ * side panel with an empty placeholder after the tab already produced detections.
  */
 export async function getBestVisibleDetectionSessionSnapshot(
 	identity: VisibleTabIdentity,
@@ -215,7 +215,7 @@ export async function removeDetectionSessionIndex(tabId: number): Promise<void> 
  *
  * Navigation and tab removal can happen while the background has no reliable
  * in-memory session. The tab index lets the lifecycle listener update stored
- * snapshots directly so a popup does not keep rendering an observing session for
+ * snapshots directly so a side panel does not keep rendering an observing session for
  * a document that can no longer produce content events.
  */
 export async function markDetectionSessionSnapshotsForTab(
@@ -319,7 +319,7 @@ async function getStoredDetectionSnapshot(storageKey: string): Promise<Detection
  *
  * Content snapshots describe page-session lifecycle. They can preserve detector output
  * for the exact session, but they must not become the origin-level startup record
- * when they only carry an empty bootstrap analysis. Popup startup uses the origin
+ * when they only carry an empty bootstrap analysis. Side panel startup uses the origin
  * record as its snapshot-first render path, so detector output must outrank lifecycle
  * updates even when the lifecycle update was written later.
  */
@@ -369,7 +369,7 @@ function isOriginSnapshotNewer(
  *
  * Content revisions can be newer because observers are active, but a newer empty
  * content record should not replace a background/cache detector result when the
- * popup opens again. A content snapshot that preserves real detections stays useful
+ * side panel opens again. A content snapshot that preserves real detections stays useful
  * as a lower-ranked fallback for exact-session lifecycle reads.
  */
 function getOriginSnapshotRank(snapshot: DetectionSessionSnapshot): number {
@@ -511,7 +511,7 @@ export async function refreshDetectionStorageStatusSnapshot(): Promise<Detection
 	return status;
 }
 
-/** Return whether a snapshot still belongs to the popup-visible tab identity. */
+/** Return whether a snapshot still belongs to the side panel-visible tab identity. */
 function isSnapshotForVisibleIdentity(
 	identity: VisibleTabIdentity,
 	snapshot: DetectionSessionSnapshot,
@@ -524,7 +524,7 @@ function isSnapshotForVisibleIdentity(
 	);
 }
 
-/** Detector-owned or detection-bearing snapshots are safe as first popup paint. */
+/** Detector-owned or detection-bearing snapshots are safe as first side panel paint. */
 function isRenderableDetectorSnapshot(snapshot: DetectionSessionSnapshot): boolean {
 	if (snapshot.source === 'background' || snapshot.source === 'cache') {
 		return true;
@@ -537,7 +537,7 @@ function isRenderableDetectorSnapshot(snapshot: DetectionSessionSnapshot): boole
  * Return whether a storage value matches the durable snapshot envelope.
  *
  * Storage change listeners receive unknown values from every extension context.
- * The guard keeps popup streaming on the normalized snapshot contract instead
+ * The guard keeps side panel streaming on the normalized snapshot contract instead
  * of trusting arbitrary records that happen to share the same storage area.
  */
 export function isDetectionSessionSnapshot(value: unknown): value is DetectionSessionSnapshot {
@@ -764,7 +764,7 @@ function isDetectionReplaySummary(value: unknown): value is DetectionReplaySumma
 	);
 }
 
-/** Guard the analysis envelope fields needed by popup rendering and cache recovery. */
+/** Guard the analysis envelope fields needed by side panel rendering and cache recovery. */
 function isSnapshotSiteAnalysis(value: unknown): value is SiteAnalysis {
 	if (typeof value !== 'object' || value === null) {
 		return false;

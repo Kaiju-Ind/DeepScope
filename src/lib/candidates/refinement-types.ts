@@ -6,7 +6,7 @@ import type { EvidenceCandidate, EvidenceCandidateBatch } from './types';
  * Policy values used by candidate relationship refinement.
  *
  * The stage is still pre-output: the values here decide how graph-created
- * candidates are represented, not whether a technology is shown in the popup.
+ * candidates are represented, not whether a technology is shown in the side panel.
  */
 export interface EvidenceCandidateRefinementPolicy {
 	/** Confidence assigned to candidates that are created only through `implies`. */

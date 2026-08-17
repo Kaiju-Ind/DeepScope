@@ -58,6 +58,9 @@ export type ScansPageType = Pick<
 	| 'liveUpdateChipLabel'
 	| 'evidenceCompletenessLabel'
 	| 'analysisActivity'
+	| 'matcherStatus'
+	| 'replayHistory'
+	| 'latestReplaySummary'
 	| 'refresh'
 	| 'stopObservation'
 >;
@@ -68,6 +71,7 @@ export type SettingsPageType = Pick<
 	| 'autoScanEnabled'
 	| 'autoScanSettingInFlight'
 	| 'clearStoredDataInFlight'
+	| 'status'
 	| 'setAutoScanEnabled'
 	| 'clearStoredData'
 >;
@@ -76,15 +80,22 @@ export type SettingsPageType = Pick<
 export type TechnologiesPageType = Pick<
 	PanelContextType,
 	| 'analysis'
+	| 'busy'
 	| 'liveUpdateMode'
+	| 'notice'
+	| 'errorMessage'
+	| 'visibleTabIdentity'
 	| 'lateAddedIds'
-	| 'explanationsByTechnologyId'
-	| 'matcherStatus'
-	| 'replayHistory'
-	| 'latestReplaySummary'
 	| 'groupedResults'
-	| 'hasLateDetections'
 	| 'analysisActivity'
+	| 'refresh'
+>;
+
+/** State required by one technology detail page. */
+export type TechnologyPageType = Pick<
+	PanelContextType,
+	| 'analysis'
+	| 'explanationsByTechnologyId'
 >;
 
 export const PanelContext = createContext<PanelContextType>();
@@ -111,5 +122,10 @@ export function useSettings(): SettingsPageType {
 
 /** Return only the state used by the technology result page. */
 export function useTechnologies(): TechnologiesPageType {
+	return usePanel();
+}
+
+/** Return only the state used by one technology detail page. */
+export function useTechnology(): TechnologyPageType {
 	return usePanel();
 }

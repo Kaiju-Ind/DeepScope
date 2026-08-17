@@ -76,7 +76,7 @@ export interface RunDetectionPipelineInput {
 
 /** Output from one event detector pass. */
 export interface DetectionPipelineRuntimeResult {
-	/** Final analysis object compatible with storage, messaging, and popup rendering. */
+	/** Final analysis object compatible with storage, messaging, and side panel rendering. */
 	readonly analysis: SiteAnalysis;
 	/** Path the caller asked the coordinator to use. */
 	readonly requestedMode: DetectionPipelineMode;
@@ -102,7 +102,7 @@ interface DetectionPipelineEventRecorder {
  * The old direct analyzer is no longer part of this coordinator: snapshots are
  * immediately normalized into observations, then rule matches become evidence,
  * evidence becomes candidates, graph rules refine those candidates, and final
- * detections are emitted for storage and popup rendering.
+ * detections are emitted for storage and side panel rendering.
  */
 export function runDetectionPipeline(input: RunDetectionPipelineInput): DetectionPipelineRuntimeResult {
 	const events: DetectionPipelineRuntimeEvent[] = [];

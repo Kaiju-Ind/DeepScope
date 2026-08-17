@@ -32,7 +32,7 @@ export interface DetectionSessionSnapshotWriteResult {
 	readonly rejectedByRevision?: number;
 }
 
-/** Read-only snapshot capabilities consumed by popup and background application code. */
+/** Read-only snapshot capabilities consumed by side panel and background application code. */
 export interface DetectionSnapshotReader {
 	getBestVisibleSnapshot(identity: VisibleTabIdentity): Promise<DetectionSessionSnapshot | null>;
 	getSessionIndex(tabId: number): Promise<DetectionSessionIndexRecord>;

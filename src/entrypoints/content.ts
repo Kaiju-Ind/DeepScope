@@ -9,6 +9,7 @@ import {
 } from "@/lib/content/observed-page-signals";
 import { writeContentPageSessionSnapshot } from "@/lib/content/page-session-snapshots";
 import { validatePageSignals } from "@/lib/detection/validate";
+import { installDiagnosticCrashHooks } from "@/lib/diagnostics/crash";
 import { configureKaijuSiteScopeLogging, getKaijuSiteScopeLogger } from "@/lib/diagnostics/logging";
 import type { CollectPageSignalsInput, ContentApi } from "@/lib/messaging";
 import {
@@ -29,6 +30,7 @@ import {
 import { errorResponse, ok } from "@/lib/shared/result";
 
 configureKaijuSiteScopeLogging("content");
+installDiagnosticCrashHooks("content", { captureGlobalError: false });
 
 const contentLogger = getKaijuSiteScopeLogger("content");
 const DOM_MUTATION_THROTTLE_MS = 1_500;
@@ -234,7 +236,10 @@ async function collectSignals(
     const snapshot = await timeAsyncSpan(
       'content.observed-signals.snapshot',
       timingContext,
-      () => observedSignals.snapshot(),
+      () => observedSignals.snapshot({
+        includeScriptContent: input.includeScriptContent,
+        includeStylesheetContent: input.includeStylesheetContent,
+      }),
       (value) => ({
         scriptCount: value.scripts?.length ?? 0,
         stylesheetCount: value.stylesheets?.length ?? 0,
@@ -345,7 +350,7 @@ export function createContentRuntime(observedSignals: ObservedPageSignals): Cont
   }
 
   /**
-   * Content lifecycle changes become durable popup-visible revisions when the
+   * Content lifecycle changes become durable side-panel-visible revisions when the
    * background has supplied a storage target for the current tab document. The
    * write runs outside the RPC response so observation can start and flush
    * without waiting on storage latency.
@@ -389,6 +394,8 @@ export function createContentRuntime(observedSignals: ObservedPageSignals): Cont
         throttleMs: input.policy.throttleMs,
         maxPendingNodes: input.policy.maxPendingNodes,
         maxMutations: input.policy.maxMutations,
+        includeScriptContent: input.includeScriptContent === true,
+        includeStylesheetContent: input.includeStylesheetContent === true,
         domSelectorCount: input.domSelectorPlan?.selectors.length ?? 0,
       });
 
@@ -399,6 +406,8 @@ export function createContentRuntime(observedSignals: ObservedPageSignals): Cont
         durationMs: input.policy.durationMs,
         maxPendingNodes: input.policy.maxPendingNodes,
         maxMutations: input.policy.maxMutations,
+        ...(input.includeScriptContent === undefined ? {} : { includeScriptContent: input.includeScriptContent }),
+        ...(input.includeStylesheetContent === undefined ? {} : { includeStylesheetContent: input.includeStylesheetContent }),
         domSelectorPlan: input.domSelectorPlan,
       });
       publishContentSnapshot("observing", {

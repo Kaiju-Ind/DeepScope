@@ -123,7 +123,7 @@ export interface PackagedRegistryShardManifestAsset {
 	readonly generatedAt: number;
 }
 
-/** Metadata asset used by tests, diagnostics, and future popup display loading. */
+/** Metadata asset used by tests, diagnostics, and future side-panel display loading. */
 export interface PackagedRegistryMetadataAsset {
 	/** Asset schema version checked before consumers trust the payload. */
 	readonly schemaVersion: PackagedRegistryAssetSchemaVersion;

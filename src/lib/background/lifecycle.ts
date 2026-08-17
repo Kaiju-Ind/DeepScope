@@ -27,7 +27,7 @@ export interface RegisterBackgroundLifecycleListenersInput {
  * Register lifecycle listeners that do not need the detector registry.
  *
  * Manifest V3 can wake the background service worker for tab events before a
- * popup command asks for analysis. The listeners stay lightweight: they mark
+ * side panel command asks for analysis. The listeners stay lightweight: they mark
  * stored snapshot revisions stale or stopped and prune disposable maps, but they
  * do not import registry data, run detection, or inject content scripts.
  */

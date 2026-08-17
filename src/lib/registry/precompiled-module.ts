@@ -15,7 +15,7 @@ export interface RenderPrecompiledRegistryModuleInput {
  *
  * The matcher index is emitted as references into the generated technology array.
  * That keeps rule objects shared with the emitted registry while avoiding the
- * first-popup work of flattening rules, routing matcher buckets, and rebuilding
+ * first-panel work of flattening rules, routing matcher buckets, and rebuilding
  * relationship tables inside the background service worker.
  */
 export function renderPrecompiledRegistryModule(

@@ -1,43 +1,78 @@
 import { useSettings } from '@/panel/context';
+import { Button } from '@/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
+import { ButtonLink } from '@/ui/router-link';
+import { Switch } from '@/ui/switch';
 
-/** Automatic scan and locally stored detector-data controls. */
+/** Automatic scan, local storage, and privacy controls. */
 export function SettingsPage() {
 	const panel = useSettings();
 
 	return (
 		<>
-			<section class="auto-scan-setting" aria-label="Automatic scanning">
-				<label class="auto-scan-toggle">
-					<input
-						type="checkbox"
-						checked={panel.autoScanEnabled()}
-						disabled={panel.autoScanSettingInFlight()}
-						onChange={(event) => void panel.setAutoScanEnabled(event.currentTarget.checked)}
-					/>
-					<span>
-						<strong>Scan pages automatically</strong>
-						<small>
-							Start a bounded local analysis when an active HTTP or HTTPS page finishes loading. Turn this off to scan only when you open this panel or press Refresh.
-						</small>
-					</span>
-				</label>
-			</section>
+			<header class="k-page-header">
+				<div class="k-page-heading">
+					<p class="k-page-eyebrow">Extension preferences</p>
+					<h1 class="k-page-title">Settings</h1>
+					<p class="k-page-description">Choose when Kaiju scans pages and manage data stored by the extension.</p>
+				</div>
+			</header>
 
-			<section class="privacy-disclosure" aria-label="Privacy and local storage">
-				<div>
-					<strong>Local page analysis</strong>
-					<p>
-						When automatic scanning is enabled, Kaiju Site Scope can inspect normal HTTP/HTTPS pages as they become active. Detection runs locally; results, replay summaries, and cache records stay in extension storage unless you clear them or uninstall the extension.
+			<section class="k-setting-row" aria-labelledby="automatic-scan-title">
+				<div class="k-setting-copy">
+					<h2 id="automatic-scan-title" class="k-setting-title">Scan pages automatically</h2>
+					<p class="k-setting-description">
+						Start a bounded local analysis when the active HTTP or HTTPS page finishes loading. Turn this off to scan only when you open the panel or press Refresh.
 					</p>
 				</div>
-				<button
-					class="secondary-button compact-button"
-					disabled={panel.clearStoredDataInFlight()}
-					onClick={() => void panel.clearStoredData()}
-				>
-					{panel.clearStoredDataInFlight() ? 'Clearing...' : 'Clear stored detector data'}
-				</button>
+				<Switch
+					checked={panel.autoScanEnabled()}
+					disabled={panel.autoScanSettingInFlight()}
+					onChange={(enabled) => void panel.setAutoScanEnabled(enabled)}
+					aria-label="Scan pages automatically"
+				/>
 			</section>
+
+			<Card size="sm">
+				<CardHeader>
+					<CardTitle>Local detector data</CardTitle>
+					<CardDescription>Detection results and replay summaries stay in extension storage until you clear them or uninstall Kaiju Site Scope.</CardDescription>
+				</CardHeader>
+				<CardContent class="grid gap-4">
+					<div class="grid grid-cols-2 gap-2">
+						<SettingMetric label="Cached analyses" value={panel.status.totalAnalyses} />
+						<SettingMetric label="Tracked origins" value={panel.status.trackedOrigins} />
+					</div>
+					<Button
+						variant="outline"
+						disabled={panel.clearStoredDataInFlight()}
+						onClick={() => void panel.clearStoredData()}
+					>
+						{panel.clearStoredDataInFlight() ? 'Clearing detector data' : 'Clear detector data'}
+					</Button>
+				</CardContent>
+			</Card>
+
+			<Card size="sm">
+				<CardHeader>
+					<CardTitle>Crash diagnostics</CardTitle>
+					<CardDescription>
+						Kaiju keeps a bounded local diagnostic journal with lifecycle states, errors, timings, and redacted support fields. It does not intentionally store raw page HTML, cookies, authorization values, or request bodies in the journal.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<ButtonLink to="/diagnostics" variant="outline">Open diagnostics</ButtonLink>
+				</CardContent>
+			</Card>
 		</>
+	);
+}
+
+function SettingMetric(props: { readonly label: string; readonly value: number }) {
+	return (
+		<div class="rounded-lg border border-white/8 bg-white/[0.025] p-3">
+			<p class="panel-label">{props.label}</p>
+			<p class="mt-1 text-lg font-semibold text-white">{props.value}</p>
+		</div>
 	);
 }

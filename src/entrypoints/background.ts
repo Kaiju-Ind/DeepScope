@@ -2,11 +2,13 @@ import { defineProxy } from 'comctx';
 import { browser } from 'wxt/browser';
 
 import { registerBackgroundLifecycleListeners } from '@/lib/background/lifecycle';
+import { reconcileInterruptedMatcherJobs } from '@/lib/background/reconcile-matcher-jobs';
 import { createAutoScanController } from '@/lib/autostart/controller';
 import { getAutoScanEnabled } from '@/lib/autostart/settings';
 import { createBackgroundRuntime } from '@/lib/background/runtime';
 import { collectExtensionObservationBatch } from '@/lib/collectors/extension-page-collector';
 import { bundledTechnologyRegistryProvider } from '@/lib/detection/registry-provider';
+import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import { configureKaijuSiteScopeLogging, getKaijuSiteScopeLogger } from '@/lib/diagnostics/logging';
 import type { SiteAnalysis } from '@/lib/detection/types';
 import {
@@ -20,7 +22,6 @@ import {
 	createBackgroundServerAdapter,
 	createContentClientAdapter,
 	isSidePanelTabUpdateChange,
-	type BackgroundApi,
 	type ContentApi,
 	type SidePanelTabNotificationReason,
 	SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
@@ -31,9 +32,6 @@ import {
 	browserDetectionSnapshotStore,
 } from '@/lib/persistence';
 
-configureKaijuSiteScopeLogging('background');
-
-const backgroundLogger = getKaijuSiteScopeLogger('background');
 
 /** Build a content-script RPC client for one tab/frame at the browser interface. */
 function createContentApiClient(tabId: number, frameId = 0): ContentApi {
@@ -54,29 +52,32 @@ async function executeContentScript(tabId: number): Promise<void> {
 	});
 }
 
-/** Browser-runtime logging adapter used by orchestration and lifecycle listeners. */
-function logBackgroundEvent(event: string, details?: Record<string, unknown>): void {
-	backgroundLogger.debug('[kaiju-site-scope][background] {event}{summary}', {
-		event,
-		summary: formatBackgroundLogSummary(details),
-		...(details ?? {}),
-	});
-}
+/** Create the runtime-owned logging projections after WXT starts the service worker. */
+function createBackgroundLoggers() {
+	const backgroundLogger = getKaijuSiteScopeLogger('background');
 
-/** Debug output is intentionally summary-only; never log raw page observations. */
-function logAnalysisSummary(analysis: SiteAnalysis): void {
-	backgroundLogger.info('[kaiju-site-scope] analysis summary', {
-		hostname: analysis.hostname,
-		resultCount: analysis.results.length,
-		technologyIds: analysis.results.map((result) => result.technologyId),
-		analyzedAt: analysis.analyzedAt,
-	});
+	function logBackgroundEvent(event: string, details?: Record<string, unknown>): void {
+		backgroundLogger.debug('[kaiju-site-scope][background] {event}{summary}', {
+			event,
+			summary: formatBackgroundLogSummary(details),
+			...(details ?? {}),
+		});
+	}
+
+	function logAnalysisSummary(analysis: SiteAnalysis): void {
+		backgroundLogger.info('[kaiju-site-scope] analysis summary', {
+			hostname: analysis.hostname,
+			resultCount: analysis.results.length,
+			technologyIds: analysis.results.map((result) => result.technologyId),
+			analyzedAt: analysis.analyzedAt,
+		});
+	}
+
+	return { logBackgroundEvent, logAnalysisSummary };
 }
 
 function formatBackgroundLogSummary(details?: Record<string, unknown>): string {
-	if (!details) {
-		return '';
-	}
+	if (!details) return '';
 
 	const pairs: string[] = [];
 	for (const key of [
@@ -105,10 +106,7 @@ function formatBackgroundLogSummary(details?: Record<string, unknown>): string {
 		'timingTraceId',
 	]) {
 		const value = details[key];
-		if (value === undefined) {
-			continue;
-		}
-
+		if (value === undefined) continue;
 		pairs.push(`${key}=${formatBackgroundLogValue(value)}`);
 	}
 
@@ -116,14 +114,8 @@ function formatBackgroundLogSummary(details?: Record<string, unknown>): string {
 }
 
 function formatBackgroundLogValue(value: unknown): string {
-	if (Array.isArray(value)) {
-		return `[${value.map(formatBackgroundLogValue).join(',')}]`;
-	}
-
-	if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-		return String(value);
-	}
-
+	if (Array.isArray(value)) return `[${value.map(formatBackgroundLogValue).join(',')}]`;
+	if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
 	return JSON.stringify(value);
 }
 
@@ -134,7 +126,11 @@ function formatBackgroundLogValue(value: unknown): string {
  * it. The mounted panel can therefore follow later active-tab changes in that
  * same window without Chrome replacing it with a tab-specific panel instance.
  */
-function openSidePanelForActionTab(tabId: number, windowId: number): void {
+function openSidePanelForActionTab(
+	tabId: number,
+	windowId: number,
+	log: (event: string, details?: Record<string, unknown>) => void,
+): void {
 	void browser.sidePanel.open({ windowId })
 		.then(() => {
 			void browser.runtime.sendMessage({
@@ -142,7 +138,7 @@ function openSidePanelForActionTab(tabId: number, windowId: number): void {
 				tabId,
 				windowId,
 			}).catch((error) => {
-				logBackgroundEvent('side-panel-action-notification-failed', {
+				log('side-panel-action-notification-failed', {
 					tabId,
 					windowId,
 					message: error instanceof Error ? error.message : String(error),
@@ -150,7 +146,7 @@ function openSidePanelForActionTab(tabId: number, windowId: number): void {
 			});
 		})
 		.catch((error) => {
-			logBackgroundEvent('side-panel-open-failed', {
+			log('side-panel-open-failed', {
 				tabId,
 				windowId,
 				message: error instanceof Error ? error.message : String(error),
@@ -175,53 +171,54 @@ function notifySidePanelTab(
 }
 
 /**
- * Compose the background application runtime from concrete browser adapters.
- *
- * No analysis workflow lives in this entrypoint. Its job is to select implementations,
- * register browser listeners, and expose the RPC server.
+ * WXT imports background entrypoints during build-time manifest generation. Keep
+ * all browser-owned resources and side effects inside `defineBackground` so the
+ * module remains import-safe in that Node.js build process.
  */
-const backgroundRuntime = createBackgroundRuntime({
-	getTab: (tabId) => browser.tabs.get(tabId),
-	executeContentScript,
-	createContentApiClient,
-	collectObservationBatch: collectExtensionObservationBatch,
-	registryProvider: bundledTechnologyRegistryProvider,
-	matcher: {
-		cancelJob: cancelOffscreenMatcherJob,
-		ensureOffscreenDocument: ensureKaijuSiteScopeOffscreenDocument,
-		runJob: runMatcherJobWithOffscreenFallback,
-	},
-	persistence: browserDetectionPersistence,
-	logEvent: logBackgroundEvent,
-	logAnalysisSummary,
-});
-
-const autoScanController = createAutoScanController({
-	getEnabled: getAutoScanEnabled,
-	getVisibleTabIdentity: (input) => backgroundRuntime.api.getVisibleTabIdentity(input),
-	analyzeVisibleTab: (input) => backgroundRuntime.api.analyzeVisibleTab(input),
-	log: logBackgroundEvent,
-});
-
-/** Compatibility export used by tests and non-browser callers. */
-export function createBackgroundApi(): BackgroundApi {
-	return backgroundRuntime.api;
-}
-
-const [provideBackgroundApi] = defineProxy(() => backgroundRuntime.api, {
-	namespace: BACKGROUND_RPC_NAMESPACE,
-	heartbeatCheck: false,
-	transfer: false,
-});
-
 export default defineBackground(() => {
+	configureKaijuSiteScopeLogging('background');
+	installDiagnosticCrashHooks('background');
+	const { logBackgroundEvent, logAnalysisSummary } = createBackgroundLoggers();
+
+	const backgroundRuntime = createBackgroundRuntime({
+		getTab: (tabId) => browser.tabs.get(tabId),
+		executeContentScript,
+		createContentApiClient,
+		collectObservationBatch: collectExtensionObservationBatch,
+		registryProvider: bundledTechnologyRegistryProvider,
+		matcher: {
+			cancelJob: cancelOffscreenMatcherJob,
+			ensureOffscreenDocument: ensureKaijuSiteScopeOffscreenDocument,
+			runJob: runMatcherJobWithOffscreenFallback,
+		},
+		persistence: browserDetectionPersistence,
+		logEvent: logBackgroundEvent,
+		logAnalysisSummary,
+	});
+	const autoScanController = createAutoScanController({
+		getEnabled: getAutoScanEnabled,
+		getVisibleTabIdentity: (input) => backgroundRuntime.api.getVisibleTabIdentity(input),
+		analyzeVisibleTab: (input) => backgroundRuntime.api.analyzeVisibleTab(input),
+		log: logBackgroundEvent,
+	});
+	const [provideBackgroundApi] = defineProxy(() => backgroundRuntime.api, {
+		namespace: BACKGROUND_RPC_NAMESPACE,
+		heartbeatCheck: false,
+		transfer: false,
+	});
+
+	void reconcileInterruptedMatcherJobs(logBackgroundEvent).catch((error) => {
+		logBackgroundEvent('matcher-job-reconciliation-failed', {
+			message: error instanceof Error ? error.message : String(error),
+		});
+	});
 	browser.action.onClicked.addListener((tab) => {
 		if (typeof tab.id !== 'number') {
 			logBackgroundEvent('side-panel-open-skipped', { reason: 'missing-tab-id' });
 			return;
 		}
 
-		openSidePanelForActionTab(tab.id, tab.windowId);
+		openSidePanelForActionTab(tab.id, tab.windowId, logBackgroundEvent);
 	});
 	browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 		if (tab.active !== true) {

@@ -1,71 +1,143 @@
-import { Show } from 'solid-js';
+import RefreshIcon from '~icons/fluent/arrow-clockwise-24-regular';
+import DismissIcon from '~icons/fluent/dismiss-24-regular';
+import { For, Show } from 'solid-js';
 
-import { ErrorState } from '@/components/ErrorState';
+import type { DetectionReplaySummary } from '@/lib/contracts/detection-session';
+import type { DetectionReplayTrace } from '@/lib/pipeline';
 import { useScans } from '@/panel/context';
-import { PanelShell } from '@/panel/shell';
+import { Alert, AlertDescription, AlertTitle } from '@/ui/alert';
+import { Badge } from '@/ui/badge';
+import { Button } from '@/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
+import { Spinner } from '@/ui/spinner';
 
-/** Current scan controls, summary metrics, and live analysis feedback. */
+/** Current scan controls, runtime state, and replay receipts. */
 export function ScansPage() {
 	const panel = useScans();
 
 	return (
 		<>
-			<PanelShell.Hero>
-				<PanelShell.HeroCopy>
-					<p class="eyebrow">Technology Detection</p>
-					<h1>Kaiju Site Scope</h1>
-					<p class="lede">
-						Analyze the visible tab locally, then keep the latest normalized detections up to date as the page lazy-loads.
-					</p>
-				</PanelShell.HeroCopy>
+			<header class="k-page-header">
+				<div class="k-page-heading">
+					<p class="k-page-eyebrow">Local detector</p>
+					<h1 class="k-page-title">Scans</h1>
+					<p class="k-page-description">Start a scan, inspect the active run, or review the most recent replay receipts.</p>
+				</div>
+			</header>
 
-				<PanelShell.Actions>
-					<button class="primary-button" disabled={panel.busy()} onClick={() => void panel.refresh()}>
-						{panel.busy() ? 'Refreshing...' : 'Refresh'}
-					</button>
-					<button
-						class="secondary-button"
-						disabled={panel.busy() || panel.liveUpdateMode() !== 'active'}
-						onClick={() => void panel.stopObservation()}
-					>
-						Stop observation
-					</button>
-				</PanelShell.Actions>
+			<div class="k-toolbar">
+				<Button disabled={panel.busy()} onClick={() => void panel.refresh()}>
+					<RefreshIcon />
+					{panel.busy() ? 'Refreshing' : 'Refresh'}
+				</Button>
+				<Button
+					variant="outline"
+					disabled={panel.busy() || panel.liveUpdateMode() !== 'active'}
+					onClick={() => void panel.stopObservation()}
+				>
+					<DismissIcon />
+					Stop observation
+				</Button>
+			</div>
 
-				<PanelShell.Stats>
-					<PanelShell.Stat accent="moss" label="Cached Analyses" value={panel.status.totalAnalyses} />
-					<PanelShell.Stat accent="amber" label="Tracked Origins" value={panel.status.trackedOrigins} />
-					<PanelShell.Stat accent="slate" label="Detected Technologies" value={panel.resultCount()} />
-				</PanelShell.Stats>
+			<div class="k-status-grid">
+				<StatusCard label="Detector" value={panel.analysisActivity().label} />
+				<StatusCard label="Observation" value={panel.liveUpdateChipLabel()} />
+				<StatusCard label="Evidence" value={panel.evidenceCompletenessLabel()} />
+				<StatusCard label="Results" value={String(panel.resultCount())} />
+			</div>
 
-				<PanelShell.Metrics>
-					<p>Source: {panel.analysis()?.source ?? 'none'}</p>
-					<p>Host: {panel.analysis()?.hostname ?? panel.visibleTabIdentity()?.hostname ?? 'not analyzed'}</p>
-					<p>Detector: {panel.analysisActivity().label}</p>
-					<p>Evidence: {panel.evidenceCompletenessLabel()}</p>
-					<p>Observation: {panel.liveUpdateChipLabel().toLowerCase()}</p>
-				</PanelShell.Metrics>
-			</PanelShell.Hero>
+			<Card size="sm">
+				<CardHeader>
+					<CardTitle>Current page</CardTitle>
+					<CardDescription>{panel.analysis()?.hostname ?? panel.visibleTabIdentity()?.hostname ?? 'No inspectable page selected.'}</CardDescription>
+				</CardHeader>
+				<CardContent class="flex flex-wrap gap-2">
+					<Badge variant="outline">Source: {panel.analysis()?.source ?? 'none'}</Badge>
+					<Badge variant="outline">Matcher: {panel.matcherStatus()}</Badge>
+				</CardContent>
+			</Card>
 
-			<PanelShell.Feedback>
-				<Show when={panel.errorMessage()}>{(value) => <ErrorState message={value()} />}</Show>
-				<Show when={panel.notice()}>
-					{(value) => (
-						<p class={`status-message ${value().variant}`} role="status" aria-live="polite">
-							{value().text}
-						</p>
-					)}
-				</Show>
-				<Show when={panel.analysisActivity().busy}>
-					<div class="scan-activity" role="status" aria-live="polite">
-						<div class="scan-activity-orb" aria-hidden="true" />
-						<div class="scan-activity-copy">
-							<strong>{panel.analysisActivity().headline}</strong>
-							<p>{panel.analysisActivity().description}</p>
+			<Show when={panel.analysisActivity().busy}>
+				<Card size="sm">
+					<CardContent class="flex items-start gap-3 pt-4">
+						<Spinner class="mt-0.5 size-4 text-kaiju-cyan" />
+						<div>
+							<p class="text-sm font-medium text-white">{panel.analysisActivity().headline}</p>
+							<p class="mt-1 text-xs leading-5 text-white/48">{panel.analysisActivity().description}</p>
 						</div>
-					</div>
-				</Show>
-			</PanelShell.Feedback>
+					</CardContent>
+				</Card>
+			</Show>
+
+			<Show when={panel.errorMessage()}>
+				{(message) => (
+					<Alert variant="destructive">
+						<AlertTitle>Scan failed</AlertTitle>
+						<AlertDescription>{message()}</AlertDescription>
+					</Alert>
+				)}
+			</Show>
+			<Show when={panel.notice()}>
+				{(notice) => (
+					<Alert>
+						<AlertTitle>{notice().variant === 'success' ? 'Scan updated' : 'Scan status'}</AlertTitle>
+						<AlertDescription>{notice().text}</AlertDescription>
+					</Alert>
+				)}
+			</Show>
+
+			<Show when={Boolean(panel.latestReplaySummary()) || panel.replayHistory().length > 0}>
+				<Card size="sm">
+					<CardHeader>
+						<CardTitle>Replay history</CardTitle>
+						<CardDescription>Saved detector receipts for the current visible analysis.</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<Show when={panel.latestReplaySummary()}>
+							{(summary) => (
+								<p class="mb-3 text-xs text-white/48">Latest: {formatReplaySummarySnapshot(summary())}</p>
+							)}
+						</Show>
+						<Show when={panel.replayHistory().length > 0}>
+							<ol class="grid gap-2">
+								<For each={panel.replayHistory().slice(0, 8)}>
+									{(trace) => (
+										<li class="rounded-lg border border-white/8 bg-white/[0.025] p-3">
+											<div class="flex items-center justify-between gap-3">
+												<span class="text-xs font-medium text-white/72">{formatReplaySummary(trace)}</span>
+												<time class="font-mono text-[0.625rem] text-white/32">{formatReplayTime(trace)}</time>
+											</div>
+											<p class="mt-1 text-xs text-white/42">{trace.events.length} replay event{trace.events.length === 1 ? '' : 's'}</p>
+										</li>
+									)}
+								</For>
+							</ol>
+						</Show>
+					</CardContent>
+				</Card>
+			</Show>
 		</>
 	);
+}
+
+function StatusCard(props: { readonly label: string; readonly value: string }) {
+	return (
+		<div class="k-status-card">
+			<p class="k-status-label">{props.label}</p>
+			<p class="k-status-value break-words text-sm">{props.value}</p>
+		</div>
+	);
+}
+
+function formatReplayTime(trace: DetectionReplayTrace): string {
+	return new Date(trace.analyzedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatReplaySummary(trace: DetectionReplayTrace): string {
+	return `${trace.resultCount} detection${trace.resultCount === 1 ? '' : 's'}`;
+}
+
+function formatReplaySummarySnapshot(summary: DetectionReplaySummary): string {
+	return `${summary.resultCount} detection${summary.resultCount === 1 ? '' : 's'} · ${summary.eventCount} replay event${summary.eventCount === 1 ? '' : 's'}`;
 }

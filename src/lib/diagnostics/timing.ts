@@ -2,7 +2,7 @@ import { getKaijuSiteScopeLogger } from '../diagnostics/logging';
 
 /** Summary-only timing context shared by background, content, collector, and pipeline code. */
 export type TimingContext = {
-	/** Correlates logs emitted for one popup-triggered analysis or refresh flow. */
+	/** Correlates logs emitted for one side panel-triggered analysis or refresh flow. */
 	traceId?: string;
 	/** Short runtime surface that emitted the timing event. */
 	surface?: 'background' | 'content' | 'collector' | 'pipeline' | 'storage' | 'registry' | 'benchmark';

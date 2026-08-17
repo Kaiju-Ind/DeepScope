@@ -206,7 +206,7 @@ export function createObservationMatcherIndex(
  * Match observations through a pre-routed registry index.
  *
  * The output shape matches `matchObservationBatch(...)` so downstream evidence,
- * candidate, replay, and popup stages do not need to know whether routing was
+ * candidate, replay, and side panel stages do not need to know whether routing was
  * sequential or indexed. Additional diagnostics describe how much matcher work
  * was avoided before full rule evaluation.
  */

@@ -61,7 +61,7 @@ const EXPENSIVE_RULE_KINDS = Object.freeze({
  * One executable collector tier derived from registry needs.
  *
  * Initial tiers favor already-visible document facts. Enrichment tiers enable
- * broad text, HTML, header, and source-content collection after the popup has a
+ * broad text, HTML, header, and source-content collection after the side panel has a
  * useful first result to render.
  */
 export type CollectionTierPlan = {
@@ -144,7 +144,7 @@ export type CollectionEvidencePass = {
  * callers, while `initial` and `enrichment` make the progressive runtime explicit.
  */
 export type CollectionPlan = CollectionTierPlan & {
-	/** Cheap first-pass collection work used before the popup renders. */
+	/** Cheap first-pass collection work used before the side panel renders. */
 	initial: CollectionTierPlan;
 	/** Deeper collection work that can run after first detections are visible. */
 	enrichment: CollectionTierPlan;
@@ -233,7 +233,7 @@ export function buildCollectionPlan(
  * URLs, resources, scripts, stylesheets, meta tags, DOM selectors, storage keys,
  * cookies, and page globals. Follow-up passes ask for one expensive surface at a
  * time. Each pass can produce a normal detector revision, which avoids the old
- * bootstrap-then-enrichment contract where the popup waited for one large
+ * bootstrap-then-enrichment contract where the side panel waited for one large
  * deferred result.
  */
 export function createIncrementalCollectionPasses(

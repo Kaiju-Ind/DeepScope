@@ -30,6 +30,28 @@ export function limitStringsByTotalChars(
 	return output;
 }
 
+/**
+ * Merge newly observed text into an existing bounded collection.
+ *
+ * Earlier observations keep priority. Each value is first clipped to its item
+ * limit, then the combined list is deduplicated and clipped to the shared total
+ * character budget. This is useful for long-lived observers where many
+ * individually valid snapshots can otherwise accumulate into an invalid payload.
+ */
+export function mergeStringsByTotalChars(
+	current: readonly string[],
+	incoming: readonly string[],
+	maxItems: number,
+	maxItemChars: number,
+	maxTotalChars: number,
+): string[] {
+	return limitStringsByTotalChars(
+		[...current, ...incoming].map((value) => truncate(value, maxItemChars)),
+		maxItems,
+		maxTotalChars,
+	);
+}
+
 export function truncate(value: string, maxChars: number): string {
 	if (value.length <= maxChars) {
 		return value;

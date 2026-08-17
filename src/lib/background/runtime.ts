@@ -177,7 +177,7 @@ export function createBackgroundRuntime(
 	/**
 	 * In-flight runtime injections are deduplicated per tab.
 	 *
-	 * Popup refreshes and live-update requests can ask for the content runtime at nearly the same
+	 * Side panel refreshes and live-update requests can ask for the content runtime at nearly the same
 	 * time. The first request owns the injection; later requests await the same
 	 * promise instead of injecting duplicate runtime scripts into the page.
 	 */
@@ -1211,6 +1211,8 @@ export function createBackgroundRuntime(
 					expectedUrl: tab.url,
 					snapshotTarget: createContentPageSessionSnapshotTarget(tab, sessionId),
 					policy: EXTENSION_OBSERVATION_POLICY,
+					includeScriptContent: compiledRegistryArtifact.collectionPlan.enrichment.needsScriptContent,
+					includeStylesheetContent: compiledRegistryArtifact.collectionPlan.enrichment.needsStylesheetContent,
 					domSelectorPlan: compiledRegistryArtifact.collectionPlan.initial.domSelectorPlan,
 				}),
 				CONTENT_SCRIPT_TIMEOUT_MS,
@@ -1318,7 +1320,7 @@ export function createBackgroundRuntime(
 			if (sessionResponse.ok) {
 				session = sessionResponse.value;
 			} else {
-				console.warn('[kaiju-site-scope] observation session unavailable', {
+				dependencies.logEvent('observation-session-unavailable', {
 					code: sessionResponse.error.code,
 					message: sessionResponse.error.message,
 				});

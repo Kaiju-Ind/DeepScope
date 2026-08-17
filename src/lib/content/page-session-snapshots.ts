@@ -17,10 +17,10 @@ import {
 } from '../storage/contracts';
 
 /**
- * Input for publishing content-owned progress to the durable popup stream.
+ * Input for publishing content-owned progress to the durable side-panel stream.
  *
  * The content script does not run the full detector. It can still publish the
- * page-session lifecycle so the popup sees that the page-local observer is alive
+ * page-session lifecycle so the side panel sees that the page-local observer is alive
  * before the background service worker finishes richer analysis.
  */
 export interface WriteContentPageSessionSnapshotInput {

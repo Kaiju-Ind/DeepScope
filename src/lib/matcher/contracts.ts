@@ -12,7 +12,7 @@ import type {
 /**
  * Priority assigned to matcher work before it enters the offscreen worker pool.
  *
- * Lower numbers run first. The popup needs cheap document facts before deep
+ * Lower numbers run first. The side panel needs cheap document facts before deep
  * source and asset scans, so scheduler priority replaces the older hard split
  * between an early detector and a later detector.
  */
@@ -38,7 +38,8 @@ export type MatcherJobTerminalReason =
 	| 'tab-closed-cache-complete'
 	| 'newer-job'
 	| 'offscreen-unavailable'
-	| 'worker-failed';
+	| 'worker-failed'
+	| 'context-interrupted';
 
 /** Scheduler mode for one matcher job. */
 export type MatcherJobMode = 'complete' | 'evidence-pass';
@@ -49,7 +50,7 @@ export interface MatcherJobIdentity {
 	readonly jobId: string;
 	/** Browser tab that requested or owns the job. */
 	readonly tabId: number;
-	/** Session id for popup observation, when the job belongs to a live popup session. */
+	/** Session id for live side-panel observation, when the job belongs to an observation session. */
 	readonly sessionId?: string;
 	/** Document URL captured before collection started. */
 	readonly expectedUrl: string;
@@ -77,6 +78,10 @@ export interface MatcherJobRecord extends MatcherJobIdentity {
 	readonly completedPartitionCount: number;
 	/** Optional terminal reason for stale, canceled, completed, or failed jobs. */
 	readonly reason?: MatcherJobTerminalReason;
+	/** State that was active when a new background context found this job orphaned. */
+	readonly interruptedStatus?: MatcherJobStatus;
+	/** Timestamp when a new background context classified the job as interrupted. */
+	readonly interruptedAt?: number;
 	/** Error message stored when a job fails before a usable result exists. */
 	readonly errorMessage?: string;
 }

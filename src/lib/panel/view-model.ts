@@ -319,7 +319,7 @@ export function getPanelAnalysisActivity(input: {
 			busy: true,
 			label: 'loading current tab',
 			headline: 'Loading latest detections',
-			description: 'The popup is waiting for the active tab scan to publish its first detector revision.',
+			description: 'The side panel is waiting for the active tab scan to publish its first detector revision.',
 		};
 	}
 

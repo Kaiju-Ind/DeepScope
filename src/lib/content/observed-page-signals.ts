@@ -9,6 +9,7 @@ import {
 	collectStylesheetSources,
 	collectDomSelectorMatches,
 } from './collect-page-signals';
+import { mergeStringsByTotalChars } from '../detection/normalizers';
 import { SOURCE_LIMITS } from '../detection/source-limits';
 import { getKaijuSiteScopeLogger } from '../diagnostics/logging';
 import type { PageSignals } from '../detection/types';
@@ -72,11 +73,20 @@ export type BeginObservationSessionInput = {
 	durationMs: number;
 	maxPendingNodes: number;
 	maxMutations: number;
+	includeScriptContent?: boolean;
+	includeStylesheetContent?: boolean;
 	domSelectorPlan?: DomSelectorPlan;
 };
 
+export type ObservedPageSignalsSnapshotOptions = {
+	/** Collect inline and accessible script source text for this snapshot. */
+	readonly includeScriptContent?: boolean;
+	/** Collect inline and accessible stylesheet source text for this snapshot. */
+	readonly includeStylesheetContent?: boolean;
+};
+
 export type ObservedPageSignals = {
-	snapshot(): Promise<ObservedPageSignalsSnapshot>;
+	snapshot(options?: ObservedPageSignalsSnapshotOptions): Promise<ObservedPageSignalsSnapshot>;
 	flushObservationBatch(): Promise<FlushObservedObservationBatchOutput>;
 	beginObservationSession(input: BeginObservationSessionInput): ObservationSessionState;
 	stopObservationSession(reason?: ObservationStopReason): ObservationSessionState;
@@ -111,6 +121,8 @@ type ActiveObservationSession = {
 	expiresAt: number;
 	maxPendingNodes: number;
 	maxMutations: number;
+	includeScriptContent: boolean;
+	includeStylesheetContent: boolean;
 	domSelectorPlan?: DomSelectorPlan;
 };
 
@@ -127,8 +139,8 @@ export function createObservedPageSignals(
 	const scripts = new Set<string>();
 	const images = new Set<string>();
 	const stylesheets = new Set<string>();
-	const scriptContents = new Set<string>();
-	const stylesheetContents = new Set<string>();
+	let scriptContents: string[] = [];
+	let stylesheetContents: string[] = [];
 	const metaEntries = new Map<string, Set<string>>();
 	const domSelectorEntries = new Map<string, boolean>();
 	const linkEntries = new Map<string, PageSignals['links'][number]>();
@@ -274,19 +286,21 @@ export function createObservedPageSignals(
 			stylesheets.add(href);
 		}
 
-		for (const value of snapshot.scriptContents) {
-			if (scriptContents.size >= SOURCE_LIMITS.scriptContentItems) {
-				break;
-			}
-			scriptContents.add(value);
-		}
+		scriptContents = mergeStringsByTotalChars(
+			scriptContents,
+			snapshot.scriptContents,
+			SOURCE_LIMITS.scriptContentItems,
+			SOURCE_LIMITS.scriptContentChars,
+			SOURCE_LIMITS.scriptContentTotalChars,
+		);
 
-		for (const value of snapshot.stylesheetContents) {
-			if (stylesheetContents.size >= SOURCE_LIMITS.stylesheetContentItems) {
-				break;
-			}
-			stylesheetContents.add(value);
-		}
+		stylesheetContents = mergeStringsByTotalChars(
+			stylesheetContents,
+			snapshot.stylesheetContents,
+			SOURCE_LIMITS.stylesheetContentItems,
+			SOURCE_LIMITS.stylesheetContentChars,
+			SOURCE_LIMITS.stylesheetContentTotalChars,
+		);
 
 		for (const link of snapshot.links) {
 			linkEntries.set(`${link.rel}:${link.type ?? ''}:${link.href}`, link);
@@ -342,12 +356,12 @@ export function createObservedPageSignals(
 		};
 	}
 
-	async function scanNode(node: Node): Promise<void> {
+	async function scanNode(node: Node, content: ObservedPageSignalsSnapshotOptions): Promise<void> {
 		if (node instanceof HTMLScriptElement) {
 			rememberSnapshot({
 				...emptySnapshot(),
 				scripts: collectScriptSources([node]),
-				scriptContents: collectScriptContents([node]),
+				scriptContents: content.includeScriptContent ? collectScriptContents([node]) : [],
 				dom: { selectors: await collectDomSelectors(node) },
 			});
 			return;
@@ -365,7 +379,7 @@ export function createObservedPageSignals(
 		if (node instanceof HTMLStyleElement) {
 			rememberSnapshot({
 				...emptySnapshot(),
-				stylesheetContents: collectStylesheetContents([node]),
+				stylesheetContents: content.includeStylesheetContent ? collectStylesheetContents([node]) : [],
 				dom: { selectors: await collectDomSelectors(node) },
 			});
 			return;
@@ -399,15 +413,15 @@ export function createObservedPageSignals(
 				links: collectLinkTags(node),
 				resources,
 				requests: resources.map((resource) => ({ url: resource.url, type: resource.initiatorType })),
-				scriptContents: collectScriptContents(node),
-				stylesheetContents: collectStylesheetContents(node),
+				scriptContents: content.includeScriptContent ? collectScriptContents(node) : [],
+				stylesheetContents: content.includeStylesheetContent ? collectStylesheetContents(node) : [],
 				meta: collectMetaTags(node),
 				dom: { selectors: await collectDomSelectors(node) },
 			});
 		}
 	}
 
-	async function scanCurrentDocument(): Promise<void> {
+	async function scanCurrentDocument(content: ObservedPageSignalsSnapshotOptions): Promise<void> {
 		const resources = collectResourceTimings();
 		rememberSnapshot({
 			images: collectImageSources(document),
@@ -416,8 +430,8 @@ export function createObservedPageSignals(
 			links: collectLinkTags(document),
 			resources,
 			requests: resources.map((resource) => ({ url: resource.url, type: resource.initiatorType })),
-			scriptContents: collectScriptContents(document),
-			stylesheetContents: collectStylesheetContents(document),
+			scriptContents: content.includeScriptContent ? collectScriptContents(document) : [],
+			stylesheetContents: content.includeStylesheetContent ? collectStylesheetContents(document) : [],
 			meta: collectMetaTags(document),
 			dom: { selectors: await collectDomSelectors(document) },
 		});
@@ -428,15 +442,23 @@ export function createObservedPageSignals(
 		return collectDomSelectorMatches(activeSession?.domSelectorPlan, activeSession?.domSelectorPlan?.selectors ?? [], root);
 	}
 
-	async function flushPendingMutations(): Promise<void> {
+
+	function getObservedContentOptions(): ObservedPageSignalsSnapshotOptions {
+		return {
+			includeScriptContent: activeSession?.includeScriptContent === true,
+			includeStylesheetContent: activeSession?.includeStylesheetContent === true,
+		};
+	}
+
+	async function flushPendingMutations(content = getObservedContentOptions()): Promise<void> {
 		clearThrottleTimer();
 		const acceptedBeforeScan = observationBatchController.stats().acceptedCount;
 
 		if (pendingFullDocumentScan) {
-			await scanCurrentDocument();
+			await scanCurrentDocument(content);
 		} else {
 			for (const node of pendingNodes) {
-				await scanNode(node);
+				await scanNode(node, content);
 			}
 		}
 
@@ -454,8 +476,8 @@ export function createObservedPageSignals(
 	 *
 	 * The batch itself stays inside the controller so the background can still
 	 * flush and analyze it later. The callback only carries enough lifecycle
-	 * information for a durable popup snapshot revision, which avoids waiting for
-	 * the next background refresh request before the open popup knows the page has
+	 * information for a durable side-panel snapshot revision, which avoids waiting for
+	 * the next background refresh request before the open side panel knows the page has
 	 * changed.
 	 */
 	function publishQueuedObservationBatch(acceptedBeforeScan: number): void {
@@ -592,6 +614,8 @@ export function createObservedPageSignals(
 			expiresAt: startedAt + input.durationMs,
 			maxPendingNodes: input.maxPendingNodes,
 			maxMutations: input.maxMutations,
+			includeScriptContent: input.includeScriptContent === true,
+			includeStylesheetContent: input.includeStylesheetContent === true,
 			domSelectorPlan: input.domSelectorPlan,
 		};
 		lastObservedAt = undefined;
@@ -612,10 +636,10 @@ export function createObservedPageSignals(
 	}
 
 	return {
-		async snapshot() {
+		async snapshot(content = { includeScriptContent: true, includeStylesheetContent: true }) {
 			stopIfDocumentChanged();
-			await flushPendingMutations();
-			await scanCurrentDocument();
+			await flushPendingMutations(content);
+			await scanCurrentDocument(content);
 
 			if (activeSession && sessionStatus !== 'stopped') {
 				sessionStatus = 'observing';
@@ -628,8 +652,8 @@ export function createObservedPageSignals(
 				links: [...linkEntries.values()].slice(0, SOURCE_LIMITS.linkTags),
 				resources: [...resourceEntries.values()].slice(0, SOURCE_LIMITS.resourceUrls),
 				requests: [...requestEntries.values()].slice(0, SOURCE_LIMITS.requestUrls),
-				scriptContents: [...scriptContents].slice(0, SOURCE_LIMITS.scriptContentItems),
-				stylesheetContents: [...stylesheetContents].slice(0, SOURCE_LIMITS.stylesheetContentItems),
+				scriptContents: content.includeScriptContent ? scriptContents : [],
+				stylesheetContents: content.includeStylesheetContent ? stylesheetContents : [],
 				meta: snapshotMeta(),
 				dom: { selectors: Object.fromEntries(domSelectorEntries) },
 			};

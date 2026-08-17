@@ -81,7 +81,7 @@ export function getMatcherJobCacheKey(jobId: string): string {
 /**
  * Build a stable non-reversible key fragment for URLs and origins.
  *
- * Snapshot storage needs to correlate popup, background, and content state
+ * Snapshot storage needs to correlate side panel, background, and content state
  * without placing raw URLs in every session key. The hash is intentionally small
  * and non-cryptographic; it is a deterministic storage partition, not a privacy
  * guarantee against someone who already has extension storage access.
@@ -98,7 +98,7 @@ export function createDetectionStorageHash(value: string): string {
  *
  * `documentId` can contain browser-generated punctuation, so each identity part
  * is encoded before joining. The readable prefix still keeps DevTools storage
- * inspection useful when debugging snapshot-first popup rendering.
+ * inspection useful when debugging snapshot-first side panel rendering.
  */
 export function getDetectionSessionSnapshotKey(key: DetectionSessionKey): string {
 	return [
@@ -123,7 +123,7 @@ export function getContentSessionLifecycleKey(key: DetectionSessionKey): string 
  * Build the storage key for the newest snapshot associated with an origin hash.
  *
  * The value stored at this key is a complete `DetectionSessionSnapshot`, not a
- * raw origin record. Popup startup can render it while the background resolves
+ * raw origin record. Side panel startup can render it while the background resolves
  * the exact active document session.
  */
 export function getDetectionOriginSnapshotKey(originHash: string): string {

@@ -12,7 +12,7 @@ export type DetectionCandidateSource = 'direct' | 'relationship';
  * Internal technology candidate built from evidence before final output emission.
  *
  * Today this candidate is immediately converted back into `DetectionResult` so
- * popup and storage output stay unchanged. The separate shape gives the future
+ * side panel and storage output stay unchanged. The separate shape gives the future
  * evidence pipeline a place to accumulate direct matches and relationship
  * matches before explanations or replay logs are added.
  */

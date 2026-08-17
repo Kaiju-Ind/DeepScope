@@ -6,7 +6,7 @@ import type { SiteAnalysis } from '../detection/types';
  *
  * The emission stage is where a candidate becomes visible as a `DetectionResult`.
  * Keeping the display threshold here lets earlier stages keep weak candidates for
- * replay and explanation without showing them in the popup prematurely.
+ * replay and explanation without showing them in the side panel prematurely.
  */
 export interface FinalDetectionEmissionPolicy {
 	/** Minimum candidate confidence required before a result appears in `SiteAnalysis.results`. */
@@ -37,7 +37,7 @@ export interface EmitSiteAnalysisFromCandidatesInput {
 /**
  * Metadata about one emission pass.
  *
- * The current popup only needs the `SiteAnalysis`, but parity tests and future
+ * The current side panel only needs the `SiteAnalysis`, but parity tests and future
  * replay tooling need to know how many candidates were hidden by the final
  * threshold without storing rejected candidates inside the public analysis shape.
  */
@@ -61,7 +61,7 @@ export interface FinalDetectionEmissionMetadata {
  * `metadata` carries pipeline diagnostics without widening `SiteAnalysis`.
  */
 export interface FinalDetectionEmissionResult {
-	/** Site analysis compatible with the existing background, storage, and popup contracts. */
+	/** Site analysis compatible with the existing background, storage, and side-panel contracts. */
 	readonly analysis: SiteAnalysis;
 	/** Sidecar metadata for tests, replay, and migration diagnostics. */
 	readonly metadata: FinalDetectionEmissionMetadata;

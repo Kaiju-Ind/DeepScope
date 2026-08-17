@@ -17,7 +17,7 @@ export const DEFAULT_FINAL_DETECTION_EMISSION_POLICY: FinalDetectionEmissionPoli
  * Emit current `SiteAnalysis` output from relationship-refined candidates.
  *
  * Refined candidates become the same public shape that storage, messaging, and
- * popup rendering already understand. Richer emission metadata stays outside the
+ * side-panel rendering already understands. Richer emission metadata stays outside the
  * stored analysis object so replay can grow without changing `SiteAnalysis`.
  */
 export function emitSiteAnalysisFromRefinedCandidates(

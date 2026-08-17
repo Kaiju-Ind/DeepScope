@@ -80,7 +80,7 @@ export interface DetectionExplanation {
 	readonly technologyId: string;
 	/** Display name from the emitted result. */
 	readonly name: string;
-	/** Categories used by popup grouping and future reports. */
+	/** Categories used by side panel grouping and future reports. */
 	readonly categories: readonly CategoryId[];
 	/** Final detector confidence from the emitted result. */
 	readonly confidence: ConfidenceScore;
@@ -94,7 +94,7 @@ export interface DetectionExplanation {
 	readonly directEvidenceCount: number;
 	/** Number of public evidence entries from graph relationship support. */
 	readonly relationshipEvidenceCount: number;
-	/** Short explanation phrases suitable for popup or replay summaries. */
+	/** Short explanation phrases suitable for side panel or replay summaries. */
 	readonly reasons: readonly string[];
 	/** Public evidence summaries copied from the emitted result. */
 	readonly evidence: readonly DetectionExplanationEvidenceSummary[];
@@ -106,7 +106,7 @@ export interface DetectionExplanation {
  * Redacted replay trace for one detector pipeline run.
  *
  * The trace combines coordinator events with emitted `SiteAnalysis` output.
- * Storage and popup contracts keep it separate from detector output so replay
+ * Storage and side panel contracts keep it separate from detector output so replay
  * detail can evolve without widening `SiteAnalysis`.
  */
 export interface DetectionReplayTrace {

@@ -2,7 +2,7 @@
  * Bounded signal limits shared by collectors, validation, and emission.
  *
  * Detection runs over page-owned content, so every broad source has a hard cap
- * before it reaches storage or popup explanations. Keeping these limits in a
+ * before it reaches storage or side-panel explanations. Keeping these limits in a
  * small module lets hot-path helpers import them without loading the full rule
  * registry.
  */

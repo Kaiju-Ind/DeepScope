@@ -59,7 +59,7 @@ export type DetectionStorageStatusSchemaVersion = typeof DETECTION_STORAGE_STATU
 /**
  * Lifecycle state for the visible detection result associated with one page document.
  *
- * A popup can read this value from storage after a background service-worker restart
+ * A side panel can read this value from storage after a background service-worker restart
  * and still explain whether the visible data is cached, actively collecting,
  * observing for late page facts, finished, failed, stale, or intentionally stopped.
  */
@@ -81,7 +81,7 @@ export type DetectionSessionStatus = typeof DETECTION_SESSION_STATUSES[number];
 /**
  * Lifecycle state for optional deeper evidence collection.
  *
- * Enrichment can outlive a popup render. Persisting terminal states such as
+ * Enrichment can outlive a side panel render. Persisting terminal states such as
  * `failed`, `timed-out`, and `skipped` prevents the UI from looking like it is
  * still checking when no more evidence will arrive.
  */
@@ -102,13 +102,13 @@ export type DetectionEnrichmentStatus = typeof DETECTION_ENRICHMENT_STATUSES[num
  *
  * Manifest V3 background memory is disposable, so the identity is stored with the
  * result instead of living only in a background global. `documentId` distinguishes
- * navigations within the same tab, while `originHash` lets the popup recover the
+ * navigations within the same tab, while `originHash` lets the side panel recover the
  * latest origin-level result when the exact document session is not known yet.
  */
 export interface DetectionSessionKey {
 	/** Browser tab that owns the inspected document. */
 	readonly tabId: number;
-	/** Frame that produced the snapshot, usually the top frame for popup results. */
+	/** Frame that produced the snapshot, usually the top frame for side panel results. */
 	readonly frameId: number;
 	/** Browser document identifier or generated fallback for the inspected page load. */
 	readonly documentId: string;
@@ -139,7 +139,7 @@ export interface DetectionEnrichmentState {
  * Public-safe replay summary embedded in a detection snapshot.
  *
  * Full replay traces stay in their existing replay storage namespace. The
- * snapshot keeps only the counts and stage names needed for a snapshot-first popup
+ * snapshot keeps only the counts and stage names needed for a snapshot-first side panel
  * render to say that explanation data exists and roughly how far the pipeline ran.
  */
 export interface DetectionReplaySummary {
@@ -163,7 +163,7 @@ export type DetectionSessionSnapshotSource = 'cache' | 'content' | 'background';
 /**
  * Executor that produced detector output for a snapshot revision.
  *
- * The popup can show this in diagnostics so worker crashes, development-mode
+ * The side panel can show this in diagnostics so worker crashes, development-mode
  * fallbacks, and service-worker-bound matching are visible instead of being
  * misread as page collection or replay latency.
  */
@@ -176,7 +176,7 @@ export type DetectionMatcherExecutor =
 /**
  * Public-safe matcher progress embedded in a partial snapshot revision.
  *
- * The popup does not need raw observations or match details to show that work is
+ * The side panel does not need raw observations or match details to show that work is
  * still moving. Keeping only partition counters gives users a trustworthy
  * progress cue even when a partial write preserves an older, richer result list.
  */
@@ -202,11 +202,11 @@ export interface DetectionMatcherProgressSummary {
 }
 
 /**
- * Durable popup-facing result for one inspected document.
+ * Durable side panel-facing result for one inspected document.
  *
  * Each write advances a monotonically increasing `revision` for the same
- * `DetectionSessionKey`. The popup subscribes to storage changes and applies
- * only newer revisions, which makes visible updates resilient to popup teardown
+ * `DetectionSessionKey`. The side panel subscribes to storage changes and applies
+ * only newer revisions, which makes visible updates resilient to side panel teardown
  * and background service-worker shutdown.
  */
 export interface DetectionSessionSnapshot {
@@ -218,7 +218,7 @@ export interface DetectionSessionSnapshot {
 	readonly revision: number;
 	/** Stable non-raw key for the full document URL. */
 	readonly urlHash: string;
-	/** Hostname safe for popup display. */
+	/** Hostname safe for side panel display. */
 	readonly hostname: string;
 	/** Visible lifecycle state for the stored result. */
 	readonly status: DetectionSessionStatus;
@@ -230,9 +230,9 @@ export interface DetectionSessionSnapshot {
 	readonly detectionCount: number;
 	/** Evidence coverage represented by the embedded analysis. */
 	readonly evidence?: DetectionEvidenceState;
-	/** Normalized detector output safe for popup rendering and cache storage. */
+	/** Normalized detector output safe for side panel rendering and cache storage. */
 	readonly analysis: SiteAnalysis;
-	/** Stored deeper-evidence state for snapshot-first popup recovery. */
+	/** Stored deeper-evidence state for snapshot-first side panel recovery. */
 	readonly enrichment: DetectionEnrichmentState;
 	/** Matcher executor path that produced this revision, when known. */
 	readonly matcherExecutor?: DetectionMatcherExecutor;
@@ -245,7 +245,7 @@ export interface DetectionSessionSnapshot {
 /**
  * Lightweight origin-level summary derived from the newest promoted snapshot.
  *
- * This record is not a render model. It lets popup startup, status counts, and
+ * This record is not a render model. It lets side panel startup, status counts, and
  * diagnostics know which origin has recent detector state without treating an
  * origin pointer as proof that a snapshot belongs to the currently visible tab.
  */
@@ -254,7 +254,7 @@ export interface DetectionOriginSummary {
 	readonly schemaVersion: DetectionOriginSummarySchemaVersion;
 	/** Stable non-raw key for the origin represented by this summary. */
 	readonly originHash: string;
-	/** Hostname safe for popup display. */
+	/** Hostname safe for side panel display. */
 	readonly hostname: string;
 	/** Full URL from the snapshot that produced this summary. */
 	readonly url: string;
@@ -284,7 +284,7 @@ export interface DetectionOriginSummary {
  * Compact aggregate storage status updated with snapshot writes.
  *
  * `getStatus()` can still rebuild this from existing records, but keeping a
- * bounded status record means the popup does not need to scan all storage after
+ * bounded status record means the side panel does not need to scan all storage after
  * every revision once summaries exist.
  */
 export interface DetectionStorageStatusSnapshot {

@@ -50,7 +50,7 @@ const KIND_PRIORITIES = Object.freeze({
 const DEFAULT_PARTITION_CHUNK_SIZE = 128;
 
 /**
- * High-fan-out surfaces are chunked so the popup receives real revisions.
+ * High-fan-out surfaces are chunked so the side panel receives real revisions.
  *
  * A single Vercel page can expose hundreds or thousands of resource and request
  * URL observations. Treating that whole kind as one partition recreates the old

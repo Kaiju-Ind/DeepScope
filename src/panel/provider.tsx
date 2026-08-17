@@ -844,7 +844,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
       if (!target) {
         setNotice({
           variant: "warning",
-          text: "No active observation session is attached to this popup. Refresh starts a new session for the visible tab.",
+          text: "No active observation session is attached to this side panel. Refresh starts a new session for the visible tab.",
         });
         setLiveUpdateMode("unknown");
         return;

@@ -1,5 +1,7 @@
 import { browser } from 'wxt/browser';
 
+import { getKaijuSiteScopeLogger } from '@/lib/diagnostics/logging';
+
 import { matchIndexedObservationBatch } from '../detection/observation-matcher-index';
 import {
 	MATCHER_OFFSCREEN_CHANNEL,
@@ -11,6 +13,8 @@ import {
 	type RunMatcherJobMessage,
 	type RunMatcherJobRequest,
 } from '../matcher';
+
+const matcherLogger = getKaijuSiteScopeLogger('background', 'offscreen-matcher');
 
 /** Static WXT output path for the hidden matcher host document. */
 const MATCHER_OFFSCREEN_DOCUMENT_PATH = '/offscreen.html';
@@ -101,13 +105,13 @@ async function tryRunMatcherJobInOffscreen(
 		if (!response.ok && isOffscreenMatcherCancellationMessage(response.message)) {
 			throw new OffscreenMatcherJobCanceledError(response.message);
 		}
-		console.warn('[kaiju-site-scope] offscreen matcher returned no job result', response);
+		matcherLogger.warning('Offscreen matcher returned no job result.', { response });
 		return null;
 	} catch (error) {
 		if (error instanceof OffscreenMatcherJobCanceledError) {
 			throw error;
 		}
-		console.warn('[kaiju-site-scope] offscreen matcher failed; using background fallback', error);
+		matcherLogger.warning('Offscreen matcher failed; using background fallback.', { error });
 		return null;
 	}
 }

@@ -62,7 +62,7 @@ function isDetectorStorageKey(key: string): boolean {
  *
  * The trace contract is intentionally redacted before storage. This guard checks
  * only the replay envelope and arrays needed by callers, so older or malformed
- * records are ignored instead of leaking through to the popup.
+ * records are ignored instead of leaking through to the side panel.
  */
 function isDetectionReplayTrace(value: unknown): value is DetectionReplayTrace {
 	return (

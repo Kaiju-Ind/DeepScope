@@ -206,6 +206,10 @@ export type BeginObservationSessionInput = {
 		/** Maximum observed mutations before the session stops itself. */
 		maxMutations: number;
 	};
+	/** Keep newly observed inline/exposed script content when the registry needs it. */
+	includeScriptContent?: boolean;
+	/** Keep newly observed inline/exposed stylesheet content when the registry needs it. */
+	includeStylesheetContent?: boolean;
 	/** Parsed DOM selector metadata used to filter live DOM observation. */
 	domSelectorPlan?: DomSelectorPlan;
 };
