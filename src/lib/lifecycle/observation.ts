@@ -2,9 +2,9 @@ import type {
 	VisibleTabObservationMode,
 	AnalyzeVisibleTabInput,
 	BeginObservationSessionInput,
-} from '../contracts/analysis';
+} from '../messaging/analysis';
 import type { ObservationSessionState } from '../content/observed-page-signals';
-import { isSameDocumentUrl } from '../shared/url';
+import { isSameDocumentUrl } from '@/utils/url';
 
 /**
  * Standard observation policy for the visible-tab extension flow.

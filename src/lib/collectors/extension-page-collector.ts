@@ -6,7 +6,7 @@ import {
 	type CollectionTier,
 	type CollectionTierPlan,
 } from './planning';
-import type { CollectObservationBatchOutput, ContentApi } from '../contracts/analysis';
+import type { CollectObservationBatchOutput, ContentApi } from '../messaging/analysis';
 import type { ObservationBatch } from '../observations';
 import {
 	CONTENT_SCRIPT_TIMEOUT_MS,
@@ -15,8 +15,8 @@ import {
 } from '../messaging/rpc';
 import { ensureKaijuSiteScopeOffscreenDocument } from '../lifecycle/offscreen-matcher';
 import { timeAsyncSpan, type TimingContext } from '../diagnostics/timing';
-import { errorResponse, ok, type AppResult } from '../shared/result';
-import { isSameDocumentUrl } from '../shared/url';
+import { errorResponse, extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
+import { isSameDocumentUrl } from '@/utils/url';
 
 /** Input needed to collect one visible tab through extension APIs. */
 export type ExtensionPageCollectorInput = {
@@ -47,7 +47,7 @@ export type ExtensionPageCollectorInput = {
  */
 export async function collectExtensionObservationBatch(
 	input: ExtensionPageCollectorInput,
-): Promise<AppResult<ObservationBatch>> {
+): Promise<ExtensionResult<ObservationBatch>> {
 	const tier = input.tier ?? input.collectionTierPlan?.tier ?? 'initial';
 	const collectionPlan = input.collectionTierPlan ?? getCollectionTierPlan(input.collectionPlan, tier);
 	const timingContext: TimingContext = {
@@ -129,7 +129,7 @@ export async function collectExtensionObservationBatch(
 			observedAt: enrichedBatch.observedAt,
 		});
 
-		return ok(enrichedBatch);
+		return extensionSuccess(enrichedBatch);
 	} catch (error) {
 		input.log?.('collect-observation-batch-failed', {
 			tabId: input.tabId,
@@ -145,7 +145,7 @@ export async function collectExtensionObservationBatch(
 function validateObservationBatchTarget(
 	output: CollectObservationBatchOutput,
 	expectedUrl: string,
-): AppResult<never> | null {
+): ExtensionResult<never> | null {
 	if (isSameDocumentUrl(output.batch.target.url, expectedUrl)) {
 		return null;
 	}

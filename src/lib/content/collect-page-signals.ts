@@ -1,6 +1,6 @@
 import { browser } from 'wxt/browser';
 
-import { limitStringsByTotalChars, normalizeMetaMap, truncate, uniqueStrings } from '../detection/normalizers';
+import { mergeStringsByTotalChars, normalizeMetaMap, truncate, uniqueStrings } from '../detection/normalizers';
 import { SOURCE_LIMITS } from '../detection/source-limits';
 import { timeAsyncSpan, timeSyncSpan, type TimingContext } from '../diagnostics/timing';
 import type {
@@ -131,13 +131,29 @@ export async function collectPageSignals(
 	const scriptContents = timeSyncSpan(
 		'content.collect-page-signals.script-contents',
 		timingContext,
-		() => runtime.scriptContents ?? (input.includeScriptContent ? collectScriptContents() : []),
+		() => input.includeScriptContent
+			? mergeStringsByTotalChars(
+				[],
+				runtime.scriptContents ?? collectScriptContents(),
+				SOURCE_LIMITS.scriptContentItems,
+				SOURCE_LIMITS.scriptContentChars,
+				SOURCE_LIMITS.scriptContentTotalChars,
+			)
+			: [],
 		(values) => ({ includeScriptContent: Boolean(input.includeScriptContent), scriptContentCount: values.length }),
 	);
 	const stylesheetContents = timeSyncSpan(
 		'content.collect-page-signals.stylesheet-contents',
 		timingContext,
-		() => runtime.stylesheetContents ?? (input.includeStylesheetContent ? collectStylesheetContents() : []),
+		() => input.includeStylesheetContent
+			? mergeStringsByTotalChars(
+				[],
+				runtime.stylesheetContents ?? collectStylesheetContents(),
+				SOURCE_LIMITS.stylesheetContentItems,
+				SOURCE_LIMITS.stylesheetContentChars,
+				SOURCE_LIMITS.stylesheetContentTotalChars,
+			)
+			: [],
 		(values) => ({
 			includeStylesheetContent: Boolean(input.includeStylesheetContent),
 			stylesheetContentCount: values.length,

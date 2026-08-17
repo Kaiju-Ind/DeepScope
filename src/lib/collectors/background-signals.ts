@@ -5,7 +5,7 @@ import { limitStringsByTotalChars, truncate, uniqueStrings } from '../detection/
 import { SOURCE_LIMITS } from '../detection/source-limits';
 import { timeAsyncSpan, type TimingContext } from '../diagnostics/timing';
 import type { NormalizedObservation, ObservationBatch } from '../observations';
-import { getOrigin } from '../shared/url';
+import { getOrigin } from '@/utils/url';
 
 /** Value shape stored for a page-owned JavaScript global. */
 export type JsGlobalSignalValue = string | boolean | number;

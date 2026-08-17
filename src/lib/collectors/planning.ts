@@ -1,6 +1,6 @@
 import selectorParser from 'postcss-selector-parser';
 
-import type { CollectPageSignalsInput, HtmlProbe } from '../contracts/analysis';
+import type { CollectPageSignalsInput, HtmlProbe } from '../messaging/analysis';
 import { SOURCE_LIMITS } from '../detection/source-limits';
 import type { DetectionRule, TechnologyDefinition } from '../detection/types';
 

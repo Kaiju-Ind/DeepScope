@@ -1,13 +1,13 @@
-import type { ContentPageSessionSnapshotTarget } from '../contracts/analysis';
+import type { ContentPageSessionSnapshotTarget } from '../messaging/analysis';
 import type {
 	DetectionSessionSnapshot,
 	DetectionSessionStatus,
-} from '../contracts/detection-session';
+} from '../storage/session';
 import type { SiteAnalysis } from '../detection/types';
 
 import { browser } from 'wxt/browser';
 
-import { DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION } from '../contracts/detection-session';
+import { DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION } from '../storage/session';
 import { browserDetectionSnapshotStore } from '../persistence';
 import type { DetectionSnapshotReader, DetectionSnapshotWriter } from '../persistence';
 import {
