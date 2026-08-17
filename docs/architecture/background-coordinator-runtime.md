@@ -51,7 +51,7 @@ tab closes
 
 ## What stays disposable
 
-The in-memory maps for content-script injection, active observation batches, and completed enrichment markers remain performance conveniences. Losing them should only force a recollect or cache read. The stored snapshot is the popup-visible source of truth.
+The in-memory maps for content-script injection, active observation batches, and completed enrichment markers remain performance conveniences. Losing them should only force a recollect or cache read. The stored snapshot is the side-panel-visible source of truth.
 
 ## Registry startup note
 

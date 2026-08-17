@@ -87,7 +87,7 @@ This keeps the single-source revision rules in the storage implementation while 
 
 ## Durable visible state
 
-The extension now has a durable snapshot contract for popup-visible detection state. `DetectionSessionSnapshot` stores the latest normalized `SiteAnalysis`, session identity, enrichment status, and a compact replay summary in `chrome.storage.local`. The popup can use this record before it asks the background to refresh the visible page.
+The extension now has a durable snapshot contract for side-panel-visible detection state. `DetectionSessionSnapshot` stores the latest normalized `SiteAnalysis`, session identity, enrichment status, and a compact replay summary in `chrome.storage.local`. The side panel can use this record before it asks the background to refresh the visible page.
 
 ```text
 DetectionSessionSnapshot revision

@@ -27,7 +27,7 @@ Dirty observation refreshes do not merge final detection results. The background
 ## Current extension behavior
 
 1. Automatic scanning is enabled by default. When an active HTTP/HTTPS page finishes loading, the background starts a fresh bounded analysis; activating an already-loaded tab uses snapshot-first recovery and scans only when no matching snapshot exists. The side-panel toggle can disable these automatic starts.
-2. Opening the side panel still asks the background to synchronize the active tab with `mode: "snapshot-first"` and `observe: "while-popup-open"`, so manual inspection works even when automatic scanning is disabled.
+2. The side panel owns the browser window that contains it, resolves that window's active tab, and asks the background to validate that exact `{ windowId, tabId }` target before requesting `mode: "snapshot-first"` analysis. The side-panel observation request uses `observe: "while-panel-open"`, so manual inspection still works when automatic scanning is disabled.
 3. The background validates that the tab is inspectable and checks the exact visible-session snapshot first, then uses origin-level fallback metadata only when no exact snapshot is available. On a hit, the side panel renders stored normalized analysis and replay state immediately.
 4. On an automatic page-load scan, snapshot miss, or manual refresh, the background runtime-injects the content script, collects an enriched observation batch, runs the event pipeline, stores the analysis and replay trace, and optionally starts observation.
 5. While observation is active, the content script watches late-added scripts, stylesheet links, metadata, and resource timing entries within bounded policy limits.
@@ -48,7 +48,7 @@ The current permission model supports both automatic and manual analysis:
 - `activeTab` remains available for explicit toolbar-driven interaction and compatibility with the manual flow.
 - `scripting` is used for runtime content-script injection and MAIN-world JavaScript-global probing.
 - `storage` persists normalized analysis, redacted replay traces, and the automatic-scan preference.
-- `sidePanel` hosts the persistent, tab-scoped analysis UI so browser-owned prompts cannot dismiss it by taking focus.
+- `sidePanel` hosts one persistent window-scoped analysis UI. The mounted panel follows active-tab changes in its own browser window instead of creating a different panel instance for each tab.
 
 ## Manual QA checklist
 
@@ -60,6 +60,8 @@ Run the extension in Chrome and verify:
 - Browser/internal or PDF-like pages that do not run the content script do not hang the side panel.
 - A page with no content-script response returns `CONTENT_SCRIPT_UNAVAILABLE`.
 - Opening the side panel after an automatic scan renders the stored result immediately; turning automatic scanning off leaves manual side-panel analysis and Refresh working.
+- Pin the side panel, switch between two normal website tabs in the same window, and confirm the panel follows the newly active tab without reporting a missing active tab or retaining the previous tab's detections.
+- Open a second browser window and confirm each mounted side panel follows only the active tab in its own window.
 - Refresh bypasses cache, reruns event analysis, and starts a fresh observation session.
 - Closing the side panel stops live UI updates, and clicking Stop observation stops the active observation session for the visible tab.
 - Late-loaded signals on a supported page can trigger event analysis while the side panel stays open.
@@ -101,7 +103,9 @@ If you prefer `mise`, it keeps the repo's Node and pnpm versions aligned before 
 ## Project areas
 
 - `src/entrypoints/` — WXT side panel, background service worker, content script, and offscreen matcher entrypoints.
-- `src/entrypoints/sidepanel/` — Solid side-panel shell for triggering analysis and displaying results.
+- `src/entrypoints/sidepanel/` — WXT side-panel document, current stylesheet, and router mount.
+- `src/panel/` — window/tab ownership, routed pages, shared side-panel state, and the current visual shell. The default route composes the existing UI unchanged from the page sections.
+- `src/ui/` — staged copies of the Platform Zaidan primitives. They are intentionally not imported by the current side-panel UI yet.
 - `src/components/` — reusable side-panel result, empty, and error presentation components.
 - `src/lib/content/` — DOM collection and observation-session state owned by the content script.
 - `src/lib/collectors/` — extension collection planning plus background-only observation enrichment.
@@ -114,6 +118,7 @@ If you prefer `mise`, it keeps the repo's Node and pnpm versions aligned before 
 - `src/lib/emit/` — final `SiteAnalysis` emission from refined candidates.
 - `src/lib/pipeline/` — event pipeline runtime, observation-batch runtime, replay trace, and explanation generation.
 - `src/lib/messaging/` — typed `comctx` message contracts and adapters for side-panel, background, and content contexts.
+- `src/lib/panel/` — side-panel view-model and durable snapshot projection helpers that do not own browser routing or presentation.
 - `src/lib/storage/` — per-origin normalized analysis cache, replay trace cache, and aggregate status helpers.
 - `src/lib/browser/` — tab helpers owned by privileged contexts.
 - `src/data/` — category labels and bundled technology registry exports.

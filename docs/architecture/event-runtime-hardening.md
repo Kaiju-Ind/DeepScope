@@ -105,7 +105,7 @@ aube run postinstall
 aube run compile -- --pretty false
 aube run build
 aubr vitest --run src/tests/collectors/planning.test.ts --reporter=dot
-aubr vitest --run src/tests/content/content-api.test.ts src/tests/messaging/background-api.test.ts src/tests/popup/view-model.test.ts src/tests/storage/cache.test.ts --reporter=dot
+aubr vitest --run src/tests/content/content-api.test.ts src/tests/messaging/background-api.test.ts src/tests/panel-state/view-model.test.ts src/tests/storage/cache.test.ts --reporter=dot
 aubr vitest --run src/tests/registry src/tests/detection/observation-matcher-index.test.ts src/tests/detection/observation-matcher.test.ts src/tests/candidates src/tests/graph --reporter=dot
 aubr vitest --run src/tests/collectors/capabilities.test.ts src/tests/collectors/collect-page-signals.test.ts src/tests/collectors/observed-page-signals.test.ts src/tests/contracts/analysis.test.ts src/tests/contracts/registry-provider.test.ts src/tests/detection/engine.test.ts --reporter=dot --silent
 aubr vitest --run src/tests/emission/site-analysis.test.ts src/tests/evidence/builders.test.ts src/tests/evidence/repository.test.ts src/tests/lifecycle/observation.test.ts src/tests/messaging/messages.test.ts src/tests/observations/batch-controller.test.ts src/tests/observations/page-signals.test.ts src/tests/pipeline/event-pipeline.test.ts src/tests/pipeline/replay.test.ts --reporter=dot --silent
@@ -113,7 +113,7 @@ aubr vitest --run src/tests/emission/site-analysis.test.ts src/tests/evidence/bu
 
 Focused single-file suites also passed for contracts, popup view-model, replay, emission, registry compiler/source schema, lifecycle, observations, evidence, messaging contracts, collector capabilities, page-signal collection, and observed page signals.
 
-The generated registry artifact was also imported through an esbuild smoke check, which reported 7,989 technologies, 20,501 rules, 1,887 initial DOM selectors, no initial HTML probes, and 880 enrichment HTML probes. `src/entrypoints/background.ts`, `src/entrypoints/popup/App.tsx`, `src/lib/collectors/extension-page-collector.ts`, and `src/lib/registry/precompiled-module.ts` were bundled through esbuild as syntax/import checks.
+The generated registry artifact was also imported through an esbuild smoke check, which reported 7,989 technologies, 20,501 rules, 1,887 initial DOM selectors, no initial HTML probes, and 880 enrichment HTML probes. `src/entrypoints/background.ts`, `src/panel/provider.tsx`, `src/lib/collectors/extension-page-collector.ts`, and `src/lib/registry/precompiled-module.ts` were bundled through esbuild as syntax/import checks.
 
 The full test suite was also attempted with `aubr vitest --run --reporter=dot --silent`, but it did not complete before the execution timeout in this archive workspace. The focused suites above cover the changed registry provider, collection planning, content API, background messaging, popup view model, storage, matcher, candidate, graph, direct detection, emission, evidence, lifecycle, observation, and replay behavior.
 

@@ -32,7 +32,7 @@ This keeps the storage record safe and stable. Raw HTML, cookie values, storage 
 
 ## Why this moves the architecture forward
 
-The final architecture wants page facts to arrive as events, not as one large popup-requested scan. Content-owned page-session revisions are a runtime bridge toward that model. They prove that the content script can keep the popup-visible session moving without background memory, while the heavier detector and enrichment work remain in the correct privileged contexts.
+The final architecture wants page facts to arrive as events, not as one large popup-requested scan. Content-owned page-session revisions are a runtime bridge toward that model. They prove that the content script can keep the side-panel-visible session moving without background memory, while the heavier detector and enrichment work remain in the correct privileged contexts.
 
 This also reduces the service-worker risk. If the background suspends after starting observation, the content script can still write lifecycle revisions for the active document. When the background wakes again, it can enrich or promote a newer revision instead of reconstructing the visible UI state from globals.
 

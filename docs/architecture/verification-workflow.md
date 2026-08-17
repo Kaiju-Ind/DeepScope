@@ -18,7 +18,7 @@ patch applies
   -> manual Chrome QA
 ```
 
-The top of the stack is cheap and should run for every generated patch stack. The bottom of the stack is needed when behavior crosses extension runtime boundaries that unit tests cannot reproduce.
+The top of the stack is cheap and should run for every generated patch stack. The bottom of the stack is needed when behavior crosses extension runtime interfaces that unit tests cannot reproduce.
 
 ## Required command set
 
@@ -26,9 +26,9 @@ The top of the stack is cheap and should run for every generated patch stack. Th
 | --- | --- | --- | --- |
 | `git apply --check <patch>` | Confirms the patch applies to the intended branch state. | Every patch stack. | The command exits with code 0 for every patch. |
 | `git diff --check` | Catches whitespace errors before patches are packaged. | Every patch stack after application. | No whitespace warnings are reported. |
-| `npm test -- --run` | Runs the Vitest suite non-interactively. | Runtime, contract, detector, collector, popup, storage, or test-support changes. | The command exits successfully. |
+| `npm test -- --run` | Runs the Vitest suite non-interactively. | Runtime, contract, detector, collector, side-panel, storage, or test-support changes. | The command exits successfully. |
 | `npm run compile` | Runs TypeScript without emitting files. | Any TypeScript or TSX change. | The command exits successfully after WXT preparation exists. |
-| `npm run build` | Builds the extension through WXT. | Popup, WXT, manifest, content, background, or build-sensitive changes. | The command exits successfully and produces build output. |
+| `npm run build` | Builds the extension through WXT. | Side-panel, WXT, manifest, content, background, or build-sensitive changes. | The command exits successfully and produces build output. |
 | `npm run zip` | Packages the extension. | Release-oriented checkpoints. | The command exits successfully. |
 
 When a command cannot be run or cannot complete, record the exact reason. Do not describe a partial command as passed.
@@ -38,28 +38,30 @@ When a command cannot be run or cannot complete, record the exact reason. Do not
 Run targeted tests when the full suite is unavailable or when the patch only touches one seam. These commands are examples, not substitutes for full validation before release.
 
 ```bash
-npx vitest run src/tests/popup/view-model.test.ts --reporter=verbose
+npx vitest run src/tests/panel-state/view-model.test.ts --reporter=verbose
 npx vitest run src/tests/storage/cache.test.ts --reporter=verbose
 npx vitest run src/tests/collectors/planning.test.ts --reporter=verbose
 npx vitest run src/tests/messaging/messages.test.ts --reporter=verbose
 ```
 
-Use targeted tests to answer a specific review question. For example, a popup-region docs or TSX change should run popup tests and build. A storage mock change should run storage tests and at least one consumer test that imports the shared mock.
+Use targeted tests to answer a specific review question. For example, a side-panel page or TSX change should run panel tests and build. A storage mock change should run storage tests and at least one consumer test that imports the shared mock.
 
 ## Manual Chrome QA
 
-Manual Chrome QA remains necessary for runtime behavior because Vitest does not model Manifest V3 lifecycle, real runtime content-script injection, visible-tab permission timing, popup close cleanup, or page main-world execution.
+Manual Chrome QA remains necessary for runtime behavior because Vitest does not model Manifest V3 lifecycle, real runtime content-script injection, visible-tab permission timing, side-panel mount/unmount cleanup, or page main-world execution.
 
-Run this checklist after changes that touch popup, background, content, lifecycle, messaging adapters, collection, permissions, or WXT configuration.
+Run this checklist after changes that touch side panel, background, content, lifecycle, messaging adapters, collection, permissions, or WXT configuration.
 
 1. Build and load the extension from the WXT output directory.
-2. Open a normal `https://` page and confirm the popup returns either detections or a stable empty result.
-3. Open an unsupported page such as `chrome://extensions` and confirm the popup shows `UNSUPPORTED_URL` without hanging.
-4. Open the popup twice on the same origin and confirm the snapshot-hit path renders without starting live observation.
-5. Click Refresh and confirm analysis bypasses stored snapshot reuse and starts observation again.
-6. Close the popup and confirm the UI unsubscribes from live revisions without starting a new scan on reopen. If you explicitly click Stop observation, confirm the visible tab's observation session stops.
-7. Test a page that lazy-loads scripts, links, or meta tags and confirm late detections can appear while the popup is subscribed to storage revisions.
-8. Navigate within the tab and confirm old observation state does not refresh the new page.
+2. Open a normal `https://` page and confirm the side panel returns either detections or a stable empty result.
+3. Pin the side panel, switch between two supported tabs in the same browser window, and confirm the panel follows the active tab without showing the previous tab or `NO_ACTIVE_TAB`.
+4. Open a second browser window, keep its active tab changing, and confirm those activations do not retarget the panel mounted in the first window.
+5. Open an unsupported page such as `chrome://extensions` and confirm the side panel shows `UNSUPPORTED_URL` without hanging.
+6. Close and reopen the side panel on the same origin and confirm the snapshot-hit path renders without starting live observation.
+7. Click Refresh and confirm analysis bypasses stored snapshot reuse and starts observation again.
+8. Close the side panel and confirm the UI unsubscribes from live revisions without starting a new scan on reopen. If you explicitly click Stop observation, confirm the visible tab's observation session stops.
+9. Test a page that lazy-loads scripts, links, or meta tags and confirm late detections can appear while the side panel is subscribed to storage revisions.
+10. Navigate within the tab and confirm old observation state does not refresh the new page.
 
 If a step cannot be verified, record the browser, page URL type, and failure mode in the pull request notes.
 
@@ -72,7 +74,7 @@ Use this checklist for migration PRs after phase 8.
 - Public TypeScript exports have TSDoc that explains why they exist and what contract they protect.
 - Comments explain constraints, invariants, or non-obvious control flow rather than restating syntax.
 - Tests use shared fixtures when the same contract shape appears in multiple suites.
-- Runtime-adjacent tests mock browser APIs at the browser boundary.
+- Runtime-adjacent tests mock browser APIs at the browser interface.
 - Documentation updates describe verified behavior, not intended behavior that has not shipped.
 - Benchmark files are added only for measured hot paths with a baseline and consumed results.
 

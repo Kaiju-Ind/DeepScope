@@ -79,7 +79,7 @@ matcher worker
   -> candidate/refinement output for the assigned job
 ```
 
-The durable queue belongs in background-owned storage. Poolifier, if used, is only the execution layer inside the offscreen host. It should not own tab identity, cancellation policy, durable queue state, or popup-visible snapshots.
+The durable queue belongs in background-owned storage. Poolifier, if used, is only the execution layer inside the offscreen host. It should not own tab identity, cancellation policy, durable queue state, or side-panel-visible snapshots.
 
 Start with a single-worker executor before Poolifier. A single worker proves the message protocol, stale-result rejection, snapshot merge behavior, and parity with the in-process matcher. A fixed Poolifier executor can follow behind the same adapter after benchmarks prove that parallel workers beat single-worker execution enough to justify duplicated registry memory and startup cost.
 
