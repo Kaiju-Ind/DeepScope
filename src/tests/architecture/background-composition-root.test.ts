@@ -22,6 +22,26 @@ describe('background composition-root ownership', () => {
 		expect(source).not.toContain('createMatcherPipelineResult(');
 	});
 
+	it('keeps WXT background imports free of browser-owned startup work', () => {
+		const source = readFileSync(BACKGROUND_ENTRYPOINT, 'utf8');
+		const defineIndex = source.indexOf('export default defineBackground(() => {');
+		expect(defineIndex).toBeGreaterThan(0);
+
+		const modulePrefix = source.slice(0, defineIndex);
+		expect(modulePrefix).not.toContain("configureKaijuSiteScopeLogging('background')");
+		expect(modulePrefix).not.toContain("installDiagnosticCrashHooks('background')");
+		expect(modulePrefix).not.toContain('const backgroundRuntime = createBackgroundRuntime({');
+		expect(modulePrefix).not.toContain('const autoScanController = createAutoScanController({');
+		expect(modulePrefix).not.toContain('void reconcileInterruptedMatcherJobs(');
+
+		const runtimeBody = source.slice(defineIndex);
+		expect(runtimeBody).toContain("configureKaijuSiteScopeLogging('background')");
+		expect(runtimeBody).toContain("installDiagnosticCrashHooks('background')");
+		expect(runtimeBody).toContain('const backgroundRuntime = createBackgroundRuntime({');
+		expect(runtimeBody).toContain('const autoScanController = createAutoScanController({');
+		expect(runtimeBody).toContain('void reconcileInterruptedMatcherJobs(');
+	});
+
 	it('starts toggleable automatic analysis from active page load and activation events', () => {
 		const source = readFileSync(BACKGROUND_ENTRYPOINT, 'utf8');
 		const config = readFileSync(WXT_CONFIG, 'utf8');

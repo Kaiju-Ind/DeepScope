@@ -180,6 +180,19 @@ function makeTextEnrichmentCollectionPlan(): CollectionPlan {
 	}]);
 }
 
+function makeSourceEnrichmentCollectionPlan(): CollectionPlan {
+	return buildCollectionPlan([{
+		id: 'source-tech',
+		name: 'Source Tech',
+		website: 'https://source.example',
+		categories: ['unknown'],
+		rules: [
+			{ kind: 'scriptContent', pattern: /source-script/ },
+			{ kind: 'stylesheetContent', pattern: /source-style/ },
+		],
+	}]);
+}
+
 function makeMultiSurfaceEnrichmentCollectionPlan(): CollectionPlan {
 	const plan = makeTextEnrichmentCollectionPlan();
 	return {
@@ -944,6 +957,22 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 			],
 		});
 		expect(harness.mocks.getCachedReplayTraceHistory).toHaveBeenCalledWith(HTTP_TAB.url!);
+	});
+
+	it('carries source-content requirements into the live observation session', async () => {
+		const harness = await loadBackgroundApiHarness({
+			tab: HTTP_TAB,
+			collectionPlan: makeSourceEnrichmentCollectionPlan(),
+		});
+
+		await expect(
+			harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'while-panel-open' }),
+		).resolves.toMatchObject({ ok: true });
+
+		expect(harness.contentApi.beginObservationSession).toHaveBeenCalledWith(expect.objectContaining({
+			includeScriptContent: true,
+			includeStylesheetContent: true,
+		}));
 	});
 
 	it('currently treats bounded observation as a fresh observation request', async () => {

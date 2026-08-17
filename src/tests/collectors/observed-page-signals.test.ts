@@ -212,6 +212,80 @@ describe('observed page signals', () => {
 		});
 	});
 
+	it('skips expensive source text when a snapshot tier does not request it', async () => {
+		vi.stubGlobal('document', makeDocument());
+		vi.stubGlobal('location', { href: 'https://example.com/products' });
+		vi.stubGlobal('MutationObserver', FakeMutationObserver);
+		vi.stubGlobal('PerformanceObserver', undefined);
+		vi.stubGlobal('performance', {
+			getEntriesByType: vi.fn(() => []),
+		});
+
+		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		const snapshot = await observedSignals.snapshot({
+			includeScriptContent: false,
+			includeStylesheetContent: false,
+		});
+
+		expect(snapshot.scripts).toEqual(['https://example.com/assets/app.js']);
+		expect(snapshot.stylesheets).toEqual(['https://example.com/assets/app.css']);
+		expect(snapshot.scriptContents).toEqual([]);
+		expect(snapshot.stylesheetContents).toEqual([]);
+	});
+
+	it('collects late inline source only when the observation session requests it', async () => {
+		vi.useFakeTimers();
+		vi.stubGlobal('document', makeDocument());
+		vi.stubGlobal('location', { href: 'https://example.com/products' });
+		vi.stubGlobal('MutationObserver', FakeMutationObserver);
+		vi.stubGlobal('PerformanceObserver', undefined);
+		vi.stubGlobal('HTMLScriptElement', FakeObservedScriptElement);
+		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+
+		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		observedSignals.beginObservationSession({
+			sessionId: 'session-1',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: 10,
+			maxMutations: 100,
+		});
+
+		mutationObservers[0]?.callback([{
+			type: 'childList',
+			addedNodes: [new FakeObservedScriptElement('', 'window.__LATE__ = true')] as unknown as NodeList,
+			removedNodes: [] as unknown as NodeList,
+			target: document,
+		} as unknown as MutationRecord], mutationObservers[0] as unknown as MutationObserver);
+		await vi.advanceTimersByTimeAsync(25);
+
+		const withoutSource = await observedSignals.flushObservationBatch();
+		expect(withoutSource.batch?.observations.some((observation) => observation.kind === 'scriptContent') ?? false).toBe(false);
+
+		observedSignals.stopObservationSession('manual');
+		observedSignals.beginObservationSession({
+			sessionId: 'session-2',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: 10,
+			maxMutations: 100,
+			includeScriptContent: true,
+		});
+
+		mutationObservers[0]?.callback([{
+			type: 'childList',
+			addedNodes: [new FakeObservedScriptElement('', 'window.__LATE__ = true')] as unknown as NodeList,
+			removedNodes: [] as unknown as NodeList,
+			target: document,
+		} as unknown as MutationRecord], mutationObservers[0] as unknown as MutationObserver);
+		await vi.advanceTimersByTimeAsync(25);
+
+		const withSource = await observedSignals.flushObservationBatch();
+		expect(withSource.batch?.observations).toEqual(expect.arrayContaining([
+			expect.objectContaining({ kind: 'scriptContent', value: 'window.__LATE__ = true' }),
+		]));
+	});
+
 	it('flushes normalized observations from the current observer snapshot', async () => {
 		vi.stubGlobal('document', makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
