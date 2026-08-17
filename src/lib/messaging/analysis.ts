@@ -2,12 +2,12 @@ import type {
 	ObservationStopReason as ContentObservationStopReason,
 	PageSignalPollingState as ObservationSessionState,
 } from '../content/observed-page-signals';
-import type { DetectionEvidenceState, DetectionSessionKey } from './detection-session';
+import type { DetectionEvidenceState, DetectionSessionKey } from '../storage/session';
 import type { AnalysisStatus, SiteAnalysis } from '../detection/types';
 import type { DetectionReplayTrace } from '../pipeline';
 import type { DomSelectorPlan } from '../collectors/planning';
 import type { ObservationBatch, ObservationBatchControllerStats } from '../observations';
-import type { AppResult } from '../shared/result';
+import type { ExtensionResult } from './result';
 
 /**
  * Analysis modes accepted by the side-panel-to-background request.
@@ -275,31 +275,31 @@ export type CollectPageSignalsInput = {
 /** Side-panel-to-background API exposed through the messaging adapter. */
 export interface BackgroundApi {
 	/** Return aggregate cache status for the extension. */
-	getAnalysisStatus(): Promise<AppResult<AnalysisStatus>>;
+	getAnalysisStatus(): Promise<ExtensionResult<AnalysisStatus>>;
 	/** Return identity for the supplied active browser tab without collecting or analyzing page data. */
-	getVisibleTabIdentity(input: { readonly tabId: number; readonly windowId: number }): Promise<AppResult<VisibleTabIdentity>>;
+	getVisibleTabIdentity(input: { readonly tabId: number; readonly windowId: number }): Promise<ExtensionResult<VisibleTabIdentity>>;
 	/** Synchronize the side-panel-visible tab target and optionally start a content-script observation session. */
-	analyzeVisibleTab(input: AnalyzeVisibleTabInput): Promise<AppResult<AnalyzeVisibleTabOutput>>;
+	analyzeVisibleTab(input: AnalyzeVisibleTabInput): Promise<ExtensionResult<AnalyzeVisibleTabOutput>>;
 	/** Re-analyze a known observation session when its queued page facts are dirty. */
-	refreshObservationSession(input: ObservationSessionTargetInput): Promise<AppResult<AnalyzeVisibleTabOutput>>;
+	refreshObservationSession(input: ObservationSessionTargetInput): Promise<ExtensionResult<AnalyzeVisibleTabOutput>>;
 	/** Stop a known content-script observation session. */
-	stopObservationSession(input: ObservationSessionTargetInput): Promise<AppResult<ObservationSessionState>>;
+	stopObservationSession(input: ObservationSessionTargetInput): Promise<ExtensionResult<ObservationSessionState>>;
 	/** Read a known content-script observation session state. */
-	getObservationSessionState(input: ObservationSessionTargetInput): Promise<AppResult<ObservationSessionState>>;
+	getObservationSessionState(input: ObservationSessionTargetInput): Promise<ExtensionResult<ObservationSessionState>>;
 	/** Return bounded replay history for the analysis URL already visible in the side panel. */
-	getReplayTraceHistory(input: ReplayTraceHistoryInput): Promise<AppResult<readonly DetectionReplayTrace[]>>;
+	getReplayTraceHistory(input: ReplayTraceHistoryInput): Promise<ExtensionResult<readonly DetectionReplayTrace[]>>;
 }
 
 /** Background-to-content API exposed through the content-script messaging adapter. */
 export interface ContentApi {
 	/** Collect the current content script document as normalized observations. */
-	collectObservationBatch(input: CollectPageSignalsInput): Promise<AppResult<CollectObservationBatchOutput>>;
+	collectObservationBatch(input: CollectPageSignalsInput): Promise<ExtensionResult<CollectObservationBatchOutput>>;
 	/** Start watching late-added scripts, links, styles, and metadata. */
-	beginObservationSession(input: BeginObservationSessionInput): Promise<AppResult<ObservationSessionState>>;
+	beginObservationSession(input: BeginObservationSessionInput): Promise<ExtensionResult<ObservationSessionState>>;
 	/** Stop the current observation session manually. */
-	stopObservationSession(): Promise<AppResult<ObservationSessionState>>;
+	stopObservationSession(): Promise<ExtensionResult<ObservationSessionState>>;
 	/** Flush late normalized observations queued by DOM and resource observers. */
-	flushObservationBatch(): Promise<AppResult<FlushObservationBatchOutput>>;
+	flushObservationBatch(): Promise<ExtensionResult<FlushObservationBatchOutput>>;
 	/** Return the current observation session state. */
-	getObservationSessionState(): Promise<AppResult<ObservationSessionState>>;
+	getObservationSessionState(): Promise<ExtensionResult<ObservationSessionState>>;
 }

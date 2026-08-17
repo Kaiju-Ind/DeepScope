@@ -1,6 +1,6 @@
-import type { DetectionSessionKey } from '../contracts/detection-session';
+import type { DetectionSessionKey } from './session';
 
-import { getOrigin } from '../shared/url';
+import { getOrigin } from '@/utils/url';
 import { createFnv1a32Hash } from './hash';
 
 /** Prefix used for exact page-document detection snapshot records. */

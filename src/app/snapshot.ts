@@ -2,42 +2,42 @@ import type {
   DetectionReplaySummary,
   DetectionSessionKey,
   DetectionSessionSnapshot,
-} from '../contracts/detection-session';
+} from '@/lib/storage/session';
 
 import { browser } from 'wxt/browser';
-import type { VisibleTabIdentity, AnalysisEnrichmentState, AnalyzeVisibleTabOutput } from '../messaging';
-import { filterReplayHistoryForAnalysis, isDetectionReplayTraceForAnalysis } from '../pipeline';
+import type { VisibleTabIdentity, AnalysisEnrichmentState, AnalyzeVisibleTabOutput } from '@/lib/messaging';
+import { filterReplayHistoryForAnalysis, isDetectionReplayTraceForAnalysis } from '@/lib/pipeline';
 
 import {
   browserDetectionPersistence,
-} from '../persistence';
+} from '@/lib/persistence';
 import type {
   DetectionReplayStore,
   DetectionSnapshotReader,
-} from '../persistence';
+} from '@/lib/persistence';
 import {
   STORAGE_LIMITS,
   getContentSessionLifecycleKey,
   getAnalysisResponseKey,
   getDetectionOriginSnapshotKey,
   getDetectionSessionSnapshotKey,
-} from '../storage/contracts';
-import type { PanelVisibleRevision } from './view-model';
+} from '@/lib/storage/contracts';
+import type { VisibleRevision } from '@/app/model';
 
 /** Handler invoked when storage publishes a matching snapshot revision. */
-export type PanelSnapshotRevisionHandler = (snapshot: DetectionSessionSnapshot) => void;
+export type SnapshotRevisionHandler = (snapshot: DetectionSessionSnapshot) => void;
 
 /** Cleanup callback for removing the side panel's storage change listener. */
-export type PanelSnapshotUnsubscribe = () => void;
+export type SnapshotUnsubscribe = () => void;
 
 /** Persistence capabilities required to hydrate side panel snapshot state. */
-export type PanelSnapshotPersistence = Pick<
+export type SnapshotPersistence = Pick<
   DetectionSnapshotReader,
   'getSessionIndex' | 'getLatestSessionSnapshot' | 'getLatestOriginSnapshot'
 > & Pick<DetectionReplayStore, 'getReplayTrace' | 'getReplayHistory'>;
 
 /** Stored analysis source that can paint the side panel before background analysis runs. */
-export type PanelStoredAnalysisSource = 'session-snapshot' | 'origin-snapshot';
+export type StoredAnalysisSource = 'session-snapshot' | 'origin-snapshot';
 
 /**
  * Stored detector output that can be rendered during side panel startup.
@@ -46,11 +46,11 @@ export type PanelStoredAnalysisSource = 'session-snapshot' | 'origin-snapshot';
  * enrichment, executor, and replay summary state. Analysis-snapshot response records stay as a lower-level persistence detail and no longer
  * drive first paint.
  */
-export type PanelStoredAnalysisResult = {
+export type StoredAnalysisResult = {
   /** Storage path that produced the analysis shown in the side panel. */
-  readonly source: PanelStoredAnalysisSource;
+  readonly source: StoredAnalysisSource;
   /** Panel-visible revision derived from storage state. */
-  readonly revision: PanelVisibleRevision;
+  readonly revision: VisibleRevision;
   /** Normalized analysis output safe for current side panel rendering. */
   readonly analysis: AnalyzeVisibleTabOutput['analysis'];
   /** Snapshot revision used when the storage-backed stream already has state. */
@@ -70,10 +70,10 @@ export type PanelStoredAnalysisResult = {
  * writes: visible state should come from the live page command, not from durable
  * records that can outlive the private browsing context.
  */
-export async function readStoredPanelAnalysis(
+export async function readStoredAnalysis(
   identity: VisibleTabIdentity,
-  persistence: PanelSnapshotPersistence = browserDetectionPersistence,
-): Promise<PanelStoredAnalysisResult | null> {
+  persistence: SnapshotPersistence = browserDetectionPersistence,
+): Promise<StoredAnalysisResult | null> {
   if (identity.incognito) {
     return null;
   }
@@ -95,11 +95,11 @@ export async function readStoredPanelAnalysis(
     ...(storedSnapshot.lifecycleSnapshot ? { lifecycleSnapshot: storedSnapshot.lifecycleSnapshot } : {}),
     ...replay,
   };
-  return { ...stored, revision: createStoredPanelVisibleRevision(stored) };
+  return { ...stored, revision: createStoredVisibleRevision(stored) };
 }
 
 type StoredVisibleSnapshot = {
-	readonly source: PanelStoredAnalysisSource;
+	readonly source: StoredAnalysisSource;
 	readonly snapshot: DetectionSessionSnapshot;
   readonly lifecycleSnapshot?: DetectionSessionSnapshot;
 };
@@ -107,7 +107,7 @@ type StoredVisibleSnapshot = {
 /** Prefer exact session snapshots for the visible tab, falling back to old origin pointers. */
 async function getStoredVisibleSnapshot(
   identity: VisibleTabIdentity,
-  persistence: PanelSnapshotPersistence,
+  persistence: SnapshotPersistence,
 ): Promise<StoredVisibleSnapshot | null> {
 	const index = await persistence.getSessionIndex(identity.tabId);
   const exactSnapshots: StoredVisibleSnapshot[] = [];
@@ -155,8 +155,8 @@ async function getStoredVisibleSnapshot(
  */
 async function readStoredReplayState(
   analysis: AnalyzeVisibleTabOutput['analysis'],
-  persistence: PanelSnapshotPersistence,
-): Promise<Pick<PanelStoredAnalysisResult, 'replayTrace' | 'replayHistory'>> {
+  persistence: SnapshotPersistence,
+): Promise<Pick<StoredAnalysisResult, 'replayTrace' | 'replayHistory'>> {
   const [replayTrace, replayHistory] = await Promise.all([
     persistence.getReplayTrace(analysis.url),
     persistence.getReplayHistory(analysis.url),
@@ -200,7 +200,7 @@ function isDetectorStartupSnapshot(snapshot: DetectionSessionSnapshot): boolean 
  * separating storage-first display from the later background command that starts
  * synchronization or observation work.
  */
-export function createStoredPanelAnalysisOutput(stored: PanelStoredAnalysisResult): AnalyzeVisibleTabOutput {
+export function createStoredAnalysisOutput(stored: StoredAnalysisResult): AnalyzeVisibleTabOutput {
   return {
     analysis: stored.revision.analysis,
     snapshot: { ...stored.revision.snapshot },
@@ -212,7 +212,7 @@ export function createStoredPanelAnalysisOutput(stored: PanelStoredAnalysisResul
 }
 
 /** Convert stored snapshot state into the side panel's revision model. */
-export function createStoredPanelVisibleRevision(stored: Omit<PanelStoredAnalysisResult, 'revision'>): PanelVisibleRevision {
+export function createStoredVisibleRevision(stored: Omit<StoredAnalysisResult, 'revision'>): VisibleRevision {
   const lifecycleSnapshot = stored.lifecycleSnapshot ?? stored.snapshot;
   const replaySummary = isReplaySummaryForAnalysis(stored.snapshot?.replaySummary, stored.analysis)
     ? stored.snapshot?.replaySummary
@@ -257,11 +257,11 @@ export function isSnapshotForActiveTab(identity: VisibleTabIdentity, snapshot: D
  * origin snapshot, the browser emits a storage change, and the side panel applies the
  * revision only when it still belongs to the visible tab identity.
  */
-export function subscribeToPanelSnapshotRevisions(
+export function subscribeToSnapshotRevisions(
   identity: VisibleTabIdentity,
   exactSessionKey: DetectionSessionKey | null,
-  onRevision: PanelSnapshotRevisionHandler,
-): PanelSnapshotUnsubscribe {
+  onRevision: SnapshotRevisionHandler,
+): SnapshotUnsubscribe {
   const storageKeys = exactSessionKey
     ? [
       getDetectionSessionSnapshotKey(exactSessionKey),

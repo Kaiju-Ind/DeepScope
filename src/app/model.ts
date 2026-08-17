@@ -1,11 +1,11 @@
-import { categories } from '@/data/categories';
-import type { ObservationSessionState } from '../content/observed-page-signals';
+import { categories } from '@/registry/categories.ts';
+import type { ObservationSessionState } from '@/lib/content/observed-page-signals.ts';
 import type {
 	AnalysisEnrichmentState,
 	AnalyzeVisibleTabOutput,
 	ObservationSessionTarget,
 	SnapshotReuseStatus,
-} from '../contracts/analysis';
+} from '@/lib/messaging/analysis';
 import type {
 	DetectionReplaySummary,
 	DetectionEvidenceState,
@@ -13,16 +13,16 @@ import type {
 	DetectionSessionSnapshotSource,
 	DetectionSessionStatus,
 	DetectionSessionSnapshot,
-} from '../contracts/detection-session';
-import type { CategoryId, ConfidenceScore, DetectionResult, SiteAnalysis } from '../detection/types';
+} from '@/lib/storage/session';
+import type { CategoryId, ConfidenceScore, DetectionResult, SiteAnalysis } from '@/lib/detection/types';
 import {
 	filterReplayHistoryForAnalysis,
 	isDetectionReplayTraceForAnalysis,
 	type DetectionExplanation,
 	type DetectionExplanationEvidenceSummary,
 	type DetectionReplayTrace,
-} from '../pipeline';
-import type { AppError } from '../shared/errors';
+} from '@/lib/pipeline';
+import type { ExtensionError } from '@/lib/messaging/failure';
 
 /**
  * Panel observation states that are meaningful to the user interface.
@@ -32,52 +32,65 @@ import type { AppError } from '../shared/errors';
  * unknown. Storage revisions are the receive stream; this state only drives copy
  * and controls.
  */
-export const PANEL_OBSERVATION_MODES = ['idle', 'active', 'stopped', 'unknown'] as const;
+export const OBSERVATION_MODES = ['idle', 'active', 'stopped', 'unknown'] as const;
 
 /** User-facing observation state used by the side panel controls and status text. */
-export type PanelObservationMode = typeof PANEL_OBSERVATION_MODES[number];
+export type ObservationMode = typeof OBSERVATION_MODES[number];
 
 /**
  * Source of the side panel analysis request.
  *
- * The source is UI context, not detector metadata. It tells the view-model helper
+ * The source is UI context, not detector metadata. It tells the model function
  * whether to create manual refresh copy, late-observation copy, or no notice.
  */
-export type PanelAnalysisRequestSource = 'initial' | 'manual' | 'auto';
+export type AnalysisRequestSource = 'initial' | 'manual' | 'auto';
 
 /** Detector work lane shown by the side panel. */
-export type PanelMatcherStatus = 'idle' | 'collecting' | 'matching' | 'recording';
+export type MatcherStatus = 'idle' | 'collecting' | 'matching' | 'recording';
 
 /** Matcher progress counters safe for side panel display. */
-export type PanelMatcherProgress = Pick<
+export type MatcherProgress = Pick<
 	DetectionMatcherProgressSummary,
 	'completedPartitionCount' | 'partitionCount' | 'latestPartitionKind' | 'resultCount'
 >;
 
+/** Visual progress that can be rendered without interpreting matcher internals. */
+export type AnalysisProgress =
+	| { readonly kind: 'idle' }
+	| { readonly kind: 'indeterminate' }
+	| {
+		readonly kind: 'determinate';
+		readonly completed: number;
+		readonly total: number;
+		readonly percent: number;
+	};
+
 /** User-facing progress state for visible-tab analysis work. */
-export type PanelAnalysisActivity = {
+export type AnalysisActivity = {
 	/** Whether the side panel should render active progress affordances. */
 	readonly busy: boolean;
 	/** Compact label used in metrics. */
 	readonly label: string;
-	/** Headline used beside the spinner. */
+	/** Headline used beside the progress indicator. */
 	readonly headline: string;
 	/** Short explanatory copy used near progress affordances. */
 	readonly description: string;
+	/** Determinate progress when matcher partitions are known, otherwise an indeterminate state. */
+	readonly progress: AnalysisProgress;
 };
 
 /** Panel workflow state owned by visible tab/session transitions. */
-export type PanelSessionState =
+export type SessionState =
 	| { readonly kind: 'empty' }
 	| { readonly kind: 'loading-visible-tab' }
-	| { readonly kind: 'showing-snapshot'; readonly revision: PanelVisibleRevision }
-	| { readonly kind: 'requesting-analysis'; readonly previous?: PanelVisibleRevision }
-	| { readonly kind: 'streaming-revisions'; readonly revision: PanelVisibleRevision }
-	| { readonly kind: 'stopped'; readonly revision?: PanelVisibleRevision }
+	| { readonly kind: 'showing-snapshot'; readonly revision: VisibleRevision }
+	| { readonly kind: 'requesting-analysis'; readonly previous?: VisibleRevision }
+	| { readonly kind: 'streaming-revisions'; readonly revision: VisibleRevision }
+	| { readonly kind: 'stopped'; readonly revision?: VisibleRevision }
 	| { readonly kind: 'failed'; readonly message: string };
 
 /** Replay state normalized for side panel rendering. */
-export type PanelReplayState =
+export type ReplayState =
 	| { readonly kind: 'none' }
 	| { readonly kind: 'summary'; readonly summary: DetectionReplaySummary }
 	| { readonly kind: 'loading-history'; readonly summary: DetectionReplaySummary }
@@ -88,7 +101,7 @@ export type PanelReplayState =
 	};
 
 /** Panel-visible detector revision independent from background command envelopes. */
-export type PanelVisibleRevision = {
+export type VisibleRevision = {
 	/** Origin of this visible revision in the side panel data flow. */
 	readonly source: 'command' | 'snapshot';
 	/** Normalized detector output safe for side panel rendering. */
@@ -124,14 +137,14 @@ export type PanelVisibleRevision = {
 };
 
 /** User-visible notice severity supported by the current side panel shell. */
-export type PanelNoticeVariant = 'success' | 'warning';
+export type NoticeVariant = 'success' | 'warning';
 
 /**
  * Small status message rendered above the result panel.
  */
-export type PanelNotice = {
+export type Notice = {
 	/** Visual treatment for the notice. */
-	variant: PanelNoticeVariant;
+	variant: NoticeVariant;
 	/** Plain text shown to the user. */
 	text: string;
 };
@@ -139,7 +152,7 @@ export type PanelNotice = {
 /**
  * Detection group rendered by `CategoryGroup`.
  */
-export type PanelCategoryGroup = {
+export type CategoryGroup = {
 	/** Primary category id chosen from the first category on each detection. */
 	category: string;
 	/** Human-readable category label from the category metadata table. */
@@ -156,7 +169,7 @@ export type PanelCategoryGroup = {
  * The view model keeps this smaller than `DetectionExplanation` so Solid
  * components do not need to know about the full replay trace schema.
  */
-export type PanelDetectionExplanationSummary = {
+export type DetectionExplanationSummary = {
 	/** Technology id this explanation belongs to. */
 	technologyId: string;
 	/** Short headline rendered above the explanation reasons. */
@@ -172,12 +185,12 @@ export type PanelDetectionExplanationSummary = {
 	/** Whether the detection was inferred through graph relationships. */
 	inferred: boolean;
 	/** Public evidence rows rendered below explanation reasons. */
-	evidence: readonly PanelEvidencePreview[];
+	evidence: readonly EvidencePreview[];
 };
 
 
 /** Public evidence row shown inside a technology card. */
-export type PanelEvidencePreview = {
+export type EvidencePreview = {
 	/** Detector surface that supplied the proof. */
 	kind: string;
 	/** Bounded value that matched the detector rule, when available. */
@@ -195,18 +208,18 @@ export type PanelEvidencePreview = {
 };
 
 /** Lookup table keyed by technology id for explanation rendering. */
-export type PanelExplanationLookup = Readonly<Record<string, PanelDetectionExplanationSummary>>;
+export type ExplanationLookup = Readonly<Record<string, DetectionExplanationSummary>>;
 
 /**
  * Input needed to derive side panel state from a background analysis response.
  */
-export type BuildPanelAnalysisUpdateInput = {
+export type BuildAnalysisUpdateInput = {
 	/** Analysis currently rendered by the side panel before the new response arrives. */
 	previousAnalysis: SiteAnalysis | null;
 	/** Panel-visible revision from a command or storage snapshot. */
-	revision: PanelVisibleRevision;
+	revision: VisibleRevision;
 	/** UI request source that controls notice copy. */
-	source: PanelAnalysisRequestSource;
+	source: AnalysisRequestSource;
 	/** Current late-detection ids already marked in the side panel. */
 	currentLateDetectionIds?: readonly string[];
 	/** Whether the caller intentionally cleared late markers before applying this response. */
@@ -216,7 +229,7 @@ export type BuildPanelAnalysisUpdateInput = {
 /**
  * Panel state derived from a single successful analysis response.
  */
-export type PanelAnalysisUpdate = {
+export type AnalysisUpdate = {
 	/** Analysis that should become the side panel's current result snapshot. */
 	analysis: SiteAnalysis;
 	/** Technology ids that appeared compared with the previously rendered analysis. */
@@ -224,22 +237,22 @@ export type PanelAnalysisUpdate = {
 	/** Complete late-detection id list after this response is applied. */
 	lateDetectionIds: string[];
 	/** Explanation summaries keyed by technology id for result cards. */
-	explanationsByTechnologyId: PanelExplanationLookup;
+	explanationsByTechnologyId: ExplanationLookup;
 	/** User-facing observation state for buttons, chips, and result copy. */
-	observationMode: PanelObservationMode;
+	observationMode: ObservationMode;
 	/** Whether the side panel should keep background-driven live updates active for late page signals. */
 	shouldKeepLiveUpdatesActive: boolean;
 	/** Optional notice to display after applying the response. */
-	notice: PanelNotice | null;
+	notice: Notice | null;
 };
 
 /** Whether matcher work is active enough to deserve visible progress UI. */
-export function isPanelMatcherBusy(status: PanelMatcherStatus): boolean {
+export function isMatcherBusy(status: MatcherStatus): boolean {
 	return status === 'collecting' || status === 'matching' || status === 'recording';
 }
 
 /** Returns the compact matcher label for side panel metrics. */
-export function getPanelMatcherStatusLabel(status: PanelMatcherStatus, progress?: PanelMatcherProgress): string {
+export function getMatcherStatusLabel(status: MatcherStatus, progress?: MatcherProgress): string {
 	if (status === 'collecting') return 'collecting page signals';
 	if (status === 'matching') {
 		if (progress && progress.partitionCount > 0) {
@@ -253,7 +266,7 @@ export function getPanelMatcherStatusLabel(status: PanelMatcherStatus, progress?
 }
 
 /** User-facing headline for the current matcher lane. */
-export function getPanelMatcherActivityHeadline(status: PanelMatcherStatus): string {
+export function getMatcherActivityHeadline(status: MatcherStatus): string {
 	if (status === 'collecting') return 'Collecting page signals';
 	if (status === 'matching') return 'Matching evidence batches';
 	if (status === 'recording') return 'Recording replay trace';
@@ -261,7 +274,7 @@ export function getPanelMatcherActivityHeadline(status: PanelMatcherStatus): str
 }
 
 /** Short progress copy used near the animated activity indicator. */
-export function getPanelMatcherActivityDescription(status: PanelMatcherStatus, progress?: PanelMatcherProgress): string {
+export function getMatcherActivityDescription(status: MatcherStatus, progress?: MatcherProgress): string {
 	if (status === 'collecting') {
 		return 'Reading DOM, resource, metadata, and page-surface signals before worker matching starts.';
 	}
@@ -282,6 +295,25 @@ export function getPanelMatcherActivityDescription(status: PanelMatcherStatus, p
 	return 'The latest detector snapshot is ready.';
 }
 
+/** Return normalized determinate matcher progress when partition counts are known. */
+export function getMatcherProgress(
+	status: MatcherStatus,
+	progress?: MatcherProgress,
+): AnalysisProgress {
+	if (status !== 'matching' || !progress || progress.partitionCount < 1) {
+		return { kind: status === 'idle' ? 'idle' : 'indeterminate' };
+	}
+
+	const total = progress.partitionCount;
+	const completed = Math.min(Math.max(progress.completedPartitionCount, 0), total);
+	return {
+		kind: 'determinate',
+		completed,
+		total,
+		percent: Math.round((completed / total) * 100),
+	};
+}
+
 /**
  * Derives visible side panel progress from command, tab-switch, and matcher lanes.
  *
@@ -289,28 +321,30 @@ export function getPanelMatcherActivityDescription(status: PanelMatcherStatus, p
  * still belong to the previous tab. The side panel should describe the tab the user is
  * currently looking at, not a stale request that is only blocking the queue.
  */
-export function getPanelAnalysisActivity(input: {
-	readonly matcherStatus: PanelMatcherStatus;
+export function getAnalysisActivity(input: {
+	readonly matcherStatus: MatcherStatus;
 	readonly workflowBusy: boolean;
 	readonly analysisRequestInFlight: boolean;
 	readonly queuedVisibleAnalysis: boolean;
-	readonly matcherProgress?: PanelMatcherProgress;
-}): PanelAnalysisActivity {
+	readonly matcherProgress?: MatcherProgress;
+}): AnalysisActivity {
 	if (input.queuedVisibleAnalysis) {
 		return {
 			busy: true,
 			label: 'queued for this tab',
 			headline: 'Waiting to scan this tab',
 			description: 'The visible tab changed while another scan was finishing. This tab will start next.',
+			progress: { kind: 'indeterminate' },
 		};
 	}
 
-	if (isPanelMatcherBusy(input.matcherStatus)) {
+	if (isMatcherBusy(input.matcherStatus)) {
 		return {
 			busy: true,
-			label: getPanelMatcherStatusLabel(input.matcherStatus, input.matcherProgress),
-			headline: getPanelMatcherActivityHeadline(input.matcherStatus),
-			description: getPanelMatcherActivityDescription(input.matcherStatus, input.matcherProgress),
+			label: getMatcherStatusLabel(input.matcherStatus, input.matcherProgress),
+			headline: getMatcherActivityHeadline(input.matcherStatus),
+			description: getMatcherActivityDescription(input.matcherStatus, input.matcherProgress),
+			progress: getMatcherProgress(input.matcherStatus, input.matcherProgress),
 		};
 	}
 
@@ -320,6 +354,7 @@ export function getPanelAnalysisActivity(input: {
 			label: 'loading current tab',
 			headline: 'Loading latest detections',
 			description: 'The side panel is waiting for the active tab scan to publish its first detector revision.',
+			progress: { kind: 'indeterminate' },
 		};
 	}
 
@@ -329,6 +364,7 @@ export function getPanelAnalysisActivity(input: {
 			label: 'preparing current tab',
 			headline: 'Preparing active tab',
 			description: 'Stored detections and live session state are being loaded for the visible tab.',
+			progress: { kind: 'indeterminate' },
 		};
 	}
 
@@ -337,6 +373,7 @@ export function getPanelAnalysisActivity(input: {
 		label: 'complete',
 		headline: 'Analysis complete',
 		description: 'The latest detector snapshot is ready.',
+		progress: { kind: 'idle' },
 	};
 }
 
@@ -347,9 +384,9 @@ export function getPanelAnalysisActivity(input: {
  * replay-backed write lands. A background snapshot is only truly idle when it is
  * cached or has the replay summary that proves the current matcher run finished.
  */
-export function getPanelMatcherStatusFromSnapshot(
+export function getMatcherStatusFromSnapshot(
 	snapshot: DetectionSessionSnapshot,
-): PanelMatcherStatus | null {
+): MatcherStatus | null {
 	if (snapshot.enrichment.status === 'pending') {
 		return 'matching';
 	}
@@ -381,7 +418,7 @@ export function getPanelMatcherStatusFromSnapshot(
 }
 
 /** Returns whether this revision still represents in-flight matcher work. */
-export function isPanelVisibleRevisionPending(revision: PanelVisibleRevision): boolean {
+export function isVisibleRevisionPending(revision: VisibleRevision): boolean {
 	if (revision.enrichment?.status === 'pending') {
 		return true;
 	}
@@ -391,7 +428,7 @@ export function isPanelVisibleRevisionPending(revision: PanelVisibleRevision): b
 	}
 
 	if (revision.sessionSnapshotStatus) {
-		return getPanelMatcherStatusFromSnapshot({
+		return getMatcherStatusFromSnapshot({
 			key: { tabId: 0, frameId: 0, documentId: 'revision', originHash: 'revision' },
 			schemaVersion: 1,
 			revision: 0,
@@ -444,8 +481,8 @@ export function getReplaySummaryForVisibleAnalysis(
 }
 
 /** Returns whether replay details belong to the current visible revision. */
-export function shouldApplyPanelReplayState(revision: PanelVisibleRevision): boolean {
-	if (isPanelVisibleRevisionPending(revision)) {
+export function shouldApplyReplayState(revision: VisibleRevision): boolean {
+	if (isVisibleRevisionPending(revision)) {
 		return false;
 	}
 
@@ -461,9 +498,9 @@ export function shouldApplyPanelReplayState(revision: PanelVisibleRevision): boo
 }
 
 /** Convert the current background command response into a side panel revision bridge. */
-export function createPanelVisibleRevisionFromAnalysisResponse(
+export function createVisibleRevisionFromAnalysisResponse(
 	response: AnalyzeVisibleTabOutput,
-): PanelVisibleRevision {
+): VisibleRevision {
 	const replayTrace = getReplayTraceForVisibleAnalysis(response.replayTrace, response.analysis);
 	const replayHistory = getReplayHistoryForVisibleAnalysis(response.replayHistory, response.analysis);
 	return {
@@ -480,7 +517,7 @@ export function createPanelVisibleRevisionFromAnalysisResponse(
 }
 
 /** Return the normalized replay rendering state for a side panel revision. */
-export function getPanelReplayState(revision: PanelVisibleRevision): PanelReplayState {
+export function getReplayState(revision: VisibleRevision): ReplayState {
 	const history = getReplayHistoryForVisibleAnalysis(revision.replayHistory, revision.analysis);
 	if (history.length) {
 		const summary = getReplaySummaryForVisibleAnalysis(revision.replaySummary, revision.analysis)
@@ -538,7 +575,7 @@ export type ShouldRefreshObservedChangeInput = {
  */
 export function groupDetectionsByPrimaryCategory(
 	results: readonly DetectionResult[],
-): PanelCategoryGroup[] {
+): CategoryGroup[] {
 	const grouped = results.reduce<Record<string, DetectionResult[]>>(
 		(groups, result) => {
 			const category = result.categories[0] ?? 'unknown';
@@ -565,7 +602,7 @@ export function groupDetectionsByPrimaryCategory(
 /**
  * Returns the side panel label for an observation mode.
  */
-export function getPanelObservationLabel(mode: PanelObservationMode): string {
+export function getObservationLabel(mode: ObservationMode): string {
 	if (mode === 'active') {
 		return 'Observing';
 	}
@@ -584,9 +621,9 @@ export function getPanelObservationLabel(mode: PanelObservationMode): string {
 /**
  * Converts content-session state into the smaller side panel state model.
  */
-export function getPanelObservationModeFromSession(
+export function getObservationModeFromSession(
 	session: Pick<ObservationSessionState, 'status'>,
-): PanelObservationMode {
+): ObservationMode {
 	if (session.status === 'observing' || session.status === 'dirty') {
 		return 'active';
 	}
@@ -605,9 +642,9 @@ export function getPanelObservationModeFromSession(
  * storage subscription. This mapping lets lifecycle-only content revisions stop
  * or idle the controls without replacing the detector results already rendered.
  */
-export function getPanelObservationModeFromSnapshot(
+export function getObservationModeFromSnapshot(
 	snapshot: Pick<DetectionSessionSnapshot, 'status'>,
-): PanelObservationMode {
+): ObservationMode {
 	if (snapshot.status === 'collecting' || snapshot.status === 'observing' || snapshot.status === 'enriching') {
 		return 'active';
 	}
@@ -630,18 +667,18 @@ export function getPanelObservationModeFromSnapshot(
  * Fresh responses without an active session render as `stopped`, preserving the
  * current copy that tells users refresh is needed to resume observation.
  */
-export function getPanelObservationModeFromAnalysis(
-	response: Pick<PanelVisibleRevision, 'snapshot' | 'session'>,
-): PanelObservationMode {
+export function getObservationModeFromAnalysis(
+	response: Pick<VisibleRevision, 'snapshot' | 'session'>,
+): ObservationMode {
 	if (response.session) {
-		return getPanelObservationModeFromSession(response.session);
+		return getObservationModeFromSession(response.session);
 	}
 
 	return response.snapshot.status === 'hit' ? 'idle' : 'stopped';
 }
 
 /** Returns whether active page watching should keep the side panel in a live-update state. */
-export function shouldKeepPanelLiveUpdatesActive(mode: PanelObservationMode): boolean {
+export function shouldKeepLiveUpdatesActive(mode: ObservationMode): boolean {
 	return mode === 'active';
 }
 
@@ -654,7 +691,7 @@ export function shouldKeepPanelLiveUpdatesActive(mode: PanelObservationMode): bo
  * same page. Background and cache snapshots still apply because they carry real
  * detector results or explicit cache state.
  */
-export function shouldApplyPanelSnapshotRevision(input: {
+export function shouldApplySnapshotRevision(input: {
 	readonly currentAnalysis: SiteAnalysis | null;
 	readonly snapshot: DetectionSessionSnapshot;
 }): boolean {
@@ -737,9 +774,9 @@ function getEvidenceCompletenessRank(state: DetectionEvidenceState | undefined):
  * side panel look like evidence disappeared even though only the observation status
  * changed.
  */
-export function shouldPreservePanelReplayState(input: {
+export function shouldPreserveReplayState(input: {
 	readonly previousAnalysis: SiteAnalysis | null;
-	readonly revision: Pick<PanelVisibleRevision, 'analysis' | 'enrichment' | 'replayHistory' | 'replayTrace'>;
+	readonly revision: Pick<VisibleRevision, 'analysis' | 'enrichment' | 'replayHistory' | 'replayTrace'>;
 }): boolean {
 	if (!input.previousAnalysis || input.revision.replayTrace || input.revision.replayHistory !== undefined) {
 		return false;
@@ -766,9 +803,9 @@ export function shouldPreservePanelReplayState(input: {
  * current response. Missing traces, snapshot hits, or stale trace data therefore
  * degrade to an empty lookup instead of creating misleading explanation copy.
  */
-export function buildPanelExplanationLookup(
+export function buildExplanationLookup(
 	trace: DetectionReplayTrace | undefined,
-): PanelExplanationLookup {
+): ExplanationLookup {
 	if (!trace) {
 		return {};
 	}
@@ -776,7 +813,7 @@ export function buildPanelExplanationLookup(
 	return Object.fromEntries(
 		trace.explanations.map((explanation) => [
 			explanation.technologyId,
-			createPanelExplanationSummary(explanation),
+			createExplanationSummary(explanation),
 		]),
 	);
 }
@@ -788,9 +825,9 @@ export function buildPanelExplanationLookup(
  * scannable inside the extension side panel. Full replay traces remain available in
  * bounded history for users who need to inspect past runs.
  */
-function createPanelExplanationSummary(
+function createExplanationSummary(
 	explanation: DetectionExplanation,
-): PanelDetectionExplanationSummary {
+): DetectionExplanationSummary {
 	return {
 		technologyId: explanation.technologyId,
 		headline: createExplanationHeadline(explanation),
@@ -799,7 +836,7 @@ function createPanelExplanationSummary(
 		evidenceCount: explanation.evidenceCount,
 		primaryEvidenceKind: getPrimaryEvidenceKind(explanation),
 		inferred: explanation.inferred,
-		evidence: explanation.evidence.slice(0, 5).map(createPanelEvidencePreview),
+		evidence: explanation.evidence.slice(0, 5).map(createEvidencePreview),
 	};
 }
 
@@ -812,7 +849,7 @@ function createExplanationHeadline(explanation: DetectionExplanation): string {
 	return `Matched ${explanation.directEvidenceCount} direct signal${explanation.directEvidenceCount === 1 ? '' : 's'}.`;
 }
 
-function createPanelEvidencePreview(evidence: DetectionExplanationEvidenceSummary): PanelEvidencePreview {
+function createEvidencePreview(evidence: DetectionExplanationEvidenceSummary): EvidencePreview {
 	return {
 		kind: evidence.kind,
 		direct: evidence.direct,
@@ -830,16 +867,16 @@ function getPrimaryEvidenceKind(explanation: DetectionExplanation): string | nul
 }
 
 /** Formats an application error for the existing side panel error state. */
-export function formatPanelAppError(error: AppError): string {
+export function formatError(error: ExtensionError): string {
 	return `${error.code}: ${error.message}`;
 }
 
 /**
  * Builds the side panel state update for a successful analysis response.
  */
-export function buildPanelAnalysisUpdate(
-	input: BuildPanelAnalysisUpdateInput,
-): PanelAnalysisUpdate {
+export function buildAnalysisUpdate(
+	input: BuildAnalysisUpdateInput,
+): AnalysisUpdate {
 	const nextAnalysis = input.revision.analysis;
 	const addedDetectionIds = input.previousAnalysis
 		? getAddedDetectionIds(input.previousAnalysis.results, nextAnalysis.results)
@@ -848,15 +885,15 @@ export function buildPanelAnalysisUpdate(
 		? []
 		: input.currentLateDetectionIds ?? [];
 	const lateDetectionIds = mergeUniqueIds(lateMarkerBase, addedDetectionIds);
-	const explanationsByTechnologyId = buildPanelExplanationLookup(input.revision.replayTrace);
-	const observationMode = getPanelObservationModeFromAnalysis(input.revision);
+	const explanationsByTechnologyId = buildExplanationLookup(input.revision.replayTrace);
+	const observationMode = getObservationModeFromAnalysis(input.revision);
 	/**
 	 * Storage revisions are the receive stream for continuous matching. The side panel
 	 * stays live only when an observation session is active; follow-up evidence
 	 * passes publish normal background snapshots without a separate pending state.
 	 */
-	const shouldKeepLiveUpdatesActive = shouldKeepPanelLiveUpdatesActive(observationMode);
-	const notice = getPanelAnalysisNotice({
+	const shouldKeepLiveUpdatesActive = shouldKeepLiveUpdatesActive(observationMode);
+	const notice = getAnalysisNotice({
 		addedDetectionIds,
 		nextAnalysis,
 		revision: input.revision,
@@ -877,12 +914,12 @@ export function buildPanelAnalysisUpdate(
 /**
  * Returns the user-facing notice for one analysis response.
  */
-function getPanelAnalysisNotice(input: {
+function getAnalysisNotice(input: {
 	addedDetectionIds: readonly string[];
 	nextAnalysis: SiteAnalysis;
-	revision: PanelVisibleRevision;
-	source: PanelAnalysisRequestSource;
-}): PanelNotice | null {
+	revision: VisibleRevision;
+	source: AnalysisRequestSource;
+}): Notice | null {
 	if (input.addedDetectionIds.length) {
 		const count = input.addedDetectionIds.length;
 		if (input.source === 'auto') {
