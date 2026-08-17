@@ -22,16 +22,21 @@ vi.setConfig({ testTimeout: 20_000 });
 
 type TestTab = {
 	id?: number;
+	windowId?: number;
 	url?: string;
+	active?: boolean;
 	incognito?: boolean;
 };
 
 const HTTP_TAB: TestTab = {
 	id: 7,
+	windowId: 3,
 	url: 'https://example.com/products',
+	active: true,
 };
 
 const VISIBLE_TAB_TARGET = {
+	windowId: 3,
 	tabId: 7,
 	frameId: 0,
 	url: 'https://example.com/products',
@@ -276,6 +281,12 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	} satisfies ContentApi;
 
 	const executeScript = vi.fn(async () => [{ frameId: 0, result: undefined }]);
+	const getTab = vi.fn(async (tabId: number) => {
+		if (input.tab === null) throw new Error('Tab is unavailable.');
+		const tab = input.tab ?? HTTP_TAB;
+		if (tab.id !== tabId) throw new Error(`Tab ${tabId} is unavailable.`);
+		return { ...tab, active: tab.active ?? true };
+	});
 	vi.doMock('wxt/browser', () => ({
 		browser: {
 			runtime: {
@@ -287,7 +298,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 				executeScript,
 			},
 			tabs: {
-				get: vi.fn(async () => input.tab ?? HTTP_TAB),
+				get: getTab,
 			},
 		},
 	}));
@@ -345,8 +356,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	} = await import('@/lib/lifecycle/offscreen-matcher');
 	const { createBackgroundRuntime } = await import('@/lib/background/runtime');
 	const runtime = createBackgroundRuntime({
-		getActiveTab: vi.fn(async () => input.tab ?? null),
-		getTab: vi.fn(async () => input.tab ?? HTTP_TAB),
+		getTab,
 		executeContentScript: async () => {
 			await executeScript();
 		},
@@ -414,9 +424,10 @@ describe.sequential('background visible-tab identity', () => {
 		const collectObservationBatch = vi.fn(async (_input: unknown) => ok({ batch: makeObservationBatch() }));
 		const harness = await loadBackgroundApiHarness({ tab: HTTP_TAB, contentApi: { collectObservationBatch } });
 
-		await expect(harness.api.getVisibleTabIdentity()).resolves.toMatchObject({
+		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 3 })).resolves.toMatchObject({
 			ok: true,
 			value: {
+				windowId: 3,
 				tabId: 7,
 				frameId: 0,
 				url: HTTP_TAB.url,
@@ -430,6 +441,24 @@ describe.sequential('background visible-tab identity', () => {
 		expect(harness.mocks.getCompiledRegistry).not.toHaveBeenCalled();
 		expect(harness.mocks.getCompiledBootstrapRegistry).not.toHaveBeenCalled();
 	});
+
+	it('rejects an explicit tab id after that tab becomes inactive', async () => {
+		const harness = await loadBackgroundApiHarness({ tab: { ...HTTP_TAB, active: false } });
+
+		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 3 })).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'NO_ACTIVE_TAB' },
+		});
+	});
+
+	it('rejects a tab that moved out of the side-panel window', async () => {
+		const harness = await loadBackgroundApiHarness({ tab: { ...HTTP_TAB, windowId: 4 } });
+
+		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 3 })).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'NO_ACTIVE_TAB' },
+		});
+	});
 });
 
 describe.sequential('background analyzeVisibleTab messaging hardening', () => {
@@ -437,7 +466,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 		const api = await loadBackgroundApi({ tab: null });
 
 		await expect(
-			api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'while-popup-open' }),
+			api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'while-panel-open' }),
 		).resolves.toMatchObject({
 			ok: false,
 			error: {
@@ -446,15 +475,26 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 		});
 	});
 
+	it('rejects analysis after the target tab moves to another browser window', async () => {
+		const api = await loadBackgroundApi({ tab: { ...HTTP_TAB, windowId: 4 } });
+
+		await expect(
+			api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'while-panel-open' }),
+		).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'NO_ACTIVE_TAB' },
+		});
+	});
+
 	it('returns UNSUPPORTED_URL before contacting the content script', async () => {
 		const collectObservationBatch = vi.fn(async (_input: unknown) => ok({ batch: makeObservationBatch() }));
 		const api = await loadBackgroundApi({
-			tab: { id: 7, url: 'chrome://extensions' },
+			tab: { id: 7, windowId: 3, url: 'chrome://extensions' },
 			contentApi: { collectObservationBatch },
 		});
 
 		await expect(
-			api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'while-popup-open' }),
+			api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'while-panel-open' }),
 		).resolves.toMatchObject({
 			ok: false,
 			error: {
@@ -475,7 +515,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 		});
 
 		await expect(
-			api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-popup-open' }),
+			api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-panel-open' }),
 		).resolves.toMatchObject({
 			ok: false,
 			error: {
@@ -494,7 +534,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 			},
 		});
 
-		const result = api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-popup-open' });
+		const result = api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-panel-open' });
 		await vi.advanceTimersByTimeAsync(CONTENT_SCRIPT_TIMEOUT_MS);
 
 		await expect(result).resolves.toMatchObject({
@@ -517,7 +557,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 			contentApi: { collectObservationBatch },
 		});
 
-		const result = await harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'while-popup-open' });
+		const result = await harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'while-panel-open' });
 
 		expect(result).toMatchObject({
 			ok: true,
@@ -751,7 +791,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 		});
 
 		await expect(
-			harness.api.analyzeVisibleTab({ target: { ...VISIBLE_TAB_TARGET, incognito: true }, mode: 'snapshot-first', observe: 'while-popup-open' }),
+			harness.api.analyzeVisibleTab({ target: { ...VISIBLE_TAB_TARGET, incognito: true }, mode: 'snapshot-first', observe: 'while-panel-open' }),
 		).resolves.toMatchObject({
 			ok: true,
 			value: {
@@ -870,7 +910,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 		const harness = await loadBackgroundApiHarness({ tab: HTTP_TAB });
 
 		await expect(
-			harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-popup-open' }),
+			harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-panel-open' }),
 		).resolves.toMatchObject({
 			ok: true,
 			value: {
@@ -1074,7 +1114,7 @@ describe.sequential('background observation session baseline', () => {
 
 	it('rejects observation refresh when the session belongs to a previous page path', async () => {
 		const harness = await loadBackgroundApiHarness({
-			tab: { id: 7, url: 'https://example.com/pricing' },
+			tab: { id: 7, windowId: 3, url: 'https://example.com/pricing' },
 			contentApi: {
 				getObservationSessionState: vi.fn(async () => ok({
 					status: 'dirty' as const,

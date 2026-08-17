@@ -21,7 +21,7 @@ function makeSession(overrides: Partial<ObservationSessionState> = {}): Observat
 describe('observation lifecycle helpers', () => {
 	it('keeps current observe modes mapped to the same start decision', () => {
 		expect(shouldStartObservation('none')).toBe(false);
-		expect(shouldStartObservation('while-popup-open')).toBe(true);
+		expect(shouldStartObservation('while-panel-open')).toBe(true);
 		expect(shouldStartObservation('bounded')).toBe(true);
 	});
 

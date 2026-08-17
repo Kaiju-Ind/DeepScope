@@ -1,24 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-	buildPopupAnalysisUpdate,
-	buildPopupExplanationLookup,
-	createPopupVisibleRevisionFromAnalysisResponse,
-	formatPopupAppError,
-	getPopupReplayState,
-	getPopupAnalysisActivity,
-	getPopupMatcherStatusFromSnapshot,
-	getPopupObservationLabel,
-	getPopupObservationModeFromAnalysis,
-	getPopupObservationModeFromSession,
-	getPopupObservationModeFromSnapshot,
+	buildPanelAnalysisUpdate,
+	buildPanelExplanationLookup,
+	createPanelVisibleRevisionFromAnalysisResponse,
+	formatPanelAppError,
+	getPanelReplayState,
+	getPanelAnalysisActivity,
+	getPanelMatcherStatusFromSnapshot,
+	getPanelObservationLabel,
+	getPanelObservationModeFromAnalysis,
+	getPanelObservationModeFromSession,
+	getPanelObservationModeFromSnapshot,
 	groupDetectionsByPrimaryCategory,
-	isPopupVisibleRevisionPending,
-	shouldApplyPopupReplayState,
-	shouldApplyPopupSnapshotRevision,
-	shouldKeepPopupLiveUpdatesActive,
-	shouldPreservePopupReplayState,
-} from '@/lib/popup/view-model';
+	isPanelVisibleRevisionPending,
+	shouldApplyPanelReplayState,
+	shouldApplyPanelSnapshotRevision,
+	shouldKeepPanelLiveUpdatesActive,
+	shouldPreservePanelReplayState,
+} from '@/lib/panel/view-model';
 import {
 	makeAnalysis,
 	makeAnalyzeVisibleTabOutput,
@@ -28,7 +28,7 @@ import {
 	makeObservationSession,
 } from '../support/factories';
 
-describe('popup view model', () => {
+describe('side panel view model', () => {
 	it('groups detections by their first category and keeps category priority order', () => {
 		const groups = groupDetectionsByPrimaryCategory([
 			makeDetection('ga', ['analytics']),
@@ -52,26 +52,26 @@ describe('popup view model', () => {
 			},
 		});
 
-		expect(getPopupObservationModeFromAnalysis(response)).toBe('idle');
-		expect(shouldKeepPopupLiveUpdatesActive('idle')).toBe(false);
-		expect(getPopupObservationLabel('idle')).toBe('Idle');
+		expect(getPanelObservationModeFromAnalysis(response)).toBe('idle');
+		expect(shouldKeepPanelLiveUpdatesActive('idle')).toBe(false);
+		expect(getPanelObservationLabel('idle')).toBe('Idle');
 	});
 
-	it('maps observing and dirty sessions to active popup live updates', () => {
-		expect(getPopupObservationModeFromSession(makeObservationSession('observing'))).toBe('active');
-		expect(getPopupObservationModeFromSession(makeObservationSession('dirty'))).toBe('active');
-		expect(shouldKeepPopupLiveUpdatesActive('active')).toBe(true);
-		expect(getPopupObservationLabel('active')).toBe('Observing');
+	it('maps observing and dirty sessions to active side panel live updates', () => {
+		expect(getPanelObservationModeFromSession(makeObservationSession('observing'))).toBe('active');
+		expect(getPanelObservationModeFromSession(makeObservationSession('dirty'))).toBe('active');
+		expect(shouldKeepPanelLiveUpdatesActive('active')).toBe(true);
+		expect(getPanelObservationLabel('active')).toBe('Observing');
 	});
 
-	it('maps stopped sessions to stopped popup controls', () => {
-		expect(getPopupObservationModeFromSession(makeObservationSession('stopped'))).toBe('stopped');
-		expect(shouldKeepPopupLiveUpdatesActive('stopped')).toBe(false);
-		expect(getPopupObservationLabel('stopped')).toBe('Stopped');
+	it('maps stopped sessions to stopped side panel controls', () => {
+		expect(getPanelObservationModeFromSession(makeObservationSession('stopped'))).toBe('stopped');
+		expect(shouldKeepPanelLiveUpdatesActive('stopped')).toBe(false);
+		expect(getPanelObservationLabel('stopped')).toBe('Stopped');
 	});
 
 	it('describes queued visible-tab work ahead of stale matcher work', () => {
-		const activity = getPopupAnalysisActivity({
+		const activity = getPanelAnalysisActivity({
 			matcherStatus: 'matching',
 			workflowBusy: false,
 			analysisRequestInFlight: false,
@@ -85,8 +85,8 @@ describe('popup view model', () => {
 		});
 	});
 
-	it('keeps the popup in a loading state while the current tab request has no matcher revision yet', () => {
-		const activity = getPopupAnalysisActivity({
+	it('keeps the side panel in a loading state while the current tab request has no matcher revision yet', () => {
+		const activity = getPanelAnalysisActivity({
 			matcherStatus: 'idle',
 			workflowBusy: false,
 			analysisRequestInFlight: true,
@@ -101,7 +101,7 @@ describe('popup view model', () => {
 	});
 
 	it('describes matcher partition progress when snapshot revisions include counters', () => {
-		const activity = getPopupAnalysisActivity({
+		const activity = getPanelAnalysisActivity({
 			matcherStatus: 'matching',
 			workflowBusy: false,
 			analysisRequestInFlight: false,
@@ -122,7 +122,7 @@ describe('popup view model', () => {
 	});
 
 	it('reports complete when no visible tab workflow owns progress', () => {
-		const activity = getPopupAnalysisActivity({
+		const activity = getPanelAnalysisActivity({
 			matcherStatus: 'idle',
 			workflowBusy: false,
 			analysisRequestInFlight: false,
@@ -156,8 +156,8 @@ describe('popup view model', () => {
 			},
 		});
 
-		expect(getPopupMatcherStatusFromSnapshot(partialSnapshot)).toBe('matching');
-		expect(getPopupMatcherStatusFromSnapshot(finalSnapshot)).toBe('idle');
+		expect(getPanelMatcherStatusFromSnapshot(partialSnapshot)).toBe('matching');
+		expect(getPanelMatcherStatusFromSnapshot(finalSnapshot)).toBe('idle');
 	});
 
 	it('keeps replay-backed snapshots in matching state when newer matcher progress exists', () => {
@@ -183,11 +183,11 @@ describe('popup view model', () => {
 			},
 		});
 
-		expect(getPopupMatcherStatusFromSnapshot(snapshot)).toBe('matching');
+		expect(getPanelMatcherStatusFromSnapshot(snapshot)).toBe('matching');
 	});
 
 	it('treats stored partial snapshot revisions as pending and blocks stale replay state', () => {
-		const pendingRevision = createPopupVisibleRevisionFromAnalysisResponse(makeAnalyzeVisibleTabOutput({
+		const pendingRevision = createPanelVisibleRevisionFromAnalysisResponse(makeAnalyzeVisibleTabOutput({
 			analysis: makeAnalysis([makeDetection('react')]),
 			enrichment: { status: 'pending' },
 			replayHistory: [makeDetectionReplayTrace({ resultCount: 1 })],
@@ -203,18 +203,18 @@ describe('popup view model', () => {
 			...storedPartialRevision,
 			sessionSnapshotSource: 'cache' as const,
 		};
-		const finalRevision = createPopupVisibleRevisionFromAnalysisResponse(makeAnalyzeVisibleTabOutput({
+		const finalRevision = createPanelVisibleRevisionFromAnalysisResponse(makeAnalyzeVisibleTabOutput({
 			analysis: makeAnalysis([makeDetection('react')]),
 			replayTrace: makeDetectionReplayTrace({ resultCount: 1 }),
 		}));
 
-		expect(isPopupVisibleRevisionPending(pendingRevision)).toBe(true);
-		expect(shouldApplyPopupReplayState(pendingRevision)).toBe(false);
-		expect(isPopupVisibleRevisionPending(storedPartialRevision)).toBe(true);
-		expect(shouldApplyPopupReplayState(storedPartialRevision)).toBe(false);
-		expect(isPopupVisibleRevisionPending(storedCacheRevision)).toBe(false);
-		expect(isPopupVisibleRevisionPending(finalRevision)).toBe(false);
-		expect(shouldApplyPopupReplayState(finalRevision)).toBe(true);
+		expect(isPanelVisibleRevisionPending(pendingRevision)).toBe(true);
+		expect(shouldApplyPanelReplayState(pendingRevision)).toBe(false);
+		expect(isPanelVisibleRevisionPending(storedPartialRevision)).toBe(true);
+		expect(shouldApplyPanelReplayState(storedPartialRevision)).toBe(false);
+		expect(isPanelVisibleRevisionPending(storedCacheRevision)).toBe(false);
+		expect(isPanelVisibleRevisionPending(finalRevision)).toBe(false);
+		expect(shouldApplyPanelReplayState(finalRevision)).toBe(true);
 	});
 
 	it('builds a manual refresh notice while preserving active observation state', () => {
@@ -223,9 +223,9 @@ describe('popup view model', () => {
 			session: makeObservationSession('observing'),
 		});
 
-		const update = buildPopupAnalysisUpdate({
+		const update = buildPanelAnalysisUpdate({
 			previousAnalysis: null,
-			revision: createPopupVisibleRevisionFromAnalysisResponse(response),
+			revision: createPanelVisibleRevisionFromAnalysisResponse(response),
 			source: 'manual',
 			resetLateMarkers: true,
 		});
@@ -248,9 +248,9 @@ describe('popup view model', () => {
 			session: makeObservationSession('observing'),
 		});
 
-		const update = buildPopupAnalysisUpdate({
+		const update = buildPanelAnalysisUpdate({
 			previousAnalysis: null,
-			revision: createPopupVisibleRevisionFromAnalysisResponse(response),
+			revision: createPanelVisibleRevisionFromAnalysisResponse(response),
 			source: 'initial',
 		});
 
@@ -269,9 +269,9 @@ describe('popup view model', () => {
 			session: makeObservationSession('dirty'),
 		});
 
-		const update = buildPopupAnalysisUpdate({
+		const update = buildPanelAnalysisUpdate({
 			previousAnalysis,
-			revision: createPopupVisibleRevisionFromAnalysisResponse(response),
+			revision: createPanelVisibleRevisionFromAnalysisResponse(response),
 			source: 'auto',
 			currentLateDetectionIds: ['shopify'],
 		});
@@ -290,7 +290,7 @@ describe('popup view model', () => {
 			analysis: makeAnalysis([], { url: currentAnalysis.url, analyzedAt: currentAnalysis.analyzedAt }),
 		});
 
-		expect(shouldApplyPopupSnapshotRevision({ currentAnalysis, snapshot })).toBe(false);
+		expect(shouldApplyPanelSnapshotRevision({ currentAnalysis, snapshot })).toBe(false);
 	});
 
 	/**
@@ -322,8 +322,8 @@ describe('popup view model', () => {
 			},
 		});
 
-		expect(shouldApplyPopupSnapshotRevision({ currentAnalysis, snapshot: partialSnapshot })).toBe(false);
-		expect(shouldApplyPopupSnapshotRevision({ currentAnalysis, snapshot: finalSnapshot })).toBe(true);
+		expect(shouldApplyPanelSnapshotRevision({ currentAnalysis, snapshot: partialSnapshot })).toBe(false);
+		expect(shouldApplyPanelSnapshotRevision({ currentAnalysis, snapshot: finalSnapshot })).toBe(true);
 	});
 
 
@@ -355,7 +355,7 @@ describe('popup view model', () => {
 			},
 		});
 
-		expect(shouldApplyPopupSnapshotRevision({ currentAnalysis, snapshot: recoveredSnapshot })).toBe(false);
+		expect(shouldApplyPanelSnapshotRevision({ currentAnalysis, snapshot: recoveredSnapshot })).toBe(false);
 	});
 
 	it('filters replay history to entries that explain the visible analysis', () => {
@@ -370,7 +370,7 @@ describe('popup view model', () => {
 			analyzedAt: analysis.analyzedAt,
 			resultCount: analysis.results.length,
 		});
-		const revision = createPopupVisibleRevisionFromAnalysisResponse(makeAnalyzeVisibleTabOutput({
+		const revision = createPanelVisibleRevisionFromAnalysisResponse(makeAnalyzeVisibleTabOutput({
 			analysis,
 			replayHistory: [mismatchedTrace, matchingTrace],
 			replayTrace: mismatchedTrace,
@@ -378,20 +378,20 @@ describe('popup view model', () => {
 
 		expect(revision.replayTrace).toBeUndefined();
 		expect(revision.replayHistory).toEqual([matchingTrace]);
-		expect(getPopupReplayState(revision)).toMatchObject({
+		expect(getPanelReplayState(revision)).toMatchObject({
 			kind: 'history',
 			summary: { runId: 'visible-run', resultCount: 1 },
 		});
 	});
 
-	it('maps durable stopped snapshots to stopped popup controls without requiring analysis replacement', () => {
+	it('maps durable stopped snapshots to stopped side panel controls without requiring analysis replacement', () => {
 		const snapshot = makeDetectionSessionSnapshot({
 			source: 'content',
 			status: 'stopped',
 		});
 
-		expect(getPopupObservationModeFromSnapshot(snapshot)).toBe('stopped');
-		expect(shouldKeepPopupLiveUpdatesActive(getPopupObservationModeFromSnapshot(snapshot))).toBe(false);
+		expect(getPanelObservationModeFromSnapshot(snapshot)).toBe('stopped');
+		expect(shouldKeepPanelLiveUpdatesActive(getPanelObservationModeFromSnapshot(snapshot))).toBe(false);
 	});
 
 	it('preserves replay state when a lifecycle snapshot repeats the same analysis', () => {
@@ -400,13 +400,13 @@ describe('popup view model', () => {
 			analysis: previousAnalysis,
 		});
 
-		expect(shouldPreservePopupReplayState({
+		expect(shouldPreservePanelReplayState({
 			previousAnalysis,
-			revision: createPopupVisibleRevisionFromAnalysisResponse(response),
+			revision: createPanelVisibleRevisionFromAnalysisResponse(response),
 		})).toBe(true);
-		expect(shouldPreservePopupReplayState({
+		expect(shouldPreservePanelReplayState({
 			previousAnalysis,
-			revision: createPopupVisibleRevisionFromAnalysisResponse({
+			revision: createPanelVisibleRevisionFromAnalysisResponse({
 				...response,
 				replayTrace: makeDetectionReplayTrace({ resultCount: previousAnalysis.results.length }),
 			}),
@@ -414,8 +414,8 @@ describe('popup view model', () => {
 	});
 
 
-	it('maps replay explanations into popup summaries keyed by technology id', () => {
-		const lookup = buildPopupExplanationLookup({
+	it('maps replay explanations into side panel summaries keyed by technology id', () => {
+		const lookup = buildPanelExplanationLookup({
 			schemaVersion: 1,
 			target: { url: 'https://example.com/products', hostname: 'example.com' },
 			requestedMode: 'event',
@@ -448,8 +448,8 @@ describe('popup view model', () => {
 		});
 	});
 
-	it('formats application errors for popup recovery UI', () => {
-		expect(formatPopupAppError({
+	it('formats application errors for side panel recovery UI', () => {
+		expect(formatPanelAppError({
 			code: 'UNSUPPORTED_URL',
 			message: 'Detection only works on normal http/https pages.',
 		})).toBe('UNSUPPORTED_URL: Detection only works on normal http/https pages.');

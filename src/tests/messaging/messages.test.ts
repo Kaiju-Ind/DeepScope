@@ -8,7 +8,10 @@ import { CONTENT_RPC_CHANNEL, CONTENT_RPC_NAMESPACE } from '@/lib/messaging/adap
 import { RpcTimeoutError, contentScriptFailure, withTimeout } from '@/lib/messaging/rpc';
 import {
 	SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
+	SIDE_PANEL_TAB_NOTIFICATION_TYPE,
 	isSidePanelActionNotification,
+	isSidePanelTabNotification,
+	isSidePanelTabUpdateChange,
 } from '@/lib/messaging/side-panel-notifications';
 import { errorResponse, ok } from '@/lib/shared/result';
 
@@ -63,12 +66,53 @@ describe('messaging contract helpers', () => {
 		expect(isSidePanelActionNotification({
 			type: SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
 			tabId: 7,
+			windowId: 3,
 		})).toBe(true);
 		expect(isSidePanelActionNotification({
 			type: SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
 			tabId: '7',
+			windowId: 3,
 		})).toBe(false);
-		expect(isSidePanelActionNotification({ type: 'other', tabId: 7 })).toBe(false);
+		expect(isSidePanelActionNotification({
+			type: SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
+			tabId: 7,
+		})).toBe(false);
+		expect(isSidePanelActionNotification({ type: 'other', tabId: 7, windowId: 3 })).toBe(false);
+	});
+
+	it('validates side-panel tab lifecycle notifications', () => {
+		expect(isSidePanelTabNotification({
+			type: SIDE_PANEL_TAB_NOTIFICATION_TYPE,
+			tabId: 9,
+			windowId: 4,
+			reason: 'activated',
+		})).toBe(true);
+		expect(isSidePanelTabNotification({
+			type: SIDE_PANEL_TAB_NOTIFICATION_TYPE,
+			tabId: 9,
+			windowId: 4,
+			reason: 'updated',
+		})).toBe(true);
+		expect(isSidePanelTabNotification({
+			type: SIDE_PANEL_TAB_NOTIFICATION_TYPE,
+			tabId: 9,
+			windowId: 4,
+			reason: 'removed',
+		})).toBe(false);
+		expect(isSidePanelTabNotification({
+			type: SIDE_PANEL_TAB_NOTIFICATION_TYPE,
+			tabId: '9',
+			windowId: 4,
+			reason: 'activated',
+		})).toBe(false);
+	});
+
+	it('recognizes side-panel page identity updates', () => {
+		expect(isSidePanelTabUpdateChange({ url: 'https://example.com/next' })).toBe(true);
+		expect(isSidePanelTabUpdateChange({ status: 'loading' })).toBe(true);
+		expect(isSidePanelTabUpdateChange({ status: 'complete' })).toBe(true);
+		expect(isSidePanelTabUpdateChange({ status: 'unloaded' })).toBe(false);
+		expect(isSidePanelTabUpdateChange({})).toBe(false);
 	});
 
 	it('uses stable namespaces and channels', () => {

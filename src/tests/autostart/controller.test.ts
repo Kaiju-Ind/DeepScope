@@ -2,9 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createAutoScanController } from '@/lib/autostart/controller';
 import type { AnalyzeVisibleTabOutput, VisibleTabIdentity } from '@/lib/messaging';
-import { ok } from '@/lib/shared/result';
+import { errorResponse, ok } from '@/lib/shared/result';
 
 const VISIBLE_IDENTITY: VisibleTabIdentity = {
+	windowId: 3,
 	tabId: 7,
 	frameId: 0,
 	url: 'https://example.com/products',
@@ -40,7 +41,7 @@ describe('automatic scan controller', () => {
 			analyzeVisibleTab,
 		});
 
-		await controller.scanVisibleTab(VISIBLE_IDENTITY.tabId, 'refresh', 'page-load');
+		await controller.scanVisibleTab(VISIBLE_IDENTITY.tabId, 3, 'refresh', 'page-load');
 
 		expect(analyzeVisibleTab).toHaveBeenCalledOnce();
 		expect(analyzeVisibleTab).toHaveBeenCalledWith({
@@ -58,21 +59,23 @@ describe('automatic scan controller', () => {
 			analyzeVisibleTab,
 		});
 
-		await controller.scanVisibleTab(VISIBLE_IDENTITY.tabId, 'refresh', 'page-load');
+		await controller.scanVisibleTab(VISIBLE_IDENTITY.tabId, 3, 'refresh', 'page-load');
 
 		expect(analyzeVisibleTab).not.toHaveBeenCalled();
 	});
 
-	it('drops a scan when the requested tab is no longer visible', async () => {
+	it('drops a scan when the requested tab is no longer active', async () => {
 		const analyzeVisibleTab = vi.fn(async () => ok(makeOutput()));
+		const getVisibleTabIdentity = vi.fn(async () => errorResponse('NO_ACTIVE_TAB', 'The requested browser tab is no longer active.'));
 		const controller = createAutoScanController({
 			getEnabled: vi.fn(async () => true),
-			getVisibleTabIdentity: vi.fn(async () => ok({ ...VISIBLE_IDENTITY, tabId: 8 })),
+			getVisibleTabIdentity,
 			analyzeVisibleTab,
 		});
 
-		await controller.scanVisibleTab(VISIBLE_IDENTITY.tabId, 'refresh', 'page-load');
+		await controller.scanVisibleTab(VISIBLE_IDENTITY.tabId, 3, 'refresh', 'page-load');
 
+		expect(getVisibleTabIdentity).toHaveBeenCalledWith({ tabId: VISIBLE_IDENTITY.tabId, windowId: 3 });
 		expect(analyzeVisibleTab).not.toHaveBeenCalled();
 	});
 
@@ -91,8 +94,8 @@ describe('automatic scan controller', () => {
 			analyzeVisibleTab,
 		});
 
-		const pageLoad = controller.scanVisibleTab(VISIBLE_IDENTITY.tabId, 'refresh', 'page-load');
-		const activation = controller.scanVisibleTab(VISIBLE_IDENTITY.tabId, 'snapshot-first', 'tab-activated');
+		const pageLoad = controller.scanVisibleTab(VISIBLE_IDENTITY.tabId, 3, 'refresh', 'page-load');
+		const activation = controller.scanVisibleTab(VISIBLE_IDENTITY.tabId, 3, 'snapshot-first', 'tab-activated');
 		await vi.waitFor(() => expect(analyzeVisibleTab).toHaveBeenCalledOnce());
 		resolveAnalysis?.();
 		await Promise.all([pageLoad, activation]);

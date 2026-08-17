@@ -15,6 +15,7 @@ import {
 } from '../support/mock-browser';
 
 const ACTIVE_IDENTITY: VisibleTabIdentity = {
+	windowId: 3,
 	tabId: 7,
 	frameId: 0,
 	url: 'https://example.com/products',
@@ -38,7 +39,7 @@ async function loadSnapshotStateHarness(initialValues: Record<string, unknown> =
 		},
 	}));
 
-	const snapshotState = await import('@/lib/popup/snapshot-state');
+	const snapshotState = await import('@/lib/panel/snapshot-state');
 	return { ...snapshotState, storage, onChanged };
 }
 
@@ -47,7 +48,7 @@ afterEach(() => {
 	vi.resetModules();
 });
 
-describe.sequential('popup snapshot state', () => {
+describe.sequential('side panel snapshot state', () => {
 	it('reads a same-tab origin snapshot as the startup source', async () => {
 		const snapshot = makeDetectionSessionSnapshot({
 			key: { tabId: ACTIVE_IDENTITY.tabId, frameId: ACTIVE_IDENTITY.frameId, documentId: 'document-1', originHash: ACTIVE_IDENTITY.originHash },
@@ -59,7 +60,7 @@ describe.sequential('popup snapshot state', () => {
 			[getDetectionOriginSnapshotKey(ACTIVE_IDENTITY.originHash)]: snapshot,
 		});
 
-		const stored = await harness.readStoredPopupAnalysis(ACTIVE_IDENTITY);
+		const stored = await harness.readStoredPanelAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toMatchObject({
 			source: 'origin-snapshot',
@@ -98,7 +99,7 @@ describe.sequential('popup snapshot state', () => {
 			},
 		});
 
-		const stored = await harness.readStoredPopupAnalysis(ACTIVE_IDENTITY);
+		const stored = await harness.readStoredPanelAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toMatchObject({
 			source: 'session-snapshot',
@@ -145,7 +146,7 @@ describe.sequential('popup snapshot state', () => {
 			},
 		});
 
-		const stored = await harness.readStoredPopupAnalysis(ACTIVE_IDENTITY);
+		const stored = await harness.readStoredPanelAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toMatchObject({
 			snapshot: { key: exactSnapshot.key },
@@ -160,7 +161,7 @@ describe.sequential('popup snapshot state', () => {
 	it('returns null when no matching snapshot exists for the visible tab', async () => {
 		const harness = await loadSnapshotStateHarness();
 
-		const stored = await harness.readStoredPopupAnalysis(ACTIVE_IDENTITY);
+		const stored = await harness.readStoredPanelAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toBeNull();
 	});
@@ -168,7 +169,7 @@ describe.sequential('popup snapshot state', () => {
 	it('subscribes to newer same-tab snapshot revisions while ignoring other tabs and page URLs', async () => {
 		const harness = await loadSnapshotStateHarness();
 		const onRevision = vi.fn();
-		const unsubscribe = harness.subscribeToPopupSnapshotRevisions(ACTIVE_IDENTITY, null, onRevision);
+		const unsubscribe = harness.subscribeToPanelSnapshotRevisions(ACTIVE_IDENTITY, null, onRevision);
 		const storageKey = getDetectionOriginSnapshotKey(ACTIVE_IDENTITY.originHash);
 		const otherTabSnapshot = makeDetectionSessionSnapshot({ key: { tabId: 11, frameId: 0, documentId: 'document-1', originHash: ACTIVE_IDENTITY.originHash } });
 		const previousPageSnapshot = makeDetectionSessionSnapshot({
@@ -209,7 +210,7 @@ describe.sequential('popup snapshot state', () => {
 			urlHash: ACTIVE_IDENTITY.urlHash,
 		});
 
-		const unsubscribe = harness.subscribeToPopupSnapshotRevisions(ACTIVE_IDENTITY, exactSessionKey, onRevision);
+		const unsubscribe = harness.subscribeToPanelSnapshotRevisions(ACTIVE_IDENTITY, exactSessionKey, onRevision);
 
 		harness.onChanged.emit({ [originStorageKey]: { newValue: otherDocumentOriginSnapshot } });
 		harness.onChanged.emit({ [exactStorageKey]: { newValue: matchingSnapshot } });
@@ -221,7 +222,7 @@ describe.sequential('popup snapshot state', () => {
 		expect(onRevision).toHaveBeenCalledWith(expect.objectContaining({ key: exactSessionKey, revision: 5, source: 'content' }));
 	});
 
-	it('applies only newer revisions for the active popup snapshot', async () => {
+	it('applies only newer revisions for the active side panel snapshot', async () => {
 		const harness = await loadSnapshotStateHarness();
 		const current = makeDetectionSessionSnapshot({ revision: 2, updatedAt: 1_700_000_000_002 });
 		const olderSameDocument = makeDetectionSessionSnapshot({ revision: 1, updatedAt: 1_700_000_000_003 });

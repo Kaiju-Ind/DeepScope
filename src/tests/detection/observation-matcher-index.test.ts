@@ -185,6 +185,109 @@ describe('indexed observation matcher', () => {
 		}).matches.map((match) => match.technologyId)).toEqual(['alternative-cdn']);
 	});
 
+	it('routes link rules by relation tokens without changing matcher output', () => {
+		const registry: TechnologyDefinition[] = [
+			{
+				id: 'module-preload',
+				name: 'Module Preload',
+				website: 'https://module-preload.example',
+				categories: ['infrastructure-hosting'],
+				rules: [{ kind: 'link', rel: 'modulepreload' }],
+			},
+			{
+				id: 'alternate-feed',
+				name: 'Alternate Feed',
+				website: 'https://alternate-feed.example',
+				categories: ['content-publishing'],
+				rules: [{ kind: 'link', rel: 'alternate', typePattern: /application\/rss\+xml/i }],
+			},
+			{
+				id: 'href-only',
+				name: 'Href Only',
+				website: 'https://href-only.example',
+				categories: ['framework'],
+				rules: [{ kind: 'link', hrefPattern: /cdn\.example\/module\.js/i }],
+			},
+			{
+				id: 'type-only',
+				name: 'Type Only',
+				website: 'https://type-only.example',
+				categories: ['media-video'],
+				rules: [{ kind: 'link', typePattern: /text\/javascript/i }],
+			},
+		];
+		const batch = normalizePageSignals(makePageSignals({
+			links: [{
+				rel: 'stylesheet MODULEPRELOAD',
+				href: 'https://cdn.example/module.js',
+				type: 'text/javascript',
+			}],
+		}));
+		const linkObservation = batch.observations.find((observation) => observation.kind === 'link');
+		const index = createObservationMatcherIndex(registry);
+		const sequential = matchObservationBatch({ registry, batch });
+		const indexed = matchIndexedObservationBatch({ registry, batch, index });
+
+		expect(linkObservation).toBeDefined();
+		expect(indexed.matches).toEqual(sequential.matches);
+		expect(indexed.evidenceBatch.entries).toEqual(sequential.evidenceBatch.entries);
+		expect(findIndexedObservationRules(index, linkObservation!).map((rule) => rule.technology.id)).toEqual([
+			'module-preload',
+			'href-only',
+			'type-only',
+		]);
+		expect(indexed.diagnostics).toMatchObject({
+			candidateRuleCount: 3,
+			keyedRuleCount: 1,
+			literalRuleCount: 1,
+			fallbackRuleCount: 1,
+		});
+	});
+
+	it('does not evaluate every link rule for every link observation', () => {
+		const relationRules = Array.from({ length: 19 }, (_item, index) => ({
+			kind: 'link' as const,
+			rel: `relation-${index}`,
+		}));
+		const registry: TechnologyDefinition[] = [{
+			id: 'link-heavy',
+			name: 'Link Heavy',
+			website: 'https://link-heavy.example',
+			categories: ['framework'],
+			rules: [
+				...relationRules,
+				{ kind: 'link', hrefPattern: /accounts\.example\/identity\/style/i },
+				{ kind: 'link', hrefPattern: /cdn\.example\/platform\//i },
+				{ kind: 'link', typePattern: /image\/avif/i },
+				{ kind: 'link', typePattern: /image\/webp/i },
+			],
+		}];
+		const links = Array.from({ length: 91 }, (_item, index) => ({
+			rel: 'stylesheet',
+			href: `https://assets.example/styles/${index}.css`,
+			type: 'text/css',
+		}));
+		const batch = normalizePageSignals(makePageSignals({ links }));
+		const sequential = matchObservationBatch({ registry, batch });
+		const indexed = matchIndexedObservationBatch({
+			registry,
+			batch,
+			index: createObservationMatcherIndex(registry),
+		});
+
+		expect(indexed.matches).toEqual(sequential.matches);
+		expect(indexed.diagnostics).toMatchObject({
+			observationCount: 93,
+			candidateRuleCount: 182,
+			keyedRuleCount: 0,
+			literalRuleCount: 0,
+			literalRejectedRuleCount: 182,
+			fallbackRuleCount: 182,
+			candidateRulesByKind: { link: 182 },
+		});
+		expect(indexed.diagnostics.candidateRuleCount).toBeLessThan(91 * 23);
+	});
+
 	it('skips disabled observation kinds before candidate routing', () => {
 		const registry: TechnologyDefinition[] = [
 			{
