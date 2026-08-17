@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createDiagnosticJournalSink, getDiagnosticRecords } from '@/lib/diagnostics/journal';
 
-const JOURNAL_STATE_KEY = '__kaijuSiteScopeDiagnosticJournalV2';
+const JOURNAL_STATE_KEY = '__kaijuSiteScopeDiagnosticJournalV3';
 
 type Stored = Record<string, unknown>;
 

@@ -1,4 +1,4 @@
-import type { ContentPageSessionSnapshotTarget } from '@/lib/contracts/analysis';
+import type { ContentPageSessionSnapshotTarget } from '@/lib/messaging/analysis';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getContentSessionLifecycleKey, getDetectionSessionSnapshotKey } from '@/lib/storage/contracts';
@@ -43,7 +43,7 @@ describe.sequential('content page-session snapshots', () => {
 	/**
 	 * Content can publish the first visible lifecycle state before background
 	 * enrichment has produced detector results. The placeholder analysis keeps
-	 * popup rendering deterministic without storing raw page observations.
+	 * side panel rendering deterministic without storing raw page observations.
 	 */
 	it('writes an observing revision when no detector analysis exists yet', async () => {
 		const harness = await loadPageSessionSnapshotHarness();

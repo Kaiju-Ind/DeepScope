@@ -13,11 +13,11 @@ import {
 	isSidePanelTabNotification,
 	isSidePanelTabUpdateChange,
 } from '@/lib/messaging/side-panel-notifications';
-import { errorResponse, ok } from '@/lib/shared/result';
+import { errorResponse, extensionSuccess } from '@/lib/messaging/result';
 
 describe('messaging contract helpers', () => {
 	it('returns stable success envelopes', () => {
-		expect(ok({ value: 42 })).toEqual({ ok: true, value: { value: 42 } });
+		expect(extensionSuccess({ value: 42 })).toEqual({ ok: true, value: { value: 42 } });
 	});
 
 	it('returns stable error envelopes', () => {

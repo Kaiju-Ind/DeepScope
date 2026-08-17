@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildCollectionPlan, type CollectionPlan } from '@/lib/collectors/planning';
 import type { PageSignalPollingState } from '@/lib/content/observed-page-signals';
-import type { DetectionSessionSnapshot } from '@/lib/contracts/detection-session';
+import type { DetectionSessionSnapshot } from '@/lib/storage/session';
 import type { PageSignals, SiteAnalysis } from '@/lib/detection/types';
 import type { ContentApi } from '@/lib/messaging';
 import { CONTENT_SCRIPT_TIMEOUT_MS } from '@/lib/messaging/rpc';
@@ -15,7 +15,7 @@ import type { ObservationBatch } from '@/lib/observations';
 import type { MatcherJobRecord } from '@/lib/matcher';
 import type { DetectionReplayTrace } from '@/lib/pipeline';
 import type { CompiledTechnologyRegistryArtifact } from '@/lib/registry/compiler-core';
-import { ok, type AppResult } from '@/lib/shared/result';
+import { extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
 import { makeDetectionReplayTrace } from '../support/factories';
 
 vi.setConfig({ testTimeout: 20_000 });
@@ -249,10 +249,10 @@ async function loadBackgroundApi(input: BackgroundApiHarnessOptions) {
 async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	vi.resetModules();
 	vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 204 })));
-	vi.doMock('@/data/technologies', () => ({
+	vi.doMock('@/registry/technologies', () => ({
 		technologies: [],
 	}));
-	vi.doMock('@/lib/detection/rules', () => ({
+	vi.doMock('@/registry/technologies', () => ({
 		SOURCE_LIMITS: SOURCE_LIMITS_STUB,
 	}));
 
@@ -275,8 +275,8 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	};
 
 	const contentApi = {
-		collectObservationBatch: vi.fn(async () => ok({ batch: makeObservationBatch() })),
-		flushObservationBatch: vi.fn(async () => ok({
+		collectObservationBatch: vi.fn(async () => extensionSuccess({ batch: makeObservationBatch() })),
+		flushObservationBatch: vi.fn(async () => extensionSuccess({
 			stats: {
 				queuedCount: 0,
 				acceptedCount: 0,
@@ -287,9 +287,9 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 			},
 			session: observingState,
 		})),
-		beginObservationSession: vi.fn(async () => ok(observingState)),
-		stopObservationSession: vi.fn(async () => ok(stoppedState)),
-		getObservationSessionState: vi.fn(async () => ok(pollingState)),
+		beginObservationSession: vi.fn(async () => extensionSuccess(observingState)),
+		stopObservationSession: vi.fn(async () => extensionSuccess(stoppedState)),
+		getObservationSessionState: vi.fn(async () => extensionSuccess(pollingState)),
 		...input.contentApi,
 	} satisfies ContentApi;
 
@@ -426,15 +426,15 @@ afterEach(() => {
 	vi.useRealTimers();
 	vi.unstubAllGlobals();
 	vi.doUnmock('wxt/browser');
-	vi.doUnmock('@/data/technologies');
+	vi.doUnmock('@/registry/technologies');
 	vi.doUnmock('@/lib/detection/engine');
-	vi.doUnmock('@/lib/detection/rules');
+	vi.doUnmock('@/registry/technologies');
 	vi.resetModules();
 });
 
 describe.sequential('background visible-tab identity', () => {
 	it('returns the visible tab identity without contacting the content script', async () => {
-		const collectObservationBatch = vi.fn(async (_input: unknown) => ok({ batch: makeObservationBatch() }));
+		const collectObservationBatch = vi.fn(async (_input: unknown) => extensionSuccess({ batch: makeObservationBatch() }));
 		const harness = await loadBackgroundApiHarness({ tab: HTTP_TAB, contentApi: { collectObservationBatch } });
 
 		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 3 })).resolves.toMatchObject({
@@ -500,7 +500,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 	});
 
 	it('returns UNSUPPORTED_URL before contacting the content script', async () => {
-		const collectObservationBatch = vi.fn(async (_input: unknown) => ok({ batch: makeObservationBatch() }));
+		const collectObservationBatch = vi.fn(async (_input: unknown) => extensionSuccess({ batch: makeObservationBatch() }));
 		const api = await loadBackgroundApi({
 			tab: { id: 7, windowId: 3, url: 'chrome://extensions' },
 			contentApi: { collectObservationBatch },
@@ -543,7 +543,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 		const api = await loadBackgroundApi({
 			tab: HTTP_TAB,
 			contentApi: {
-				collectObservationBatch: vi.fn(() => new Promise<AppResult<{ batch: ObservationBatch }>>(() => undefined)),
+				collectObservationBatch: vi.fn(() => new Promise<ExtensionResult<{ batch: ObservationBatch }>>(() => undefined)),
 			},
 		});
 
@@ -560,7 +560,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 	});
 
 	it('returns stored snapshot analysis without probing content runtime in snapshot-first mode', async () => {
-		const collectObservationBatch = vi.fn(async () => ok({ batch: makeObservationBatch() }));
+		const collectObservationBatch = vi.fn(async () => extensionSuccess({ batch: makeObservationBatch() }));
 		const cachedAnalysis = { ...makeAnalysis(), source: 'cache' as const };
 		const cachedReplayTrace = makeDetectionReplayTrace({ completedMode: 'event' });
 		const harness = await loadBackgroundApiHarness({
@@ -665,7 +665,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 
 			return null;
 		});
-		const collectObservationBatch = vi.fn(async (_input: unknown) => ok({ batch: makeObservationBatch() }));
+		const collectObservationBatch = vi.fn(async (_input: unknown) => extensionSuccess({ batch: makeObservationBatch() }));
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			collectionPlan: makeTextEnrichmentCollectionPlan(),
@@ -704,7 +704,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 	});
 
 	it('merges multiple enrichment evidence passes into one follow-up matcher run', async () => {
-		const collectObservationBatch = vi.fn(async (_input: unknown) => ok({ batch: makeObservationBatch() }));
+		const collectObservationBatch = vi.fn(async (_input: unknown) => extensionSuccess({ batch: makeObservationBatch() }));
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			collectionPlan: makeMultiSurfaceEnrichmentCollectionPlan(),
@@ -753,7 +753,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 
 			return null;
 		});
-		const collectObservationBatch = vi.fn(async (_input: unknown) => ok({ batch: makeObservationBatch() }));
+		const collectObservationBatch = vi.fn(async (_input: unknown) => extensionSuccess({ batch: makeObservationBatch() }));
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			contentApi: { collectObservationBatch },
@@ -899,7 +899,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			contentApi: {
-				collectObservationBatch: vi.fn(async () => ok({ batch: makeObservationBatch(makeSignals({
+				collectObservationBatch: vi.fn(async () => extensionSuccess({ batch: makeObservationBatch(makeSignals({
 					url: 'https://other.example/products',
 					hostname: 'other.example',
 				})) })),
@@ -1001,7 +1001,7 @@ describe.sequential('background observation session baseline', () => {
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			contentApi: {
-				getObservationSessionState: vi.fn(async () => ok({
+				getObservationSessionState: vi.fn(async () => extensionSuccess({
 					status: 'dirty' as const,
 					throttleMs: 1_500,
 					pendingMutationCount: 2,
@@ -1058,8 +1058,8 @@ describe.sequential('background observation session baseline', () => {
 			}],
 		};
 
-		vi.mocked(harness.contentApi.getObservationSessionState).mockResolvedValueOnce(ok(dirtyState));
-		vi.mocked(harness.contentApi.flushObservationBatch).mockResolvedValueOnce(ok({
+		vi.mocked(harness.contentApi.getObservationSessionState).mockResolvedValueOnce(extensionSuccess(dirtyState));
+		vi.mocked(harness.contentApi.flushObservationBatch).mockResolvedValueOnce(extensionSuccess({
 			batch: lateBatch,
 			stats: {
 				queuedCount: 1,
@@ -1112,8 +1112,8 @@ describe.sequential('background observation session baseline', () => {
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			contentApi: {
-				getObservationSessionState: vi.fn(async () => ok(dirtyState)),
-				flushObservationBatch: vi.fn(async () => ok({
+				getObservationSessionState: vi.fn(async () => extensionSuccess(dirtyState)),
+				flushObservationBatch: vi.fn(async () => extensionSuccess({
 					batch: lateBatch,
 					stats: {
 						queuedCount: 1,
@@ -1145,7 +1145,7 @@ describe.sequential('background observation session baseline', () => {
 		const harness = await loadBackgroundApiHarness({
 			tab: { id: 7, windowId: 3, url: 'https://example.com/pricing' },
 			contentApi: {
-				getObservationSessionState: vi.fn(async () => ok({
+				getObservationSessionState: vi.fn(async () => extensionSuccess({
 					status: 'dirty' as const,
 					throttleMs: 1_500,
 					pendingMutationCount: 2,
@@ -1185,7 +1185,7 @@ describe.sequential('background observation session baseline', () => {
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			contentApi: {
-				getObservationSessionState: vi.fn(async () => ok({
+				getObservationSessionState: vi.fn(async () => extensionSuccess({
 					status: 'observing' as const,
 					throttleMs: 1_500,
 					pendingMutationCount: 0,

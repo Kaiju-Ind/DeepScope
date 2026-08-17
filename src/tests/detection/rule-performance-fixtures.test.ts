@@ -7,7 +7,7 @@ import {
 	profileRuleCase,
 	summarizeRuleProfileCoverage,
 } from '@/lib/detection/rule-performance-profile';
-import { technologyDefinitions } from '@/lib/detection/rules.ts';
+import { technologyDefinitions } from '@/registry/technologies';
 import { RULE_PERFORMANCE_FIXTURES } from '../support/rule-performance-fixtures';
 
 const SEMANTIC_MISS_PAYLOAD_CHARS = 256;

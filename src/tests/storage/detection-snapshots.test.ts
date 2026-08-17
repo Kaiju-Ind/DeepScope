@@ -506,7 +506,7 @@ describe.sequential('detection session snapshots', () => {
 	 * Matcher executor metadata records whether a revision came from the normal
 	 * offscreen worker pool or a slower fallback. Persisting it with the snapshot
 	 * keeps performance diagnostics tied to the visible detector state without
-	 * exposing the executor in the popup.
+	 * exposing the executor in the side panel.
 	 */
 	it('preserves matcher executor metadata on stored snapshots', async () => {
 		const storage = await loadStorageHarness();
@@ -594,7 +594,7 @@ describe.sequential('detection session snapshots', () => {
 
 	/**
 	 * Navigation cleanup should advance the stored revision instead of deleting the
-	 * snapshot. A popup with the old page open can then show a truthful stale state
+	 * snapshot. A side panel with the old page open can then show a truthful stale state
 	 * rather than an apparently live observer from a previous document.
 	 */
 	it('marks indexed snapshots stale for tab navigation', async () => {

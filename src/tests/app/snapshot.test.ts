@@ -39,7 +39,7 @@ async function loadSnapshotStateHarness(initialValues: Record<string, unknown> =
 		},
 	}));
 
-	const snapshotState = await import('@/lib/panel/snapshot-state');
+	const snapshotState = await import('@/app/snapshot');
 	return { ...snapshotState, storage, onChanged };
 }
 
@@ -60,7 +60,7 @@ describe.sequential('side panel snapshot state', () => {
 			[getDetectionOriginSnapshotKey(ACTIVE_IDENTITY.originHash)]: snapshot,
 		});
 
-		const stored = await harness.readStoredPanelAnalysis(ACTIVE_IDENTITY);
+		const stored = await harness.readStoredAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toMatchObject({
 			source: 'origin-snapshot',
@@ -99,7 +99,7 @@ describe.sequential('side panel snapshot state', () => {
 			},
 		});
 
-		const stored = await harness.readStoredPanelAnalysis(ACTIVE_IDENTITY);
+		const stored = await harness.readStoredAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toMatchObject({
 			source: 'session-snapshot',
@@ -146,7 +146,7 @@ describe.sequential('side panel snapshot state', () => {
 			},
 		});
 
-		const stored = await harness.readStoredPanelAnalysis(ACTIVE_IDENTITY);
+		const stored = await harness.readStoredAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toMatchObject({
 			snapshot: { key: exactSnapshot.key },
@@ -161,7 +161,7 @@ describe.sequential('side panel snapshot state', () => {
 	it('returns null when no matching snapshot exists for the visible tab', async () => {
 		const harness = await loadSnapshotStateHarness();
 
-		const stored = await harness.readStoredPanelAnalysis(ACTIVE_IDENTITY);
+		const stored = await harness.readStoredAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toBeNull();
 	});
@@ -169,7 +169,7 @@ describe.sequential('side panel snapshot state', () => {
 	it('subscribes to newer same-tab snapshot revisions while ignoring other tabs and page URLs', async () => {
 		const harness = await loadSnapshotStateHarness();
 		const onRevision = vi.fn();
-		const unsubscribe = harness.subscribeToPanelSnapshotRevisions(ACTIVE_IDENTITY, null, onRevision);
+		const unsubscribe = harness.subscribeToSnapshotRevisions(ACTIVE_IDENTITY, null, onRevision);
 		const storageKey = getDetectionOriginSnapshotKey(ACTIVE_IDENTITY.originHash);
 		const otherTabSnapshot = makeDetectionSessionSnapshot({ key: { tabId: 11, frameId: 0, documentId: 'document-1', originHash: ACTIVE_IDENTITY.originHash } });
 		const previousPageSnapshot = makeDetectionSessionSnapshot({
@@ -210,7 +210,7 @@ describe.sequential('side panel snapshot state', () => {
 			urlHash: ACTIVE_IDENTITY.urlHash,
 		});
 
-		const unsubscribe = harness.subscribeToPanelSnapshotRevisions(ACTIVE_IDENTITY, exactSessionKey, onRevision);
+		const unsubscribe = harness.subscribeToSnapshotRevisions(ACTIVE_IDENTITY, exactSessionKey, onRevision);
 
 		harness.onChanged.emit({ [originStorageKey]: { newValue: otherDocumentOriginSnapshot } });
 		harness.onChanged.emit({ [exactStorageKey]: { newValue: matchingSnapshot } });

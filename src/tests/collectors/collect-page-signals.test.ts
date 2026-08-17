@@ -157,3 +157,76 @@ describe('content page signal collectors', () => {
 		});
 	});
 });
+
+describe('content page signal limits', () => {
+	it('re-bounds runtime source text before returning page signals', async () => {
+		vi.stubGlobal('location', { href: 'https://example.com/', hostname: 'example.com' });
+		vi.stubGlobal('document', {
+			documentElement: { outerHTML: '', textContent: '' },
+			body: { innerText: '' },
+			cookie: '',
+			querySelectorAll: () => [],
+			styleSheets: [],
+		});
+
+		const { collectPageSignals } = await import('@/lib/content/collect-page-signals');
+		const { SOURCE_LIMITS } = await import('@/lib/detection/source-limits');
+		const runtime = {
+			images: [],
+			scripts: [],
+			stylesheets: [],
+			links: [],
+			resources: [],
+			requests: [],
+			meta: {},
+			dom: { selectors: {} },
+			scriptContents: Array.from({ length: 20 }, (_, index) => `${index}:${'s'.repeat(50_000)}`),
+			stylesheetContents: Array.from({ length: 20 }, (_, index) => `${index}:${'c'.repeat(50_000)}`),
+		};
+
+		const signals = await collectPageSignals({
+			selectorProbeList: [],
+			includeScriptContent: true,
+			includeStylesheetContent: true,
+			includeStorageKeys: false,
+		}, runtime);
+
+		expect(signals.scriptContents.every((value) => value.length <= SOURCE_LIMITS.scriptContentChars)).toBe(true);
+		expect(signals.stylesheetContents.every((value) => value.length <= SOURCE_LIMITS.stylesheetContentChars)).toBe(true);
+		expect(signals.scriptContents.reduce((total, value) => total + value.length, 0)).toBeLessThanOrEqual(SOURCE_LIMITS.scriptContentTotalChars);
+		expect(signals.stylesheetContents.reduce((total, value) => total + value.length, 0)).toBeLessThanOrEqual(SOURCE_LIMITS.stylesheetContentTotalChars);
+	});
+
+	it('does not return runtime source text when the collection plan disables it', async () => {
+		vi.stubGlobal('location', { href: 'https://example.com/', hostname: 'example.com' });
+		vi.stubGlobal('document', {
+			documentElement: { outerHTML: '', textContent: '' },
+			body: { innerText: '' },
+			cookie: '',
+			querySelectorAll: () => [],
+			styleSheets: [],
+		});
+
+		const { collectPageSignals } = await import('@/lib/content/collect-page-signals');
+		const signals = await collectPageSignals({
+			selectorProbeList: [],
+			includeScriptContent: false,
+			includeStylesheetContent: false,
+			includeStorageKeys: false,
+		}, {
+			images: [],
+			scripts: [],
+			stylesheets: [],
+			links: [],
+			resources: [],
+			requests: [],
+			meta: {},
+			dom: { selectors: {} },
+			scriptContents: ['window.__SHOULD_NOT_ESCAPE__ = true'],
+			stylesheetContents: [':root { --should-not-escape: 1; }'],
+		});
+
+		expect(signals.scriptContents).toEqual([]);
+		expect(signals.stylesheetContents).toEqual([]);
+	});
+});

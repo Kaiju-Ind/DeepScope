@@ -17,7 +17,7 @@ import {
 	type RuleProfileCase,
 	type RuleTimingRecord,
 } from '@/lib/detection/rule-performance-profile';
-import { technologyDefinitions } from '@/lib/detection/rules.ts';
+import { technologyDefinitions } from '@/registry/technologies';
 import { RULE_PERFORMANCE_FIXTURES } from '../tests/support/rule-performance-fixtures';
 
 const BENCHMARK_OPTIONS = {

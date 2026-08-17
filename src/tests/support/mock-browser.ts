@@ -26,7 +26,7 @@ export type MockBrowserStorageChangeListener = (
 	areaName: string,
 ) => void;
 
-/** Browser-like storage change event used by popup streaming tests. */
+/** Browser-like storage change event used by side panel streaming tests. */
 export type MockBrowserStorageChangeEvent = {
 	/** Register a storage change listener. */
 	addListener: ReturnType<typeof vi.fn>;
@@ -98,11 +98,11 @@ export function createMockBrowserStorageArea(
 
 
 /**
- * Build the storage change surface needed by popup snapshot streaming tests.
+ * Build the storage change surface needed by side panel snapshot streaming tests.
  *
  * Browser storage delivers one event fan-out for every extension context. The
  * helper keeps listener registration observable while letting tests emit only
- * the records that matter for a specific popup identity.
+ * the records that matter for a specific side panel identity.
  */
 export function createMockBrowserStorageChangeEvent(): MockBrowserStorageChangeEvent {
 	const listeners = new Set<MockBrowserStorageChangeListener>();

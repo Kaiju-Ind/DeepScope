@@ -5,7 +5,7 @@ import type {
 	ObservedPageSignals,
 	ObservationSessionState,
 } from '@/lib/content/observed-page-signals';
-import type { ContentPageSessionSnapshotTarget } from '@/lib/contracts/analysis';
+import type { ContentPageSessionSnapshotTarget } from '@/lib/messaging/analysis';
 import type { PageSignals } from '@/lib/detection/types';
 import type { ObservationBatch } from '@/lib/observations';
 
@@ -319,8 +319,8 @@ describe.sequential('content API observation baseline', () => {
 
 	/**
 	 * Late observations should advance the same durable session snapshot while the
-	 * popup is open. A regression here would return to the old behavior where
-	 * users only saw the larger result set after closing and reopening the popup.
+	 * side panel is open. A regression here would return to the old behavior where
+	 * users only saw the larger result set after closing and reopening the side panel.
 	 */
 	it('publishes content-owned snapshot revisions when late observation batches flush', async () => {
 		const { createContentApi, writeContentPageSessionSnapshot } = await loadContentApiFactory();
@@ -381,7 +381,7 @@ describe.sequential('content API observation baseline', () => {
 
 	/**
 	 * The observer callback uses the runtime publisher instead of waiting for a
-	 * background flush request. That keeps popup storage revisions moving at the
+	 * background flush request. That keeps side panel storage revisions moving at the
 	 * content observer throttle, while the detector rerun remains background-owned.
 	 */
 	it('publishes content and background notifications when the observer queues late facts directly', async () => {

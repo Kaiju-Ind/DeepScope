@@ -43,7 +43,7 @@ function consumeObservationCount(count: number): void {
  *
  * The common page mirrors a first usable scan: a handful of scripts, metadata,
  * links, resources, and storage keys. The late-heavy page approximates an SPA
- * that keeps adding resources and metadata after the popup has opened.
+ * that keeps adding resources and metadata after the side panel has opened.
  */
 function createPageSignals(workload: ContentBootstrapWorkload): PageSignals {
 	if (workload === 'common-page') {
@@ -105,7 +105,7 @@ const scenarios = CONTENT_BOOTSTRAP_WORKLOADS.map(createContentBootstrapScenario
  *
  * A regression here means the content-owned page-session path is getting more
  * expensive before the matcher even runs. That matters because early snapshot
- * revisions should reach storage fast enough for the popup to stop feeling
+ * revisions should reach storage fast enough for the side panel to stop feeling
  * blocked on background work.
  */
 describe('content bootstrap observation', () => {

@@ -5,7 +5,7 @@ import { formatDiagnosticReport } from '@/lib/diagnostics/report';
 
 const snapshot: DiagnosticSnapshot = {
 	createdAt: Date.UTC(2026, 7, 17, 1, 2, 3),
-	extension: { name: 'Kaiju Site Scope', version: '0.1.0', buildId: 'test-build' },
+	extension: { name: 'Kaiju Deepscope', version: '0.1.0', buildId: 'test-build' },
 	platform: { os: 'mac', arch: 'arm', naclArch: 'arm64' },
 	storageBytes: 2048,
 	contexts: [{ contextId: 'ctx-live', contextType: 'SIDE_PANEL', windowId: 4, tabId: 8 }],

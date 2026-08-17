@@ -19,7 +19,7 @@ const job = {
 describe('matcher partitions', () => {
 	/**
 	 * Cheap document facts need to run before high-fan-out asset and source-content
-	 * evidence so the popup can paint useful results while deeper work continues.
+	 * evidence so the side panel can paint useful results while deeper work continues.
 	 */
 	it('orders cheap page facts before asset and content-heavy observations', () => {
 		const batch = normalizePageSignals(makePageSignals({
@@ -45,7 +45,7 @@ describe('matcher partitions', () => {
 	/**
 	 * Large URL-like surfaces must produce multiple progress events. A single
 	 * kind-sized partition would recreate the old quiet wait where Vercel-style
-	 * resource fan-out blocked popup revisions until the whole kind completed.
+	 * resource fan-out blocked side panel revisions until the whole kind completed.
 	 */
 	it('chunks high-fan-out resource observations into smaller matcher tasks', () => {
 		const batch: ObservationBatch = {

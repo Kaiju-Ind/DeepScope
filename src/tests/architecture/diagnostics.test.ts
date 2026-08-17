@@ -9,7 +9,7 @@ function read(relative: string): string {
 
 describe('crash-durable diagnostics architecture', () => {
 	it('routes LogTape records to console and the durable journal without throttling failures', () => {
-		const logging = read('../../lib/diagnostics/logging.ts');
+		const logging = read('../../packages/diagnostics/logging.ts');
 
 		expect(logging).toContain("sinks: { console: consoleSink, journal: journalSink }");
 		expect(logging).toContain("sinks: ['console', 'journal']");
@@ -32,7 +32,7 @@ describe('crash-durable diagnostics architecture', () => {
 
 	it('does not persist host-page global errors as content-script crashes', () => {
 		const content = read('../../entrypoints/content.ts');
-		const crash = read('../../lib/diagnostics/crash.ts');
+		const crash = read('../../packages/diagnostics/crash.ts');
 
 		expect(content).toContain('installDiagnosticCrashHooks("content", { captureGlobalError: false });');
 		expect(crash).toContain('options.captureGlobalError !== false');
@@ -49,8 +49,8 @@ describe('crash-durable diagnostics architecture', () => {
 	});
 
 	it('reconciles non-terminal matcher records when a new background context starts', () => {
-		const reconcile = read('../../lib/background/reconcile-matcher-jobs.ts');
-		const contracts = read('../../lib/matcher/contracts.ts');
+		const reconcile = read('../../packages/background/reconcile-matcher-jobs.ts');
+		const contracts = read('../../packages/matcher/contracts.ts');
 
 		expect(reconcile).toContain("reason: 'context-interrupted'");
 		expect(reconcile).toContain('interruptedStatus: record.status');

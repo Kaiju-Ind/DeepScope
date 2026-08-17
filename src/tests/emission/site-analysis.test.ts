@@ -1,7 +1,7 @@
 import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/detection/rules', () => ({
+vi.mock('@/registry/technologies', () => ({
 	SOURCE_LIMITS: { evidenceValueChars: 160 },
 }));
 

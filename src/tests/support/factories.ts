@@ -1,6 +1,6 @@
 import type { ObservationSessionState } from '@/lib/content/observed-page-signals';
-import type { AnalyzeVisibleTabOutput } from '@/lib/contracts/analysis';
-import type { DetectionSessionSnapshot } from '@/lib/contracts/detection-session';
+import type { AnalyzeVisibleTabOutput } from '@/lib/messaging/analysis';
+import type { DetectionSessionSnapshot } from '@/lib/storage/session';
 import type {
 	CategoryId,
 	ConfidenceScore,
@@ -16,7 +16,7 @@ import {
 /**
  * Stable timestamp used by test factories that do not care about time itself.
  *
- * Keeping a single timestamp makes cache, popup, and lifecycle expectations easy
+ * Keeping a single timestamp makes cache, side panel, and lifecycle expectations easy
  * to compare without depending on the wall clock. Tests that need time to move
  * should still use `vi.setSystemTime(...)` and override the relevant field.
  */
@@ -26,7 +26,7 @@ export const TEST_NOW = 1_700_000_000_000;
 export const HIGH_CONFIDENCE: ConfidenceScore = { value: 95, level: 'certain' };
 
 /**
- * Create a normalized analysis fixture for storage, popup, and background tests.
+ * Create a normalized analysis fixture for storage, side panel, and background tests.
  *
  * The default URL matches the visible-tab fixture used in background tests so a
  * snapshot response record, analysis response, and page-signal snapshot can be combined
@@ -49,7 +49,7 @@ export function makeAnalysis(
 
 
 /**
- * Create a durable detection session snapshot for storage and popup tests.
+ * Create a durable detection session snapshot for storage and side panel tests.
  *
  * The default key mirrors a top-frame visible-tab document. Tests can override
  * the revision, status, or analysis without repeating the storage identity that
@@ -86,7 +86,7 @@ export function makeDetectionSessionSnapshot(
 }
 
 /**
- * Create a detection result with only the fields popup and graph tests need.
+ * Create a detection result with only the fields side panel and graph tests need.
  *
  * Tests can override categories to document UI grouping behavior without copying
  * confidence and website boilerplate into each assertion.
@@ -111,7 +111,7 @@ export function makeDetection(
 }
 
 /**
- * Create a redacted replay trace fixture for storage, popup, and messaging tests.
+ * Create a redacted replay trace fixture for storage, side panel, and messaging tests.
  *
  * The default trace has one stage event and no explanations. Tests that need a
  * richer explanation can override only the replay fields they assert against.
@@ -186,7 +186,7 @@ export function makePageSignals(overrides: Partial<PageSignals> = {}): PageSigna
 }
 
 /**
- * Create an observation-session fixture for lifecycle, popup, and background tests.
+ * Create an observation-session fixture for lifecycle, side panel, and background tests.
  */
 export function makeObservationSession(
 	status: ObservationSessionState['status'] = 'idle',
@@ -206,7 +206,7 @@ export function makeObservationSession(
 }
 
 /**
- * Create a background analysis response fixture for popup and extension tests.
+ * Create a background analysis response fixture for side panel and extension tests.
  */
 export function makeAnalyzeVisibleTabOutput(
 	overrides: Partial<AnalyzeVisibleTabOutput> = {},

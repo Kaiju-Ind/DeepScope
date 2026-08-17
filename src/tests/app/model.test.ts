@@ -1,24 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-	buildPanelAnalysisUpdate,
-	buildPanelExplanationLookup,
-	createPanelVisibleRevisionFromAnalysisResponse,
-	formatPanelAppError,
-	getPanelReplayState,
-	getPanelAnalysisActivity,
-	getPanelMatcherStatusFromSnapshot,
-	getPanelObservationLabel,
-	getPanelObservationModeFromAnalysis,
-	getPanelObservationModeFromSession,
-	getPanelObservationModeFromSnapshot,
+	buildAnalysisUpdate,
+	buildExplanationLookup,
+	createVisibleRevisionFromAnalysisResponse,
+	formatError,
+	getReplayState,
+	getAnalysisActivity,
+	getMatcherStatusFromSnapshot,
+	getObservationLabel,
+	getObservationModeFromAnalysis,
+	getObservationModeFromSession,
+	getObservationModeFromSnapshot,
 	groupDetectionsByPrimaryCategory,
-	isPanelVisibleRevisionPending,
-	shouldApplyPanelReplayState,
-	shouldApplyPanelSnapshotRevision,
-	shouldKeepPanelLiveUpdatesActive,
-	shouldPreservePanelReplayState,
-} from '@/lib/panel/view-model';
+	isVisibleRevisionPending,
+	shouldApplyReplayState,
+	shouldApplySnapshotRevision,
+	shouldKeepLiveUpdatesActive,
+	shouldPreserveReplayState,
+} from '@/app/model';
 import {
 	makeAnalysis,
 	makeAnalyzeVisibleTabOutput,
@@ -28,7 +28,7 @@ import {
 	makeObservationSession,
 } from '../support/factories';
 
-describe('side panel view model', () => {
+describe('side panel model', () => {
 	it('groups detections by their first category and keeps category priority order', () => {
 		const groups = groupDetectionsByPrimaryCategory([
 			makeDetection('ga', ['analytics']),
@@ -52,26 +52,26 @@ describe('side panel view model', () => {
 			},
 		});
 
-		expect(getPanelObservationModeFromAnalysis(response)).toBe('idle');
-		expect(shouldKeepPanelLiveUpdatesActive('idle')).toBe(false);
-		expect(getPanelObservationLabel('idle')).toBe('Idle');
+		expect(getObservationModeFromAnalysis(response)).toBe('idle');
+		expect(shouldKeepLiveUpdatesActive('idle')).toBe(false);
+		expect(getObservationLabel('idle')).toBe('Idle');
 	});
 
 	it('maps observing and dirty sessions to active side panel live updates', () => {
-		expect(getPanelObservationModeFromSession(makeObservationSession('observing'))).toBe('active');
-		expect(getPanelObservationModeFromSession(makeObservationSession('dirty'))).toBe('active');
-		expect(shouldKeepPanelLiveUpdatesActive('active')).toBe(true);
-		expect(getPanelObservationLabel('active')).toBe('Observing');
+		expect(getObservationModeFromSession(makeObservationSession('observing'))).toBe('active');
+		expect(getObservationModeFromSession(makeObservationSession('dirty'))).toBe('active');
+		expect(shouldKeepLiveUpdatesActive('active')).toBe(true);
+		expect(getObservationLabel('active')).toBe('Observing');
 	});
 
 	it('maps stopped sessions to stopped side panel controls', () => {
-		expect(getPanelObservationModeFromSession(makeObservationSession('stopped'))).toBe('stopped');
-		expect(shouldKeepPanelLiveUpdatesActive('stopped')).toBe(false);
-		expect(getPanelObservationLabel('stopped')).toBe('Stopped');
+		expect(getObservationModeFromSession(makeObservationSession('stopped'))).toBe('stopped');
+		expect(shouldKeepLiveUpdatesActive('stopped')).toBe(false);
+		expect(getObservationLabel('stopped')).toBe('Stopped');
 	});
 
 	it('describes queued visible-tab work ahead of stale matcher work', () => {
-		const activity = getPanelAnalysisActivity({
+		const activity = getAnalysisActivity({
 			matcherStatus: 'matching',
 			workflowBusy: false,
 			analysisRequestInFlight: false,
@@ -86,7 +86,7 @@ describe('side panel view model', () => {
 	});
 
 	it('keeps the side panel in a loading state while the current tab request has no matcher revision yet', () => {
-		const activity = getPanelAnalysisActivity({
+		const activity = getAnalysisActivity({
 			matcherStatus: 'idle',
 			workflowBusy: false,
 			analysisRequestInFlight: true,
@@ -101,7 +101,7 @@ describe('side panel view model', () => {
 	});
 
 	it('describes matcher partition progress when snapshot revisions include counters', () => {
-		const activity = getPanelAnalysisActivity({
+		const activity = getAnalysisActivity({
 			matcherStatus: 'matching',
 			workflowBusy: false,
 			analysisRequestInFlight: false,
@@ -118,11 +118,12 @@ describe('side panel view model', () => {
 			busy: true,
 			label: 'matching evidence 7/12',
 			description: expect.stringContaining('Matched 7 of 12 evidence batches.'),
+			progress: { kind: 'determinate', completed: 7, total: 12, percent: 58 },
 		});
 	});
 
 	it('reports complete when no visible tab workflow owns progress', () => {
-		const activity = getPanelAnalysisActivity({
+		const activity = getAnalysisActivity({
 			matcherStatus: 'idle',
 			workflowBusy: false,
 			analysisRequestInFlight: false,
@@ -156,8 +157,8 @@ describe('side panel view model', () => {
 			},
 		});
 
-		expect(getPanelMatcherStatusFromSnapshot(partialSnapshot)).toBe('matching');
-		expect(getPanelMatcherStatusFromSnapshot(finalSnapshot)).toBe('idle');
+		expect(getMatcherStatusFromSnapshot(partialSnapshot)).toBe('matching');
+		expect(getMatcherStatusFromSnapshot(finalSnapshot)).toBe('idle');
 	});
 
 	it('keeps replay-backed snapshots in matching state when newer matcher progress exists', () => {
@@ -183,11 +184,11 @@ describe('side panel view model', () => {
 			},
 		});
 
-		expect(getPanelMatcherStatusFromSnapshot(snapshot)).toBe('matching');
+		expect(getMatcherStatusFromSnapshot(snapshot)).toBe('matching');
 	});
 
 	it('treats stored partial snapshot revisions as pending and blocks stale replay state', () => {
-		const pendingRevision = createPanelVisibleRevisionFromAnalysisResponse(makeAnalyzeVisibleTabOutput({
+		const pendingRevision = createVisibleRevisionFromAnalysisResponse(makeAnalyzeVisibleTabOutput({
 			analysis: makeAnalysis([makeDetection('react')]),
 			enrichment: { status: 'pending' },
 			replayHistory: [makeDetectionReplayTrace({ resultCount: 1 })],
@@ -203,18 +204,18 @@ describe('side panel view model', () => {
 			...storedPartialRevision,
 			sessionSnapshotSource: 'cache' as const,
 		};
-		const finalRevision = createPanelVisibleRevisionFromAnalysisResponse(makeAnalyzeVisibleTabOutput({
+		const finalRevision = createVisibleRevisionFromAnalysisResponse(makeAnalyzeVisibleTabOutput({
 			analysis: makeAnalysis([makeDetection('react')]),
 			replayTrace: makeDetectionReplayTrace({ resultCount: 1 }),
 		}));
 
-		expect(isPanelVisibleRevisionPending(pendingRevision)).toBe(true);
-		expect(shouldApplyPanelReplayState(pendingRevision)).toBe(false);
-		expect(isPanelVisibleRevisionPending(storedPartialRevision)).toBe(true);
-		expect(shouldApplyPanelReplayState(storedPartialRevision)).toBe(false);
-		expect(isPanelVisibleRevisionPending(storedCacheRevision)).toBe(false);
-		expect(isPanelVisibleRevisionPending(finalRevision)).toBe(false);
-		expect(shouldApplyPanelReplayState(finalRevision)).toBe(true);
+		expect(isVisibleRevisionPending(pendingRevision)).toBe(true);
+		expect(shouldApplyReplayState(pendingRevision)).toBe(false);
+		expect(isVisibleRevisionPending(storedPartialRevision)).toBe(true);
+		expect(shouldApplyReplayState(storedPartialRevision)).toBe(false);
+		expect(isVisibleRevisionPending(storedCacheRevision)).toBe(false);
+		expect(isVisibleRevisionPending(finalRevision)).toBe(false);
+		expect(shouldApplyReplayState(finalRevision)).toBe(true);
 	});
 
 	it('builds a manual refresh notice while preserving active observation state', () => {
@@ -223,9 +224,9 @@ describe('side panel view model', () => {
 			session: makeObservationSession('observing'),
 		});
 
-		const update = buildPanelAnalysisUpdate({
+		const update = buildAnalysisUpdate({
 			previousAnalysis: null,
-			revision: createPanelVisibleRevisionFromAnalysisResponse(response),
+			revision: createVisibleRevisionFromAnalysisResponse(response),
 			source: 'manual',
 			resetLateMarkers: true,
 		});
@@ -248,9 +249,9 @@ describe('side panel view model', () => {
 			session: makeObservationSession('observing'),
 		});
 
-		const update = buildPanelAnalysisUpdate({
+		const update = buildAnalysisUpdate({
 			previousAnalysis: null,
-			revision: createPanelVisibleRevisionFromAnalysisResponse(response),
+			revision: createVisibleRevisionFromAnalysisResponse(response),
 			source: 'initial',
 		});
 
@@ -269,9 +270,9 @@ describe('side panel view model', () => {
 			session: makeObservationSession('dirty'),
 		});
 
-		const update = buildPanelAnalysisUpdate({
+		const update = buildAnalysisUpdate({
 			previousAnalysis,
-			revision: createPanelVisibleRevisionFromAnalysisResponse(response),
+			revision: createVisibleRevisionFromAnalysisResponse(response),
 			source: 'auto',
 			currentLateDetectionIds: ['shopify'],
 		});
@@ -290,7 +291,7 @@ describe('side panel view model', () => {
 			analysis: makeAnalysis([], { url: currentAnalysis.url, analyzedAt: currentAnalysis.analyzedAt }),
 		});
 
-		expect(shouldApplyPanelSnapshotRevision({ currentAnalysis, snapshot })).toBe(false);
+		expect(shouldApplySnapshotRevision({ currentAnalysis, snapshot })).toBe(false);
 	});
 
 	/**
@@ -322,8 +323,8 @@ describe('side panel view model', () => {
 			},
 		});
 
-		expect(shouldApplyPanelSnapshotRevision({ currentAnalysis, snapshot: partialSnapshot })).toBe(false);
-		expect(shouldApplyPanelSnapshotRevision({ currentAnalysis, snapshot: finalSnapshot })).toBe(true);
+		expect(shouldApplySnapshotRevision({ currentAnalysis, snapshot: partialSnapshot })).toBe(false);
+		expect(shouldApplySnapshotRevision({ currentAnalysis, snapshot: finalSnapshot })).toBe(true);
 	});
 
 
@@ -355,7 +356,7 @@ describe('side panel view model', () => {
 			},
 		});
 
-		expect(shouldApplyPanelSnapshotRevision({ currentAnalysis, snapshot: recoveredSnapshot })).toBe(false);
+		expect(shouldApplySnapshotRevision({ currentAnalysis, snapshot: recoveredSnapshot })).toBe(false);
 	});
 
 	it('filters replay history to entries that explain the visible analysis', () => {
@@ -370,7 +371,7 @@ describe('side panel view model', () => {
 			analyzedAt: analysis.analyzedAt,
 			resultCount: analysis.results.length,
 		});
-		const revision = createPanelVisibleRevisionFromAnalysisResponse(makeAnalyzeVisibleTabOutput({
+		const revision = createVisibleRevisionFromAnalysisResponse(makeAnalyzeVisibleTabOutput({
 			analysis,
 			replayHistory: [mismatchedTrace, matchingTrace],
 			replayTrace: mismatchedTrace,
@@ -378,7 +379,7 @@ describe('side panel view model', () => {
 
 		expect(revision.replayTrace).toBeUndefined();
 		expect(revision.replayHistory).toEqual([matchingTrace]);
-		expect(getPanelReplayState(revision)).toMatchObject({
+		expect(getReplayState(revision)).toMatchObject({
 			kind: 'history',
 			summary: { runId: 'visible-run', resultCount: 1 },
 		});
@@ -390,8 +391,8 @@ describe('side panel view model', () => {
 			status: 'stopped',
 		});
 
-		expect(getPanelObservationModeFromSnapshot(snapshot)).toBe('stopped');
-		expect(shouldKeepPanelLiveUpdatesActive(getPanelObservationModeFromSnapshot(snapshot))).toBe(false);
+		expect(getObservationModeFromSnapshot(snapshot)).toBe('stopped');
+		expect(shouldKeepLiveUpdatesActive(getObservationModeFromSnapshot(snapshot))).toBe(false);
 	});
 
 	it('preserves replay state when a lifecycle snapshot repeats the same analysis', () => {
@@ -400,13 +401,13 @@ describe('side panel view model', () => {
 			analysis: previousAnalysis,
 		});
 
-		expect(shouldPreservePanelReplayState({
+		expect(shouldPreserveReplayState({
 			previousAnalysis,
-			revision: createPanelVisibleRevisionFromAnalysisResponse(response),
+			revision: createVisibleRevisionFromAnalysisResponse(response),
 		})).toBe(true);
-		expect(shouldPreservePanelReplayState({
+		expect(shouldPreserveReplayState({
 			previousAnalysis,
-			revision: createPanelVisibleRevisionFromAnalysisResponse({
+			revision: createVisibleRevisionFromAnalysisResponse({
 				...response,
 				replayTrace: makeDetectionReplayTrace({ resultCount: previousAnalysis.results.length }),
 			}),
@@ -415,7 +416,7 @@ describe('side panel view model', () => {
 
 
 	it('maps replay explanations into side panel summaries keyed by technology id', () => {
-		const lookup = buildPanelExplanationLookup({
+		const lookup = buildExplanationLookup({
 			schemaVersion: 1,
 			target: { url: 'https://example.com/products', hostname: 'example.com' },
 			requestedMode: 'event',
@@ -449,7 +450,7 @@ describe('side panel view model', () => {
 	});
 
 	it('formats application errors for side panel recovery UI', () => {
-		expect(formatPanelAppError({
+		expect(formatError({
 			code: 'UNSUPPORTED_URL',
 			message: 'Detection only works on normal http/https pages.',
 		})).toBe('UNSUPPORTED_URL: Detection only works on normal http/https pages.');

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createAutoScanController } from '@/lib/autostart/controller';
 import type { AnalyzeVisibleTabOutput, VisibleTabIdentity } from '@/lib/messaging';
-import { errorResponse, ok } from '@/lib/shared/result';
+import { errorResponse, extensionSuccess } from '@/lib/messaging/result';
 
 const VISIBLE_IDENTITY: VisibleTabIdentity = {
 	windowId: 3,
@@ -34,10 +34,10 @@ function makeOutput(): AnalyzeVisibleTabOutput {
 
 describe('automatic scan controller', () => {
 	it('starts a bounded fresh scan for an enabled visible page load', async () => {
-		const analyzeVisibleTab = vi.fn(async () => ok(makeOutput()));
+		const analyzeVisibleTab = vi.fn(async () => extensionSuccess(makeOutput()));
 		const controller = createAutoScanController({
 			getEnabled: vi.fn(async () => true),
-			getVisibleTabIdentity: vi.fn(async () => ok(VISIBLE_IDENTITY)),
+			getVisibleTabIdentity: vi.fn(async () => extensionSuccess(VISIBLE_IDENTITY)),
 			analyzeVisibleTab,
 		});
 
@@ -52,10 +52,10 @@ describe('automatic scan controller', () => {
 	});
 
 	it('does nothing when automatic scanning is disabled', async () => {
-		const analyzeVisibleTab = vi.fn(async () => ok(makeOutput()));
+		const analyzeVisibleTab = vi.fn(async () => extensionSuccess(makeOutput()));
 		const controller = createAutoScanController({
 			getEnabled: vi.fn(async () => false),
-			getVisibleTabIdentity: vi.fn(async () => ok(VISIBLE_IDENTITY)),
+			getVisibleTabIdentity: vi.fn(async () => extensionSuccess(VISIBLE_IDENTITY)),
 			analyzeVisibleTab,
 		});
 
@@ -65,7 +65,7 @@ describe('automatic scan controller', () => {
 	});
 
 	it('drops a scan when the requested tab is no longer active', async () => {
-		const analyzeVisibleTab = vi.fn(async () => ok(makeOutput()));
+		const analyzeVisibleTab = vi.fn(async () => extensionSuccess(makeOutput()));
 		const getVisibleTabIdentity = vi.fn(async () => errorResponse('NO_ACTIVE_TAB', 'The requested browser tab is no longer active.'));
 		const controller = createAutoScanController({
 			getEnabled: vi.fn(async () => true),
@@ -86,11 +86,11 @@ describe('automatic scan controller', () => {
 		});
 		const analyzeVisibleTab = vi.fn(async () => {
 			await analysisGate;
-			return ok(makeOutput());
+			return extensionSuccess(makeOutput());
 		});
 		const controller = createAutoScanController({
 			getEnabled: vi.fn(async () => true),
-			getVisibleTabIdentity: vi.fn(async () => ok(VISIBLE_IDENTITY)),
+			getVisibleTabIdentity: vi.fn(async () => extensionSuccess(VISIBLE_IDENTITY)),
 			analyzeVisibleTab,
 		});
 

@@ -319,7 +319,7 @@ describe('observed page signals', () => {
 	/**
 	 * The observer stream should publish a lifecycle event as soon as the
 	 * throttled scan has queued new facts. The background still owns detector
-	 * reruns, but the popup no longer needs to wait for the next background poll
+	 * reruns, but the side panel no longer needs to wait for the next background poll
 	 * before it knows that live page evidence advanced.
 	 */
 	it('notifies when throttled mutation scans queue late observations', async () => {

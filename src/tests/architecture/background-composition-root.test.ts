@@ -4,9 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const BACKGROUND_ENTRYPOINT = fileURLToPath(new URL('../../entrypoints/background.ts', import.meta.url));
-const BACKGROUND_RUNTIME = fileURLToPath(new URL('../../lib/background/runtime.ts', import.meta.url));
-const SIDE_PANEL_PROVIDER = fileURLToPath(new URL('../../panel/provider.tsx', import.meta.url));
-const SIDE_PANEL_SETTINGS = fileURLToPath(new URL('../../panel/pages/settings.tsx', import.meta.url));
+const BACKGROUND_RUNTIME = fileURLToPath(new URL('../../packages/background/runtime.ts', import.meta.url));
+const SIDE_PANEL_PROVIDER = fileURLToPath(new URL('../../app/provider.tsx', import.meta.url));
+const SIDE_PANEL_TAB = fileURLToPath(new URL('../../app/tab.ts', import.meta.url));
+const SIDE_PANEL_SETTINGS = fileURLToPath(new URL('../../app/pages/settings.tsx', import.meta.url));
 const SIDE_PANEL_ENTRYPOINT = fileURLToPath(new URL('../../entrypoints/sidepanel/index.html', import.meta.url));
 const WXT_CONFIG = fileURLToPath(new URL('../../../wxt.config.ts', import.meta.url));
 
@@ -60,19 +61,22 @@ describe('background composition-root ownership', () => {
 		const source = readFileSync(BACKGROUND_ENTRYPOINT, 'utf8');
 		const config = readFileSync(WXT_CONFIG, 'utf8');
 		const provider = readFileSync(SIDE_PANEL_PROVIDER, 'utf8');
+		const tab = readFileSync(SIDE_PANEL_TAB, 'utf8');
 		const sidePanel = readFileSync(SIDE_PANEL_ENTRYPOINT, 'utf8');
 
 		expect(source).toContain('browser.action.onClicked.addListener');
 		expect(source).toContain('browser.sidePanel.open({ windowId })');
 		expect(source).not.toContain('browser.sidePanel.setOptions({');
-		expect(provider).toContain('browser.tabs.onActivated.addListener');
+		expect(provider).toContain('subscribeTabTargetChanges({');
+		expect(tab).toContain('browser.tabs.onActivated.addListener');
+		expect(tab).toContain('browser.tabs.onUpdated.addListener');
 		expect(source).toContain("notifySidePanelTab(tabId, windowId, 'activated')");
 		expect(source).toContain("notifySidePanelTab(tabId, tab.windowId, 'updated')");
-		expect(provider).toContain('isSidePanelTabNotification(message)');
-		expect(provider).toContain('getPanelWindowId()');
-		expect(provider).toContain('getPanelTabTarget(panelWindowId)');
+		expect(tab).toContain('isSidePanelTabNotification(message)');
+		expect(provider).toContain('getWindowId()');
+		expect(provider).toContain('getTabTarget(panelWindowId)');
 		expect(config).not.toContain('default_popup');
-		expect(config).toContain("minimum_chrome_version: '116'");
+		expect(config).toContain("minimum_chrome_version: '119'");
 		expect(sidePanel).not.toContain('manifest.type');
 	});
 
