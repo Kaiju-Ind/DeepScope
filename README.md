@@ -2,7 +2,7 @@
 
 A Chrome-first Manifest V3 technology detector built with WXT, TypeScript, Solid, and `comctx`.
 
-The extension analyzes active `http` or `https` pages locally, turns collected page facts into normalized observations, runs the shared event pipeline, and caches normalized `SiteAnalysis` output with an optional redacted replay trace. Automatic page-load scanning is enabled by default and can be turned off from the side panel. Raw page payloads are used only during local analysis and are not stored as cache records.
+The extension analyzes active `http` or `https` pages locally, turns collected page facts into normalized observations, runs the shared event pipeline, and caches normalized `SiteAnalysis` output with an optional redacted replay trace. Automatic page-load scanning is enabled by default and can be turned off from Settings. Raw page payloads are used only during local analysis and are not stored as cache records.
 
 ## Current event flow
 
@@ -26,7 +26,7 @@ Dirty observation refreshes do not merge final detection results. The background
 
 ## Current extension behavior
 
-1. Automatic scanning is enabled by default. When an active HTTP/HTTPS page finishes loading, the background starts a fresh bounded analysis; activating an already-loaded tab uses snapshot-first recovery and scans only when no matching snapshot exists. The side-panel toggle can disable these automatic starts.
+1. Automatic scanning is enabled by default. When an active HTTP/HTTPS page finishes loading, the background starts a fresh bounded analysis; activating an already-loaded tab uses snapshot-first recovery and scans only when no matching snapshot exists. The Settings page can disable these automatic starts.
 2. The side panel owns the browser window that contains it, resolves that window's active tab, and asks the background to validate that exact `{ windowId, tabId }` target before requesting `mode: "snapshot-first"` analysis. The side-panel observation request uses `observe: "while-panel-open"`, so manual inspection still works when automatic scanning is disabled.
 3. The background validates that the tab is inspectable and checks the exact visible-session snapshot first, then uses origin-level fallback metadata only when no exact snapshot is available. On a hit, the side panel renders stored normalized analysis and replay state immediately.
 4. On an automatic page-load scan, snapshot miss, or manual refresh, the background runtime-injects the content script, collects an enriched observation batch, runs the event pipeline, stores the analysis and replay trace, and optionally starts observation.
@@ -34,7 +34,17 @@ Dirty observation refreshes do not merge final detection results. The background
 6. The side panel follows live updates through storage revisions for the current visible session. Dirty sessions flush late observation batches and rerun the event pipeline over combined observations.
 7. Closing the side panel unsubscribes the UI from live updates, but the bounded observation session can continue until it stops naturally or the user clicks Stop observation.
 
-The side panel includes the completed pipeline mode in its metrics area so browser QA can confirm that extension output came from the event path.
+The side panel is now task-oriented rather than one long diagnostics surface:
+
+```text
+Technologies      default result list for the active tab
+Technology detail evidence, version, confidence, and explanation
+Scans             manual controls, matcher state, observation state, replay history
+Diagnostics       extension contexts, interrupted work, durable crash journal, support report
+Settings          automatic scanning and local detector-data controls
+```
+
+The Diagnostics view is also available as an independent extension options page so support data remains accessible when the detector UI or side-panel state is unhealthy.
 
 ## Messaging architecture
 
@@ -47,24 +57,30 @@ The current permission model supports both automatic and manual analysis:
 - `host_permissions` for `http://*/*` and `https://*/*` allow automatic page-load analysis without requiring a toolbar click first.
 - `activeTab` remains available for explicit toolbar-driven interaction and compatibility with the manual flow.
 - `scripting` is used for runtime content-script injection and MAIN-world JavaScript-global probing.
-- `storage` persists normalized analysis, redacted replay traces, and the automatic-scan preference.
+- `storage` persists normalized analysis, redacted replay traces, matcher lifecycle state, the bounded diagnostic journal, and extension preferences.
 - `sidePanel` hosts one persistent window-scoped analysis UI. The mounted panel follows active-tab changes in its own browser window instead of creating a different panel instance for each tab.
+- `offscreen` owns the local matcher host so heavier registry matching does not block the panel or depend on service-worker memory.
+- `clipboardWrite` is used only after the user presses **Copy report** on Diagnostics. The extension does not read clipboard contents.
 
 ## Manual QA checklist
 
 Run the extension in Chrome and verify:
 
 - With **Scan pages automatically** enabled, loading a normal `https://` page starts analysis before the side panel is opened.
-- The side-panel metrics show `Pipeline: event` after fresh analysis and cache-backed replay responses.
+- Open **Scans** and confirm detector, observation, evidence, and result state update for the active tab.
 - `chrome://extensions` returns `UNSUPPORTED_URL` and the side panel remains responsive.
 - Browser/internal or PDF-like pages that do not run the content script do not hang the side panel.
 - A page with no content-script response returns `CONTENT_SCRIPT_UNAVAILABLE`.
-- Opening the side panel after an automatic scan renders the stored result immediately; turning automatic scanning off leaves manual side-panel analysis and Refresh working.
+- Opening the side panel after an automatic scan renders the stored result immediately on **Technologies**; turning automatic scanning off leaves manual analysis and Refresh working.
 - Pin the side panel, switch between two normal website tabs in the same window, and confirm the panel follows the newly active tab without reporting a missing active tab or retaining the previous tab's detections.
 - Open a second browser window and confirm each mounted side panel follows only the active tab in its own window.
 - Refresh bypasses cache, reruns event analysis, and starts a fresh observation session.
 - Closing the side panel stops live UI updates, and clicking Stop observation stops the active observation session for the visible tab.
 - Late-loaded signals on a supported page can trigger event analysis while the side panel stays open.
+- Open a technology result and confirm raw evidence is available on its detail route instead of being repeated across every result row.
+- Open **Diagnostics**, copy a report, and confirm it includes build identity, current extension contexts, recent context runs, matcher lifecycle state, and recent warnings/errors.
+- Open the extension options page and confirm Diagnostics works without mounting the detector state owner.
+- End a background context during non-terminal matcher work, then reopen the extension and confirm the job is reconciled as `context-interrupted` with its previous matcher state retained.
 - Dirty refresh does not append final results blindly. Existing and late observations are evaluated together, so `implies`, `requires`, and `excludes` are recalculated as one candidate graph.
 
 ## Tooling
@@ -102,27 +118,31 @@ If you prefer `mise`, it keeps the repo's Node and pnpm versions aligned before 
 
 ## Project areas
 
-- `src/entrypoints/` — WXT side panel, background service worker, content script, and offscreen matcher entrypoints.
-- `src/entrypoints/sidepanel/` — WXT side-panel document, current stylesheet, and router mount.
-- `src/panel/` — window/tab ownership, routed pages, shared side-panel state, and the current visual shell. The default route composes the existing UI unchanged from the page sections.
-- `src/ui/` — staged copies of the Platform Zaidan primitives. They are intentionally not imported by the current side-panel UI yet.
-- `src/components/` — reusable side-panel result, empty, and error presentation components.
+- `src/entrypoints/` — WXT side panel, independent diagnostics/options page, background service worker, content script, and offscreen matcher entrypoints.
+- `src/entrypoints/sidepanel/` — WXT side-panel document and router mount. Shared Kaiju styling lives under `src/styles/`.
+- `src/panel/` — window/tab ownership, routed Technologies/Scans/Diagnostics/Settings pages, shared side-panel state, technology evidence views, and the compact panel shell.
+- `src/ui/` — complete current Platform Zaidan primitive catalogue, including its nested color-mode support, adapted only to the extension import alias and actively used by the routed UI.
+- `src/components/` — reusable cross-route presentation such as the Diagnostics support view shared by the side panel and options page.
 - `src/lib/content/` — DOM collection and observation-session state owned by the content script.
 - `src/lib/collectors/` — extension collection planning plus background-only observation enrichment.
-- `src/lib/api/` — cross-context contracts shared across background, content, side panel, and storage layers.
+- `src/lib/contracts/` — serializable analysis and persisted detector contracts shared across runtime surfaces.
 - `src/lib/observations/` — normalized observation contracts, snapshot adapters, and bounded batch controls.
 - `src/lib/detection/` — detector types, rules, normalize, indexed observation matching, graph helpers, validation, and version helpers.
 - `src/lib/evidence/` — event-pipeline evidence contracts, builders, and in-memory repository helpers.
 - `src/lib/candidates/` — candidate aggregation and relationship refinement from evidence entries before final detection emission.
-- `src/lib/dom/` — DOM selector offscreen contracts shared by the content and offscreen entrypoints.
-- `src/lib/emit/` — final `SiteAnalysis` emission from refined candidates.
+- `src/lib/dom-selector/` — DOM selector offscreen contracts shared by the content and offscreen entrypoints.
+- `src/lib/emission/` — final `SiteAnalysis` emission from refined candidates.
 - `src/lib/pipeline/` — event pipeline runtime, observation-batch runtime, replay trace, and explanation generation.
 - `src/lib/messaging/` — typed `comctx` message contracts and adapters for side-panel, background, and content contexts.
+- `src/lib/background/` — browser-agnostic background orchestration plus matcher-interruption reconciliation.
+- `src/lib/diagnostics/` — LogTape configuration, crash hooks, bounded durable journal, and support-report generation.
+- `src/lib/persistence/` — persistence ports and browser-backed implementations that keep orchestration independent from storage APIs.
+- `src/lib/privacy/` — diagnostic and evidence redaction rules applied before durable support data is written.
 - `src/lib/panel/` — side-panel view-model and durable snapshot projection helpers that do not own browser routing or presentation.
-- `src/lib/storage/` — per-origin normalized analysis cache, replay trace cache, and aggregate status helpers.
+- `src/lib/storage/` — normalized analysis/replay caches, durable matcher lifecycle records, and aggregate status helpers.
 - `src/lib/browser/` — tab helpers owned by privileged contexts.
 - `src/data/` — category labels and bundled technology registry exports.
-- `src/tests/` — Vitest coverage for detector behavior, event pipeline stages, collector planning, content observation, side-panel view models, storage cache semantics, and shared test fixtures.
+- `src/tests/` — Vitest coverage for detector behavior, event pipeline stages, collector planning, content observation, tab-following lifecycle, routed UI architecture, durable diagnostics, storage semantics, and shared fixtures.
 - `public/icons/` — placeholder extension icon files.
 
 ## Registry baseline
@@ -131,6 +151,6 @@ The bundled registry is generated from the TypeScript rule tree under `src/lib/d
 
 ## Privacy notes
 
-Analysis is local-first. Automatic analysis of active HTTP/HTTPS pages is enabled by default and can be disabled from the side panel; manual side-panel analysis remains available. The extension reads page-derived signals such as the current URL and hostname, DOM markers, metadata, resource URLs, cookie names, storage key names, selected header-derived signals, JavaScript global names, and bounded evidence snippets so it can explain technology detections. It does not send visited URLs, HTML, cookies, headers, replay traces, or detection results to a backend in the first release. Cached data is limited to local detector snapshots, redacted evidence, and replay summaries that can be cleared from the side panel.
+Analysis is local-first. Automatic analysis of active HTTP/HTTPS pages is enabled by default and can be disabled from Settings; manual side-panel analysis remains available. The extension reads page-derived signals such as the current URL and hostname, DOM markers, metadata, resource URLs, cookie names, storage key names, selected header-derived signals, JavaScript global names, and bounded evidence snippets so it can explain technology detections. It does not send visited URLs, HTML, cookies, headers, replay traces, or detection results to a backend in the first release. Cached product data is limited to local detector snapshots, redacted evidence, replay summaries, and matcher lifecycle records. A separate bounded local diagnostic journal retains build/context/lifecycle/error information for support. Diagnostics and detector data can be cleared independently, and no diagnostic report is uploaded automatically.
 
 Unsupported pages such as `chrome://` return a stable error instead of attempting analysis.

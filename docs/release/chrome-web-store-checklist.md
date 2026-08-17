@@ -9,10 +9,11 @@ Use this checklist against the final zip, not only the source tree.
 - `name`, `description`, and `action.default_title` all say Kaiju Site Scope.
 - `description` has no trailing quote or stale placeholder copy.
 - `permissions` contains only `activeTab`, `scripting`, `storage`, `offscreen`,
-  and `sidePanel` for the first release.
+  `sidePanel`, and `clipboardWrite` for the first release.
 - `host_permissions` contains only `http://*/*` and `https://*/*` for automatic normal-page scanning.
 - `minimum_chrome_version` is `116` or newer.
 - `action` has no `default_popup`; `side_panel.default_path` points to `sidepanel.html`.
+- `options_page` or `options_ui` points to the independently built Diagnostics page.
 
 ## Privacy and permissions
 
@@ -21,10 +22,11 @@ Use this checklist against the final zip, not only the source tree.
 - Permission justifications are copied from
   `docs/release/chrome-web-store-privacy.md`.
 - The remote-code answer says detector rules, matcher workers, side-panel assets, and
-  registry artifacts are bundled inside the extension package.
+  registry artifacts, general UI fonts, and diagnostics assets are bundled inside the extension package.
 - The data disclosure covers automatic and manual page analysis, page URL/hostname,
   DOM/meta/resource/header-derived signals, cookie names, storage key names,
-  JavaScript global names, and bounded evidence snippets.
+  JavaScript global names, bounded evidence snippets, and the bounded local diagnostic journal.
+- The disclosure explains that Copy report writes only to the local clipboard after a user action and that the extension does not read clipboard contents.
 - The disclosure does not claim that the extension avoids page access entirely.
 
 ## Final artifact checks

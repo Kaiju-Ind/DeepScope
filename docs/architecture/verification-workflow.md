@@ -62,6 +62,12 @@ Run this checklist after changes that touch side panel, background, content, lif
 8. Close the side panel and confirm the UI unsubscribes from live revisions without starting a new scan on reopen. If you explicitly click Stop observation, confirm the visible tab's observation session stops.
 9. Test a page that lazy-loads scripts, links, or meta tags and confirm late detections can appear while the side panel is subscribed to storage revisions.
 10. Navigate within the tab and confirm old observation state does not refresh the new page.
+11. Open Technologies, a technology detail, Scans, Diagnostics, and Settings. Confirm route changes do not restart analysis or replace the visible-tab state owner.
+12. Open Diagnostics, copy the report, and confirm it contains build identity, current extension contexts, recent context runs, matcher jobs, and recent warnings/failures without raw page bodies or cookie/header values.
+13. Use **Open full page** from Diagnostics. Confirm the options page opens in its own tab and works without the side-panel detector state.
+14. Interrupt or reload the background service worker while matcher work is non-terminal. Reopen Diagnostics and confirm the orphaned job is marked `context-interrupted` with its previous status retained.
+15. Exercise a page with many or repeatedly changing stylesheets. Confirm source collection stays within aggregate script/stylesheet limits and does not surface `PAYLOAD_TOO_LARGE` from cumulative observation snapshots.
+16. Switch tabs while analysis is in flight, including onto a newly loading HTTP/HTTPS tab. Confirm the previous result cannot win after the active target changes.
 
 If a step cannot be verified, record the browser, page URL type, and failure mode in the pull request notes.
 

@@ -1,14 +1,14 @@
 # Non-blocking incremental matcher runtime
 
-The visible-tab command now starts the analysis session and returns before CPU-bound matching completes. The popup should treat storage-backed detector snapshots as the receive stream: stored snapshot output paints first, worker partition revisions advance the visible result, and the final matcher result replaces the cache when all partitions finish.
+The visible-tab command now starts the analysis session and returns before CPU-bound matching completes. The side panel should treat storage-backed detector snapshots as the receive stream: stored snapshot output paints first, worker partition revisions advance the visible result, and the final matcher result replaces the stored detector snapshot when all partitions finish.
 
-This fixes the older staged shape where the popup waited for one large matcher job, then started later evidence work. In that design, collection took milliseconds but the matcher could occupy the background request for tens of seconds. The content observer could expire while the first matcher job was still running, and popup reopen behavior could race between content lifecycle snapshots and detector snapshots.
+This fixes the older staged shape where the side panel waited for one large matcher job, then started later evidence work. In that design, collection took milliseconds but the matcher could occupy the background request for tens of seconds. The content observer could expire while the first matcher job was still running, and side-panel reopen behavior could race between content lifecycle snapshots and detector snapshots.
 
 ```text
-popup opens
+side panel opens
   -> background reads the visible snapshot or returns a pending response
   -> content/background collectors gather cheap first-pass observations
-  -> matcher job is registered and dispatched without blocking the popup RPC
+  -> matcher job is registered and dispatched without blocking the side-panel RPC
   -> enrichment collectors gather deeper evidence as follow-up revisions
   -> offscreen workers process small kind chunks
   -> each completed chunk publishes a detector snapshot revision
@@ -16,6 +16,25 @@ popup opens
 ```
 
 The registry still plans collection from the complete compiled artifact. Kind shards are used only by workers so each partition can hydrate the smallest matcher index needed for its observation kind. This keeps the product truth surface complete while reducing per-worker matching cost.
+
+
+## Collection cost follows the registry plan
+
+The observer must not collect every evidence surface on every pass. Cheap route and DOM evidence stays available to the initial matcher, while large inline or accessible source text is collected only when the compiled enrichment plan has rules that require it.
+
+```text
+initial collection
+  -> URLs, DOM selectors, links, metadata, resources
+  -> no script or stylesheet source unless requested
+
+enrichment collection
+  -> add only the expensive surfaces required by the registry
+
+live observation
+  -> keep the same source-content flags for late mutations
+```
+
+Accumulated script and stylesheet source also obey the same item, per-item character, and total-character limits used by one direct collection pass. A long-lived observation session therefore cannot exceed the payload contract merely because many valid snapshots were merged over time.
 
 ## Snapshot precedence
 
@@ -27,7 +46,7 @@ background detector snapshot
   > content lifecycle placeholder
 ```
 
-This keeps popup reopen behavior stable. Opening and closing the popup should show the last real detector output immediately, then subscribe to newer revisions for the visible tab.
+This keeps side-panel reopen behavior stable. Opening and closing the side panel should show the last real detector output immediately, then subscribe to newer revisions for the visible tab.
 
 ## Worker progress
 

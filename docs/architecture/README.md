@@ -9,6 +9,7 @@ Start with the overview when you need the runtime map, then use the workflow or 
 | [`overview.md`](overview.md) | You need the current event runtime map, collector flow, refresh behavior, or remaining architecture work. |
 | [`verification-workflow.md`](verification-workflow.md) | You need to decide which commands, targeted tests, or manual Chrome checks belong on a patch or pull request. |
 | [`side-panel-composition.md`](side-panel-composition.md) | You are changing side-panel browser ownership, page composition, shared state, routing, or the current named visual regions. |
+| [`crash-durable-diagnostics.md`](crash-durable-diagnostics.md) | You are changing diagnostic retention, crash capture, matcher interruption recovery, support reports, or the independent options-page support surface. |
 | [`content-page-session-runtime.md`](content-page-session-runtime.md) | You are changing content-owned page observation, snapshot targets, or side-panel-visible lifecycle revisions. |
 | [`background-coordinator-runtime.md`](background-coordinator-runtime.md) | You are changing background service-worker lifecycle listeners, tab cleanup, or disposable coordinator state. |
 | [`kind-sharded-incremental-matcher.md`](kind-sharded-incremental-matcher.md) | You are changing continuous evidence passes, kind-sharded matcher workers, or side-panel snapshot revisions. |
