@@ -19,13 +19,13 @@ export type {
 	FlushObservationBatchOutput,
 	HtmlProbe,
 	ObservationStopReason,
-} from '../contracts/analysis';
+} from './analysis';
 export {
 	SNAPSHOT_REUSE_STATUSES,
 	ANALYSIS_ENRICHMENT_STATUSES,
 	ANALYSIS_MODES,
 	OBSERVATION_MODES,
-} from '../contracts/analysis';
+} from './analysis';
 export * from './adapters/background';
 export * from './adapters/content';
 

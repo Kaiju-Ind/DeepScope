@@ -5,9 +5,9 @@ import {
 	type CollectionTierPlan,
 } from '@/lib/collectors/planning';
 import type { ExtensionPageCollectorInput } from '@/lib/collectors/extension-page-collector';
-import { DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION } from '@/lib/contracts/detection-session';
+import { DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION } from '@/lib/storage/session';
 import type { ObservationSessionState } from '@/lib/content/observed-page-signals';
-import type { ContentPageSessionSnapshotTarget } from '@/lib/contracts/analysis';
+import type { ContentPageSessionSnapshotTarget } from '@/lib/messaging/analysis';
 import type {
 	DetectionEnrichmentState,
 	DetectionEvidenceState,
@@ -16,7 +16,7 @@ import type {
 	DetectionSessionSnapshot,
 	DetectionSessionSnapshotSource,
 	DetectionSessionStatus,
-} from '@/lib/contracts/detection-session';
+} from '@/lib/storage/session';
 import type { TechnologyRegistryProvider } from '@/lib/detection/registry-provider';
 import type { SiteAnalysis } from '@/lib/detection/types';
 import {
@@ -56,7 +56,7 @@ import {
 	getObservationRefreshBlockReason,
 	shouldStartObservationForAnalysis,
 } from '@/lib/lifecycle/observation';
-import { errorResponse, ok, type AppResult } from '@/lib/shared/result';
+import { errorResponse, extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
 import {
 	MATCHER_OFFSCREEN_CHANNEL,
 	createMatcherPipelineResult,
@@ -69,7 +69,7 @@ import {
 } from '@/lib/matcher';
 import type { BackgroundDetectionPersistence } from '@/lib/persistence/ports';
 import type { CompiledTechnologyRegistryArtifact } from '@/lib/registry/compiler-core';
-import { getOrigin, isSameDocumentUrl } from '@/lib/shared/url';
+import { getOrigin, isSameDocumentUrl } from '@/utils/url';
 import {
 	STORAGE_LIMITS,
 	createDetectionStorageHash,
@@ -95,7 +95,7 @@ export interface BackgroundRuntimeDependencies {
 	readonly getTab: (tabId: number) => Promise<BackgroundRuntimeTab>;
 	readonly executeContentScript: (tabId: number) => Promise<void>;
 	readonly createContentApiClient: (tabId: number, frameId?: number) => ContentApi;
-	readonly collectObservationBatch: (input: ExtensionPageCollectorInput) => Promise<AppResult<ObservationBatch>>;
+	readonly collectObservationBatch: (input: ExtensionPageCollectorInput) => Promise<ExtensionResult<ObservationBatch>>;
 	readonly registryProvider: Pick<TechnologyRegistryProvider, 'getCompiledRegistry'>;
 	readonly matcher: {
 		readonly cancelJob: (jobId: string) => Promise<void>;
@@ -181,7 +181,7 @@ export function createBackgroundRuntime(
 	 * time. The first request owns the injection; later requests await the same
 	 * promise instead of injecting duplicate runtime scripts into the page.
 	 */
-	const contentScriptInjectionByTab = new Map<number, Promise<AppResult<void>>>();
+	const contentScriptInjectionByTab = new Map<number, Promise<ExtensionResult<void>>>();
 
 	/**
 	 * Event observations collected during the current active side-panel session.
@@ -461,7 +461,7 @@ export function createBackgroundRuntime(
 		);
 	}
 
-	async function getInspectableVisibleTab(target: VisibleTabIdentity): Promise<AppResult<InspectableTab>> {
+	async function getInspectableVisibleTab(target: VisibleTabIdentity): Promise<ExtensionResult<InspectableTab>> {
 		const targetTab = await getInspectableTab(target.tabId, target.windowId);
 		if (!targetTab.ok) {
 			return targetTab;
@@ -537,7 +537,7 @@ export function createBackgroundRuntime(
 		return dependencies.createContentApiClient(tabId, frameId);
 	}
 
-	async function getInspectableTab(tabId: number, windowId: number): Promise<AppResult<InspectableTab>> {
+	async function getInspectableTab(tabId: number, windowId: number): Promise<ExtensionResult<InspectableTab>> {
 		let tab: BackgroundRuntimeTab;
 		try {
 			tab = await dependencies.getTab(tabId);
@@ -576,7 +576,7 @@ export function createBackgroundRuntime(
 			);
 		}
 
-		return ok({ id: tab.id, windowId: tab.windowId, url: tab.url, incognito: tab.incognito === true });
+		return extensionSuccess({ id: tab.id, windowId: tab.windowId, url: tab.url, incognito: tab.incognito === true });
 	}
 
 	async function pingContentScript(tabId: number): Promise<boolean> {
@@ -596,19 +596,19 @@ export function createBackgroundRuntime(
 		}
 	}
 
-	async function injectContentScript(tabId: number): Promise<AppResult<void>> {
+	async function injectContentScript(tabId: number): Promise<ExtensionResult<void>> {
 		try {
 			await dependencies.executeContentScript(tabId);
-			return ok(undefined);
+			return extensionSuccess(undefined);
 		} catch (error) {
 			return contentScriptFailure(error);
 		}
 	}
 
-	async function ensureContentScript(tabId: number): Promise<AppResult<void>> {
+	async function ensureContentScript(tabId: number): Promise<ExtensionResult<void>> {
 		if (await pingContentScript(tabId)) {
 			logBackgroundEvent('content-runtime-ready', { tabId });
-			return ok(undefined);
+			return extensionSuccess(undefined);
 		}
 
 		const existingInjection = contentScriptInjectionByTab.get(tabId);
@@ -631,7 +631,7 @@ export function createBackgroundRuntime(
 
 			if (await pingContentScript(tabId)) {
 				logBackgroundEvent('content-runtime-inject-ready', { tabId });
-				return ok(undefined);
+				return extensionSuccess(undefined);
 			}
 
 			logBackgroundEvent('content-runtime-inject-timeout', { tabId });
@@ -664,7 +664,7 @@ export function createBackgroundRuntime(
 		tier: 'initial' | 'enrichment' = 'initial',
 		timingTraceId?: string,
 		collectionTierPlan?: CollectionTierPlan,
-	): Promise<AppResult<ObservationBatch>> {
+	): Promise<ExtensionResult<ObservationBatch>> {
 		const timingContext: TimingContext = {
 			traceId: timingTraceId,
 			surface: 'background',
@@ -983,7 +983,7 @@ export function createBackgroundRuntime(
 	function validateObservationSessionTarget(
 		actual: ObservationSessionState,
 		expected: ObservationSessionTarget,
-	): AppResult<void> {
+	): ExtensionResult<void> {
 		if (actual.sessionId !== expected.sessionId) {
 			return errorResponse(
 				'OBSERVATION_SESSION_UNAVAILABLE',
@@ -998,12 +998,12 @@ export function createBackgroundRuntime(
 			);
 		}
 
-		return ok(undefined);
+		return extensionSuccess(undefined);
 	}
 
 	async function getObservationSessionStateForTab(
 		tabId: number,
-	): Promise<AppResult<ObservationSessionState>> {
+	): Promise<ExtensionResult<ObservationSessionState>> {
 		const contentApi = createContentApiClient(tabId, 0);
 
 		try {
@@ -1019,7 +1019,7 @@ export function createBackgroundRuntime(
 
 	async function flushObservationBatchForTab(
 		tabId: number,
-	): Promise<AppResult<FlushObservationBatchOutput>> {
+	): Promise<ExtensionResult<FlushObservationBatchOutput>> {
 		const contentApi = createContentApiClient(tabId, 0);
 
 		try {
@@ -1037,7 +1037,7 @@ export function createBackgroundRuntime(
 		tab: InspectableTab,
 		flush: FlushObservationBatchOutput,
 		timingTraceId = createTimingTraceId('refresh'),
-	): Promise<AppResult<AnalyzeVisibleTabOutput>> {
+	): Promise<ExtensionResult<AnalyzeVisibleTabOutput>> {
 		const timingContext: TimingContext = {
 			traceId: timingTraceId,
 			surface: 'background',
@@ -1067,7 +1067,7 @@ export function createBackgroundRuntime(
 					(value) => ({ replayHistoryCount: value.length }),
 				);
 				endTimingSpan(totalSpan, { ok: true, snapshotHit: true, lateObservationCount: 0 });
-				return ok(createAnalysisOutput(
+				return extensionSuccess(createAnalysisOutput(
 					snapshot.analysis,
 					'hit',
 					flush.session,
@@ -1096,7 +1096,7 @@ export function createBackgroundRuntime(
 		const [, ...remainingEvidencePasses] = collectionPasses;
 		const recoveredRefresh = !baseBatch || !isSameObservationTarget(baseBatch, lateBatch);
 		const batchResponse = !recoveredRefresh
-			? ok(timeSyncSpan(
+			? extensionSuccess(timeSyncSpan(
 				'background.observation-refresh.merge-late-batch',
 				timingContext,
 				() => mergeObservationBatches(baseBatch, lateBatch),
@@ -1164,7 +1164,7 @@ export function createBackgroundRuntime(
 			resultCount: response.analysis.results.length,
 			lateObservationCount: lateBatch.observations.length,
 		});
-		return ok(response);
+		return extensionSuccess(response);
 	}
 
 	async function recoverObservationBatchForRefresh(
@@ -1172,7 +1172,7 @@ export function createBackgroundRuntime(
 		lateBatch: ObservationBatch,
 		compiledRegistryArtifact: CompiledRegistry,
 		timingTraceId?: string,
-	): Promise<AppResult<ObservationBatch>> {
+	): Promise<ExtensionResult<ObservationBatch>> {
 		logBackgroundEvent('observation-refresh-recollect', {
 			...summarizeTab(tab),
 			lateObservationCount: lateBatch.observations.length,
@@ -1183,13 +1183,13 @@ export function createBackgroundRuntime(
 			return recoveredBatch;
 		}
 
-		return ok(mergeObservationBatches(recoveredBatch.value, lateBatch));
+		return extensionSuccess(mergeObservationBatches(recoveredBatch.value, lateBatch));
 	}
 
 	async function beginObservationSessionForTab(
 		tab: InspectableTab,
 		compiledRegistryArtifact: CompiledRegistry,
-	): Promise<AppResult<ObservationSessionState>> {
+	): Promise<ExtensionResult<ObservationSessionState>> {
 		const sessionId = crypto.randomUUID();
 		logBackgroundEvent('observation-start-requested', {
 			...summarizeTab(tab),
@@ -1234,7 +1234,7 @@ export function createBackgroundRuntime(
 
 	async function stopObservationSessionForTab(
 		tabId: number,
-	): Promise<AppResult<ObservationSessionState>> {
+	): Promise<ExtensionResult<ObservationSessionState>> {
 		logBackgroundEvent('observation-stop-requested', { tabId });
 		const contentApi = createContentApiClient(tabId, 0);
 
@@ -1262,7 +1262,7 @@ export function createBackgroundRuntime(
 		tab: InspectableTab,
 		input: AnalyzeVisibleTabInput,
 		snapshotStatus: AnalyzeVisibleTabOutput['snapshot']['status'],
-	): Promise<AppResult<AnalyzeVisibleTabOutput>> {
+	): Promise<ExtensionResult<AnalyzeVisibleTabOutput>> {
 		const timingTraceId = createTimingTraceId(input.mode === 'refresh' ? 'refresh' : 'analysis');
 		const totalSpan = startTimingSpan('background.analysis-fresh.total', {
 			traceId: timingTraceId,
@@ -1390,7 +1390,7 @@ export function createBackgroundRuntime(
 			deferredCollectionPassCount: remainingPasses.length,
 			returnedResultCount: response.analysis.results.length,
 		});
-		return ok(response);
+		return extensionSuccess(response);
 	}
 
 	interface IncrementalEvidencePassRun {
@@ -1506,8 +1506,8 @@ export function createBackgroundRuntime(
 	}
 
 	async function runEvidencePassWithTimeout<T>(
-		operation: () => Promise<AppResult<T>>,
-	): Promise<AppResult<T>> {
+		operation: () => Promise<ExtensionResult<T>>,
+	): Promise<ExtensionResult<T>> {
 		try {
 			return await withTimeout(
 				operation(),
@@ -1616,7 +1616,7 @@ export function createBackgroundRuntime(
 		evidence?: DetectionEvidenceState,
 		timingTraceId?: string,
 		onRegistered?: () => void,
-	): Promise<AppResult<AnalyzeVisibleTabOutput>> {
+	): Promise<ExtensionResult<AnalyzeVisibleTabOutput>> {
 		const matcherMode = getMatcherJobMode(details.matcherMode, session);
 		const supersedesVisibleSession = matcherMode === 'complete';
 		const timingContext: TimingContext = {
@@ -1811,7 +1811,7 @@ export function createBackgroundRuntime(
 		await saveDetectionSnapshotForPanel(tab, output, 'background', matcherResult.executor, undefined, evidence);
 		activeMatcherProgressByJob.delete(matcherJob.jobId);
 
-		return ok(output);
+		return extensionSuccess(output);
 	}
 
 	/**
@@ -1864,7 +1864,7 @@ export function createBackgroundRuntime(
 	async function refreshObservationSessionTarget(
 		target: ObservationSessionTarget,
 		knownSession?: ObservationSessionState,
-	): Promise<AppResult<AnalyzeVisibleTabOutput>> {
+	): Promise<ExtensionResult<AnalyzeVisibleTabOutput>> {
 		const tabResponse = await getInspectableTabForObservationSessionTarget(target);
 		if (!tabResponse.ok) {
 			return tabResponse;
@@ -1885,7 +1885,7 @@ export function createBackgroundRuntime(
 			timingTraceId,
 		});
 		const sessionResponse = knownSession
-			? ok(knownSession)
+			? extensionSuccess(knownSession)
 			: await timeAsyncSpan(
 				'background.observation-refresh.get-session-state',
 				timingContext,
@@ -1945,7 +1945,7 @@ export function createBackgroundRuntime(
 
 	async function stopObservationSessionTarget(
 		target: ObservationSessionTarget,
-	): Promise<AppResult<ObservationSessionState>> {
+	): Promise<ExtensionResult<ObservationSessionState>> {
 		const tabResponse = await getInspectableTabForObservationSessionTarget(target);
 		if (!tabResponse.ok) {
 			return tabResponse;
@@ -1970,7 +1970,7 @@ export function createBackgroundRuntime(
 
 	async function getObservationSessionStateForTarget(
 		target: ObservationSessionTarget,
-	): Promise<AppResult<ObservationSessionState>> {
+	): Promise<ExtensionResult<ObservationSessionState>> {
 		const tabResponse = await getInspectableTabForObservationSessionTarget(target);
 		if (!tabResponse.ok) {
 			return tabResponse;
@@ -1986,12 +1986,12 @@ export function createBackgroundRuntime(
 			return targetValidation;
 		}
 
-		return ok(response.value);
+		return extensionSuccess(response.value);
 	}
 
 	async function getInspectableTabForObservationSessionTarget(
 		target: ObservationSessionTarget,
-	): Promise<AppResult<InspectableTab>> {
+	): Promise<ExtensionResult<InspectableTab>> {
 		try {
 			const tab = await dependencies.getTab(target.tabId);
 			if (typeof tab.windowId !== 'number') {
@@ -2015,7 +2015,7 @@ export function createBackgroundRuntime(
 				);
 			}
 
-			return ok({
+			return extensionSuccess({
 				id: target.tabId,
 				windowId: tab.windowId,
 				url: tab.url,
@@ -2162,7 +2162,7 @@ export function createBackgroundRuntime(
 	function createBackgroundApi(): BackgroundApi {
 		return {
 			async getAnalysisStatus() {
-				return ok(await getStatus());
+				return extensionSuccess(await getStatus());
 			},
 
 			async getVisibleTabIdentity(input) {
@@ -2171,10 +2171,10 @@ export function createBackgroundRuntime(
 					return tabResponse;
 				}
 
-				return ok(createVisibleTabIdentity(tabResponse.value));
+				return extensionSuccess(createVisibleTabIdentity(tabResponse.value));
 			},
 
-			async analyzeVisibleTab(input): Promise<AppResult<AnalyzeVisibleTabOutput>> {
+			async analyzeVisibleTab(input): Promise<ExtensionResult<AnalyzeVisibleTabOutput>> {
 				try {
 					const tabResponse = await getInspectableVisibleTab(input.target);
 					if (!tabResponse.ok) {
@@ -2235,7 +2235,7 @@ export function createBackgroundRuntime(
 								undefined,
 								snapshot.evidence,
 							);
-							return ok(output);
+							return extensionSuccess(output);
 						}
 
 						logBackgroundEvent('analysis-snapshot-miss', {
@@ -2278,7 +2278,7 @@ export function createBackgroundRuntime(
 
 
 			async getReplayTraceHistory(input) {
-				return ok(await getCachedReplayTraceHistory(input.url));
+				return extensionSuccess(await getCachedReplayTraceHistory(input.url));
 			},
 		};
 	}

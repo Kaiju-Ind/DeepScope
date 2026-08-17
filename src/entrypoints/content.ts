@@ -9,6 +9,7 @@ import {
 } from "@/lib/content/observed-page-signals";
 import { writeContentPageSessionSnapshot } from "@/lib/content/page-session-snapshots";
 import { validatePageSignals } from "@/lib/detection/validate";
+import { getDiagnosticBuildId } from "@/lib/diagnostics/build";
 import { installDiagnosticCrashHooks } from "@/lib/diagnostics/crash";
 import { configureKaijuSiteScopeLogging, getKaijuSiteScopeLogger } from "@/lib/diagnostics/logging";
 import type { CollectPageSignalsInput, ContentApi } from "@/lib/messaging";
@@ -20,23 +21,21 @@ import { createObservationDirtyNotification } from "@/lib/messaging/observation-
 import type {
   ContentPageSessionSnapshotTarget,
   ObservationStopReason,
-} from "@/lib/contracts/analysis";
+} from "@/lib/messaging/analysis";
 import { timeAsyncSpan, timeSyncSpan, type TimingContext } from "@/lib/diagnostics/timing";
 import {
   normalizePageSignals,
   type ObservationBatch,
   type ObservationBatchControllerStats,
 } from "@/lib/observations";
-import { errorResponse, ok } from "@/lib/shared/result";
-
-configureKaijuSiteScopeLogging("content");
-installDiagnosticCrashHooks("content", { captureGlobalError: false });
+import { errorResponse, extensionSuccess } from "@/lib/messaging/result";
 
 const contentLogger = getKaijuSiteScopeLogger("content");
 const DOM_MUTATION_THROTTLE_MS = 1_500;
 const CONTENT_RUNTIME_KEY = '__kaijuSiteScopeContentRuntimeV1';
 
 type ContentRuntimeState = {
+  readonly buildId?: string;
   dispose(): void;
 };
 
@@ -269,7 +268,7 @@ async function collectSignals(
 
     logContentEvent("collect-success", summarizeSignals(signals));
 
-    return ok(signals);
+    return extensionSuccess(signals);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to collect page signals";
     const stack = error instanceof Error ? error.stack : undefined;
@@ -327,7 +326,7 @@ async function collectInitialObservationBatch(
     tier: input.tier ?? "initial",
   });
 
-  return ok({ batch });
+  return extensionSuccess({ batch });
 }
 
 /**
@@ -437,7 +436,7 @@ export function createContentRuntime(observedSignals: ObservedPageSignals): Cont
         expiresAt: session.expiresAt,
       });
 
-      return ok(session);
+      return extensionSuccess(session);
     },
 
     async flushObservationBatch() {
@@ -458,7 +457,7 @@ export function createContentRuntime(observedSignals: ObservedPageSignals): Cont
         });
       }
 
-      return ok(flush);
+      return extensionSuccess(flush);
     },
 
     async stopObservationSession() {
@@ -476,7 +475,7 @@ export function createContentRuntime(observedSignals: ObservedPageSignals): Cont
         status: session.status,
         stopReason: session.stopReason,
       });
-      return ok(session);
+      return extensionSuccess(session);
     },
 
     async getObservationSessionState() {
@@ -490,7 +489,7 @@ export function createContentRuntime(observedSignals: ObservedPageSignals): Cont
         lastObservedAt: session.lastObservedAt,
         stopReason: session.stopReason,
       });
-      return ok(session);
+      return extensionSuccess(session);
     },
   };
 
@@ -542,11 +541,29 @@ export default defineContentScript({
   runAt: "document_idle",
   noScriptStartedPostMessage: true,
   main(ctx) {
-    if (getRuntimeState()) {
+    configureKaijuSiteScopeLogging("content");
+    const crashHooks = installDiagnosticCrashHooks("content", { captureGlobalError: false });
+    const buildId = getDiagnosticBuildId();
+    const existingRuntime = getRuntimeState();
+    if (existingRuntime?.buildId === buildId) {
       logContentEvent("runtime-already-active", {
         ...summarizeCurrentDocument(),
+        buildId,
       });
       return;
+    }
+
+    if (existingRuntime) {
+      try {
+        existingRuntime.dispose();
+      } catch (error) {
+        clearRuntimeState(existingRuntime);
+        logContentEvent("stale-runtime-dispose-failed", {
+          ...summarizeCurrentDocument(),
+          buildId,
+          message: describeContentError(error),
+        });
+      }
     }
 
     logContentEvent("runtime-ready", {
@@ -565,6 +582,7 @@ export default defineContentScript({
     const { contentApi } = runtime;
 
     const state: ContentRuntimeState = {
+      buildId,
       dispose() {
         logContentEvent("runtime-dispose", {
           ...summarizeCurrentDocument(),
@@ -579,6 +597,7 @@ export default defineContentScript({
 
     ctx.onInvalidated(() => {
       state.dispose();
+      crashHooks.dispose();
     });
   },
 });

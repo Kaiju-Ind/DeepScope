@@ -4,7 +4,7 @@ import type {
 	BackgroundApi,
 	VisibleTabIdentity,
 } from '@/lib/messaging';
-import type { AppResult } from '@/lib/shared/result';
+import type { ExtensionResult } from '@/lib/messaging/result';
 
 export type AutoScanControllerDependencies = {
 	readonly getEnabled: () => Promise<boolean>;
@@ -52,7 +52,7 @@ export function createAutoScanController(
 			mode,
 			reason,
 		});
-		const response: AppResult<AnalyzeVisibleTabOutput> = await dependencies.analyzeVisibleTab({
+		const response: ExtensionResult<AnalyzeVisibleTabOutput> = await dependencies.analyzeVisibleTab({
 			target: identity,
 			mode,
 			observe: 'bounded',

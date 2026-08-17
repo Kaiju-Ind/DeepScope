@@ -1,7 +1,7 @@
 import { ErrorBoundary } from 'solid-js';
 import { render } from 'solid-js/web';
 
-import { SupportFallback } from '@/components/SupportFallback';
+import { SupportFallback } from '@/app/components/support-fallback';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import { persistDiagnosticFailure } from '@/lib/diagnostics/journal';
 import { configureKaijuSiteScopeLogging } from '@/lib/diagnostics/logging';
@@ -13,9 +13,9 @@ configureKaijuSiteScopeLogging('sidepanel');
 installDiagnosticCrashHooks('sidepanel');
 
 const root = document.getElementById('root');
-if (!root) throw new Error('Kaiju Site Scope side-panel root is missing.');
+if (!root) throw new Error('Kaiju Deepscope side-panel root is missing.');
 
-void import('@/panel/app')
+void import('@/app/app')
 	.then(({ PanelApp }) => {
 		render(
 			() => (

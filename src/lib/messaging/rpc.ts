@@ -1,4 +1,4 @@
-import { errorResponse, type AppFailure } from '../shared/result';
+import { errorResponse, type ExtensionFailure } from '@/lib/messaging/result';
 
 export const CONTENT_SCRIPT_TIMEOUT_MS = 5_000;
 
@@ -29,7 +29,7 @@ export function withTimeout<T>(
 	});
 }
 
-export function contentScriptFailure(error: unknown): AppFailure {
+export function contentScriptFailure(error: unknown): ExtensionFailure {
 	if (error instanceof RpcTimeoutError) {
 		return errorResponse('CONTENT_SCRIPT_UNAVAILABLE', error.message, error.stack);
 	}
