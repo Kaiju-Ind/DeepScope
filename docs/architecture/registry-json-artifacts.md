@@ -1,6 +1,6 @@
 # Registry JSON artifacts
 
-Kaiju Site Scope keeps the technology registry authored as TypeScript for now, but the extension runtime should not import the full generated registry during background startup. The registry is large enough that a static import makes every service-worker wake pay for rule payload parsing before the background has even learned whether the popup can render a cached snapshot.
+Kaiju Deepscope keeps the technology registry authored as TypeScript for now, but the extension runtime should not import the full generated registry during background startup. The registry is large enough that a static import makes every service-worker wake pay for rule payload parsing before the background has even learned whether the popup can render a cached snapshot.
 
 The WXT module at `modules/compile-registry.ts` turns the TypeScript registry into packaged JSON assets during prepare and build:
 
