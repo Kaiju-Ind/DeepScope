@@ -15,33 +15,32 @@ export type AutoScanControllerDependencies = {
 
 export type AutoScanController = {
 	/** Analyze a tab when it is the currently visible page and automatic scanning is enabled. */
-	scanVisibleTab(tabId: number, mode: AnalyzeVisibleTabMode, reason: string): Promise<void>;
+	scanVisibleTab(tabId: number, windowId: number, mode: AnalyzeVisibleTabMode, reason: string): Promise<void>;
 };
 
 /**
  * Serialize automatic scans per tab so load/activation events cannot enqueue duplicate work.
  *
- * The background API still validates the exact visible-tab identity immediately before analysis,
- * so a tab switch that races this controller is dropped instead of scanning the wrong page.
+ * The background API resolves the exact window/tab pair from the browser immediately before analysis.
+ * If activation changes while this controller is waiting, the now-inactive target is rejected.
  */
 export function createAutoScanController(
 	dependencies: AutoScanControllerDependencies,
 ): AutoScanController {
 	const inFlightByTab = new Map<number, Promise<void>>();
 
-	async function runVisibleTabScan(tabId: number, mode: AnalyzeVisibleTabMode, reason: string): Promise<void> {
+	async function runVisibleTabScan(tabId: number, windowId: number, mode: AnalyzeVisibleTabMode, reason: string): Promise<void> {
 		if (!(await dependencies.getEnabled())) {
 			dependencies.log?.('auto-scan-disabled', { tabId, reason });
 			return;
 		}
 
-		const identityResponse = await dependencies.getVisibleTabIdentity();
-		if (!identityResponse.ok || identityResponse.value.tabId !== tabId) {
-			dependencies.log?.('auto-scan-visible-tab-mismatch', {
+		const identityResponse = await dependencies.getVisibleTabIdentity({ tabId, windowId });
+		if (!identityResponse.ok) {
+			dependencies.log?.('auto-scan-target-unavailable', {
 				tabId,
 				reason,
-				visibleTabId: identityResponse.ok ? identityResponse.value.tabId : undefined,
-				code: identityResponse.ok ? undefined : identityResponse.error.code,
+				code: identityResponse.error.code,
 			});
 			return;
 		}
@@ -70,14 +69,14 @@ export function createAutoScanController(
 	}
 
 	return {
-		scanVisibleTab(tabId, mode, reason) {
+		scanVisibleTab(tabId, windowId, mode, reason) {
 			const existing = inFlightByTab.get(tabId);
 			if (existing) {
 				dependencies.log?.('auto-scan-already-in-flight', { tabId, mode, reason });
 				return existing;
 			}
 
-			const task = runVisibleTabScan(tabId, mode, reason)
+			const task = runVisibleTabScan(tabId, windowId, mode, reason)
 				.catch((error: unknown) => {
 					dependencies.log?.('auto-scan-threw', {
 						tabId,
