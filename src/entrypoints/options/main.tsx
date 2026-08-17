@@ -1,7 +1,7 @@
 import { ErrorBoundary } from 'solid-js';
 import { render } from 'solid-js/web';
 
-import { SupportFallback } from '@/components/SupportFallback';
+import { SupportFallback } from '@/app/components/support-fallback';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import { persistDiagnosticFailure } from '@/lib/diagnostics/journal';
 import { configureKaijuSiteScopeLogging } from '@/lib/diagnostics/logging';
@@ -13,9 +13,9 @@ configureKaijuSiteScopeLogging('options');
 installDiagnosticCrashHooks('options');
 
 const root = document.getElementById('root');
-if (!root) throw new Error('Kaiju Site Scope diagnostics root is missing.');
+if (!root) throw new Error('Kaiju Deepscope diagnostics root is missing.');
 
-void import('@/components/DiagnosticsView')
+void import('@/app/components/diagnostics-view')
 	.then(({ DiagnosticsView }) => {
 		render(
 			() => (
