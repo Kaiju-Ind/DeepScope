@@ -79,7 +79,9 @@ import {
 /** Browser tab fields needed by background orchestration. */
 export interface BackgroundRuntimeTab {
 	readonly id?: number;
+	readonly windowId?: number;
 	readonly url?: string;
+	readonly active?: boolean;
 	readonly incognito?: boolean;
 }
 
@@ -90,7 +92,6 @@ export interface BackgroundRuntimeMessageSender {
 
 /** Runtime adapters wired by the browser entrypoint. */
 export interface BackgroundRuntimeDependencies {
-	readonly getActiveTab: () => Promise<BackgroundRuntimeTab | null | undefined>;
 	readonly getTab: (tabId: number) => Promise<BackgroundRuntimeTab>;
 	readonly executeContentScript: (tabId: number) => Promise<void>;
 	readonly createContentApiClient: (tabId: number, frameId?: number) => ContentApi;
@@ -117,6 +118,7 @@ export interface BackgroundRuntime {
 /** Visible tab shape after unsupported URLs and missing ids have been rejected. */
 type InspectableTab = {
 	readonly id: number;
+	readonly windowId: number;
 	readonly url: string;
 	readonly incognito: boolean;
 };
@@ -182,7 +184,7 @@ export function createBackgroundRuntime(
 	const contentScriptInjectionByTab = new Map<number, Promise<AppResult<void>>>();
 
 	/**
-	 * Event observations collected during the current active popup session.
+	 * Event observations collected during the current active side-panel session.
 	 *
 	 * Dirty refreshes use this in-memory batch as the baseline and append late
 	 * observer facts before rerunning graph refinement. If the Manifest V3 service
@@ -227,7 +229,7 @@ export function createBackgroundRuntime(
 	/** Dirty notifications deferred while another matcher job owns the document. */
 	const deferredObservationRefreshBySession = new Map<string, PendingObservationRefresh>();
 
-	/** Partial matcher state used to turn worker partition completions into popup revisions. */
+	/** Partial matcher state used to turn worker partition completions into side-panel revisions. */
 	interface ActiveMatcherProgressContext {
 		/** Stable visible session that owns the matcher job. */
 		readonly visibleSessionId: VisibleSessionId;
@@ -239,9 +241,9 @@ export function createBackgroundRuntime(
 		readonly batch: ObservationBatch;
 		/** Full compiled registry used by the coordinator after worker shards emit matches. */
 		readonly compiledRegistryArtifact: CompiledRegistry;
-		/** Cache status attached to partial popup outputs. */
+		/** Cache status attached to partial side-panel outputs. */
 		readonly snapshotStatus: AnalyzeVisibleTabOutput['snapshot']['status'];
-		/** Active observation session, when the popup asked for live updates. */
+		/** Active observation session, when the side panel asked for live updates. */
 		readonly session?: ObservationSessionState;
 		/** Matcher executor path known for partial snapshot revisions. */
 		matcherExecutor: DetectionSessionSnapshot['matcherExecutor'];
@@ -251,13 +253,13 @@ export function createBackgroundRuntime(
 		readonly matcherMode: MatcherJobMode;
 		/** Completed partition results accumulated in original completion order. */
 		readonly partitions: MatcherPartitionResult[];
-		/** Last time a partial detector revision was written for popup consumption. */
+		/** Last time a partial detector revision was written for side-panel consumption. */
 		lastVisibleRevisionAt: number;
 		/** Result count written in the last visible detector revision. */
 		lastVisibleResultCount: number;
 	}
 
-	/** Matcher jobs currently able to publish real incremental popup revisions. */
+	/** Matcher jobs currently able to publish real incremental side-panel revisions. */
 	const activeMatcherProgressByJob = new Map<string, ActiveMatcherProgressContext>();
 
 	/** Background snapshot writes are serialized per exact visible session. */
@@ -426,6 +428,7 @@ export function createBackgroundRuntime(
 
 	function summarizeTab(tab: InspectableTab): Record<string, unknown> {
 		return {
+			windowId: tab.windowId,
 			tabId: tab.id,
 			hostname: new URL(tab.url).hostname,
 		};
@@ -436,6 +439,7 @@ export function createBackgroundRuntime(
 		const origin = getOrigin(tab.url);
 
 		return {
+			windowId: tab.windowId,
 			tabId: tab.id,
 			frameId: 0,
 			url: tab.url,
@@ -448,6 +452,7 @@ export function createBackgroundRuntime(
 
 	function isSameVisibleTabIdentity(left: VisibleTabIdentity, right: VisibleTabIdentity): boolean {
 		return (
+			left.windowId === right.windowId &&
 			left.tabId === right.tabId &&
 			left.frameId === right.frameId &&
 			left.originHash === right.originHash &&
@@ -457,26 +462,28 @@ export function createBackgroundRuntime(
 	}
 
 	async function getInspectableVisibleTab(target: VisibleTabIdentity): Promise<AppResult<InspectableTab>> {
-		const activeTab = await getInspectableActiveTab();
-		if (!activeTab.ok) {
-			return activeTab;
+		const targetTab = await getInspectableTab(target.tabId, target.windowId);
+		if (!targetTab.ok) {
+			return targetTab;
 		}
 
-		const activeIdentity = createVisibleTabIdentity(activeTab.value);
-		if (!isSameVisibleTabIdentity(activeIdentity, target)) {
+		const targetIdentity = createVisibleTabIdentity(targetTab.value);
+		if (!isSameVisibleTabIdentity(targetIdentity, target)) {
 			logBackgroundEvent('visible-tab-target-mismatch', {
+				requestedWindowId: target.windowId,
+				actualWindowId: targetIdentity.windowId,
 				requestedTabId: target.tabId,
-				activeTabId: activeIdentity.tabId,
+				actualTabId: targetIdentity.tabId,
 				requestedUrlHash: target.urlHash,
-				activeUrlHash: activeIdentity.urlHash,
+				actualUrlHash: targetIdentity.urlHash,
 			});
 			return errorResponse(
 				'VALIDATION_ERROR',
-				'Analysis request no longer matches the visible tab target.',
+				'Analysis request no longer matches the active tab target.',
 			);
 		}
 
-		return activeTab;
+		return targetTab;
 	}
 
 	async function getLatestVisibleDetectionSnapshot(
@@ -530,12 +537,32 @@ export function createBackgroundRuntime(
 		return dependencies.createContentApiClient(tabId, frameId);
 	}
 
-	async function getInspectableActiveTab(): Promise<AppResult<InspectableTab>> {
-		const tab = await dependencies.getActiveTab();
+	async function getInspectableTab(tabId: number, windowId: number): Promise<AppResult<InspectableTab>> {
+		let tab: BackgroundRuntimeTab;
+		try {
+			tab = await dependencies.getTab(tabId);
+		} catch {
+			logBackgroundEvent('visible-tab-missing', { tabId });
+			return errorResponse('NO_ACTIVE_TAB', 'The requested browser tab is no longer available.');
+		}
 
-		if (typeof tab?.id !== 'number' || !tab.url) {
-			logBackgroundEvent('visible-tab-missing');
-			return errorResponse('NO_ACTIVE_TAB', 'No visible tab found');
+		if (tab.active !== true) {
+			logBackgroundEvent('visible-tab-inactive', { tabId });
+			return errorResponse('NO_ACTIVE_TAB', 'The requested browser tab is no longer active.');
+		}
+
+		if (tab.windowId !== windowId) {
+			logBackgroundEvent('visible-tab-window-mismatch', {
+				tabId,
+				requestedWindowId: windowId,
+				actualWindowId: tab.windowId,
+			});
+			return errorResponse('NO_ACTIVE_TAB', 'The requested browser tab no longer belongs to this window.');
+		}
+
+		if (typeof tab.id !== 'number' || !tab.url) {
+			logBackgroundEvent('visible-tab-missing', { tabId });
+			return errorResponse('NO_ACTIVE_TAB', 'The active browser tab does not have an inspectable URL yet.');
 		}
 
 		if (!canInspectTab(tab)) {
@@ -549,7 +576,7 @@ export function createBackgroundRuntime(
 			);
 		}
 
-		return ok({ id: tab.id, url: tab.url, incognito: tab.incognito === true });
+		return ok({ id: tab.id, windowId: tab.windowId, url: tab.url, incognito: tab.incognito === true });
 	}
 
 	async function pingContentScript(tabId: number): Promise<boolean> {
@@ -677,7 +704,7 @@ export function createBackgroundRuntime(
 		);
 	}
 
-	/** Create the background response returned to the popup after analysis. */
+	/** Create the background response returned to the side panel after analysis. */
 	function createAnalysisOutput(
 		analysis: SiteAnalysis,
 		snapshotStatus: AnalyzeVisibleTabOutput['snapshot']['status'],
@@ -746,12 +773,12 @@ export function createBackgroundRuntime(
 	}
 
 	/**
-	 * Persist the analysis response as the popup's storage update stream.
+	 * Persist the analysis response as the side panel's storage update stream.
 	 *
-	 * Snapshots are the durable channel that lets an open popup update without a
-	 * polling loop and lets a reopened popup recover state after background shutdown.
+	 * Snapshots are the durable channel that lets an open side panel update without a
+	 * polling loop and lets a reopened side panel recover state after background shutdown.
 	 */
-	async function saveDetectionSnapshotForPopup(
+	async function saveDetectionSnapshotForPanel(
 		tab: InspectableTab,
 		output: AnalyzeVisibleTabOutput,
 		source: DetectionSessionSnapshotSource,
@@ -873,7 +900,7 @@ export function createBackgroundRuntime(
 		};
 	}
 
-	/** Derive the popup-visible lifecycle state from the analysis response. */
+	/** Derive the side-panel-visible lifecycle state from the analysis response. */
 	function getDetectionSnapshotStatus(output: AnalyzeVisibleTabOutput): DetectionSessionStatus {
 		if (output.session?.status === 'observing' || output.session?.status === 'dirty') return 'observing';
 		if (output.session?.status === 'stopped') return 'stopped';
@@ -1052,7 +1079,7 @@ export function createBackgroundRuntime(
 				));
 			}
 
-			const response = await analyzeFreshVisibleTab(tab, { target, mode: 'refresh', observe: 'while-popup-open' }, 'bypassed');
+			const response = await analyzeFreshVisibleTab(tab, { target, mode: 'refresh', observe: 'while-panel-open' }, 'bypassed');
 			endTimingSpan(totalSpan, { ok: response.ok, cacheHit: false, fallback: 'fresh' });
 			return response;
 		}
@@ -1160,32 +1187,28 @@ export function createBackgroundRuntime(
 	}
 
 	async function beginObservationSessionForTab(
-		tabId: number,
-		expectedUrl: string,
+		tab: InspectableTab,
 		compiledRegistryArtifact: CompiledRegistry,
-		incognito = false,
 	): Promise<AppResult<ObservationSessionState>> {
 		const sessionId = crypto.randomUUID();
-		const tab: InspectableTab = { id: tabId, url: expectedUrl, incognito };
 		logBackgroundEvent('observation-start-requested', {
-			tabId,
-			hostname: new URL(expectedUrl).hostname,
+			...summarizeTab(tab),
 			sessionId,
 			policy: EXTENSION_OBSERVATION_POLICY,
 		});
 
-		const contentScriptResponse = await ensureContentScript(tabId);
+		const contentScriptResponse = await ensureContentScript(tab.id);
 		if (!contentScriptResponse.ok) {
 			return contentScriptResponse;
 		}
 
-		const contentApi = createContentApiClient(tabId, 0);
+		const contentApi = createContentApiClient(tab.id, 0);
 
 		try {
 			const response = await withTimeout(
 				contentApi.beginObservationSession({
 					sessionId,
-					expectedUrl,
+					expectedUrl: tab.url,
 					snapshotTarget: createContentPageSessionSnapshotTarget(tab, sessionId),
 					policy: EXTENSION_OBSERVATION_POLICY,
 					domSelectorPlan: compiledRegistryArtifact.collectionPlan.initial.domSelectorPlan,
@@ -1196,7 +1219,7 @@ export function createBackgroundRuntime(
 
 			if (response.ok) {
 				logBackgroundEvent('observation-started', {
-					tabId,
+					tabId: tab.id,
 					...summarizeSession(response.value),
 				});
 			}
@@ -1289,7 +1312,7 @@ export function createBackgroundRuntime(
 			const sessionResponse = await timeAsyncSpan(
 				'background.observation-session.begin',
 				timingContext,
-				() => beginObservationSessionForTab(tab.id, tab.url, compiledRegistryArtifact, tab.incognito),
+				() => beginObservationSessionForTab(tab, compiledRegistryArtifact),
 				(response) => ({ ok: response.ok, status: response.ok ? response.value.status : undefined }),
 			);
 			if (sessionResponse.ok) {
@@ -1381,7 +1404,7 @@ export function createBackgroundRuntime(
 		readonly snapshotStatus: AnalyzeVisibleTabOutput['snapshot']['status'];
 		/** Observation session that remains active while enrichment gathers later evidence. */
 		readonly session?: ObservationSessionState;
-		/** Timing trace shared with the initial popup command. */
+		/** Timing trace shared with the initial side-panel command. */
 		readonly timingTraceId: string;
 		/** Matcher completion that enrichment matching must not overlap. */
 		readonly waitForPreviousMatcherCompletion?: Promise<void>;
@@ -1391,7 +1414,7 @@ export function createBackgroundRuntime(
 	 * Run deeper evidence passes only after the first matcher revision has been queued.
 	 *
 	 * The old flow collected every enrichment surface before matching started, which
-	 * made the popup wait even when cheap observations were already available. The
+	 * made the side panel wait even when cheap observations were already available. The
 	 * current flow waits until the initial matcher is registered, collects the
 	 * follow-up surfaces, then queues one merged enrichment revision. That keeps
 	 * first paint unblocked without running a full terminal pipeline for every
@@ -1487,7 +1510,7 @@ export function createBackgroundRuntime(
 			return await withTimeout(
 				operation(),
 				EVIDENCE_PASS_TIMEOUT_MS,
-				'Evidence collection pass timed out before it could update the popup.',
+				'Evidence collection pass timed out before it could update the side panel.',
 			);
 		} catch (error) {
 			if (error instanceof RpcTimeoutError) {
@@ -1549,7 +1572,7 @@ export function createBackgroundRuntime(
 	 * Background-owned dirty refreshes are detector revisions inside an existing
 	 * observation window. They should update snapshots, but they
 	 * should not appear as separate top-level replay runs because the user did not
-	 * start a new scan and the popup would show duplicate histories for one action.
+	 * start a new scan and the side panel would show duplicate histories for one action.
 	 */
 	function shouldStoreReplayHistoryForMatcherJob(details: Record<string, unknown>): boolean {
 		const refreshKind = details.refreshKind;
@@ -1783,7 +1806,7 @@ export function createBackgroundRuntime(
 			enrichment,
 			evidence,
 		);
-		await saveDetectionSnapshotForPopup(tab, output, 'background', matcherResult.executor, undefined, evidence);
+		await saveDetectionSnapshotForPanel(tab, output, 'background', matcherResult.executor, undefined, evidence);
 		activeMatcherProgressByJob.delete(matcherJob.jobId);
 
 		return ok(output);
@@ -1969,6 +1992,13 @@ export function createBackgroundRuntime(
 	): Promise<AppResult<InspectableTab>> {
 		try {
 			const tab = await dependencies.getTab(target.tabId);
+			if (typeof tab.windowId !== 'number') {
+				return errorResponse(
+					'OBSERVATION_SESSION_UNAVAILABLE',
+					'The browser no longer reports the window that owns the observed tab.',
+				);
+			}
+
 			if (!tab.url || !isSameDocumentUrl(tab.url, target.expectedUrl)) {
 				return errorResponse(
 					'OBSERVATION_SESSION_UNAVAILABLE',
@@ -1985,6 +2015,7 @@ export function createBackgroundRuntime(
 
 			return ok({
 				id: target.tabId,
+				windowId: tab.windowId,
 				url: tab.url,
 				incognito: target.incognito === true || tab.incognito === true,
 			});
@@ -2018,9 +2049,9 @@ export function createBackgroundRuntime(
 	 * Return the best immediate response before CPU-bound matcher work finishes.
 	 *
 	 * Active-tab commands should start collection and matching, then return the last
-	 * durable detector output instead of blocking the popup for a full matcher job.
+	 * durable detector output instead of blocking the side panel for a full matcher job.
 	 * Storage revisions from the queued matcher job become the receive stream that
-	 * moves the popup from cached output to newer partial and final detections.
+	 * moves the side panel from cached output to newer partial and final detections.
 	 */
 	async function createQueuedAnalysisOutput(
 		tab: InspectableTab,
@@ -2071,7 +2102,7 @@ export function createBackgroundRuntime(
 		);
 	}
 
-	/** Run matcher persistence after the popup command has been released. */
+	/** Run matcher persistence after the side-panel command has been released. */
 	function enqueueAnalysisPersistence(input: {
 		readonly tab: InspectableTab;
 		readonly batch: ObservationBatch;
@@ -2132,8 +2163,8 @@ export function createBackgroundRuntime(
 				return ok(await getStatus());
 			},
 
-			async getVisibleTabIdentity() {
-				const tabResponse = await getInspectableActiveTab();
+			async getVisibleTabIdentity(input) {
+				const tabResponse = await getInspectableTab(input.tabId, input.windowId);
 				if (!tabResponse.ok) {
 					return tabResponse;
 				}
@@ -2149,7 +2180,7 @@ export function createBackgroundRuntime(
 					}
 
 					const tab = tabResponse.value;
-					const requestTimingTraceId = createTimingTraceId(input.mode === 'snapshot-first' ? 'popup-open' : 'popup-refresh');
+					const requestTimingTraceId = createTimingTraceId(input.mode === 'snapshot-first' ? 'panel-open' : 'panel-refresh');
 					const requestTimingContext: TimingContext = {
 						traceId: requestTimingTraceId,
 						surface: 'background',
@@ -2349,7 +2380,7 @@ export function createBackgroundRuntime(
 			undefined,
 			createObservationSessionTarget(context.tab, context.session),
 		);
-		await saveDetectionSnapshotForPopup(context.tab, output, 'background', context.matcherExecutor ?? 'unknown', {
+		await saveDetectionSnapshotForPanel(context.tab, output, 'background', context.matcherExecutor ?? 'unknown', {
 			jobId,
 			mode: context.matcherMode,
 			completedPartitionCount: message.completedPartitionCount,

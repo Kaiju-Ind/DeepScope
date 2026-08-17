@@ -10,7 +10,7 @@ import {
 export const KAIJU_SITE_SCOPE_LOG_CATEGORY = ['kaiju-site-scope'] as const;
 
 /** Runtime surface that owns LogTape configuration for one execution context. */
-export type KaijuSiteScopeLogSurface = 'background' | 'content' | 'popup' | 'benchmark' | 'offscreen-worker';
+export type KaijuSiteScopeLogSurface = 'background' | 'content' | 'sidepanel' | 'benchmark' | 'offscreen-worker';
 
 /** Category suffixes used below the shared `kaiju-site-scope` root category. */
 export type KaijuSiteScopeLogCategory = readonly string[];
@@ -24,7 +24,7 @@ const BURST_LOG_WINDOW_MS = 1_000;
 /**
  * Configure LogTape once for the current extension runtime.
  *
- * Browser extension entrypoints run in separate JavaScript worlds. The popup,
+ * Browser extension entrypoints run in separate JavaScript worlds. The side panel,
  * background service worker, and content script each need their own LogTape
  * configuration because global state is not shared across those contexts. A
  * small global guard prevents duplicate configuration when WXT reinjects or hot

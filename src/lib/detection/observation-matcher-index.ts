@@ -328,10 +328,7 @@ function findIndexedObservationRulesWithDiagnostics(
 	readonly literalRejectedRuleCount: number;
 } {
 	const fallbackRules = index.fallbackRules[observation.kind] ?? [];
-	const key = getObservationRouteKey(observation);
-	const keyedRules = key === undefined
-		? []
-		: index.keyedRules[observation.kind]?.[key] ?? [];
+	const keyedRules = findKeyedObservationRules(index, observation);
 	const literalRoute = findLiteralPrefilteredRules(index, observation);
 	const rules = mergeRuleBucketList([keyedRules, literalRoute.rules, fallbackRules]);
 
@@ -411,6 +408,8 @@ function getRuleRoutes(
 			return [{ kind: 'jsGlobal', key: rule.property }];
 		case 'storage':
 			return [{ kind: 'storage', key: rule.key }];
+		case 'link':
+			return [createLinkRoute(rule)];
 		case 'html':
 			return [
 				createPatternRoute(rule),
@@ -419,6 +418,25 @@ function getRuleRoutes(
 		default:
 			return [createPatternRoute(rule)];
 	}
+}
+
+/**
+ * Route link rules by the relation token when one is declared.
+ *
+ * Link observations preserve `rel` as their key. Most link rules constrain that
+ * field, so routing them through the generic fallback bucket makes every link
+ * evaluate every link rule. Rules without `rel` can still use an href literal
+ * prefilter because the observation value is the link URL.
+ */
+function createLinkRoute(rule: Extract<DetectionRule, { kind: 'link' }>): ObservationRuleRoute {
+	if (rule.rel) {
+		return { kind: 'link', key: canonicalLinkRel(rule.rel) };
+	}
+
+	const requiredLiteral = extractTopLevelRegexLiteral(rule.hrefPattern);
+	return requiredLiteral
+		? { kind: 'link', requiredLiteral }
+		: { kind: 'link' };
 }
 
 function createPatternRoute(
@@ -642,10 +660,10 @@ function findLiteralPrefilteredRules(
 	return { rules: matched, rejectedCount };
 }
 
-/** Convert observation keys into the same canonical form used by rule routes. */
-function getObservationRouteKey(observation: NormalizedObservation): string | undefined {
+/** Return exact routing keys in the same canonical form used when rules are indexed. */
+function getObservationRouteKeys(observation: NormalizedObservation): readonly string[] {
 	if (!observation.key) {
-		return undefined;
+		return [];
 	}
 
 	switch (observation.kind) {
@@ -653,15 +671,41 @@ function getObservationRouteKey(observation: NormalizedObservation): string | un
 		case 'responseHeader':
 		case 'requestHeader':
 		case 'meta':
-			return canonicalHeaderKey(observation.key);
+			return [canonicalHeaderKey(observation.key)];
+		case 'link':
+			return canonicalLinkRels(String(observation.attributes?.rel ?? observation.key));
 		default:
-			return observation.key;
+			return [observation.key];
 	}
+}
+
+/** Merge all exact-key buckets that can match one observation. */
+function findKeyedObservationRules(
+	index: ObservationMatcherIndex,
+	observation: NormalizedObservation,
+): readonly IndexedObservationRule[] {
+	const kindBuckets = index.keyedRules[observation.kind];
+	if (!kindBuckets) {
+		return [];
+	}
+
+	const keys = getObservationRouteKeys(observation);
+	return mergeRuleBucketList(keys.map((key) => kindBuckets[key] ?? []));
 }
 
 /** Lowercase header-like keys because matching treats those names case-insensitively. */
 function canonicalHeaderKey(key: string): string {
 	return key.toLowerCase();
+}
+
+/** Normalize one link relation token using the same semantics as `matchLinkRule`. */
+function canonicalLinkRel(rel: string): string {
+	return rel.trim().toLowerCase();
+}
+
+/** Return unique relation tokens because a link can declare several `rel` values. */
+function canonicalLinkRels(rel: string): readonly string[] {
+	return [...new Set(rel.split(/\s+/).map(canonicalLinkRel).filter(Boolean))];
 }
 
 /** Create the bounded HTML probe key used by the existing observation matcher. */

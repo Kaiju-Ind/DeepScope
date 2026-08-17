@@ -10,7 +10,7 @@ import type { ObservationBatch, ObservationBatchControllerStats } from '../obser
 import type { AppResult } from '../shared/result';
 
 /**
- * Analysis modes accepted by the popup-to-background request.
+ * Analysis modes accepted by the side-panel-to-background request.
  *
  * `snapshot-first` lets the background return a stored `SiteAnalysis` for the
  * active origin. `refresh` skips that lookup and collects the page again.
@@ -25,10 +25,10 @@ export type AnalyzeVisibleTabMode = typeof ANALYSIS_MODES[number];
  *
  * Every value except `none` asks the content script to keep watching the page
  * after event analysis. The same bounded observation policy is used today for
- * `while-popup-open` and `bounded`; callers use the names to describe intent,
+ * `while-panel-open` and `bounded`; callers use the names to describe intent,
  * while the lifecycle policy owns the actual duration and event-storm limits.
  */
-export const OBSERVATION_MODES = ['none', 'while-popup-open', 'bounded'] as const;
+export const OBSERVATION_MODES = ['none', 'while-panel-open', 'bounded'] as const;
 
 /** Request value that controls whether live page watching starts. */
 export type VisibleTabObservationMode = typeof OBSERVATION_MODES[number];
@@ -50,17 +50,17 @@ export type AnalysisEnrichmentState = {
 	reason?: string;
 };
 
-/** Snapshot reuse states returned to the popup after visible-tab analysis. */
+/** Snapshot reuse states returned to the side panel after visible-tab analysis. */
 export const SNAPSHOT_REUSE_STATUSES = ['hit', 'miss', 'bypassed'] as const;
 
 /** Snapshot reuse state returned with a visible-tab analysis response. */
 export type SnapshotReuseStatus = typeof SNAPSHOT_REUSE_STATUSES[number];
 
 /**
- * Request sent by the popup when it asks the background to synchronize a visible tab target.
+ * Request sent by the side panel when it asks the background to synchronize a visible tab target.
  */
 export type AnalyzeVisibleTabInput = {
-	/** Visible tab target captured before the popup requested analysis. */
+	/** Visible tab target captured before the side panel requested analysis. */
 	readonly target: VisibleTabIdentity;
 	/** Whether the background may reuse a stored snapshot for the target origin. */
 	readonly mode: AnalyzeVisibleTabMode;
@@ -69,34 +69,36 @@ export type AnalyzeVisibleTabInput = {
 };
 
 /**
- * Minimal visible-tab identity needed before popup analysis starts.
+ * Minimal visible-tab identity needed before side-panel analysis starts.
  *
- * The popup uses this record to choose a storage snapshot first, then asks the
+ * The side panel uses this record to choose a storage snapshot first, then asks the
  * background to synchronize the page. Keeping identity separate from analysis
  * avoids loading the detector registry just to decide which cached result can be
- * painted during popup startup.
+ * painted during side-panel startup.
  */
 export type VisibleTabIdentity = {
+	/** Browser window that owns the side-panel tab target. */
+	readonly windowId: number;
 	/** Browser tab id that owns the active top-frame page. */
 	readonly tabId: number;
 	/** Frame id used by current detection sessions; top frame is always `0`. */
 	readonly frameId: number;
 	/** Full visible URL used for explicit target validation and replay lookup. */
 	readonly url: string;
-	/** Hostname shown in the popup before a stored analysis is rendered. */
+	/** Hostname shown in the side panel before a stored analysis is rendered. */
 	readonly hostname: string;
 	/** Stable storage partition for origin-level snapshot lookup. */
 	readonly originHash: string;
 	/** Stable storage partition for exact active URL comparisons. */
 	readonly urlHash: string;
-	/** Whether persistent reads and writes should be skipped for this popup. */
+	/** Whether persistent reads and writes should be skipped for this side-panel request. */
 	readonly incognito: boolean;
 };
 
 /**
- * Stable handle for the observation session created by one popup analysis.
+ * Stable handle for the observation session created by one side-panel analysis.
  *
- * The popup keeps this handle so refresh and stop actions target the same tab
+ * The side panel keeps this handle so refresh and stop actions target the same tab
  * and document that started observation, even if the user activates another tab
  * before cleanup or a manual stop.
  */
@@ -114,21 +116,21 @@ export type ObservationSessionTarget = {
 /** Request that targets a specific existing observation session. */
 export type ObservationSessionTargetInput = ObservationSessionTarget;
 
-/** Request for replay history tied to the analysis currently visible in the popup. */
+/** Request for replay history tied to the analysis currently visible in the side panel. */
 export type ReplayTraceHistoryInput = {
 	/** Analysis URL that owns the replay history record. */
 	readonly url: string;
 };
 
 /**
- * Response returned to the popup after visible-tab analysis.
+ * Response returned to the side panel after visible-tab analysis.
  *
  * `analysis` remains the stable rendering shape. `replayTrace` and
- * `replayHistory` carry redacted pipeline details that let the popup explain
+ * `replayHistory` carry redacted pipeline details that let the side panel explain
  * detections without widening `SiteAnalysis` itself.
  */
 export type AnalyzeVisibleTabOutput = {
-	/** Normalized detector output safe for popup rendering and snapshot storage. */
+	/** Normalized detector output safe for side-panel rendering and snapshot storage. */
 	analysis: SiteAnalysis;
 	/** Snapshot reuse metadata that explains whether stored output was reused. */
 	snapshot: {
@@ -141,7 +143,7 @@ export type AnalyzeVisibleTabOutput = {
 	};
 	/** Live observation state when the fresh analysis started page watching. */
 	session?: ObservationSessionState;
-	/** Stable session handle the popup should use for refresh, stop, and cleanup. */
+	/** Stable session handle the side panel should use for refresh, stop, and cleanup. */
 	sessionTarget?: ObservationSessionTarget;
 	/**
 	 * Redacted pipeline trace for fresh or stored analysis runs.
@@ -175,9 +177,9 @@ export type ContentPageSessionSnapshotTarget = {
 	readonly key: DetectionSessionKey;
 	/** Full document URL used by the public analysis envelope. */
 	readonly url: string;
-	/** Stable hash of the exact document URL for popup snapshot filtering. */
+	/** Stable hash of the exact document URL for side panel snapshot filtering. */
 	readonly urlHash: string;
-	/** Hostname shown by the popup before richer analysis is available. */
+	/** Hostname shown by the side panel before richer analysis is available. */
 	readonly hostname: string;
 	/** Private browsing sessions skip durable snapshot writes. */
 	readonly incognito?: boolean;
@@ -266,13 +268,13 @@ export type CollectPageSignalsInput = {
 	timingTraceId?: string;
 };
 
-/** Popup-to-background API exposed through the messaging adapter. */
+/** Side-panel-to-background API exposed through the messaging adapter. */
 export interface BackgroundApi {
 	/** Return aggregate cache status for the extension. */
 	getAnalysisStatus(): Promise<AppResult<AnalysisStatus>>;
-	/** Return visible-tab identity without collecting or analyzing page data. */
-	getVisibleTabIdentity(): Promise<AppResult<VisibleTabIdentity>>;
-	/** Synchronize the popup-visible tab target and optionally start a content-script observation session. */
+	/** Return identity for the supplied active browser tab without collecting or analyzing page data. */
+	getVisibleTabIdentity(input: { readonly tabId: number; readonly windowId: number }): Promise<AppResult<VisibleTabIdentity>>;
+	/** Synchronize the side-panel-visible tab target and optionally start a content-script observation session. */
 	analyzeVisibleTab(input: AnalyzeVisibleTabInput): Promise<AppResult<AnalyzeVisibleTabOutput>>;
 	/** Re-analyze a known observation session when its queued page facts are dirty. */
 	refreshObservationSession(input: ObservationSessionTargetInput): Promise<AppResult<AnalyzeVisibleTabOutput>>;
@@ -280,7 +282,7 @@ export interface BackgroundApi {
 	stopObservationSession(input: ObservationSessionTargetInput): Promise<AppResult<ObservationSessionState>>;
 	/** Read a known content-script observation session state. */
 	getObservationSessionState(input: ObservationSessionTargetInput): Promise<AppResult<ObservationSessionState>>;
-	/** Return bounded replay history for the analysis URL already visible in the popup. */
+	/** Return bounded replay history for the analysis URL already visible in the side panel. */
 	getReplayTraceHistory(input: ReplayTraceHistoryInput): Promise<AppResult<readonly DetectionReplayTrace[]>>;
 }
 
