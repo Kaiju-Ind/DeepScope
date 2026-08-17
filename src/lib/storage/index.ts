@@ -4,7 +4,7 @@ import type {
 	DetectionOriginSummary,
 	DetectionSessionSnapshot,
 	DetectionStorageStatusSnapshot,
-} from '../contracts/detection-session';
+} from './session';
 import type { AnalysisStatus } from '../detection/types';
 import type { DetectionReplayTrace } from '../pipeline';
 import {

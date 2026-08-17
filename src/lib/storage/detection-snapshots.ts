@@ -10,9 +10,9 @@ import type {
 	DetectionStorageStatusSnapshot,
 	DetectionSessionSnapshotSource,
 	DetectionSessionStatus,
-} from '../contracts/detection-session';
+} from './session';
 import type { Evidence, SiteAnalysis } from '../detection/types';
-import type { VisibleTabIdentity } from '../contracts/analysis';
+import type { VisibleTabIdentity } from '../messaging/analysis';
 
 import type {
 	DetectionSessionIndexEntry,
@@ -28,7 +28,7 @@ import {
 	DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION,
 	DETECTION_SESSION_STATUSES,
 	DETECTION_STORAGE_STATUS_SCHEMA_VERSION,
-} from '../contracts/detection-session';
+} from './session';
 import {
 	getContentSessionLifecycleKey,
 	DETECTION_ORIGIN_SUMMARY_PREFIX,

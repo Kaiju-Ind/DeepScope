@@ -2,9 +2,9 @@ import type {
 	DetectionSessionKey,
 	DetectionSessionSnapshot,
 	DetectionSessionStatus,
-} from '../contracts/detection-session';
+} from '../storage/session';
 import type { AnalysisStatus } from '../detection/types';
-import type { VisibleTabIdentity } from '../contracts/analysis';
+import type { VisibleTabIdentity } from '../messaging/analysis';
 import type { DetectionReplayTrace } from '../pipeline/replay';
 import type { MatcherJobRecord } from '../matcher';
 
