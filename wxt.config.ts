@@ -1,4 +1,9 @@
+import tailwindcss from '@tailwindcss/vite';
+import { FileSystemIconLoader } from 'unplugin-icons/loaders';
+import Icons from 'unplugin-icons/vite';
 import { defineConfig } from 'wxt';
+
+const buildId = `0.1.0-${new Date().toISOString()}`;
 
 export default defineConfig({
 	srcDir: 'src',
@@ -23,18 +28,17 @@ export default defineConfig({
 				128: '/icons/icon-128.png',
 			},
 		},
-		permissions: ['activeTab', 'scripting', 'storage', 'offscreen'],
+		permissions: ['activeTab', 'scripting', 'storage', 'offscreen', 'clipboardWrite'],
 		host_permissions: ['http://*/*', 'https://*/*'],
 	},
-
-	// @ts-ignore
-	// vite: () => ({
-	// 	build: {
-	// 		minify: false,
-	// 		terserOptions: {
-	// 			compress: false,
-	// 			mangle: false,
-	// 		},
-	// 	},
-	// }),
+	vite: () => ({
+		plugins: [
+			tailwindcss(),
+			Icons({
+				compiler: 'solid',
+				customCollections: { kaiju: FileSystemIconLoader('./src/icons') },
+			}),
+		],
+		define: { __KAIJU_BUILD_ID__: JSON.stringify(buildId) },
+	}),
 });

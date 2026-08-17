@@ -4,6 +4,9 @@
     "strict": true,
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "types": [
+      "unplugin-icons/types/solid"
+    ]
   }
 }
