@@ -49,7 +49,7 @@ export function formatDiagnosticReport(snapshot: DiagnosticSnapshot): string {
 	const interrupted = snapshot.jobs.filter((job) => job.reason === 'context-interrupted');
 	const active = snapshot.jobs.filter((job) => isActiveMatcherStatus(job.status));
 	const lines = [
-		'Kaiju Site Scope diagnostic report',
+		'Kaiju Deepscope diagnostic report',
 		`Created: ${new Date(snapshot.createdAt).toISOString()}`,
 		`Extension: ${snapshot.extension.name} ${snapshot.extension.version}`,
 		`Build: ${snapshot.extension.buildId}`,

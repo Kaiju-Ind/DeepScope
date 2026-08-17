@@ -1,5 +1,6 @@
 import {
 	configureSync,
+	getConfig,
 	getConsoleSink,
 	getLogger,
 	getThrottlingFilter,
@@ -9,6 +10,7 @@ import {
 } from '@logtape/logtape';
 
 import type { DiagnosticSurface } from './contracts';
+import { getDiagnosticBuildId } from './build';
 import { createDiagnosticJournalSink } from './journal';
 
 /** Root category shared by every extension runtime and shared library module. */
@@ -20,26 +22,32 @@ export type KaijuSiteScopeLogSurface = DiagnosticSurface;
 /** Category suffixes used below the shared `kaiju-site-scope` root category. */
 export type KaijuSiteScopeLogCategory = readonly string[];
 
-const LOGTAPE_CONFIGURED_KEY = '__kaijuSiteScopeLogTapeConfiguredV2';
+const LOGTAPE_CONFIGURED_KEY = '__kaijuSiteScopeLogTapeConfigV1';
 const DEFAULT_LOWEST_LEVEL: LogLevel = 'debug';
 const META_LOWEST_LEVEL: LogLevel = 'warning';
 const BURST_LOG_LIMIT = 80;
 const BURST_LOG_WINDOW_MS = 1_000;
 
 /**
- * Configure LogTape once for the current extension runtime.
+ * Configure LogTape for the current extension application context.
  *
- * The console is rate-limited for high-volume debug/info output. The local
- * diagnostic journal is not behind that filter, so records needed after a
- * context failure are retained even when DevTools output is compacted.
+ * WXT runtime-injected content scripts can outlive an extension update. An old
+ * bundle can therefore leave LogTape configured in the isolated world after its
+ * extension APIs become invalid. The build-aware marker handles current bundles,
+ * while `getConfig()` detects that legacy configuration and deliberately replaces
+ * it instead of letting `configureSync()` crash the new content script.
  */
 export function configureKaijuSiteScopeLogging(surface: KaijuSiteScopeLogSurface): void {
-	const runtime = globalThis as typeof globalThis & Record<string, boolean | undefined>;
-	if (runtime[LOGTAPE_CONFIGURED_KEY]) return;
+	type LogConfigState = { readonly buildId: string; readonly surface: KaijuSiteScopeLogSurface };
+	const runtime = globalThis as typeof globalThis & Record<string, LogConfigState | undefined>;
+	const buildId = getDiagnosticBuildId();
+	const existing = runtime[LOGTAPE_CONFIGURED_KEY];
+	if (existing?.buildId === buildId && existing.surface === surface) return;
 
 	const consoleSink = createThrottledConsoleSink();
 	const journalSink = createDiagnosticJournalSink(surface);
 	configureSync({
+		reset: getConfig() != null,
 		sinks: { console: consoleSink, journal: journalSink },
 		loggers: [
 			{
@@ -55,11 +63,14 @@ export function configureKaijuSiteScopeLogging(surface: KaijuSiteScopeLogSurface
 		],
 	});
 
-	runtime[LOGTAPE_CONFIGURED_KEY] = true;
-	getKaijuSiteScopeLogger(surface, 'logging').debug('Configured Kaiju Site Scope logging for {surface}.', { surface });
+	runtime[LOGTAPE_CONFIGURED_KEY] = { buildId, surface };
+	getKaijuSiteScopeLogger(surface, 'logging').debug('Configured Kaiju Deepscope logging for {surface}.', {
+		buildId,
+		surface,
+	});
 }
 
-/** Create a logger under the shared Kaiju Site Scope category tree. */
+/** Create a logger under the shared Kaiju Deepscope category tree. */
 export function getKaijuSiteScopeLogger(...category: KaijuSiteScopeLogCategory): ReturnType<typeof getLogger> {
 	return getLogger([...KAIJU_SITE_SCOPE_LOG_CATEGORY, ...category]);
 }

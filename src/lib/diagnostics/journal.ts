@@ -25,7 +25,7 @@ const MAX_ARRAY_ITEMS = 16;
 const MAX_DEPTH = 4;
 const MAX_STRING_CHARS = 400;
 const MAX_STACK_CHARS = 4_000;
-const JOURNAL_STATE_KEY = '__kaijuSiteScopeDiagnosticJournalV2';
+const JOURNAL_STATE_KEY = '__kaijuSiteScopeDiagnosticJournalV3';
 const FLUSH_DELAY_MS = 80;
 const MAX_PENDING_RECORDS = 12;
 
@@ -61,7 +61,14 @@ type DiagnosticJournalState = {
 export function startDiagnosticJournal(surface: DiagnosticSurface): DiagnosticJournalState | null {
 	const runtime = globalThis as typeof globalThis & Record<string, DiagnosticJournalState | undefined>;
 	const existing = runtime[JOURNAL_STATE_KEY];
-	if (existing) return existing;
+	const buildId = getDiagnosticBuildId();
+	if (existing?.context.surface === surface && existing.context.buildId === buildId) return existing;
+	if (existing) {
+		flushSuccessfulDiagnosticSummaries(existing, Date.now(), true);
+		void flushDiagnosticJournal(existing);
+		if (existing.flushTimer !== undefined) clearTimeout(existing.flushTimer);
+		if (existing.rateTimer !== undefined) clearTimeout(existing.rateTimer);
+	}
 
 	if (!getStorageArea()) return null;
 
@@ -71,7 +78,7 @@ export function startDiagnosticJournal(surface: DiagnosticSurface): DiagnosticJo
 		id: createId(),
 		surface,
 		startedAt,
-		buildId: getDiagnosticBuildId(),
+		buildId,
 	};
 	const state: DiagnosticJournalState = {
 		context,

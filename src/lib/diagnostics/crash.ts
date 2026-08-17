@@ -1,7 +1,8 @@
-import { persistDiagnosticFailure, toDiagnosticError } from './journal';
+import { getDiagnosticBuildId } from './build';
 import type { DiagnosticSurface } from './contracts';
+import { persistDiagnosticFailure, toDiagnosticError } from './journal';
 
-const CRASH_HOOKS_KEY = '__kaijuSiteScopeCrashHooksV1';
+const CRASH_HOOKS_KEY = '__kaijuSiteScopeCrashHooksV2';
 
 export interface DiagnosticCrashHookOptions {
 	/**
@@ -15,17 +16,34 @@ export interface DiagnosticCrashHookOptions {
 	readonly captureGlobalError?: boolean;
 }
 
-/** Install exception and rejected-promise capture once for an extension context. */
+/** Owned crash-hook registration for one extension application context. */
+export type DiagnosticCrashHooks = {
+	readonly buildId: string;
+	readonly surface: DiagnosticSurface;
+	dispose(): void;
+};
+
+/** Install exception and rejected-promise capture for one extension context run. */
 export function installDiagnosticCrashHooks(
 	surface: DiagnosticSurface,
 	options: DiagnosticCrashHookOptions = {},
-): void {
-	const runtime = globalThis as typeof globalThis & Record<string, boolean | undefined>;
-	if (runtime[CRASH_HOOKS_KEY] || typeof globalThis.addEventListener !== 'function') return;
-	runtime[CRASH_HOOKS_KEY] = true;
+): DiagnosticCrashHooks {
+	type Runtime = typeof globalThis & Record<string, DiagnosticCrashHooks | undefined>;
+	const runtime = globalThis as Runtime;
+	const buildId = getDiagnosticBuildId();
+	const existing = runtime[CRASH_HOOKS_KEY];
+	if (existing?.buildId === buildId && existing.surface === surface) return existing;
+	existing?.dispose();
+
+	const listeners: Array<{ readonly type: string; readonly listener: EventListener }> = [];
+	const add = (type: string, listener: EventListener): void => {
+		if (typeof globalThis.addEventListener !== 'function') return;
+		globalThis.addEventListener(type, listener);
+		listeners.push({ type, listener });
+	};
 
 	if (options.captureGlobalError !== false) {
-		globalThis.addEventListener('error', (event: Event) => {
+		add('error', ((event: Event) => {
 			const errorEvent = event as ErrorEvent;
 			const error = toDiagnosticError(errorEvent.error ?? errorEvent.message ?? 'Unhandled error');
 			persistDiagnosticFailure({
@@ -39,10 +57,10 @@ export function installDiagnosticCrashHooks(
 					column: errorEvent.colno,
 				},
 			});
-		});
+		}) as EventListener);
 	}
 
-	globalThis.addEventListener('unhandledrejection', (event: Event) => {
+	add('unhandledrejection', ((event: Event) => {
 		const rejection = event as PromiseRejectionEvent;
 		persistDiagnosticFailure({
 			surface,
@@ -50,13 +68,27 @@ export function installDiagnosticCrashHooks(
 			message: 'Unhandled promise rejection.',
 			error: rejection.reason,
 		});
-	});
+	}) as EventListener);
 
-	globalThis.addEventListener('messageerror', () => {
+	add('messageerror', (() => {
 		persistDiagnosticFailure({
 			surface,
 			category: ['kaiju-site-scope', surface, 'crash'],
 			message: 'A structured-clone message could not be decoded.',
 		});
-	});
+	}) as EventListener);
+
+	const hooks: DiagnosticCrashHooks = {
+		buildId,
+		surface,
+		dispose() {
+			if (typeof globalThis.removeEventListener === 'function') {
+				for (const { type, listener } of listeners) globalThis.removeEventListener(type, listener);
+			}
+			listeners.length = 0;
+			if (runtime[CRASH_HOOKS_KEY] === hooks) delete runtime[CRASH_HOOKS_KEY];
+		},
+	};
+	runtime[CRASH_HOOKS_KEY] = hooks;
+	return hooks;
 }
