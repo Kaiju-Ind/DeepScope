@@ -11,12 +11,16 @@ import type {
 	MatcherWorkerRunMessage,
 } from '@/lib/matcher/contracts';
 import type { NormalizedObservationKind, ObservationValue } from '@/lib/observations';
+import { redactEvidenceValue } from '@/lib/privacy/redaction';
 
 /** Log individual rule checks that are slow enough to explain visible matcher stalls. */
 const SLOW_RULE_EVALUATION_MS = 25;
 
-/** Log partition summaries even when no single rule crosses the slow-rule threshold. */
-const SLOW_PARTITION_MS = 250;
+/** Report matcher work that is slow enough to affect a visible analysis update. */
+const SLOW_MATCH_MS = 250;
+
+/** Report cold shard hydration separately from semantic rule matching. */
+const SLOW_SHARD_LOAD_MS = 250;
 
 /** Number of worst rule evaluations retained for one partition summary. */
 const MAX_SLOW_EVALUATION_SUMMARY_ITEMS = 5;
@@ -83,65 +87,81 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 		task.observationIndexes[index] ?? index,
 	]));
 	const slowestRuleEvaluations: SlowRuleEvaluationSummary[] = [];
+	const shardCacheHit = shardArtifactByKind.has(task.kind);
+	const shardLoadStartedAt = performance.now();
 	const shardArtifact = await getShardArtifact(task.kind);
+	const shardReadyAt = performance.now();
+	const profileRules = matcherWorkerLogger.isEnabledFor('trace');
+	const matchStartedAt = performance.now();
 	const matched = matchIndexedObservationBatch({
 		registry: shardArtifact.technologies,
 		batch: task.batch,
 		index: shardArtifact.matcherIndex,
 		options: task.options,
-		onRuleEvaluation(event) {
-			const isSlowRule = event.durationMs >= SLOW_RULE_EVALUATION_MS;
-			if (!isSlowRule && !shouldRememberSlowestRuleEvaluation(slowestRuleEvaluations, event.durationMs)) {
-				return;
-			}
+		onRuleEvaluation: profileRules
+			? (event) => {
+				const isSlowRule = event.durationMs >= SLOW_RULE_EVALUATION_MS;
+				if (!isSlowRule && !shouldRememberSlowestRuleEvaluation(slowestRuleEvaluations, event.durationMs)) {
+					return;
+				}
 
-			const summary = createRuleEvaluationSummary({
-				task,
-				event,
-				observationIndex: observationIndexes.get(event.observation),
-			});
-			rememberSlowestRuleEvaluation(slowestRuleEvaluations, summary);
+				const summary = createRuleEvaluationSummary({
+					task,
+					event,
+					observationIndex: observationIndexes.get(event.observation),
+				});
+				rememberSlowestRuleEvaluation(slowestRuleEvaluations, summary);
 
-			if (isSlowRule) {
-				matcherWorkerLogger.warn(formatSlowRuleEvaluationMessage(summary), { ...summary });
+				if (isSlowRule) {
+					matcherWorkerLogger.trace(formatSlowRuleEvaluationMessage(summary), { ...summary });
+				}
 			}
-		},
+			: undefined,
 	});
+	const matchFinishedAt = performance.now();
 	const matches: MatcherPartitionMatch[] = matched.matches.map((match, matchIndex) => ({
 		observationIndex: observationIndexes.get(match.observation) ?? matchIndex,
 		matchIndex,
 		match,
 	}));
-	const partitionDurationMs = performance.now() - partitionStartedAt;
+	const shardLoadDurationMs = shardReadyAt - shardLoadStartedAt;
+	const matchDurationMs = matchFinishedAt - matchStartedAt;
+	const partitionDurationMs = matchFinishedAt - partitionStartedAt;
 
-	if (partitionDurationMs >= SLOW_PARTITION_MS) {
-		matcherWorkerLogger.warn(
+	if (matchDurationMs >= SLOW_MATCH_MS || shardLoadDurationMs >= SLOW_SHARD_LOAD_MS) {
+		matcherWorkerLogger.debug(
 			[
-				'Slow matcher partition in worker:',
+				'Matcher partition performance:',
 				`tabId=${task.job.tabId}`,
 				`jobId=${task.job.jobId}`,
 				`partitionId=${task.partitionId}`,
 				`kind=${task.kind}`,
-				`durationMs=${roundDuration(partitionDurationMs)}`,
+				`totalDurationMs=${roundDuration(partitionDurationMs)}`,
+				`shardLoadDurationMs=${roundDuration(shardLoadDurationMs)}`,
+				`matchDurationMs=${roundDuration(matchDurationMs)}`,
+				`shardCacheHit=${shardCacheHit}`,
 				`observationCount=${task.batch.observations.length}`,
 				`candidateRuleCount=${matched.diagnostics.candidateRuleCount}`,
 				`matchCount=${matched.matches.length}`,
 				`slowest=${formatSlowRuleList(slowestRuleEvaluations)}`,
 			].join(' '),
-			{
-			tabId: task.job.tabId,
-			jobId: task.job.jobId,
-			sessionId: task.job.sessionId,
-			expectedUrl: task.job.expectedUrl,
-			partitionId: task.partitionId,
-			kind: task.kind,
-			priority: task.priority,
-			durationMs: roundDuration(partitionDurationMs),
-			observationCount: task.batch.observations.length,
-			candidateRuleCount: matched.diagnostics.candidateRuleCount,
-			matchCount: matched.matches.length,
-			slowestRuleEvaluations,
-			},
+			withoutUndefined({
+				tabId: task.job.tabId,
+				jobId: task.job.jobId,
+				sessionId: task.job.sessionId,
+				expectedUrlPreview: previewLogValue(task.job.expectedUrl),
+				partitionId: task.partitionId,
+				kind: task.kind,
+				priority: task.priority,
+				totalDurationMs: roundDuration(partitionDurationMs),
+				shardLoadDurationMs: roundDuration(shardLoadDurationMs),
+				matchDurationMs: roundDuration(matchDurationMs),
+				shardCacheHit,
+				observationCount: task.batch.observations.length,
+				candidateRuleCount: matched.diagnostics.candidateRuleCount,
+				matchCount: matched.matches.length,
+				slowestRuleEvaluations,
+			}),
 		);
 	}
 
@@ -175,14 +195,13 @@ interface SlowRuleEvaluationSummary {
 	readonly tabId: number;
 	readonly jobId: string;
 	readonly sessionId?: string;
-	readonly expectedUrl: string;
+	readonly expectedUrlPreview: string;
 	readonly partitionId: string;
 	readonly kind: NormalizedObservationKind;
 	readonly observationIndex?: number;
 	readonly observationKey?: string;
-	readonly observationValue: ObservationValue;
 	readonly observationValuePreview: string;
-	readonly observationAttributes?: Record<string, ObservationValue>;
+	readonly observationValueLength: number;
 	readonly technologyId: string;
 	readonly technologyName: string;
 	readonly ruleIndex: number;
@@ -202,14 +221,13 @@ function createRuleEvaluationSummary(input: {
 		tabId: input.task.job.tabId,
 		jobId: input.task.job.jobId,
 		sessionId: input.task.job.sessionId,
-		expectedUrl: input.task.job.expectedUrl,
+		expectedUrlPreview: previewLogValue(input.task.job.expectedUrl),
 		partitionId: input.task.partitionId,
 		kind: input.task.kind,
 		observationIndex: input.observationIndex,
-		observationKey: observation.key,
-		observationValue: observation.value,
+		observationKey: observation.key === undefined ? undefined : previewLogValue(observation.key),
 		observationValuePreview: previewObservationValue(observation.value),
-		observationAttributes: observation.attributes,
+		observationValueLength: String(observation.value).length,
 		technologyId: input.event.technology.id,
 		technologyName: input.event.technology.name,
 		ruleIndex: input.event.ruleIndex,
@@ -340,7 +358,12 @@ function describePattern(pattern: RegExp | undefined): Record<string, string> | 
 }
 
 function previewObservationValue(value: ObservationValue): string {
-	return truncateForLog(String(value));
+	return previewLogValue(String(value));
+}
+
+/** Redact query values and secret-like fragments before diagnostics reach browser logs. */
+function previewLogValue(value: string): string {
+	return redactEvidenceValue(value, 240);
 }
 
 function truncateForLog(value: string): string {
