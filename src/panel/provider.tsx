@@ -1,12 +1,8 @@
 import { defineProxy } from "comctx";
 import { browser } from "wxt/browser";
-import { createMemo, createSignal, For, Show, onCleanup, onMount } from "solid-js";
+import { createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { createStore } from "solid-js/store";
 
-import { CategoryGroup } from "@/components/CategoryGroup";
-import { EmptyState } from "@/components/EmptyState";
-import { ErrorState } from "@/components/ErrorState";
-import { PopupShell } from "./PopupRegions";
 import { getKaijuSiteScopeLogger } from "@/lib/diagnostics/logging";
 import {
   DEFAULT_AUTO_SCAN_ENABLED,
@@ -35,40 +31,43 @@ import {
   BACKGROUND_RPC_NAMESPACE,
   createBackgroundClientAdapter,
   isSidePanelActionNotification,
+  isSidePanelTabNotification,
 } from "@/lib/messaging";
 import {
-  buildPopupAnalysisUpdate,
-  createPopupVisibleRevisionFromAnalysisResponse,
+  buildPanelAnalysisUpdate,
+  createPanelVisibleRevisionFromAnalysisResponse,
   createReplaySummaryFromTrace,
-  formatPopupAppError,
-  getPopupAnalysisActivity,
-  getPopupMatcherStatusFromSnapshot,
+  formatPanelAppError,
+  getPanelAnalysisActivity,
+  getPanelMatcherStatusFromSnapshot,
   getReplayHistoryForVisibleAnalysis,
-  getPopupObservationLabel,
-  getPopupObservationModeFromSession,
-  getPopupObservationModeFromSnapshot,
+  getPanelObservationLabel,
+  getPanelObservationModeFromSession,
+  getPanelObservationModeFromSnapshot,
   groupDetectionsByPrimaryCategory,
-  isPopupVisibleRevisionPending,
-  shouldApplyPopupReplayState,
-  shouldApplyPopupSnapshotRevision,
-  shouldPreservePopupReplayState,
-  type PopupExplanationLookup,
-  type PopupMatcherStatus,
-  type PopupNotice,
-  type PopupObservationMode,
-  type PopupVisibleRevision,
-} from "@/lib/popup/view-model";
+  isPanelVisibleRevisionPending,
+  shouldApplyPanelReplayState,
+  shouldApplyPanelSnapshotRevision,
+  shouldPreservePanelReplayState,
+  type PanelExplanationLookup,
+  type PanelMatcherStatus,
+  type PanelNotice,
+  type PanelObservationMode,
+  type PanelVisibleRevision,
+} from "@/lib/panel/view-model";
 import {
-  createStoredPopupVisibleRevision,
+  createStoredPanelVisibleRevision,
   isNewerSnapshotRevision,
-  readStoredPopupAnalysis,
-  subscribeToPopupSnapshotRevisions,
-} from "@/lib/popup/snapshot-state";
+  readStoredPanelAnalysis,
+  subscribeToPanelSnapshotRevisions,
+} from "@/lib/panel/snapshot-state";
 import { browserDetectionPersistence } from "@/lib/persistence";
+import { PanelContext, type PanelContextType } from "@/panel/context";
+import { getPanelTabTarget, getPanelWindowId, type PanelTabTarget } from "@/panel/tab";
+import { shouldSyncPanelTabUpdate } from "@/panel/tab-update";
 
-import "./App.css";
 
-const popupLogger = getKaijuSiteScopeLogger("popup");
+const panelLogger = getKaijuSiteScopeLogger("sidepanel");
 const [, injectBackgroundApi] = defineProxy(() => ({}) as BackgroundApi, {
   namespace: BACKGROUND_RPC_NAMESPACE,
   heartbeatCheck: false,
@@ -76,14 +75,14 @@ const [, injectBackgroundApi] = defineProxy(() => ({}) as BackgroundApi, {
 });
 
 const backgroundApi = injectBackgroundApi(
-  createBackgroundClientAdapter("popup", { href: globalThis.location?.href }),
+  createBackgroundClientAdapter("sidepanel", { href: globalThis.location?.href }),
 );
 
-/** Popup commands own the visible target separately from mode and observation policy. */
-type PopupAnalysisCommandInput = Omit<AnalyzeVisibleTabInput, "target">;
+/** Panel commands own the visible target separately from mode and observation policy. */
+type PanelAnalysisCommandInput = Omit<AnalyzeVisibleTabInput, "target">;
 
-function logPopupEvent(event: string, details?: Record<string, unknown>): void {
-  popupLogger.debug("[kaiju-site-scope][popup] {event}", {
+function logPanelEvent(event: string, details?: Record<string, unknown>): void {
+  panelLogger.debug("[kaiju-site-scope][sidepanel] {event}", {
     event,
     ...(details ?? {}),
   });
@@ -104,11 +103,11 @@ function normalizeError(error: unknown): string {
  * snapshot itself so final replay-backed snapshots can clear the busy state.
  */
 function getMatcherStatusForAnalysisResponse(
-  revision: PopupVisibleRevision,
+  revision: PanelVisibleRevision,
   source: "initial" | "manual" | "auto",
-  currentStatus: PopupMatcherStatus,
-): PopupMatcherStatus {
-  if (isPopupVisibleRevisionPending(revision)) {
+  currentStatus: PanelMatcherStatus,
+): PanelMatcherStatus {
+  if (isPanelVisibleRevisionPending(revision)) {
     return "matching";
   }
 
@@ -126,6 +125,7 @@ function getMatcherStatusForAnalysisResponse(
 function isSameVisibleTabIdentity(left: VisibleTabIdentity | null, right: VisibleTabIdentity): boolean {
   return Boolean(
     left &&
+      left.windowId === right.windowId &&
       left.tabId === right.tabId &&
       left.frameId === right.frameId &&
       left.originHash === right.originHash &&
@@ -134,7 +134,7 @@ function isSameVisibleTabIdentity(left: VisibleTabIdentity | null, right: Visibl
 }
 
 
-type PopupWorkflowState =
+type PanelWorkflowState =
   | { readonly kind: "idle" }
   | { readonly kind: "loading-stored-snapshot"; readonly identity: VisibleTabIdentity }
   | { readonly kind: "queued-initial-analysis"; readonly identity: VisibleTabIdentity | null }
@@ -146,8 +146,8 @@ type PopupWorkflowState =
 
 type VisibleTabIdentitySyncReason = "initial" | "tab-change";
 
-/** Popup actions are busy only while user-visible commands own the current tab target. */
-function isPopupWorkflowBusy(state: PopupWorkflowState): boolean {
+/** Panel actions are busy only while user-visible commands own the current tab target. */
+function isPanelWorkflowBusy(state: PanelWorkflowState): boolean {
   return (
     state.kind === "loading-stored-snapshot" ||
     state.kind === "queued-initial-analysis" ||
@@ -156,7 +156,7 @@ function isPopupWorkflowBusy(state: PopupWorkflowState): boolean {
   );
 }
 
-/** True when a background response still belongs to the tab the popup is rendering. */
+/** True when a background response still belongs to the tab the side panel is rendering. */
 function canApplyAnalysisResponseToVisibleIdentity(
   response: AnalyzeVisibleTabOutput,
   requestedIdentity: VisibleTabIdentity | null,
@@ -192,21 +192,6 @@ function shouldPreserveVisibleAnalysisForQueuedPlaceholder(
   );
 }
 
-/** Format replay timestamps for the compact popup history list. */
-function formatReplayTime(trace: DetectionReplayTrace) {
-  return new Date(trace.analyzedAt).toLocaleString();
-}
-
-/** Summarize a full replay trace without exposing raw page observations. */
-function formatReplaySummary(trace: DetectionReplayTrace) {
-  return `${trace.resultCount} detection${trace.resultCount === 1 ? "" : "s"}`;
-}
-
-/** Summarize the latest stored replay receipt when the full history is not hydrated yet. */
-function formatReplaySummarySnapshot(summary: DetectionReplaySummary) {
-  return `${summary.resultCount} detection${summary.resultCount === 1 ? "" : "s"} · ${summary.eventCount} replay event${summary.eventCount === 1 ? "" : "s"}`;
-}
-
 function formatEvidenceCompleteness(state: DetectionEvidenceState | null): string {
   if (!state) return "unknown";
 
@@ -218,19 +203,8 @@ function formatEvidenceCompleteness(state: DetectionEvidenceState | null): strin
   return "unknown";
 }
 
-function LoadingState(props: { headline: string; message: string }) {
-  return (
-    <div class="loading-state" role="status" aria-live="polite">
-      <span class="loading-spinner" aria-hidden="true" />
-      <div>
-        <strong>{props.headline}</strong>
-        <p>{props.message}</p>
-      </div>
-    </div>
-  );
-}
-
-export default function App() {
+/** Own browser subscriptions and detector state that must survive routed page changes. */
+export function PanelProvider(props: { readonly children: JSX.Element }) {
   const [status, setStatus] = createStore<AnalysisStatus>({
     totalAnalyses: 0,
     trackedOrigins: 0,
@@ -239,15 +213,15 @@ export default function App() {
    * User-visible commands and tab switches share one workflow state so buttons,
    * busy affordances, and stale-response guards read the same target ownership.
    */
-  const [workflow, setWorkflow] = createSignal<PopupWorkflowState>({ kind: "idle" });
-  const [liveUpdateMode, setLiveUpdateMode] = createSignal<PopupObservationMode>("unknown");
-  const [notice, setNotice] = createSignal<PopupNotice | null>(null);
+  const [workflow, setWorkflow] = createSignal<PanelWorkflowState>({ kind: "idle" });
+  const [liveUpdateMode, setLiveUpdateMode] = createSignal<PanelObservationMode>("unknown");
+  const [notice, setNotice] = createSignal<PanelNotice | null>(null);
   const [errorMessage, setErrorMessage] = createSignal("");
   const [analysis, setAnalysis] = createSignal<SiteAnalysis | null>(null);
   const [lateAddedIds, setLateAddedIds] = createSignal<string[]>([]);
   const [explanationsByTechnologyId, setExplanationsByTechnologyId] =
-    createSignal<PopupExplanationLookup>({});
-  const [matcherStatus, setMatcherStatus] = createSignal<PopupMatcherStatus>("idle");
+    createSignal<PanelExplanationLookup>({});
+  const [matcherStatus, setMatcherStatus] = createSignal<PanelMatcherStatus>("idle");
   const [replayHistory, setReplayHistory] = createSignal<readonly DetectionReplayTrace[]>([]);
   const [latestReplaySummary, setLatestReplaySummary] = createSignal<DetectionReplaySummary | null>(null);
   const [evidenceState, setEvidenceState] = createSignal<DetectionEvidenceState | null>(null);
@@ -266,6 +240,8 @@ export default function App() {
   const [visibleLifecycleSnapshotRevision, setVisibleLifecycleSnapshotRevision] = createSignal<DetectionSessionSnapshot | null>(null);
   let unsubscribeSnapshotRevisions: (() => void) | undefined;
   let subscribedSnapshotSessionKey: DetectionSessionKey | null = null;
+  let panelWindowId: number | null = null;
+  let disposed = false;
 
   const analysisRequestInFlight = createMemo(() => analysisRequestTarget() !== null);
   const visibleAnalysisRequestInFlight = createMemo(() => {
@@ -278,10 +254,10 @@ export default function App() {
     const queued = queuedManualRefreshIdentity() ?? queuedAnalysisIdentity();
     return Boolean(visible && queued && isSameVisibleTabIdentity(visible, queued));
   });
-  const workflowBusy = createMemo(() => isPopupWorkflowBusy(workflow()));
-  const busy = createMemo(() => isPopupWorkflowBusy(workflow()) || analysisRequestInFlight());
+  const workflowBusy = createMemo(() => isPanelWorkflowBusy(workflow()));
+  const busy = createMemo(() => isPanelWorkflowBusy(workflow()) || analysisRequestInFlight());
   const matcherProgress = createMemo(() => visibleDetectorSnapshotRevision()?.matcherProgress);
-  const analysisActivity = createMemo(() => getPopupAnalysisActivity({
+  const analysisActivity = createMemo(() => getPanelAnalysisActivity({
     matcherStatus: matcherStatus(),
     workflowBusy: workflowBusy(),
     analysisRequestInFlight: visibleAnalysisRequestInFlight(),
@@ -291,11 +267,11 @@ export default function App() {
   const resultCount = createMemo(() => analysis()?.results.length ?? 0);
   const groupedResults = createMemo(() => groupDetectionsByPrimaryCategory(analysis()?.results ?? []));
   const hasLateDetections = createMemo(() => lateAddedIds().length > 0);
-  const liveUpdateChipLabel = createMemo(() => getPopupObservationLabel(liveUpdateMode()));
+  const liveUpdateChipLabel = createMemo(() => getPanelObservationLabel(liveUpdateMode()));
   const evidenceCompletenessLabel = createMemo(() => formatEvidenceCompleteness(evidenceState()));
 
-  async function hydrateReplayHistoryIfMissing(revision: PopupVisibleRevision) {
-    if (!shouldApplyPopupReplayState(revision)) {
+  async function hydrateReplayHistoryIfMissing(revision: PanelVisibleRevision) {
+    if (!shouldApplyPanelReplayState(revision)) {
       return;
     }
 
@@ -305,6 +281,7 @@ export default function App() {
 
     try {
       const historyResponse = await backgroundApi.getReplayTraceHistory({ url: revision.analysis.url });
+      if (disposed) return;
       if (historyResponse.ok) {
         const current = analysis();
         if (current?.url === revision.analysis.url) {
@@ -312,7 +289,7 @@ export default function App() {
         }
       }
     } catch (error) {
-      logPopupEvent("replay-history-hydration-failed", {
+      logPanelEvent("replay-history-hydration-failed", {
         message: normalizeError(error),
       });
     }
@@ -320,7 +297,7 @@ export default function App() {
 
 
   async function drainQueuedAnalysisWork(): Promise<void> {
-    if (analysisRequestInFlight()) {
+    if (disposed || analysisRequestInFlight()) {
       return;
     }
 
@@ -331,7 +308,7 @@ export default function App() {
     } else if (manualIdentity) {
       setQueuedManualRefreshIdentity(null);
       await loadLatestAnalysisForIdentity(manualIdentity, {
-        input: { mode: "refresh", observe: "while-popup-open" },
+        input: { mode: "refresh", observe: "while-panel-open" },
         resetLateMarkers: true,
         source: "manual",
       });
@@ -344,7 +321,7 @@ export default function App() {
     } else if (queuedIdentity) {
       setQueuedAnalysisIdentity(null);
       await loadLatestAnalysisForIdentity(queuedIdentity, {
-        input: { mode: "snapshot-first", observe: "while-popup-open" },
+        input: { mode: "snapshot-first", observe: "while-panel-open" },
         resetLateMarkers: !analysis(),
         source: "initial",
       });
@@ -365,7 +342,7 @@ export default function App() {
   }
 
   function updateMatcherStatusFromSnapshot(snapshot: DetectionSessionSnapshot): void {
-    const status = getPopupMatcherStatusFromSnapshot(snapshot);
+    const status = getPanelMatcherStatusFromSnapshot(snapshot);
     if (status) setMatcherStatus(status);
   }
 
@@ -401,7 +378,7 @@ export default function App() {
 
     unsubscribeSnapshotRevisions?.();
     subscribedSnapshotSessionKey = exactSessionKey ? { ...exactSessionKey } : null;
-    unsubscribeSnapshotRevisions = subscribeToPopupSnapshotRevisions(
+    unsubscribeSnapshotRevisions = subscribeToPanelSnapshotRevisions(
       identity,
       exactSessionKey,
       applySnapshotRevision,
@@ -409,11 +386,13 @@ export default function App() {
   }
 
   function applySnapshotRevision(snapshot: DetectionSessionSnapshot) {
+    if (disposed) return;
+
     const currentSnapshot = snapshot.source === "content"
       ? visibleLifecycleSnapshotRevision()
       : visibleDetectorSnapshotRevision();
     if (!isNewerSnapshotRevision(currentSnapshot, snapshot)) {
-      logPopupEvent("snapshot-revision-ignored", { revision: snapshot.revision, updatedAt: snapshot.updatedAt });
+      logPanelEvent("snapshot-revision-ignored", { revision: snapshot.revision, updatedAt: snapshot.updatedAt });
       return;
     }
 
@@ -422,14 +401,14 @@ export default function App() {
       subscribeToVisibleSnapshotRevisions(identity, snapshot.key);
     }
 
-    if (!shouldApplyPopupSnapshotRevision({ currentAnalysis: analysis(), snapshot })) {
+    if (!shouldApplyPanelSnapshotRevision({ currentAnalysis: analysis(), snapshot })) {
       if (snapshot.source === "content") {
         setVisibleLifecycleSnapshotRevision(snapshot);
       } else {
         setVisibleDetectorSnapshotRevision(snapshot);
       }
       updateMatcherStatusFromSnapshot(snapshot);
-      const nextMode = getPopupObservationModeFromSnapshot(snapshot);
+      const nextMode = getPanelObservationModeFromSnapshot(snapshot);
       setLiveUpdateMode(nextMode);
       if (snapshot.replaySummary) {
         setLatestReplaySummary(snapshot.replaySummary);
@@ -442,7 +421,7 @@ export default function App() {
           text: "Observation stopped. Existing detections stay visible until refresh starts a new session.",
         });
       }
-      logPopupEvent("snapshot-lifecycle-applied", {
+      logPanelEvent("snapshot-lifecycle-applied", {
         revision: snapshot.revision,
         resultCount: snapshot.analysis.results.length,
         status: snapshot.status,
@@ -461,12 +440,12 @@ export default function App() {
       setLatestReplaySummary(snapshot.replaySummary);
     }
     updateMatcherStatusFromSnapshot(snapshot);
-    logPopupEvent("snapshot-revision-applied", {
+    logPanelEvent("snapshot-revision-applied", {
       revision: snapshot.revision,
       resultCount: snapshot.analysis.results.length,
       status: snapshot.status,
     });
-    applyPopupRevision(createStoredPopupVisibleRevision({
+    applyPanelRevision(createStoredPanelVisibleRevision({
       source: "origin-snapshot",
       analysis: snapshot.analysis,
       snapshot,
@@ -477,11 +456,12 @@ export default function App() {
   async function renderStoredAnalysisForVisibleTab(identity: VisibleTabIdentity) {
     setWorkflow({ kind: "loading-stored-snapshot", identity });
     try {
-      const stored = await readStoredPopupAnalysis(identity, browserDetectionPersistence);
+      const stored = await readStoredPanelAnalysis(identity, browserDetectionPersistence);
+      if (disposed) return false;
       if (!stored) {
         const current = analysis();
         const preservingCurrentTabAnalysis = current?.url === identity.url;
-        logPopupEvent("stored-analysis-miss", {
+        logPanelEvent("stored-analysis-miss", {
           hostname: identity.hostname,
           preservingCurrentTabAnalysis,
           previousResultCount: current?.results.length ?? 0,
@@ -497,7 +477,7 @@ export default function App() {
         return false;
       }
 
-      logPopupEvent("stored-analysis-rendered", {
+      logPanelEvent("stored-analysis-rendered", {
         hostname: stored.analysis.hostname,
         source: stored.source,
         resultCount: stored.analysis.results.length,
@@ -511,28 +491,30 @@ export default function App() {
       } else {
         setMatcherStatus("idle");
       }
-      applyPopupRevision(stored.revision, {
+      applyPanelRevision(stored.revision, {
         source: "initial",
         resetLateMarkers: true,
         identity,
       });
       return true;
     } catch (error) {
-      logPopupEvent("stored-analysis-render-failed", { message: normalizeError(error) });
+      if (disposed) return false;
+      logPanelEvent("stored-analysis-render-failed", { message: normalizeError(error) });
       return false;
     } finally {
-      setWorkflow({ kind: "idle" });
+      if (!disposed) setWorkflow({ kind: "idle" });
     }
   }
 
   async function refreshStatus() {
     try {
       const response = await backgroundApi.getAnalysisStatus();
+      if (disposed) return;
       if (response.ok) {
         setStatus(response.value);
       }
     } catch (error) {
-      setErrorMessage(normalizeError(error));
+      if (!disposed) setErrorMessage(normalizeError(error));
     }
   }
 
@@ -595,11 +577,11 @@ export default function App() {
       identity?: VisibleTabIdentity;
     },
   ) {
-    applyPopupRevision(createPopupVisibleRevisionFromAnalysisResponse(response), options);
+    applyPanelRevision(createPanelVisibleRevisionFromAnalysisResponse(response), options);
   }
 
-  function applyPopupRevision(
-    revision: PopupVisibleRevision,
+  function applyPanelRevision(
+    revision: PanelVisibleRevision,
     options: {
       source: "initial" | "manual" | "auto";
       resetLateMarkers?: boolean;
@@ -607,8 +589,8 @@ export default function App() {
     },
   ) {
     const previousAnalysis = analysis();
-    const preserveReplayState = shouldPreservePopupReplayState({ previousAnalysis, revision });
-    const update = buildPopupAnalysisUpdate({
+    const preserveReplayState = shouldPreservePanelReplayState({ previousAnalysis, revision });
+    const update = buildPanelAnalysisUpdate({
       previousAnalysis,
       revision,
       source: options.source,
@@ -622,7 +604,7 @@ export default function App() {
       preserveReplayState ? explanationsByTechnologyId() : update.explanationsByTechnologyId,
     );
     setMatcherStatus(getMatcherStatusForAnalysisResponse(revision, options.source, matcherStatus()));
-    const shouldApplyReplayState = shouldApplyPopupReplayState(revision);
+    const shouldApplyReplayState = shouldApplyPanelReplayState(revision);
     const nextReplayHistory = shouldApplyReplayState
       ? getReplayHistoryForVisibleAnalysis(
         revision.replayHistory ?? (preserveReplayState ? replayHistory() : []),
@@ -642,7 +624,7 @@ export default function App() {
     );
     setEvidenceState(revision.evidence ?? null);
     setSessionTarget(revision.sessionTarget ?? sessionTarget());
-    logPopupEvent("analysis-applied", {
+    logPanelEvent("analysis-applied", {
       source: options.source,
       analysisSource: update.analysis.source,
       snapshotStatus: revision.snapshot.status,
@@ -654,13 +636,13 @@ export default function App() {
 
     setLiveUpdateMode(update.observationMode);
     if (update.shouldKeepLiveUpdatesActive) {
-      logPopupEvent("snapshot-stream-awaiting-revisions", {
+      logPanelEvent("snapshot-stream-awaiting-revisions", {
         observationMode: update.observationMode,
       });
     }
 
     if (update.addedDetectionIds.length) {
-      logPopupEvent("late-detections-found", {
+      logPanelEvent("late-detections-found", {
         hostname: update.analysis.hostname,
         addedCount: update.addedDetectionIds.length,
       });
@@ -676,13 +658,14 @@ export default function App() {
   async function syncObservationState() {
     try {
       const response = await readObservationSessionState();
+      if (disposed) return;
       if (!response) {
         setLiveUpdateMode("unknown");
         return;
       }
 
       if (!response.ok) {
-        logPopupEvent("observation-sync-unavailable", {
+        logPanelEvent("observation-sync-unavailable", {
           code: response.error.code,
           message: response.error.message,
         });
@@ -690,21 +673,22 @@ export default function App() {
         return;
       }
 
-      logPopupEvent("observation-sync", {
+      logPanelEvent("observation-sync", {
         status: response.value.status,
         stopReason: response.value.stopReason,
       });
 
-      const nextLiveUpdateMode = getPopupObservationModeFromSession(response.value);
+      const nextLiveUpdateMode = getPanelObservationModeFromSession(response.value);
       setLiveUpdateMode(nextLiveUpdateMode);
     } catch (error) {
+      if (disposed) return;
       setLiveUpdateMode("unknown");
       setErrorMessage(normalizeError(error));
     }
   }
 
   async function loadLatestAnalysis(options: {
-    input: PopupAnalysisCommandInput;
+    input: PanelAnalysisCommandInput;
     resetLateMarkers?: boolean;
     source: "initial" | "manual" | "auto";
   }) {
@@ -718,7 +702,7 @@ export default function App() {
   }
 
   async function loadLatestAnalysisForIdentity(identity: VisibleTabIdentity, options: {
-    input: PopupAnalysisCommandInput;
+    input: PanelAnalysisCommandInput;
     resetLateMarkers?: boolean;
     source: "initial" | "manual" | "auto";
   }) {
@@ -753,7 +737,7 @@ export default function App() {
 
     try {
       setMatcherStatus("collecting");
-      logPopupEvent("analysis-requested", {
+      logPanelEvent("analysis-requested", {
         source: options.source,
         mode: options.input.mode,
         observe: options.input.observe,
@@ -765,22 +749,23 @@ export default function App() {
         ...options.input,
         target: identity,
       });
+      if (disposed) return;
 
       if (!response.ok) {
-        logPopupEvent("analysis-failed", {
+        logPanelEvent("analysis-failed", {
           source: options.source,
           code: response.error.code,
           message: response.error.message,
         });
         if (isUserVisibleRefresh && isSameVisibleTabIdentity(visibleTabIdentity(), identity)) {
-          setErrorMessage(formatPopupAppError(response.error));
+          setErrorMessage(formatPanelAppError(response.error));
         }
         setMatcherStatus("idle");
         return;
       }
 
       if (pendingVisibleTabIdentitySync() === "tab-change") {
-        logPopupEvent("analysis-response-ignored-for-pending-tab-sync", {
+        logPanelEvent("analysis-response-ignored-for-pending-tab-sync", {
           source: options.source,
           responseUrl: response.value.analysis.url,
           expectedUrl: identity.url,
@@ -789,7 +774,7 @@ export default function App() {
       }
 
       if (!canApplyAnalysisResponseToVisibleIdentity(response.value, identity, visibleTabIdentity())) {
-        logPopupEvent("analysis-response-ignored-for-stale-tab", {
+        logPanelEvent("analysis-response-ignored-for-stale-tab", {
           source: options.source,
           responseUrl: response.value.analysis.url,
           expectedUrl: identity.url,
@@ -811,10 +796,10 @@ export default function App() {
         setSessionTarget(response.value.sessionTarget ?? sessionTarget());
         setLiveUpdateMode(
           response.value.session
-            ? getPopupObservationModeFromSession(response.value.session)
+            ? getPanelObservationModeFromSession(response.value.session)
             : liveUpdateMode(),
         );
-        logPopupEvent("queued-placeholder-preserved-visible-analysis", {
+        logPanelEvent("queued-placeholder-preserved-visible-analysis", {
           source: options.source,
           visibleResultCount: analysis()?.results.length ?? 0,
           responseResultCount: response.value.analysis.results.length,
@@ -828,7 +813,8 @@ export default function App() {
       applyAnalysisResponse(response.value, { ...options, identity });
       await refreshStatus();
     } catch (error) {
-      logPopupEvent("analysis-request-threw", {
+      if (disposed) return;
+      logPanelEvent("analysis-request-threw", {
         source: options.source,
         message: normalizeError(error),
       });
@@ -837,13 +823,15 @@ export default function App() {
       }
       setMatcherStatus("idle");
     } finally {
-      if (isSameVisibleTabIdentity(analysisRequestTarget(), identity)) {
-        setAnalysisRequestTarget(null);
+      if (!disposed) {
+        if (isSameVisibleTabIdentity(analysisRequestTarget(), identity)) {
+          setAnalysisRequestTarget(null);
+        }
+        if (isUserVisibleRefresh && isSameVisibleTabIdentity(visibleTabIdentity(), identity)) {
+          setWorkflow({ kind: "idle" });
+        }
+        await drainQueuedAnalysisWork();
       }
-      if (isUserVisibleRefresh && isSameVisibleTabIdentity(visibleTabIdentity(), identity)) {
-        setWorkflow({ kind: "idle" });
-      }
-      await drainQueuedAnalysisWork();
     }
   }
 
@@ -862,18 +850,18 @@ export default function App() {
         return;
       }
 
-      logPopupEvent("observation-stop-requested", { sessionId: target.sessionId, tabId: target.tabId });
+      logPanelEvent("observation-stop-requested", { sessionId: target.sessionId, tabId: target.tabId });
       const response = await backgroundApi.stopObservationSession(target);
       if (!response.ok) {
-        logPopupEvent("observation-stop-failed", {
+        logPanelEvent("observation-stop-failed", {
           code: response.error.code,
           message: response.error.message,
         });
-        setErrorMessage(formatPopupAppError(response.error));
+        setErrorMessage(formatPanelAppError(response.error));
         return;
       }
 
-      logPopupEvent("observation-stopped", {
+      logPanelEvent("observation-stopped", {
         status: response.value.status,
         stopReason: response.value.stopReason,
       });
@@ -901,7 +889,7 @@ export default function App() {
     await loadLatestAnalysis({
       input: {
         mode: "refresh",
-        observe: "while-popup-open",
+        observe: "while-panel-open",
       },
       resetLateMarkers: true,
       source: "manual",
@@ -913,7 +901,7 @@ export default function App() {
     unsubscribeSnapshotRevisions = undefined;
     subscribedSnapshotSessionKey = null;
     subscribeToVisibleSnapshotRevisions(identity, null);
-    logPopupEvent("visible-state-reset", {
+    logPanelEvent("visible-state-reset", {
       previousUrl: analysis()?.url,
       previousResultCount: analysis()?.results.length ?? 0,
       nextUrl: identity.url,
@@ -928,18 +916,19 @@ export default function App() {
     setWorkflow({ kind: "switching-tab", identity });
   }
 
-  async function activatePopupVisibleTab(identity: VisibleTabIdentity, reason: "initial" | "tab-change"): Promise<void> {
+  async function activatePanelVisibleTab(identity: VisibleTabIdentity, reason: "initial" | "tab-change"): Promise<void> {
     if (isSameVisibleTabIdentity(visibleTabIdentity(), identity)) return;
 
-    logPopupEvent("visible-tab-identity-applied", {
+    logPanelEvent("visible-tab-identity-applied", {
       reason,
       tabId: identity.tabId,
       hostname: identity.hostname,
     });
     resetVisibleStateForVisibleTab(identity);
     await renderStoredAnalysisForVisibleTab(identity);
+    if (disposed) return;
     if (pendingVisibleTabIdentitySync() === "tab-change") {
-      logPopupEvent("visible-tab-analysis-deferred-for-pending-sync", {
+      logPanelEvent("visible-tab-analysis-deferred-for-pending-sync", {
         tabId: identity.tabId,
         hostname: identity.hostname,
       });
@@ -948,11 +937,12 @@ export default function App() {
     await loadLatestAnalysisForIdentity(identity, {
       input: {
         mode: "snapshot-first",
-        observe: "while-popup-open",
+        observe: "while-panel-open",
       },
       resetLateMarkers: !analysis(),
       source: "initial",
     });
+    if (disposed) return;
     if (pendingVisibleTabIdentitySync() === "tab-change") {
       return;
     }
@@ -969,34 +959,85 @@ export default function App() {
     });
   }
 
-  async function syncVisibleTabIdentity(reason: VisibleTabIdentitySyncReason): Promise<void> {
+  function resetVisibleStateForUnavailableTab(message: string): void {
+    unsubscribeSnapshotRevisions?.();
+    unsubscribeSnapshotRevisions = undefined;
+    subscribedSnapshotSessionKey = null;
+    setVisibleDetectorSnapshotRevision(null);
+    setVisibleLifecycleSnapshotRevision(null);
+    setVisibleTabIdentity(null);
+    setSessionTarget(null);
+    setQueuedAnalysisIdentity(null);
+    setQueuedManualRefreshIdentity(null);
+    setAnalysis(null);
+    setLateAddedIds([]);
+    setExplanationsByTechnologyId({});
+    setReplayHistory([]);
+    setLatestReplaySummary(null);
+    setEvidenceState(null);
+    setLiveUpdateMode("unknown");
+    setMatcherStatus("idle");
+    setNotice(null);
+    setErrorMessage(message);
+    setWorkflow({ kind: "failed", identity: null, message });
+  }
+
+  async function syncVisibleTabIdentity(
+    reason: VisibleTabIdentitySyncReason,
+    requestedTarget?: PanelTabTarget,
+  ): Promise<void> {
+    if (disposed) return;
+
     if (visibleTabIdentitySyncInFlight()) {
       queueVisibleTabIdentitySync(reason);
       return;
     }
 
+    if (panelWindowId === null) {
+      queueVisibleTabIdentitySync(reason);
+      return;
+    }
+
+    if (requestedTarget && requestedTarget.windowId !== panelWindowId) {
+      return;
+    }
+
     setVisibleTabIdentitySyncInFlight(true);
     try {
-      const identityResponse = await backgroundApi.getVisibleTabIdentity();
+      const target = requestedTarget ?? await getPanelTabTarget(panelWindowId);
+      if (disposed) return;
+      if (!target) {
+        const message = "No active browser tab is available in this window.";
+        logPanelEvent("visible-tab-target-unavailable", { reason, windowId: panelWindowId });
+        resetVisibleStateForUnavailableTab(message);
+        return;
+      }
+
+      const identityResponse = await backgroundApi.getVisibleTabIdentity({ tabId: target.tabId, windowId: target.windowId });
+      if (disposed) return;
       if (!identityResponse.ok) {
-        logPopupEvent("visible-tab-identity-unavailable", {
+        const message = formatPanelAppError(identityResponse.error);
+        logPanelEvent("visible-tab-identity-unavailable", {
           reason,
+          windowId: target.windowId,
+          tabId: target.tabId,
           code: identityResponse.error.code,
           message: identityResponse.error.message,
         });
-        if (reason === "initial") {
-          setErrorMessage(formatPopupAppError(identityResponse.error));
-        }
+        resetVisibleStateForUnavailableTab(message);
         return;
       }
 
       if (isSameVisibleTabIdentity(visibleTabIdentity(), identityResponse.value)) {
+        setErrorMessage("");
+        if (workflow().kind === "failed") setWorkflow({ kind: "idle" });
         return;
       }
 
       if (reason === "tab-change" && analysisRequestInFlight()) {
         setQueuedAnalysisIdentity(identityResponse.value);
-        logPopupEvent("visible-tab-identity-rendered-during-refresh", {
+        logPanelEvent("visible-tab-identity-rendered-during-refresh", {
+          windowId: target.windowId,
           tabId: identityResponse.value.tabId,
           hostname: identityResponse.value.hostname,
         });
@@ -1009,11 +1050,16 @@ export default function App() {
         return;
       }
 
-      await activatePopupVisibleTab(identityResponse.value, reason);
+      await activatePanelVisibleTab(identityResponse.value, reason);
+    } catch (error) {
+      if (disposed) return;
+      const message = normalizeError(error);
+      logPanelEvent("visible-tab-sync-failed", { reason, windowId: panelWindowId, message });
+      resetVisibleStateForUnavailableTab(message);
     } finally {
       setVisibleTabIdentitySyncInFlight(false);
       const pendingReason = pendingVisibleTabIdentitySync();
-      if (pendingReason) {
+      if (!disposed && pendingReason) {
         setPendingVisibleTabIdentitySync(null);
         void syncVisibleTabIdentity(pendingReason);
       }
@@ -1021,19 +1067,26 @@ export default function App() {
   }
 
   onMount(() => {
+    const handleActivated = (activeInfo: { readonly tabId: number; readonly windowId: number }): void => {
+      if (panelWindowId !== activeInfo.windowId) return;
+      void syncVisibleTabIdentity("tab-change", activeInfo);
+    };
     const handleUpdated = (
       tabId: number,
       changeInfo: { readonly status?: string; readonly url?: string },
-      tab: { readonly active?: boolean },
+      tab: { readonly active?: boolean; readonly windowId?: number },
     ): void => {
-      const identity = visibleTabIdentity();
-      if (!identity || identity.tabId !== tabId || tab.active !== true) {
+      if (!shouldSyncPanelTabUpdate({
+        tabId,
+        panelWindowId,
+        visibleTabId: visibleTabIdentity()?.tabId ?? null,
+        changeInfo,
+        tab,
+      })) {
         return;
       }
 
-      if (typeof changeInfo.url === "string" || changeInfo.status === "loading") {
-        void syncVisibleTabIdentity("tab-change");
-      }
+      void syncVisibleTabIdentity("tab-change", { windowId: tab.windowId!, tabId });
     };
     const handleVisibilityChange = (): void => {
       if (document.visibilityState === "visible") {
@@ -1041,37 +1094,55 @@ export default function App() {
       }
     };
     const handleRuntimeMessage = (message: unknown): void => {
-      if (!isSidePanelActionNotification(message)) {
+      if (isSidePanelActionNotification(message)) {
+        if (message.windowId !== panelWindowId) return;
+        void syncVisibleTabIdentity("tab-change", message);
         return;
       }
 
-      const identity = visibleTabIdentity();
-      if (identity && identity.tabId !== message.tabId) {
+      if (!isSidePanelTabNotification(message) || message.windowId !== panelWindowId) {
         return;
       }
 
-      // An already-mounted panel may need to re-read the tab after a toolbar
-      // click grants activeTab for a newly navigated origin. The normal identity
-      // sync starts analysis only when the target actually changed, avoiding a
-      // duplicate first-launch scan for a panel that just mounted.
-      void syncVisibleTabIdentity("tab-change");
+      // The panel listens to tabs events directly and receives the same exact
+      // target through the background service worker. Identity comparison makes
+      // duplicate lifecycle notifications harmless while either path can recover
+      // a mounted panel whose direct extension-page event was missed.
+      void syncVisibleTabIdentity("tab-change", message);
     };
 
+    browser.tabs.onActivated.addListener(handleActivated);
     browser.tabs.onUpdated.addListener(handleUpdated);
     browser.runtime.onMessage.addListener(handleRuntimeMessage);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     void (async () => {
-      logPopupEvent("mount");
+      logPanelEvent("mount");
       try {
-        setAutoScanEnabled(await getAutoScanEnabled());
+        panelWindowId = await getPanelWindowId();
+        if (disposed) return;
+        logPanelEvent("window-target-resolved", { windowId: panelWindowId });
       } catch (error) {
-        logPopupEvent("auto-scan-setting-read-failed", { message: normalizeError(error) });
+        if (disposed) return;
+        const message = normalizeError(error);
+        logPanelEvent("window-target-failed", { message });
+        resetVisibleStateForUnavailableTab(message);
+        return;
+      }
+
+      try {
+        const enabled = await getAutoScanEnabled();
+        if (disposed) return;
+        setAutoScanEnabled(enabled);
+      } catch (error) {
+        if (!disposed) logPanelEvent("auto-scan-setting-read-failed", { message: normalizeError(error) });
       }
       await refreshStatus();
       await syncVisibleTabIdentity("initial");
     })();
 
     onCleanup(() => {
+      disposed = true;
+      browser.tabs.onActivated.removeListener(handleActivated);
       browser.tabs.onUpdated.removeListener(handleUpdated);
       browser.runtime.onMessage.removeListener(handleRuntimeMessage);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -1083,229 +1154,39 @@ export default function App() {
     unsubscribeSnapshotRevisions = undefined;
     subscribedSnapshotSessionKey = null;
     const target = sessionTarget();
-    logPopupEvent(target ? "cleanup-retain-observation" : "cleanup-without-owned-session", target
+    logPanelEvent(target ? "cleanup-retain-observation" : "cleanup-without-owned-session", target
       ? { sessionId: target.sessionId, tabId: target.tabId }
       : undefined);
   });
 
-  return (
-    <PopupShell.Root busy={busy()}>
-      <PopupShell.Hero>
-        <PopupShell.HeroCopy>
-          <p class="eyebrow">Technology Detection</p>
-          <h1>Kaiju Site Scope</h1>
-          <p class="lede">
-            Analyze the visible tab locally, then keep the latest normalized
-            detections up to date as the page lazy-loads.
-          </p>
-        </PopupShell.HeroCopy>
+  const context: PanelContextType = {
+    status,
+    busy,
+    liveUpdateMode,
+    notice,
+    errorMessage,
+    analysis,
+    visibleTabIdentity,
+    lateAddedIds,
+    explanationsByTechnologyId,
+    matcherStatus,
+    replayHistory,
+    latestReplaySummary,
+    evidenceState,
+    resultCount,
+    groupedResults,
+    hasLateDetections,
+    liveUpdateChipLabel,
+    evidenceCompletenessLabel,
+    analysisActivity,
+    autoScanEnabled,
+    autoScanSettingInFlight,
+    clearStoredDataInFlight,
+    refresh: refreshAndRestartObservation,
+    stopObservation,
+    setAutoScanEnabled: updateAutoScanSetting,
+    clearStoredData,
+  };
 
-        <PopupShell.Actions>
-          <button
-            class="primary-button"
-            disabled={busy()}
-            onClick={() => void refreshAndRestartObservation()}
-          >
-            {busy() ? "Refreshing..." : "Refresh"}
-          </button>
-          <button
-            class="secondary-button"
-            disabled={busy() || liveUpdateMode() !== "active"}
-            onClick={() => void stopObservation()}
-          >
-            Stop observation
-          </button>
-        </PopupShell.Actions>
-
-        <PopupShell.Stats>
-          <PopupShell.Stat
-            accent="moss"
-            label="Cached Analyses"
-            value={status.totalAnalyses}
-          />
-          <PopupShell.Stat
-            accent="amber"
-            label="Tracked Origins"
-            value={status.trackedOrigins}
-          />
-          <PopupShell.Stat
-            accent="slate"
-            label="Detected Technologies"
-            value={resultCount()}
-          />
-        </PopupShell.Stats>
-
-        <PopupShell.Metrics>
-          <p>Source: {analysis()?.source ?? "none"}</p>
-          <p>Host: {analysis()?.hostname ?? visibleTabIdentity()?.hostname ?? "not analyzed"}</p>
-          <p>Detector: {analysisActivity().label}</p>
-          <p>Evidence: {evidenceCompletenessLabel()}</p>
-          <p>Observation: {liveUpdateChipLabel().toLowerCase()}</p>
-        </PopupShell.Metrics>
-      </PopupShell.Hero>
-
-      <PopupShell.Feedback>
-        <Show when={errorMessage()}>
-          {(value) => <ErrorState message={value()} />}
-        </Show>
-        <Show when={notice()}>
-          {(value) => (
-            <p
-              class={`status-message ${value().variant}`}
-              role="status"
-              aria-live="polite"
-            >
-              {value().text}
-            </p>
-          )}
-        </Show>
-        <Show when={analysisActivity().busy}>
-          <div class="scan-activity" role="status" aria-live="polite">
-            <div class="scan-activity-orb" aria-hidden="true" />
-            <div class="scan-activity-copy">
-              <strong>{analysisActivity().headline}</strong>
-              <p>{analysisActivity().description}</p>
-            </div>
-          </div>
-        </Show>
-      </PopupShell.Feedback>
-
-
-      <section class="auto-scan-setting" aria-label="Automatic scanning">
-        <label class="auto-scan-toggle">
-          <input
-            type="checkbox"
-            checked={autoScanEnabled()}
-            disabled={autoScanSettingInFlight()}
-            onChange={(event) => void updateAutoScanSetting(event.currentTarget.checked)}
-          />
-          <span>
-            <strong>Scan pages automatically</strong>
-            <small>
-              Start a bounded local analysis when an active HTTP or HTTPS page finishes loading.
-              Turn this off to scan only when you open this panel or press Refresh.
-            </small>
-          </span>
-        </label>
-      </section>
-
-      <section class="privacy-disclosure" aria-label="Privacy and local storage">
-        <div>
-          <strong>Local page analysis</strong>
-          <p>
-            When automatic scanning is enabled, Kaiju Site Scope can inspect normal HTTP/HTTPS
-            pages as they become active. Detection runs locally; results, replay summaries, and
-            cache records stay in extension storage unless you clear them or uninstall the extension.
-          </p>
-        </div>
-        <button
-          class="secondary-button compact-button"
-          disabled={clearStoredDataInFlight()}
-          onClick={() => void clearStoredData()}
-        >
-          {clearStoredDataInFlight() ? "Clearing..." : "Clear stored detector data"}
-        </button>
-      </section>
-
-      <PopupShell.ResultPanel
-        modeChip={(
-          <Show when={analysis()}>
-            {(value) => <span class="mode-chip">{value().source}</span>}
-          </Show>
-        )}
-        meta={
-          analysisActivity().busy
-            ? analysisActivity().description
-            : hasLateDetections()
-              ? `${lateAddedIds().length} detection${lateAddedIds().length === 1 ? "" : "s"} changed during recent analysis updates and are marked below.`
-              : liveUpdateMode() === "active"
-                ? "Initial scan is complete. Observed page updates will appear separately as new evidence arrives."
-                : liveUpdateMode() === "stopped"
-                  ? "Observation is stopped. The latest detector snapshot remains visible until refresh starts a new session."
-                  : "Showing the latest detector snapshot for this page."
-        }
-      >
-        <Show
-          when={analysis()}
-          fallback={
-            <EmptyState message="Opening the popup loads the latest detections automatically." />
-          }
-        >
-          {(value) => (
-            <Show
-              when={value().results.length}
-              fallback={
-                <Show
-                  when={analysisActivity().busy}
-                  fallback={<EmptyState message="No technologies detected yet." />}
-                >
-                  <LoadingState
-                    headline={analysisActivity().headline}
-                    message={analysisActivity().description}
-                  />
-                </Show>
-              }
-            >
-              <For each={groupedResults()}>
-                {(group) => (
-                  <CategoryGroup
-                    label={group.label}
-                    results={group.results}
-                    newDetectionIds={lateAddedIds()}
-                    explanationsByTechnologyId={explanationsByTechnologyId()}
-                  />
-                )}
-              </For>
-              <Show when={!analysisActivity().busy && (Boolean(latestReplaySummary()) || replayHistory().length > 0)}>
-                <PopupShell.ReplayHistory>
-                  <div class="replay-history-heading">
-                    <h3>Replay History</h3>
-                    <p class="result-meta">
-                      {matcherStatus() === "recording" || matcherStatus() === "matching"
-                        ? "Current run is still recording. Stored summaries appear here as soon as snapshot persistence completes."
-                        : liveUpdateMode() === "active"
-                        ? "A saved replay receipt is available, but page observation is still open and new detections can still arrive."
-                        : "Replay receipts that match the visible detector run. Open one to inspect the saved explanation count."}
-                    </p>
-                    <Show when={latestReplaySummary()}>
-                      {(summary) => (
-                        <p class="result-meta">
-                          Latest stored summary: {formatReplaySummarySnapshot(summary())}
-                        </p>
-                      )}
-                    </Show>
-                  </div>
-                  <Show when={replayHistory().length > 0}>
-                    <ol class="replay-history-list">
-                      <For each={replayHistory().slice(0, 5)}>
-                        {(trace) => (
-                          <li>
-                            <details>
-                              <summary>
-                                <span>{formatReplayTime(trace)}</span>
-                                <span>{formatReplaySummary(trace)}</span>
-                              </summary>
-                              <ul class="evidence-list replay-event-list">
-                                <For each={trace.events}>
-                                  {(event) => (
-                                    <li>
-                                      {event.sequence + 1}. {event.stage}: {event.count}
-                                    </li>
-                                  )}
-                                </For>
-                              </ul>
-                            </details>
-                          </li>
-                        )}
-                      </For>
-                    </ol>
-                  </Show>
-                </PopupShell.ReplayHistory>
-              </Show>
-            </Show>
-          )}
-        </Show>
-      </PopupShell.ResultPanel>
-    </PopupShell.Root>
-  );
+  return <PanelContext.Provider value={context}>{props.children}</PanelContext.Provider>;
 }

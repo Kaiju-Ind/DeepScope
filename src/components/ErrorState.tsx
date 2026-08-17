@@ -1,13 +1,13 @@
-/** Props for the popup error message component. */
+/** Props for the side panel error message component. */
 export type ErrorStateProps = {
 	/** Recovery-oriented error text shown to the user. */
 	message: string;
 };
 
 /**
- * Render a popup error message that assistive technology announces promptly.
+ * Render a side panel error message that assistive technology announces promptly.
  *
- * The popup uses this for recoverable background or content-script failures,
+ * The side panel uses this for recoverable background or content-script failures,
  * such as unsupported URLs or unavailable content scripts. `role="alert"` keeps
  * those failures visible to screen-reader users without adding a separate toast
  * system.

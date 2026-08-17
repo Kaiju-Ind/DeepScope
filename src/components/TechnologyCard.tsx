@@ -1,17 +1,17 @@
 import { For, Show } from 'solid-js';
 
 import type { Evidence, DetectionResult } from '@/lib/detection/types';
-import type { PopupDetectionExplanationSummary, PopupEvidencePreview } from '@/lib/popup/view-model';
+import type { PanelDetectionExplanationSummary, PanelEvidencePreview } from '@/lib/panel/view-model';
 
 export function TechnologyCard(props: {
 	/** Detection result rendered by this card. */
 	result: DetectionResult;
-	/** Whether this detection appeared after the popup opened. */
+	/** Whether this detection appeared after the side panel opened. */
 	isNew?: boolean;
 	/** Whether this card represents a live pending observation state. */
 	isPending?: boolean;
 	/** Optional explanation summary derived from redacted replay data. */
-	explanation?: PopupDetectionExplanationSummary;
+	explanation?: PanelDetectionExplanationSummary;
 }) {
 	const evidencePreview = () => props.explanation?.evidence.length
 		? props.explanation.evidence
@@ -69,7 +69,7 @@ export function TechnologyCard(props: {
 	);
 }
 
-function createEvidencePreviewFromResult(evidence: Evidence): PopupEvidencePreview {
+function createEvidencePreviewFromResult(evidence: Evidence): PanelEvidencePreview {
 	return {
 		kind: evidence.kind,
 		direct: evidence.direct !== false,
@@ -81,7 +81,7 @@ function createEvidencePreviewFromResult(evidence: Evidence): PopupEvidencePrevi
 	};
 }
 
-function formatEvidencePreview(item: PopupEvidencePreview): string {
+function formatEvidencePreview(item: PanelEvidencePreview): string {
 	const value = formatEvidenceValue(item);
 	const source = item.direct ? '' : ' inferred';
 	const version = item.version ? ` version ${item.version}` : '';
@@ -91,7 +91,7 @@ function formatEvidencePreview(item: PopupEvidencePreview): string {
 		: `${item.kind}${source}${version}`;
 }
 
-function formatEvidenceValue(item: PopupEvidencePreview): string | undefined {
+function formatEvidenceValue(item: PanelEvidencePreview): string | undefined {
 	if (item.kind === 'relationship') {
 		return item.matchedValue ?? item.sourceTechnologyId;
 	}
@@ -107,7 +107,7 @@ function formatEvidenceValue(item: PopupEvidencePreview): string | undefined {
 	return value ?? item.sourceTechnologyId;
 }
 
-function formatEvidenceAttributes(item: PopupEvidencePreview): string {
+function formatEvidenceAttributes(item: PanelEvidencePreview): string {
 	const entries = Object.entries(item.attributes ?? {}).filter(([key]) => key !== 'ruleIndex');
 	if (entries.length === 0) {
 		return '';

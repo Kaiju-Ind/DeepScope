@@ -1,7 +1,7 @@
 import { For } from 'solid-js';
 
 import type { DetectionResult } from '@/lib/detection/types';
-import type { PopupExplanationLookup } from '@/lib/popup/view-model';
+import type { PanelExplanationLookup } from '@/lib/panel/view-model';
 import { TechnologyCard } from './TechnologyCard';
 
 export function CategoryGroup(props: {
@@ -14,7 +14,7 @@ export function CategoryGroup(props: {
 	/** Whether every result in the group should render as pending. */
 	pendingResults?: boolean;
 	/** Explanation summaries keyed by technology id. */
-	explanationsByTechnologyId?: PopupExplanationLookup;
+	explanationsByTechnologyId?: PanelExplanationLookup;
 }) {
 	return (
 		<section class="category-group">
