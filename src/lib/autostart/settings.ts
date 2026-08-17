@@ -1,7 +1,7 @@
 import { browser } from 'wxt/browser';
 
 /** Storage key for the user-controlled page-load scanning preference. */
-export const AUTO_SCAN_ENABLED_STORAGE_KEY = 'kaiju-site-scope.settings.auto-scan-enabled.v1';
+export const AUTO_SCAN_ENABLED_STORAGE_KEY = 'kaiju-deepscope.settings.auto-scan-enabled.v1';
 
 /** Automatic scanning is the default product behavior unless the user disables it. */
 export const DEFAULT_AUTO_SCAN_ENABLED = true;

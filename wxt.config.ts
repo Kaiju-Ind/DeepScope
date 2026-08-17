@@ -1,14 +1,18 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
+import { fontless } from 'fontless';
 import Icons from 'unplugin-icons/vite';
 import { defineConfig } from 'wxt';
 
+/** Build identity embedded into diagnostic records and support bundles. */
 const buildId = `0.1.0-${new Date().toISOString()}`;
 
 export default defineConfig({
 	srcDir: 'src',
 	modules: ['@wxt-dev/module-solid'],
 	manifest: {
-		name: 'Kaiju Deepscope',
+		name: 'Kaiju DeepScope',
 		description: 'Detect web technologies automatically on active web pages and show the evidence behind each result.',
 		version: '0.1.0',
 		// comctx 1.7.5 calls Promise.withResolvers() in the extension startup path.
@@ -20,7 +24,7 @@ export default defineConfig({
 			128: '/icons/icon-128.png',
 		},
 		action: {
-			default_title: 'Kaiju Deepscope',
+			default_title: 'Kaiju DeepScope',
 			default_icon: {
 				16: '/icons/icon-16.png',
 				32: '/icons/icon-32.png',
@@ -33,6 +37,34 @@ export default defineConfig({
 	},
 	vite: () => ({
 		plugins: [
+			fontless({
+				provider: 'fontsource',
+				processCSSVariables: 'font-prefixed-only',
+				defaults: {
+					preload: true,
+					formats: ['woff2'],
+					weights: [400, 700],
+					styles: ['normal', 'italic'],
+
+					// Fallbacks use category-aware presets from fontaine
+					// Override specific generic families as needed
+					fallbacks: {
+						'sans-serif': ['Arial', 'Helvetica Neue'],
+						// serif, monospace, cursive, fantasy, system-ui, etc. use shared defaults
+					}
+				},
+				families: [
+					{ name: 'American Kestrel', src: [{ url: "/fonts/american-kestrel/americankestral.ttf", format: 'truetype' }], weight: 400, style: 'normal', fallbacks: ['Space Grotesk'] },
+					{ name: 'Space Grotesk', provider: 'fontsource', weights: [300, 400, 500, 600, 700] },
+					{ name: 'Inter', provider: 'fontsource', weights: [400, 500, 600, 700] },
+					{ name: 'Space Mono', provider: 'fontsource', weights: [400, 700] },
+				],
+
+				// Experimental features
+				experimental: {
+					disableLocalFallbacks: false
+				}
+			}),
 			tailwindcss(),
 			Icons({ compiler: 'solid' }),
 		],

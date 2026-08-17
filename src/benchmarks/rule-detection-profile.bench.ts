@@ -27,8 +27,8 @@ const BENCHMARK_OPTIONS = {
 	warmupIterations: 0,
 } as const;
 
-const ENABLE_REGISTRY_WIDE_SCAN = process.env.KAIJU_SITE_SCOPE_RULE_BENCH_REGISTRY_SCAN === '1';
-const ENABLE_GENERATED_PASS_SCAN = process.env.KAIJU_SITE_SCOPE_RULE_BENCH_GENERATED_PASS_SCAN === '1';
+const ENABLE_REGISTRY_WIDE_SCAN = process.env.KAIJU_DEEPSCOPE_RULE_BENCH_REGISTRY_SCAN === '1';
+const ENABLE_GENERATED_PASS_SCAN = process.env.KAIJU_DEEPSCOPE_RULE_BENCH_GENERATED_PASS_SCAN === '1';
 const registry = technologyDefinitions;
 const budgets = readRuleProfileBudgets(process.env);
 const curatedCases = createCuratedRuleProfileCases({
@@ -104,7 +104,7 @@ afterAll(() => {
 	const budgetViolations = findRuleProfileBudgetViolations(records, budgets)
 		.slice(0, budgets.reportLimit);
 
-	console.log('\n[kaiju-site-scope][rule-profile] coverage');
+	console.log('\n[kaiju-deepscope][rule-profile] coverage');
 	console.log([
 		`technologies=${coverage.technologyCount}`,
 		`rules=${coverage.ruleCount}`,
@@ -119,14 +119,14 @@ afterAll(() => {
 	].join(' '));
 
 	if (slowest.length > 0) {
-		console.log('\n[kaiju-site-scope][rule-profile] slowest rule evaluations');
+		console.log('\n[kaiju-deepscope][rule-profile] slowest rule evaluations');
 		for (const record of slowest) {
 			console.log(formatRuleTimingRecord(record));
 		}
 	}
 
 	if (expectationMismatches.length > 0) {
-		console.log('\n[kaiju-site-scope][rule-profile] expectation mismatches');
+		console.log('\n[kaiju-deepscope][rule-profile] expectation mismatches');
 		for (const record of expectationMismatches) {
 			console.log(formatRuleTimingRecord(record));
 		}
@@ -137,7 +137,7 @@ afterAll(() => {
 		return;
 	}
 
-	console.log('\n[kaiju-site-scope][rule-profile] budget violations');
+	console.log('\n[kaiju-deepscope][rule-profile] budget violations');
 	for (const record of budgetViolations) {
 		console.log(formatRuleTimingRecord(record));
 	}
