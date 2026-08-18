@@ -14,7 +14,7 @@ describe('crash-durable diagnostics architecture', () => {
 		expect(logging).toContain("sinks: { console: consoleSink, journal: journalSink }");
 		expect(logging).toContain("sinks: ['console', 'journal']");
 		expect(logging).toContain("level === 'warning' || level === 'error' || level === 'fatal'");
-		expect(logging).not.toContain("filters: ['kaijuSiteScopeBurstThrottle']");
+		expect(logging).not.toContain("filters: ['kaijuDeepScopeBurstThrottle']");
 	});
 
 	it('installs crash hooks on every long-lived extension execution surface', () => {
@@ -57,4 +57,14 @@ describe('crash-durable diagnostics architecture', () => {
 		expect(reconcile).toContain('cancelOffscreenMatcherJob(record.jobId)');
 		expect(contracts).toContain("| 'context-interrupted';");
 	});
+	it('virtualizes the diagnostic timeline after filtering instead of truncating visible records', () => {
+		const view = read('../../app/components/diagnostics-view.tsx');
+
+		expect(view).toContain("from '@tanstack/solid-virtual'");
+		expect(view).toContain('query.find(props.records');
+		expect(view).toContain('virtualizer.getVirtualItems()');
+		expect(view).toContain('ref={virtualizer.measureElement}');
+		expect(view).not.toContain('records.slice(0, 80)');
+	});
+
 });

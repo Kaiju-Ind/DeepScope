@@ -5,20 +5,14 @@
 @import './zaidan-fixes.css';
 @import './zaidan-density.css';
 
-/* Package-contained fonts keep the extension self-hosted and offline-safe. */
-@import '@fontsource-variable/inter/wght.css';
-@import '@fontsource-variable/space-grotesk/wght.css';
-@import '@fontsource/space-mono/400.css';
-@import '@fontsource/space-mono/700.css';
-
+/* Fontless resolves and emits every UI font at build time. The extension never requests a runtime font CDN. */
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-	--font-inter: 'Inter Variable', 'Inter', sans-serif;
-	--font-space-grotesk: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
+	--font-inter: 'Inter', sans-serif;
+	--font-space-grotesk: 'Space Grotesk', sans-serif;
 	--font-space-mono: 'Space Mono', monospace;
-	/* The Platform brand face is intentionally not duplicated as a binary asset here. */
-	--font-american-kestrel: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
+	--font-american-kestrel: 'American Kestrel', 'Space Grotesk', sans-serif;
 	--breakpoint-xs: 20rem;
 }
 

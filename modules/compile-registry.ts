@@ -19,8 +19,8 @@ import {
 import type { CompiledTechnologyRegistryArtifact } from '../src/lib/registry/index';
 import type { TechnologyDefinition } from '../src/lib/detection/types';
 
-const REGISTRY_CACHE_DIR = 'kaiju-site-scope-registry';
-const PUBLIC_ASSET_ROOT = 'kaiju-site-scope-public';
+const REGISTRY_CACHE_DIR = 'kaiju-deepscope-registry';
+const PUBLIC_ASSET_ROOT = 'kaiju-deepscope-public';
 
 interface RegistryAssetPayload {
 	readonly path: string;

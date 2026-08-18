@@ -88,7 +88,7 @@ describe('side-panel tab target', () => {
 		for (const listener of activatedListeners) listener({ tabId: 38, windowId: 12 });
 		for (const listener of activatedListeners) listener({ tabId: 90, windowId: 13 });
 		for (const listener of messageListeners) listener({
-			type: 'kaiju-site-scope.side-panel-tab.v1',
+			type: 'kaiju-deepscope.side-panel-tab.v1',
 			windowId: 12,
 			tabId: 39,
 			reason: 'activated',

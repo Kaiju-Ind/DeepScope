@@ -23,7 +23,7 @@ describe.sequential('automatic scan setting', () => {
 				storage: {
 					local: {
 						get: vi.fn(async () => ({
-							'kaiju-site-scope.settings.auto-scan-enabled.v1': false,
+							'kaiju-deepscope.settings.auto-scan-enabled.v1': false,
 						})),
 						set,
 					},

@@ -304,7 +304,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		browser: {
 			runtime: {
 				sendMessage: vi.fn(async () => ({ ok: false, message: 'offscreen unavailable in test' })),
-				getURL: vi.fn((path: string) => `chrome-extension://kaiju-site-scope${path}`),
+				getURL: vi.fn((path: string) => `chrome-extension://kaiju-deepscope${path}`),
 			},
 			offscreen: undefined,
 			scripting: {
@@ -364,7 +364,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	const { collectExtensionObservationBatch } = await import('@/lib/collectors/extension-page-collector');
 	const {
 		cancelOffscreenMatcherJob,
-		ensureKaijuSiteScopeOffscreenDocument,
+		ensureOffscreenDocument,
 		runMatcherJobWithOffscreenFallback,
 	} = await import('@/lib/lifecycle/offscreen-matcher');
 	const { createBackgroundRuntime } = await import('@/lib/background/runtime');
@@ -378,7 +378,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		registryProvider: { getCompiledRegistry },
 		matcher: {
 			cancelJob: cancelOffscreenMatcherJob,
-			ensureOffscreenDocument: ensureKaijuSiteScopeOffscreenDocument,
+			ensureOffscreenDocument: ensureOffscreenDocument,
 			runJob: runMatcherJobWithOffscreenFallback,
 		},
 		persistence: {
@@ -397,6 +397,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		},
 		logEvent: () => undefined,
 		logAnalysisSummary: () => undefined,
+		setBadge: async () => undefined,
 	});
 
 	return {

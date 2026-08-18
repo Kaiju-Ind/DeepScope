@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const LOGTAPE_CONFIGURED_KEY = '__kaijuSiteScopeLogTapeConfigV1';
+const LOGTAPE_CONFIGURED_KEY = '__kaijuDeepScopeLogTapeConfigV1';
 
 afterEach(() => {
 	vi.doUnmock('@logtape/logtape');
@@ -29,7 +29,7 @@ describe('diagnostic logging configuration', () => {
 		}));
 
 		const logging = await import('@/lib/diagnostics/logging');
-		logging.configureKaijuSiteScopeLogging('content');
+		logging.configure('content');
 
 		expect(configureSync).toHaveBeenCalledTimes(1);
 		expect(configureSync).toHaveBeenCalledWith(expect.objectContaining({ reset: true }));

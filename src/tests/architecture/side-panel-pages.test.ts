@@ -21,7 +21,8 @@ describe('side-panel page composition', () => {
 		expect(router).toContain("path: '/'");
 		expect(router).toContain("path: '/technologies'");
 		expect(router).toContain("path: '/technology/$technologyId'");
-		expect(router).toContain("path: '/scans'");
+		expect(router).toContain("path: '/history'");
+		expect(router).not.toContain("path: '/scans'");
 		expect(router).toContain("path: '/diagnostics'");
 		expect(router).toContain("path: '/settings'");
 	});
@@ -42,28 +43,29 @@ describe('side-panel page composition', () => {
 
 	it('gives each routed product page a narrow state projection', () => {
 		const summary = read('../../app/pages/summary.tsx');
-		const scans = read('../../app/pages/scans.tsx');
+		const history = read('../../app/pages/history.tsx');
 		const settings = read('../../app/pages/settings.tsx');
 		const technologies = read('../../app/pages/technologies.tsx');
 		const technology = read('../../app/pages/technology.tsx');
 
 		expect(summary).toContain('useSummary()');
-		expect(scans).toContain('useScans()');
+		expect(history).toContain('useHistory()');
 		expect(settings).toContain('useSettings()');
 		expect(technologies).toContain('useTechnologies()');
 		expect(technology).toContain('useTechnology()');
-		for (const source of [summary, scans, settings, technologies, technology]) expect(source).not.toContain('usePanel()');
+		for (const source of [summary, history, settings, technologies, technology]) expect(source).not.toContain('usePanel()');
 	});
 
-
-	it('shows user-facing analysis progress on summary, technologies, and scans', () => {
+	it('keeps live inspection in Summary and completed replay in History', () => {
 		const summary = read('../../app/pages/summary.tsx');
+		const history = read('../../app/pages/history.tsx');
 		const technologies = read('../../app/pages/technologies.tsx');
-		const scans = read('../../app/pages/scans.tsx');
 
-		for (const source of [summary, technologies, scans]) {
-			expect(source).toContain('<AnalysisProgress activity=');
-		}
+		expect(summary).toContain('<AnalysisProgress activity=');
+		expect(summary).toContain('Current inspection');
+		expect(history).toContain('getCachedReplayTraceHistory');
+		expect(history).toContain('Comparison covers emitted technologies only');
+		expect(technologies).toContain('<AnalysisProgress activity=');
 		expect(technologies).toContain('TechnologyListSkeleton');
 	});
 

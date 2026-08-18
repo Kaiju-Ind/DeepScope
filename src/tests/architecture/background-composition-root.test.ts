@@ -29,14 +29,14 @@ describe('background composition-root ownership', () => {
 		expect(defineIndex).toBeGreaterThan(0);
 
 		const modulePrefix = source.slice(0, defineIndex);
-		expect(modulePrefix).not.toContain("configureKaijuSiteScopeLogging('background')");
+		expect(modulePrefix).not.toContain("logging.configure('background')");
 		expect(modulePrefix).not.toContain("installDiagnosticCrashHooks('background')");
 		expect(modulePrefix).not.toContain('const backgroundRuntime = createBackgroundRuntime({');
 		expect(modulePrefix).not.toContain('const autoScanController = createAutoScanController({');
 		expect(modulePrefix).not.toContain('void reconcileInterruptedMatcherJobs(');
 
 		const runtimeBody = source.slice(defineIndex);
-		expect(runtimeBody).toContain("configureKaijuSiteScopeLogging('background')");
+		expect(runtimeBody).toContain("logging.configure('background')");
 		expect(runtimeBody).toContain("installDiagnosticCrashHooks('background')");
 		expect(runtimeBody).toContain('const backgroundRuntime = createBackgroundRuntime({');
 		expect(runtimeBody).toContain('const autoScanController = createAutoScanController({');

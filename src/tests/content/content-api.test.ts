@@ -426,7 +426,7 @@ describe.sequential('content API observation baseline', () => {
 			reason: 'observation-batch-queued',
 		});
 		expect(sendMessage).toHaveBeenCalledWith({
-			type: 'kaiju-site-scope.observation-dirty.v1',
+			type: 'kaiju-deepscope.observation-dirty.v1',
 			sessionId: 'session-1',
 			expectedUrl: 'https://example.com/products',
 			observedAt: 1_700_000_000_250,

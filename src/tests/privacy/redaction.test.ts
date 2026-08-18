@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { hasSensitiveEvidenceFragment, redactEvidenceValue } from '@/lib/privacy/redaction';
+import { hasSensitiveEvidenceFragment, redactDiagnosticValue, redactEvidenceValue } from '@/lib/privacy/redaction';
 
 describe('evidence redaction', () => {
 	it('redacts token assignments before evidence reaches storage', () => {
@@ -30,4 +30,13 @@ describe('evidence redaction', () => {
 	it('applies the caller supplied display limit after redaction', () => {
 		expect(redactEvidenceValue('abcdef', 3)).toBe('abc');
 	});
+	it('keeps ordinary diagnostic query values while redacting secret query keys', () => {
+		expect(redactDiagnosticValue('https://example.com/search?q=magento&page=2')).toBe(
+			'https://example.com/search?q=magento&page=2',
+		);
+		expect(redactDiagnosticValue('https://example.com/callback?code=abc123&locale=en-CA')).toBe(
+			'https://example.com/callback?code=[redacted]&locale=en-CA',
+		);
+	});
+
 });

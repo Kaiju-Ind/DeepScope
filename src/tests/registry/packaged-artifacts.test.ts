@@ -118,10 +118,10 @@ describe('packaged registry artifacts', () => {
 	});
 
 	it('keeps packaged registry paths relative to the extension root', () => {
-		expect(PACKAGED_REGISTRY_ASSET_PATHS.enrichment).toBe('kaiju-site-scope-registry/registry.enrichment.json');
+		expect(PACKAGED_REGISTRY_ASSET_PATHS.enrichment).toBe('kaiju-deepscope-registry/registry.enrichment.json');
 		expect(PACKAGED_REGISTRY_ASSET_PATHS.enrichment.startsWith('/')).toBe(false);
-		expect(getPackagedRegistryShardAssetPath('imageSrc')).toBe('kaiju-site-scope-registry/registry.kind.imageSrc.json');
-		expect(getPackagedRegistryShardAssetPath('scriptSrc')).toBe('kaiju-site-scope-registry/registry.kind.scriptSrc.json');
+		expect(getPackagedRegistryShardAssetPath('imageSrc')).toBe('kaiju-deepscope-registry/registry.kind.imageSrc.json');
+		expect(getPackagedRegistryShardAssetPath('scriptSrc')).toBe('kaiju-deepscope-registry/registry.kind.scriptSrc.json');
 	});
 
 	it('calls the default worker fetch through the global receiver', async () => {

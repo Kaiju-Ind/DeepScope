@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createDiagnosticJournalSink, getDiagnosticRecords } from '@/lib/diagnostics/journal';
 
-const JOURNAL_STATE_KEY = '__kaijuSiteScopeDiagnosticJournalV3';
+const JOURNAL_STATE_KEY = '__kaijuDeepScopeDiagnosticJournalV3';
 
 type Stored = Record<string, unknown>;
 
@@ -27,7 +27,7 @@ function installStorage() {
 
 function makeRecord(index: number, level: 'debug' | 'error' = 'debug') {
 	return {
-		category: ['kaiju-site-scope', 'background', 'matcher'],
+		category: ['kaiju-deepscope', 'background', 'matcher'],
 		level,
 		message: ['matcher partition complete'],
 		rawMessage: 'matcher partition complete',
