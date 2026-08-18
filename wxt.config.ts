@@ -48,6 +48,7 @@ export default defineConfig({
 		host_permissions: ['http://*/*', 'https://*/*'],
 	},
 	vite: () => ({
+		build: { modulePreload: false },
 		plugins: [
 			fontless({
 				provider: 'fontsource',
@@ -67,7 +68,7 @@ export default defineConfig({
 							weight: 400,
 							style: 'normal',
 							fallbacks: ['Space Grotesk'],
-							preload: true,
+							preload: false,
 						}
 						: { name: 'American Kestrel', provider: 'none' },
 					{
@@ -75,7 +76,7 @@ export default defineConfig({
 						provider: 'fontsource',
 						weights: ['300 700'],
 						styles: ['normal'],
-						preload: true,
+						preload: false,
 					},
 					{
 						name: 'Space Mono',

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createObservedPageSignals } from '@/lib/content/observed-page-signals';
+import { SOURCE_LIMITS } from '@/lib/detection/source-limits';
 
 function makeScript(input: { src?: string; text?: string }): HTMLScriptElement {
 	return {
@@ -111,6 +112,18 @@ class FakePerformanceObserver {
 	}
 }
 
+/** Create the complete PerformanceEntry shape needed by resource-observer tests. */
+function makePerformanceEntry(name: string, initiatorType: string): PerformanceEntry & { readonly initiatorType: string } {
+	return {
+		name,
+		initiatorType,
+		entryType: 'resource',
+		startTime: 0,
+		duration: 0,
+		toJSON: () => ({ name, initiatorType }),
+	};
+}
+
 class FakeObservedScriptElement {
 	readonly textContent: string;
 
@@ -156,6 +169,8 @@ describe('observed page signals', () => {
 			throttleMs: 25,
 		});
 		expect(stopped).toMatchObject({
+			sessionId: 'session-1',
+			expectedUrl: 'https://example.com/products',
 			status: 'stopped',
 			stopReason: 'manual',
 		});
@@ -303,6 +318,83 @@ describe('observed page signals', () => {
 		]));
 	});
 
+	it('releases session-only evidence after observation stops', async () => {
+		vi.useFakeTimers();
+		vi.stubGlobal('document', makeDocument());
+		vi.stubGlobal('location', { href: 'https://example.com/products' });
+		vi.stubGlobal('MutationObserver', FakeMutationObserver);
+		vi.stubGlobal('PerformanceObserver', undefined);
+		vi.stubGlobal('HTMLScriptElement', FakeObservedScriptElement);
+		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+
+		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		observedSignals.beginObservationSession({
+			sessionId: 'session-memory',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: 10,
+			maxMutations: 100,
+		});
+
+		mutationObservers[0]?.callback([{
+			type: 'childList',
+			addedNodes: [new FakeObservedScriptElement('https://example.com/late-session-only.js')] as unknown as NodeList,
+			removedNodes: [] as unknown as NodeList,
+			target: document,
+		} as unknown as MutationRecord], mutationObservers[0] as unknown as MutationObserver);
+		await vi.advanceTimersByTimeAsync(25);
+
+		const duringObservation = await observedSignals.snapshot({
+			includeScriptContent: false,
+			includeStylesheetContent: false,
+		});
+		expect(duringObservation.scripts).toContain('https://example.com/late-session-only.js');
+
+		observedSignals.stopObservationSession('manual');
+		const afterStop = await observedSignals.snapshot({
+			includeScriptContent: false,
+			includeStylesheetContent: false,
+		});
+
+		expect(afterStop.scripts).toEqual(['https://example.com/assets/app.js']);
+		expect(afterStop.scripts).not.toContain('https://example.com/late-session-only.js');
+	});
+
+	it('bounds retained script sources while a long-lived observation is active', async () => {
+		vi.useFakeTimers();
+		vi.stubGlobal('document', makeDocument());
+		vi.stubGlobal('location', { href: 'https://example.com/products' });
+		vi.stubGlobal('MutationObserver', FakeMutationObserver);
+		vi.stubGlobal('PerformanceObserver', undefined);
+		vi.stubGlobal('HTMLScriptElement', FakeObservedScriptElement);
+		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+
+		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		observedSignals.beginObservationSession({
+			sessionId: 'session-bounded-sources',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: SOURCE_LIMITS.scriptSrc + 100,
+			maxMutations: SOURCE_LIMITS.scriptSrc + 100,
+		});
+
+		const mutations = Array.from({ length: SOURCE_LIMITS.scriptSrc + 50 }, (_item, index) => ({
+			type: 'childList',
+			addedNodes: [new FakeObservedScriptElement(`https://example.com/late-${index}.js`)] as unknown as NodeList,
+			removedNodes: [] as unknown as NodeList,
+			target: document,
+		} as unknown as MutationRecord));
+		mutationObservers[0]?.callback(mutations, mutationObservers[0] as unknown as MutationObserver);
+		await vi.advanceTimersByTimeAsync(25);
+
+		const snapshot = await observedSignals.snapshot({
+			includeScriptContent: false,
+			includeStylesheetContent: false,
+		});
+
+		expect(snapshot.scripts).toHaveLength(SOURCE_LIMITS.scriptSrc);
+	});
+
 	it('flushes normalized observations from the current observer snapshot', async () => {
 		vi.stubGlobal('document', makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
@@ -431,7 +523,7 @@ describe('observed page signals', () => {
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', FakePerformanceObserver);
 		const getEntriesByType = vi.fn(() => [
-			{ name: 'https://example.com/initial.js', initiatorType: 'script' } as PerformanceEntry,
+			makePerformanceEntry('https://example.com/initial.js', 'script'),
 		]);
 		vi.stubGlobal('performance', { getEntriesByType });
 
@@ -446,7 +538,7 @@ describe('observed page signals', () => {
 		});
 
 		performanceObservers[0]?.emit([
-			{ name: 'https://example.com/late.js', initiatorType: 'script' } as PerformanceEntry,
+			makePerformanceEntry('https://example.com/late.js', 'script'),
 		]);
 		await vi.advanceTimersByTimeAsync(25);
 
@@ -476,8 +568,8 @@ describe('observed page signals', () => {
 			maxMutations: 100,
 		});
 
-		performanceObservers[0]?.emit([{ name: 'https://example.com/one.js', initiatorType: 'script' } as PerformanceEntry]);
-		performanceObservers[0]?.emit([{ name: 'https://example.com/two.js', initiatorType: 'script' } as PerformanceEntry]);
+		performanceObservers[0]?.emit([makePerformanceEntry('https://example.com/one.js', 'script')]);
+		performanceObservers[0]?.emit([makePerformanceEntry('https://example.com/two.js', 'script')]);
 		expect(queued).not.toHaveBeenCalled();
 
 		await vi.advanceTimersByTimeAsync(25);
@@ -501,7 +593,7 @@ describe('observed page signals', () => {
 			maxMutations: 100,
 		});
 
-		performanceObservers[0]?.emit([{ name: 'https://example.com/late.js', initiatorType: 'script' } as PerformanceEntry]);
+		performanceObservers[0]?.emit([makePerformanceEntry('https://example.com/late.js', 'script')]);
 		const flush = await observedSignals.flushObservationBatch();
 		expect(flush.batch?.observations.length).toBeGreaterThan(0);
 

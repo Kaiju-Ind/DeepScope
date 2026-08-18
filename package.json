@@ -12,13 +12,14 @@
     "test": "vitest",
     "test:run": "vitest run",
     "compile": "tsc --noEmit",
-    "check:release": "pnpm compile && vitest run && wxt build -b chrome",
+    "check:release": "pnpm compile && vitest run && wxt build -b chrome && pnpm validate:chrome-artifact",
     "release:zip": "pnpm zip:chrome",
     "bench": "vitest bench src/benchmarks/*.bench.ts",
     "postinstall": "wxt prepare",
     "bench:rules": "vitest bench src/benchmarks/rule-detection-profile.bench.ts",
     "bench:rules:wide": "KAIJU_DEEPSCOPE_RULE_BENCH_REGISTRY_SCAN=1 vitest bench src/benchmarks/rule-detection-profile.bench.ts",
-    "bench:rules:gate": "KAIJU_DEEPSCOPE_RULE_BENCH_REGISTRY_SCAN=1 KAIJU_DEEPSCOPE_RULE_BENCH_GENERATED_PASS_SCAN=1 KAIJU_DEEPSCOPE_RULE_BENCH_FAIL_ON_BUDGET=1 vitest bench src/benchmarks/rule-detection-profile.bench.ts"
+    "bench:rules:gate": "KAIJU_DEEPSCOPE_RULE_BENCH_REGISTRY_SCAN=1 KAIJU_DEEPSCOPE_RULE_BENCH_GENERATED_PASS_SCAN=1 KAIJU_DEEPSCOPE_RULE_BENCH_FAIL_ON_BUDGET=1 vitest bench src/benchmarks/rule-detection-profile.bench.ts",
+    "validate:chrome-artifact": "node scripts/validate-chrome-artifact.mjs"
   },
   "dependencies": {
     "@corvu/calendar": "^0.1.2",
@@ -55,6 +56,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@wxt-dev/module-solid": "1.1.4",
     "fontless": "^0.2.1",
+    "oxc-parser": "0.142.0",
     "tailwindcss": "^4.3.3",
     "typescript": "7.0.2",
     "unplugin-icons": "^23.0.1",

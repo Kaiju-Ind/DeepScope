@@ -133,7 +133,7 @@ describe.sequential('content API observation baseline', () => {
 			beginObservationSession: vi.fn(() => observing),
 			stopObservationSession: vi.fn(() => makeState({ status: 'stopped', stopReason: 'manual' })),
 			flushObservationBatch: vi.fn(async () => makeFlushOutput(observing)),
-			status: vi.fn(() => makeState()),
+			status: vi.fn(() => observing),
 			disconnect: vi.fn(),
 		} satisfies ObservedPageSignals;
 
@@ -165,8 +165,34 @@ describe.sequential('content API observation baseline', () => {
 			reason: 'observation-session-started',
 		});
 
-		await api.stopObservationSession();
+		await api.stopObservationSession({ sessionId: 'session-1', expectedUrl: 'https://example.com/products' });
 		expect(observedSignals.stopObservationSession).toHaveBeenCalledWith('manual');
+	});
+
+	it('does not let a stale stop request terminate a newer observation session', async () => {
+		const { createContentApi } = await loadContentApiFactory();
+		const current = makeState({
+			status: 'observing',
+			sessionId: 'session-new',
+			expectedUrl: 'https://example.com/products',
+		});
+		const observedSignals = {
+			snapshot: vi.fn(),
+			beginObservationSession: vi.fn(() => current),
+			stopObservationSession: vi.fn(() => makeState({ status: 'stopped', stopReason: 'manual' })),
+			flushObservationBatch: vi.fn(async () => makeFlushOutput(current)),
+			status: vi.fn(() => current),
+			disconnect: vi.fn(),
+		} satisfies ObservedPageSignals;
+
+		await expect(createContentApi(observedSignals).stopObservationSession({
+			sessionId: 'session-old',
+			expectedUrl: 'https://example.com/products',
+		})).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'OBSERVATION_SESSION_UNAVAILABLE' },
+		});
+		expect(observedSignals.stopObservationSession).not.toHaveBeenCalled();
 	});
 
 	it('flushes queued observation batches through the content API', async () => {
@@ -217,12 +243,17 @@ describe.sequential('content API observation baseline', () => {
 	it('clears the expiry timer when observation is stopped manually', async () => {
 		vi.useFakeTimers();
 		const { createContentApi } = await loadContentApiFactory();
+		const observing = makeState({
+			status: 'observing',
+			sessionId: 'session-1',
+			expectedUrl: 'https://example.com/products',
+		});
 		const observedSignals = {
 			snapshot: vi.fn(),
-			beginObservationSession: vi.fn(() => makeState({ status: 'observing' })),
+			beginObservationSession: vi.fn(() => observing),
 			stopObservationSession: vi.fn(() => makeState({ status: 'stopped', stopReason: 'manual' })),
 			flushObservationBatch: vi.fn(async () => makeFlushOutput()),
-			status: vi.fn(() => makeState()),
+			status: vi.fn(() => observing),
 			disconnect: vi.fn(),
 		} satisfies ObservedPageSignals;
 
@@ -237,7 +268,7 @@ describe.sequential('content API observation baseline', () => {
 				maxMutations: 5_000,
 			},
 		});
-		await api.stopObservationSession();
+		await api.stopObservationSession({ sessionId: 'session-1', expectedUrl: 'https://example.com/products' });
 		await vi.advanceTimersByTimeAsync(25);
 
 		expect(observedSignals.stopObservationSession).toHaveBeenCalledOnce();

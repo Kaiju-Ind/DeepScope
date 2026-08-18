@@ -1,9 +1,18 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { extname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import * as ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+
+import {
+	identifierName,
+	isNode,
+	line,
+	parseSource,
+	walk,
+	type OxcNodeType,
+	type OxcSourceType,
+} from '@/tests/support/oxc';
 
 const SRC_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const GENERATED_REGISTRY_ROOT = 'registry/technology';
@@ -103,11 +112,14 @@ const GENERATED_RUNTIME_GLOBAL_NAMES = new Set([
 	'window',
 ]);
 
-type SourceFileEntryType = {
-	readonly path: string;
+interface SourceFileEntryType extends OxcSourceType {
 	readonly relativePath: string;
-	readonly source: ts.SourceFile;
-};
+}
+
+interface NamedNodeType {
+	readonly name: string;
+	readonly node: OxcNodeType;
+}
 
 /** Enumerate handwritten TypeScript while leaving the generated technology registry out of the structural scan. */
 function sourceFiles(): SourceFileEntryType[] {
@@ -122,104 +134,125 @@ function sourceFiles(): SourceFileEntryType[] {
 				continue;
 			}
 			if (extname(entry.name) !== '.ts' && extname(entry.name) !== '.tsx') continue;
-			const text = readFileSync(path, 'utf8');
-			files.push({
-				path,
-				relativePath,
-				source: ts.createSourceFile(
-					path,
-					text,
-					ts.ScriptTarget.Latest,
-					true,
-					entry.name.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
-				),
-			});
+			files.push({ ...parseSource(path), relativePath });
 		}
 	};
 	visit(SRC_ROOT);
 	return files;
 }
 
-function bindingNames(name: ts.BindingName | ts.Identifier | undefined): readonly ts.Identifier[] {
-	if (!name) return [];
-	if (ts.isIdentifier(name)) return [name];
-	return name.elements.flatMap((element) => ts.isOmittedExpression(element) ? [] : bindingNames(element.name));
-}
-
-function declarationNames(node: ts.Node): readonly ts.Identifier[] {
-	if (ts.isVariableDeclaration(node) || ts.isParameter(node)) return bindingNames(node.name);
-	if (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isEnumDeclaration(node)) {
-		return node.name ? [node.name] : [];
+/** Return every runtime binding introduced by a destructuring or identifier pattern. */
+function bindingNames(pattern: unknown): readonly NamedNodeType[] {
+	if (!isNode(pattern)) return [];
+	const directName = identifierName(pattern);
+	if (directName) return [{ name: directName, node: pattern }];
+	if (pattern.type === 'RestElement') return bindingNames(pattern.argument);
+	if (pattern.type === 'AssignmentPattern') return bindingNames(pattern.left);
+	if (pattern.type === 'TSParameterProperty') return bindingNames(pattern.parameter);
+	if (pattern.type === 'ObjectPattern') {
+		const properties = Array.isArray(pattern.properties) ? pattern.properties : [];
+		return properties.flatMap((property) => {
+			if (!isNode(property)) return [];
+			if (property.type === 'RestElement') return bindingNames(property.argument);
+			return bindingNames(property.value);
+		});
 	}
-	if (ts.isCatchClause(node)) return bindingNames(node.variableDeclaration?.name);
+	if (pattern.type === 'ArrayPattern') {
+		const elements = Array.isArray(pattern.elements) ? pattern.elements : [];
+		return elements.flatMap(bindingNames);
+	}
 	return [];
 }
 
-function line(source: ts.SourceFile, node: ts.Node): number {
-	return source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+/** Return runtime declarations that can collide with imports or generated global names. */
+function declarationNames(node: OxcNodeType): readonly NamedNodeType[] {
+	if (node.type === 'VariableDeclarator') return bindingNames(node.id);
+	if (node.type === 'CatchClause') return bindingNames(node.param);
+	if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') {
+		const ownName = node.type === 'ArrowFunctionExpression' ? [] : bindingNames(node.id);
+		const parameters = Array.isArray(node.params) ? node.params.flatMap(bindingNames) : [];
+		return [...ownName, ...parameters];
+	}
+	if (node.type === 'ClassDeclaration' || node.type === 'TSEnumDeclaration') return bindingNames(node.id);
+	return [];
 }
 
-function importedNames(source: ts.SourceFile): ReadonlySet<string> {
+/** Collect non-type import bindings that survive into generated JavaScript. */
+function importedNames(source: SourceFileEntryType): ReadonlySet<string> {
 	const names = new Set<string>();
-	for (const statement of source.statements) {
-		if (!ts.isImportDeclaration(statement)) continue;
-		const clause = statement.importClause;
-		if (!clause) continue;
-		if (clause.name) names.add(clause.name.text);
-		const bindings = clause.namedBindings;
-		if (bindings && ts.isNamespaceImport(bindings)) names.add(bindings.name.text);
-		if (bindings && ts.isNamedImports(bindings)) {
-			for (const element of bindings.elements) names.add(element.name.text);
+	const body = Array.isArray(source.program.body) ? source.program.body : [];
+	for (const statement of body) {
+		if (!isNode(statement) || statement.type !== 'ImportDeclaration' || statement.importKind === 'type') continue;
+		const specifiers = Array.isArray(statement.specifiers) ? statement.specifiers : [];
+		for (const specifier of specifiers) {
+			if (!isNode(specifier) || specifier.importKind === 'type') continue;
+			const name = identifierName(specifier.local);
+			if (name) names.add(name);
 		}
 	}
 	return names;
 }
 
-function topLevelRuntimeNames(source: ts.SourceFile): readonly ts.Identifier[] {
-	const names: ts.Identifier[] = [];
-	for (const statement of source.statements) {
-		if (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement) || ts.isEnumDeclaration(statement)) {
-			if (statement.name) names.push(statement.name);
+/** Unwrap an exported declaration so top-level runtime bindings remain visible to the scan. */
+function exportedDeclaration(statement: OxcNodeType): OxcNodeType {
+	if ((statement.type === 'ExportNamedDeclaration' || statement.type === 'ExportDefaultDeclaration') && isNode(statement.declaration)) {
+		return statement.declaration;
+	}
+	return statement;
+}
+
+/** Return runtime values declared directly in one module scope. */
+function topLevelRuntimeNames(source: SourceFileEntryType): readonly NamedNodeType[] {
+	const names: NamedNodeType[] = [];
+	const body = Array.isArray(source.program.body) ? source.program.body : [];
+	for (const entry of body) {
+		if (!isNode(entry)) continue;
+		const statement = exportedDeclaration(entry);
+		if (statement.type === 'VariableDeclaration') {
+			const declarations = Array.isArray(statement.declarations) ? statement.declarations : [];
+			for (const declaration of declarations) {
+				if (isNode(declaration)) names.push(...bindingNames(declaration.id));
+			}
 			continue;
 		}
-		if (!ts.isVariableStatement(statement)) continue;
-		for (const declaration of statement.declarationList.declarations) {
-			names.push(...bindingNames(declaration.name));
+		if (statement.type === 'FunctionDeclaration' || statement.type === 'ClassDeclaration' || statement.type === 'TSEnumDeclaration') {
+			names.push(...bindingNames(statement.id));
 		}
 	}
 	return names;
 }
 
+/** Find local runtime declarations that reuse one imported runtime binding. */
 function importShadowViolations(entry: SourceFileEntryType): readonly string[] {
-	const imports = importedNames(entry.source);
+	const imports = importedNames(entry);
 	if (imports.size === 0) return [];
 	const violations: string[] = [];
-	const visit = (node: ts.Node): void => {
-		if (!ts.isImportDeclaration(node)) {
-			for (const name of declarationNames(node)) {
-				if (imports.has(name.text)) {
-					violations.push(`${entry.relativePath}:${line(entry.source, name)} shadows imported '${name.text}'`);
-				}
+	walk(entry.program, (node, ancestors) => {
+		if (node.type === 'ImportDeclaration' || ancestors.some((ancestor) => ancestor.type === 'ImportDeclaration')) return;
+		for (const binding of declarationNames(node)) {
+			if (imports.has(binding.name)) {
+				violations.push(`${entry.relativePath}:${line(entry, binding.node)} shadows imported '${binding.name}'`);
 			}
 		}
-		ts.forEachChild(node, visit);
-	};
-	visit(entry.source);
+	});
 	return violations;
 }
 
 describe('generated JavaScript name safety', () => {
+	it('parses all handwritten TypeScript and TSX with Oxc', () => {
+		expect(() => sourceFiles()).not.toThrow();
+	});
+
 	it('does not declare generated-runtime global names as top-level runtime values', () => {
 		const violations = sourceFiles().flatMap((entry) =>
-			topLevelRuntimeNames(entry.source)
-				.filter((name) => GENERATED_RUNTIME_GLOBAL_NAMES.has(name.text))
-				.map((name) => `${entry.relativePath}:${line(entry.source, name)} declares generated-runtime global '${name.text}'`)
+			topLevelRuntimeNames(entry)
+				.filter((binding) => GENERATED_RUNTIME_GLOBAL_NAMES.has(binding.name))
+				.map((binding) => `${entry.relativePath}:${line(entry, binding.node)} declares generated-runtime global '${binding.name}'`)
 		);
-
 		expect(violations).toEqual([]);
 	});
 
-	it('does not shadow imported bindings with local declarations', () => {
+	it('does not shadow imported runtime bindings with local declarations', () => {
 		const violations = sourceFiles().flatMap(importShadowViolations);
 		expect(violations).toEqual([]);
 	});

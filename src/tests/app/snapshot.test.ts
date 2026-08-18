@@ -172,6 +172,10 @@ describe.sequential('side panel snapshot state', () => {
 		const unsubscribe = harness.subscribeToSnapshotRevisions(ACTIVE_IDENTITY, null, onRevision);
 		const storageKey = getDetectionOriginSnapshotKey(ACTIVE_IDENTITY.originHash);
 		const otherTabSnapshot = makeDetectionSessionSnapshot({ key: { tabId: 11, frameId: 0, documentId: 'document-1', originHash: ACTIVE_IDENTITY.originHash } });
+		const otherFrameSnapshot = makeDetectionSessionSnapshot({
+			key: { tabId: ACTIVE_IDENTITY.tabId, frameId: 7, documentId: 'document-1', originHash: ACTIVE_IDENTITY.originHash },
+			urlHash: ACTIVE_IDENTITY.urlHash,
+		});
 		const previousPageSnapshot = makeDetectionSessionSnapshot({
 			key: { tabId: ACTIVE_IDENTITY.tabId, frameId: ACTIVE_IDENTITY.frameId, documentId: 'document-1', originHash: ACTIVE_IDENTITY.originHash },
 			urlHash: 'url-example-previous-page',
@@ -179,6 +183,7 @@ describe.sequential('side panel snapshot state', () => {
 		const matchingSnapshot = makeDetectionSessionSnapshot({ key: { tabId: ACTIVE_IDENTITY.tabId, frameId: ACTIVE_IDENTITY.frameId, documentId: 'document-1', originHash: ACTIVE_IDENTITY.originHash }, revision: 3 });
 
 		harness.onChanged.emit({ [storageKey]: { newValue: otherTabSnapshot } });
+		harness.onChanged.emit({ [storageKey]: { newValue: otherFrameSnapshot } });
 		harness.onChanged.emit({ [storageKey]: { newValue: previousPageSnapshot } });
 		harness.onChanged.emit({ other: { newValue: matchingSnapshot } });
 		harness.onChanged.emit({ [storageKey]: { newValue: matchingSnapshot } });

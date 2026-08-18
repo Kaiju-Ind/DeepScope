@@ -976,11 +976,11 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 		}));
 	});
 
-	it('currently treats bounded observation as a fresh observation request', async () => {
+	it('starts a panel-owned observation for an explicit while-panel-open request', async () => {
 		const harness = await loadBackgroundApiHarness({ tab: HTTP_TAB });
 
 		await expect(
-			harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'bounded' }),
+			harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-panel-open' }),
 		).resolves.toMatchObject({
 			ok: true,
 			value: {
@@ -1182,6 +1182,32 @@ describe.sequential('background observation session baseline', () => {
 		expect(harness.mocks.saveDetectionSessionSnapshot).not.toHaveBeenCalled();
 	});
 
+	it('does not refresh a live observation after its browser tab becomes inactive', async () => {
+		const harness = await loadBackgroundApiHarness({
+			tab: { ...HTTP_TAB, active: false },
+			contentApi: {
+				getObservationSessionState: vi.fn(async () => extensionSuccess({
+					status: 'dirty' as const,
+					throttleMs: 1_500,
+					pendingMutationCount: 2,
+					sessionId: 'session-1',
+					expectedUrl: HTTP_TAB.url!,
+				})),
+			},
+		});
+
+		await expect(harness.api.refreshObservationSession(OBSERVATION_TARGET)).resolves.toMatchObject({
+			ok: false,
+			error: {
+				code: 'OBSERVATION_SESSION_UNAVAILABLE',
+			},
+		});
+
+		expect(harness.contentApi.getObservationSessionState).not.toHaveBeenCalled();
+		expect(harness.contentApi.flushObservationBatch).not.toHaveBeenCalled();
+		expect(harness.mocks.saveDetectionSessionSnapshot).not.toHaveBeenCalled();
+	});
+
 	it('forwards stop requests to the targeted content script session', async () => {
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
@@ -1204,5 +1230,9 @@ describe.sequential('background observation session baseline', () => {
 		});
 
 		expect(harness.contentApi.stopObservationSession).toHaveBeenCalledOnce();
+		expect(harness.contentApi.stopObservationSession).toHaveBeenCalledWith({
+			sessionId: OBSERVATION_TARGET.sessionId,
+			expectedUrl: OBSERVATION_TARGET.expectedUrl,
+		});
 	});
 });

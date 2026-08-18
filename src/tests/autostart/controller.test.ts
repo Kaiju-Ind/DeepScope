@@ -33,7 +33,7 @@ function makeOutput(): AnalyzeVisibleTabOutput {
 }
 
 describe('automatic scan controller', () => {
-	it('starts a bounded fresh scan for an enabled visible page load', async () => {
+	it('runs an enabled automatic scan without leaving a live page observer', async () => {
 		const analyzeVisibleTab = vi.fn(async () => extensionSuccess(makeOutput()));
 		const controller = createAutoScanController({
 			getEnabled: vi.fn(async () => true),
@@ -47,7 +47,7 @@ describe('automatic scan controller', () => {
 		expect(analyzeVisibleTab).toHaveBeenCalledWith({
 			target: VISIBLE_IDENTITY,
 			mode: 'refresh',
-			observe: 'bounded',
+			observe: 'none',
 		});
 	});
 

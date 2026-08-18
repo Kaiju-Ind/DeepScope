@@ -10,7 +10,7 @@ import {
 describe('visible-tab analysis contract', () => {
 	it('defines request modes and side-panel observation values', () => {
 		expect(ANALYSIS_MODES).toEqual(['snapshot-first', 'refresh']);
-		expect(OBSERVATION_MODES).toEqual(['none', 'while-panel-open', 'bounded']);
+		expect(OBSERVATION_MODES).toEqual(['none', 'while-panel-open']);
 		expect(SNAPSHOT_REUSE_STATUSES).toEqual(['hit', 'miss', 'bypassed']);
 	});
 

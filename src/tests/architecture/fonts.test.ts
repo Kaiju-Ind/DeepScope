@@ -23,6 +23,14 @@ describe('side-panel font ownership', () => {
 		expect(existsSync(fileURLToPath(new URL('../../../public/fonts/american-kestrel', import.meta.url)))).toBe(false);
 	});
 
+	it('does not generate eager module or font preloads for extension pages', () => {
+		const config = get('../../../wxt.config.ts');
+
+		expect(config).toContain('modulePreload: false');
+		expect(config).toContain('preload: false');
+		expect(config).not.toContain('preload: true');
+	});
+
 	it('keeps the Kaiju and DeepScope header treatment aligned with the website', () => {
 		const shell = get('../../app/shell.tsx');
 

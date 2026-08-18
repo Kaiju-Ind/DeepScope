@@ -48,6 +48,19 @@ describe('crash-durable diagnostics architecture', () => {
 		expect(offscreen).toContain('column: event.colno');
 	});
 
+	it('forwards storage-less offscreen diagnostics to the background storage owner', () => {
+		const journal = read('../../lib/diagnostics/journal.ts');
+		const background = read('../../entrypoints/background.ts');
+
+		expect(journal).toContain('DIAGNOSTIC_TRANSPORT_CHANNEL');
+		expect(journal).toContain("type: 'diagnostics.context'");
+		expect(journal).toContain("type: 'diagnostics.record'");
+		expect(journal).toContain('extensionRuntime.sendMessage(message)');
+		expect(journal).toContain('runtime.postMessage?.(message)');
+		expect(background).toContain('isDiagnosticTransportMessage(message)');
+		expect(background).toContain('persistTransportedDiagnosticMessage(message)');
+	});
+
 	it('reconciles non-terminal matcher records when a new background context starts', () => {
 		const reconcile = read('../../lib/background/reconcile-matcher-jobs.ts');
 		const contracts = read('../../lib/matcher/contracts.ts');
@@ -65,7 +78,10 @@ describe('crash-durable diagnostics architecture', () => {
 		expect(timeline).toContain("from '@tanstack/solid-virtual'");
 		expect(timeline).toContain('query.find(props.records');
 		expect(timeline).toContain('virtualizer.getVirtualItems()');
-		expect(timeline).toContain('virtualizer.measureElement(element)');
+		expect(timeline).toContain('const virtualRows = createMemo(');
+		expect(timeline).toContain('height: `${row.size}px`');
+		expect(timeline).not.toContain('measureElement(');
+		expect(timeline).not.toContain('data-index=');
 		expect(timeline).not.toContain('records.slice(0, 80)');
 	});
 

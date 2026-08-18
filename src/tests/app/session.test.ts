@@ -11,6 +11,18 @@ describe('side-panel session state', () => {
 		expect(session.open(tabId)).toEqual({ first: false, route: '/diagnostics?view=timeline', scrollY: 640 });
 	});
 
+	it('drops route, scroll, and page state after Chrome closes a tab', () => {
+		const tabId = 91_004;
+		session.route(tabId, '/diagnostics?view=timeline');
+		session.scroll(tabId, 320);
+		session.save(tabId, 'diagnostics', { query: 'worker' });
+
+		session.remove(tabId);
+
+		expect(session.get(tabId, 'diagnostics')).toBeUndefined();
+		expect(session.open(tabId)).toEqual({ first: true, route: '/', scrollY: 0 });
+	});
+
 	it('keeps transient page state isolated by browser tab', () => {
 		const firstTabId = 91_002;
 		const secondTabId = 91_003;

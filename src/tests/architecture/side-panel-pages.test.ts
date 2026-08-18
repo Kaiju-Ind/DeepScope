@@ -8,6 +8,8 @@ const SIDE_PANEL_MAIN = fileURLToPath(new URL('../../entrypoints/sidepanel/main.
 const SIDE_PANEL_APP = fileURLToPath(new URL('../../app/app.tsx', import.meta.url));
 const OPTIONS_ENTRYPOINT = fileURLToPath(new URL('../../entrypoints/options/index.html', import.meta.url));
 const OBSOLETE_POPUP = fileURLToPath(new URL('../../entrypoints/popup/main.tsx', import.meta.url));
+const TAB_RUNTIME = fileURLToPath(new URL('../../app/tab.ts', import.meta.url));
+const PANEL_SESSION = fileURLToPath(new URL('../../app/session.ts', import.meta.url));
 
 function read(relative: string): string {
 	return readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8');
@@ -65,7 +67,7 @@ describe('side-panel page composition', () => {
 		expect(summary).toContain('Detected on this page');
 		expect(summary).toContain('Key findings');
 		expect(summary).not.toContain('Current inspection');
-		expect(history).toContain('getCachedReplayTraceHistory');
+		expect(history).toContain('panel.getReplayHistory');
 		expect(history).toContain('Changes from previous run');
 		expect(history).toContain("scope: 'page'");
 		expect(history).toContain("showUrl={scope() === 'origin'}");
@@ -74,12 +76,60 @@ describe('side-panel page composition', () => {
 		expect(technologies).toContain('TechnologyListSkeleton');
 	});
 
+	it('retargets the mounted panel by exact tab identity and rejects stale async state', () => {
+		const provider = read('../../app/provider.tsx');
+		const background = read('../../entrypoints/background.ts');
+
+		expect(provider).toContain('subscribeTabTargetChanges');
+		expect(provider).toContain('resetTab(identity)');
+		expect(provider).toContain('!sameTab(visibleTabIdentity(), identity)');
+		expect(provider).toContain('snapshot-revision-ignored-for-stale-tab');
+		expect(provider).toContain('analysis-revision-ignored-for-stale-tab');
+		expect(provider).toContain('void hydrateReplay(revision, options.identity)');
+		expect(provider).toContain('visible-tab-identity-retry-after-stale-target');
+		expect(provider).toContain('queueTabSync("tab-change")');
+		expect(background).toContain("scanVisibleTab(tabId, windowId, 'snapshot-first', 'tab-activated')");
+	});
+
+	it('owns at most one panel observation and does not start a scan just because the user switched tabs', () => {
+		const provider = read('../../app/provider.tsx');
+
+		expect(provider).toContain('releaseObservationTarget(previousSessionTarget, "tab-change")');
+		expect(provider).toContain('releaseObservationTarget(response.value.sessionTarget, "stale-response")');
+		expect(provider).toContain('releaseObservationTarget(target, "panel-close")');
+		expect(provider).toContain('if (reason === "tab-change") {');
+		expect(provider).toContain('setWorkflow({ kind: "idle" });');
+		expect(provider).not.toContain('cleanup-retain-observation');
+	});
+
+	it('releases panel-local state when browser tabs close', () => {
+		const provider = read('../../app/provider.tsx');
+		const tab = readFileSync(TAB_RUNTIME, 'utf8');
+		const session = readFileSync(PANEL_SESSION, 'utf8');
+
+		expect(provider).toContain('closed: session.remove');
+		expect(tab).toContain('browser.tabs.onRemoved.addListener(onRemoved)');
+		expect(tab).toContain('browser.tabs.onRemoved.removeListener(onRemoved)');
+		expect(session).toContain('export function remove(tabId: number): void');
+		expect(session).toContain('tabs.delete(tabId)');
+	});
+
+	it('telegraphs incremental technology discovery instead of silently inserting late results', () => {
+		const summary = read('../../app/pages/summary.tsx');
+		const technologies = read('../../app/pages/technologies.tsx');
+
+		expect(summary).toContain('Watching for additional technologies');
+		expect(summary).toContain('Additional technologies detected');
+		expect(technologies).toContain('Watching for more technologies');
+		expect(technologies).toContain('New technologies arrived');
+	});
+
 	it('keeps diagnostics reachable from both the panel and an independent options page', () => {
 		const panelDiagnostics = read('../../app/pages/diagnostics.tsx');
 		const options = read('../../entrypoints/options/main.tsx');
 		const optionsHtml = readFileSync(OPTIONS_ENTRYPOINT, 'utf8');
 
-		expect(panelDiagnostics).toContain('<DiagnosticsView showOpenFullPage />');
+		expect(panelDiagnostics).toContain('<DiagnosticsView showOpenFullPage');
 		expect(options).toContain("import('@/app/components/diagnostics-view')");
 		expect(options).toContain('<DiagnosticsView standalone />');
 		expect(options).toContain('<SupportFallback surface="options"');

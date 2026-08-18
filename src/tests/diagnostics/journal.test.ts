@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { DIAGNOSTIC_TRANSPORT_CHANNEL } from '@/lib/diagnostics/contracts';
 import { createDiagnosticJournalSink, getDiagnosticRecords } from '@/lib/diagnostics/journal';
 
 const JOURNAL_STATE_KEY = '__kaijuDeepScopeDiagnosticJournalV3';
@@ -76,5 +77,46 @@ describe('diagnostic journal', () => {
 
 		expect(records.some((record) => record.level === 'error')).toBe(true);
 		expect(records.some((record) => record.repeatCount === 10)).toBe(true);
+	});
+
+	it('forwards sanitized records through runtime messaging when the context has no storage API', () => {
+		const sendMessage = vi.fn(async () => undefined);
+		vi.stubGlobal('chrome', { runtime: { sendMessage } });
+		const sink = createDiagnosticJournalSink('offscreen');
+
+		sink(makeRecord(1));
+
+		expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+			channel: DIAGNOSTIC_TRANSPORT_CHANNEL,
+			type: 'diagnostics.context',
+			context: expect.objectContaining({ surface: 'offscreen' }),
+		}));
+		expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+			channel: DIAGNOSTIC_TRANSPORT_CHANNEL,
+			type: 'diagnostics.record',
+			record: expect.objectContaining({
+				surface: 'offscreen',
+				message: 'matcher partition complete',
+			}),
+		}));
+	});
+
+	it('forwards dedicated-worker diagnostics to the parent offscreen host when runtime APIs are unavailable', () => {
+		const postMessage = vi.fn();
+		vi.stubGlobal('postMessage', postMessage);
+		const sink = createDiagnosticJournalSink('matcher-worker');
+
+		sink(makeRecord(2));
+
+		expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+			channel: DIAGNOSTIC_TRANSPORT_CHANNEL,
+			type: 'diagnostics.context',
+			context: expect.objectContaining({ surface: 'matcher-worker' }),
+		}));
+		expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+			channel: DIAGNOSTIC_TRANSPORT_CHANNEL,
+			type: 'diagnostics.record',
+			record: expect.objectContaining({ surface: 'matcher-worker' }),
+		}));
 	});
 });

@@ -19,10 +19,9 @@ function makeSession(overrides: Partial<ObservationSessionState> = {}): Observat
 }
 
 describe('observation lifecycle helpers', () => {
-	it('keeps current observe modes mapped to the same start decision', () => {
+	it('starts observation only for the panel-owned observe mode', () => {
 		expect(shouldStartObservation('none')).toBe(false);
 		expect(shouldStartObservation('while-panel-open')).toBe(true);
-		expect(shouldStartObservation('bounded')).toBe(true);
 	});
 
 	it('allows refresh only for observing and dirty sessions', () => {

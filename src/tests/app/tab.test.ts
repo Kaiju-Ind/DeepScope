@@ -47,6 +47,7 @@ describe('side-panel tab target', () => {
 	it('subscribes to direct and background active-tab changes for the owning window', async () => {
 		const activatedListeners = new Set<(value: { tabId: number; windowId: number }) => void>();
 		const updatedListeners = new Set<(tabId: number, changeInfo: { status?: string; url?: string }, tab: { active?: boolean; windowId?: number }) => void>();
+		const removedListeners = new Set<(tabId: number, removeInfo: { windowId: number }) => void>();
 		const messageListeners = new Set<(message: unknown) => void>();
 		vi.doMock('wxt/browser', () => ({
 			browser: {
@@ -60,6 +61,10 @@ describe('side-panel tab target', () => {
 					onUpdated: {
 						addListener: (listener: (tabId: number, changeInfo: { status?: string; url?: string }, tab: { active?: boolean; windowId?: number }) => void) => updatedListeners.add(listener),
 						removeListener: (listener: (tabId: number, changeInfo: { status?: string; url?: string }, tab: { active?: boolean; windowId?: number }) => void) => updatedListeners.delete(listener),
+					},
+					onRemoved: {
+						addListener: (listener: (tabId: number, removeInfo: { windowId: number }) => void) => removedListeners.add(listener),
+						removeListener: (listener: (tabId: number, removeInfo: { windowId: number }) => void) => removedListeners.delete(listener),
 					},
 				},
 				runtime: {
@@ -78,10 +83,12 @@ describe('side-panel tab target', () => {
 			addEventListener: (_type: 'visibilitychange', listener: () => void) => visibilityListeners.add(listener),
 			removeEventListener: (_type: 'visibilitychange', listener: () => void) => visibilityListeners.delete(listener),
 		};
+		const closed = vi.fn();
 		const unsubscribe = subscribeTabTargetChanges({
 			getWindowId: () => 12,
 			getVisibleTabId: () => 37,
 			sync,
+			closed,
 			visibility,
 		});
 
@@ -93,16 +100,21 @@ describe('side-panel tab target', () => {
 			tabId: 39,
 			reason: 'activated',
 		});
+		for (const listener of removedListeners) listener(37, { windowId: 12 });
+		for (const listener of removedListeners) listener(90, { windowId: 13 });
 		for (const listener of visibilityListeners) listener();
 
 		expect(sync).toHaveBeenCalledWith({ tabId: 38, windowId: 12 });
 		expect(sync).not.toHaveBeenCalledWith({ tabId: 90, windowId: 13 });
 		expect(sync).toHaveBeenCalledWith({ tabId: 39, windowId: 12 });
 		expect(sync).toHaveBeenCalledWith();
+		expect(closed).toHaveBeenCalledWith(37);
+		expect(closed).not.toHaveBeenCalledWith(90);
 
 		unsubscribe();
 		expect(activatedListeners.size).toBe(0);
 		expect(updatedListeners.size).toBe(0);
+		expect(removedListeners.size).toBe(0);
 		expect(messageListeners.size).toBe(0);
 		expect(visibilityListeners.size).toBe(0);
 	});

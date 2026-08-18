@@ -12,6 +12,7 @@ import {
 	isPackagedTechnologyRegistryAsset,
 	isPackagedTechnologyRegistryShardAsset,
 	renderPackagedRegistryJson,
+	type PackagedRegistryObservationKind,
 } from '@/lib/registry/packaged-artifacts';
 import { createPackagedTechnologyRegistryProvider } from '@/lib/registry/packaged-provider';
 
@@ -51,7 +52,7 @@ function makeRegistryAsset(registry: readonly TechnologyDefinition[], kind: 'boo
 	};
 }
 
-function makeShardAsset(registry: readonly TechnologyDefinition[], observationKind: 'meta' | 'scriptSrc' | 'htmlMatch' | 'header') {
+function makeShardAsset(registry: readonly TechnologyDefinition[], observationKind: PackagedRegistryObservationKind) {
 	const shard = createObservationKindTechnologyRegistry(registry, observationKind);
 	return {
 		schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
@@ -199,6 +200,32 @@ describe('packaged registry artifacts', () => {
 		expect(first).toBe(second);
 		expect(first.technologies.map((technology) => technology.id)).toEqual(['bootstrap-visible']);
 		expect(first.matcherIndex.ruleCount).toBe(1);
+	});
+
+	it('evicts least-recently-used observation-kind shards when a provider cache budget is configured', async () => {
+		const registry = makeRegistry();
+		const fetchAsset = vi.fn(async (url: string) => ({
+			ok: true,
+			async json() {
+				const observationKind: PackagedRegistryObservationKind = url.includes('registry.kind.meta')
+					? 'meta'
+					: 'scriptSrc';
+				return JSON.parse(renderPackagedRegistryJson(makeShardAsset(registry, observationKind)));
+			},
+		}));
+		const provider = createPackagedTechnologyRegistryProvider({
+			resolveUrl: (path) => `extension://${path}`,
+			fetchAsset,
+			maxObservationKindShards: 1,
+		});
+
+		const firstScriptShard = await provider.getCompiledObservationKindRegistry('scriptSrc');
+		await provider.getCompiledObservationKindRegistry('meta');
+		const secondScriptShard = await provider.getCompiledObservationKindRegistry('scriptSrc');
+
+		expect(fetchAsset).toHaveBeenCalledTimes(3);
+		expect(firstScriptShard).not.toBe(secondScriptShard);
+		expect(secondScriptShard.matcherIndex.ruleCount).toBe(1);
 	});
 
 	it('loads packaged enrichment JSON once and preserves detector order', async () => {
