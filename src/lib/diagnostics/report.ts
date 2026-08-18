@@ -1,7 +1,7 @@
 import { browser } from 'wxt/browser';
 
 import { listMatcherJobRecords } from '@/lib/storage/matcher-jobs';
-import { redactEvidenceValue } from '@/lib/privacy/redaction';
+import { redactDiagnosticValue } from '@/lib/privacy/redaction';
 import { getDiagnosticBuildId } from './build';
 import type {
 	DiagnosticMatcherJob,
@@ -11,7 +11,7 @@ import type {
 } from './contracts';
 import { getDiagnosticContexts, getDiagnosticRecords } from './journal';
 
-const DEFAULT_RECORD_LIMIT = 180;
+const DEFAULT_RECORD_LIMIT = 400;
 const DEFAULT_JOB_LIMIT = 40;
 
 /** Build the current crash/debug support snapshot without starting detector work. */
@@ -49,7 +49,7 @@ export function formatDiagnosticReport(snapshot: DiagnosticSnapshot): string {
 	const interrupted = snapshot.jobs.filter((job) => job.reason === 'context-interrupted');
 	const active = snapshot.jobs.filter((job) => isActiveMatcherStatus(job.status));
 	const lines = [
-		'Kaiju Deepscope diagnostic report',
+		'Kaiju DeepScope diagnostic report',
 		`Created: ${new Date(snapshot.createdAt).toISOString()}`,
 		`Extension: ${snapshot.extension.name} ${snapshot.extension.version}`,
 		`Build: ${snapshot.extension.buildId}`,
@@ -96,9 +96,9 @@ async function getRuntimeContexts(): Promise<DiagnosticRuntimeContext[]> {
 			...(typeof context.tabId === 'number' ? { tabId: context.tabId } : {}),
 			...(typeof context.windowId === 'number' ? { windowId: context.windowId } : {}),
 			...(typeof context.frameId === 'number' ? { frameId: context.frameId } : {}),
-			...(typeof context.documentId === 'string' ? { documentId: redactEvidenceValue(context.documentId, 180) } : {}),
-			...(typeof context.documentOrigin === 'string' ? { documentOrigin: redactEvidenceValue(context.documentOrigin, 240) } : {}),
-			...(typeof context.documentUrl === 'string' ? { documentUrl: redactEvidenceValue(context.documentUrl, 300) } : {}),
+			...(typeof context.documentId === 'string' ? { documentId: redactDiagnosticValue(context.documentId, 180) } : {}),
+			...(typeof context.documentOrigin === 'string' ? { documentOrigin: redactDiagnosticValue(context.documentOrigin, 240) } : {}),
+			...(typeof context.documentUrl === 'string' ? { documentUrl: redactDiagnosticValue(context.documentUrl, 300) } : {}),
 		}));
 	} catch {
 		return [];
@@ -139,7 +139,7 @@ function toDiagnosticMatcherJob(job: Awaited<ReturnType<typeof listMatcherJobRec
 		...(job.reason ? { reason: job.reason } : {}),
 		...(job.interruptedStatus ? { interruptedStatus: job.interruptedStatus } : {}),
 		...(job.interruptedAt === undefined ? {} : { interruptedAt: job.interruptedAt }),
-		...(job.errorMessage ? { errorMessage: redactEvidenceValue(job.errorMessage, 500) } : {}),
+		...(job.errorMessage ? { errorMessage: redactDiagnosticValue(job.errorMessage, 500) } : {}),
 	};
 }
 

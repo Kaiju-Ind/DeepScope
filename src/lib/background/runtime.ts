@@ -69,7 +69,7 @@ import {
 } from '@/lib/matcher';
 import type { BackgroundDetectionPersistence } from '@/lib/persistence/ports';
 import type { CompiledTechnologyRegistryArtifact } from '@/lib/registry/compiler-core';
-import { getOrigin, isSameDocumentUrl } from '@/utils/url';
+import * as url from '@/utils/url';
 import {
 	STORAGE_LIMITS,
 	createDetectionStorageHash,
@@ -105,6 +105,8 @@ export interface BackgroundRuntimeDependencies {
 	readonly persistence: BackgroundDetectionPersistence;
 	readonly logEvent: (event: string, details?: Record<string, unknown>) => void;
 	readonly logAnalysisSummary: (analysis: SiteAnalysis) => void;
+	/** Update the toolbar technology count for one tab after a completed analysis. */
+	readonly setBadge: (tabId: number, count: number) => Promise<void>;
 }
 
 /** Public surface owned by one isolated background runtime instance. */
@@ -435,15 +437,15 @@ export function createBackgroundRuntime(
 	}
 
 	function createVisibleTabIdentity(tab: InspectableTab): VisibleTabIdentity {
-		const url = new URL(tab.url);
-		const origin = getOrigin(tab.url);
+		const _url = new URL(tab.url);
+		const origin = url.origin(tab.url);
 
 		return {
 			windowId: tab.windowId,
 			tabId: tab.id,
 			frameId: 0,
 			url: tab.url,
-			hostname: url.hostname,
+			hostname: _url.hostname,
 			originHash: createDetectionStorageHash(origin),
 			urlHash: createDetectionStorageHash(tab.url),
 			incognito: tab.incognito,
@@ -763,7 +765,7 @@ export function createBackgroundRuntime(
 				tabId: tab.id,
 				frameId: 0,
 				documentId: sessionId,
-				originHash: createDetectionStorageHash(getOrigin(tab.url)),
+				originHash: createDetectionStorageHash(url.origin(tab.url)),
 			},
 			url: tab.url,
 			urlHash: createDetectionStorageHash(tab.url),
@@ -896,7 +898,7 @@ export function createBackgroundRuntime(
 			tabId: tab.id,
 			frameId: 0,
 			documentId: output.sessionTarget?.sessionId ?? output.session?.sessionId ?? createDetectionStorageHash(output.analysis.url),
-			originHash: createDetectionStorageHash(getOrigin(output.analysis.url)),
+			originHash: createDetectionStorageHash(url.origin(output.analysis.url)),
 		};
 	}
 
@@ -991,7 +993,7 @@ export function createBackgroundRuntime(
 			);
 		}
 
-		if (!actual.expectedUrl || !isSameDocumentUrl(actual.expectedUrl, expected.expectedUrl)) {
+		if (!actual.expectedUrl || !url.same(actual.expectedUrl, expected.expectedUrl)) {
 			return errorResponse(
 				'OBSERVATION_SESSION_UNAVAILABLE',
 				'The visible tab navigated away from the observed document.',
@@ -1598,7 +1600,7 @@ export function createBackgroundRuntime(
 			if (!current.url) {
 				return true;
 			}
-			return isSameDocumentUrl(current.url, expectedUrl);
+			return url.same(current.url, expectedUrl);
 		} catch {
 			return false;
 		}
@@ -1787,6 +1789,12 @@ export function createBackgroundRuntime(
 
 		eventObservationBatchByTab.set(tab.id, batch);
 		logAnalysisSummary(savedAnalysis);
+		void dependencies.setBadge(tab.id, savedAnalysis.results.length).catch((error) => {
+			logBackgroundEvent('toolbar-badge-update-failed', {
+				tabId: tab.id,
+				message: error instanceof Error ? error.message : String(error),
+			});
+		});
 		logBackgroundEvent('analysis-event-complete', {
 			...summarizeTab(tab),
 			snapshotStatus,
@@ -2001,7 +2009,7 @@ export function createBackgroundRuntime(
 				);
 			}
 
-			if (!tab.url || !isSameDocumentUrl(tab.url, target.expectedUrl)) {
+			if (!tab.url || !url.same(tab.url, target.expectedUrl)) {
 				return errorResponse(
 					'OBSERVATION_SESSION_UNAVAILABLE',
 					'The visible tab navigated away from the observed document.',

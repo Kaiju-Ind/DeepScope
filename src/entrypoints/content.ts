@@ -11,7 +11,7 @@ import { writeContentPageSessionSnapshot } from "@/lib/content/page-session-snap
 import { validatePageSignals } from "@/lib/detection/validate";
 import { getDiagnosticBuildId } from "@/lib/diagnostics/build";
 import { installDiagnosticCrashHooks } from "@/lib/diagnostics/crash";
-import { configureKaijuSiteScopeLogging, getKaijuSiteScopeLogger } from "@/lib/diagnostics/logging";
+import * as logging from '@/lib/diagnostics/logging';
 import type { CollectPageSignalsInput, ContentApi } from "@/lib/messaging";
 import {
   CONTENT_RPC_NAMESPACE,
@@ -30,9 +30,9 @@ import {
 } from "@/lib/observations";
 import { errorResponse, extensionSuccess } from "@/lib/messaging/result";
 
-const contentLogger = getKaijuSiteScopeLogger("content");
+const contentLogger = logging.get("content");
 const DOM_MUTATION_THROTTLE_MS = 1_500;
-const CONTENT_RUNTIME_KEY = '__kaijuSiteScopeContentRuntimeV1';
+const CONTENT_RUNTIME_KEY = '__kaijuDeepScopeContentRuntimeV1';
 
 type ContentRuntimeState = {
   readonly buildId?: string;
@@ -71,7 +71,7 @@ function clearRuntimeState(state: ContentRuntimeState): void {
 }
 
 function logContentEvent(event: string, details?: Record<string, unknown>): void {
-  contentLogger.debug("[kaiju-site-scope][content] {event}{summary}", {
+  contentLogger.debug("[kaiju-deepscope][content] {event}{summary}", {
     event,
     summary: formatContentLogSummary(details),
     ...(details ?? {}),
@@ -541,7 +541,7 @@ export default defineContentScript({
   runAt: "document_idle",
   noScriptStartedPostMessage: true,
   main(ctx) {
-    configureKaijuSiteScopeLogging("content");
+    logging.configure("content");
     const crashHooks = installDiagnosticCrashHooks("content", { captureGlobalError: false });
     const buildId = getDiagnosticBuildId();
     const existingRuntime = getRuntimeState();

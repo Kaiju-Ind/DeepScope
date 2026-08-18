@@ -13,76 +13,76 @@ import type { DiagnosticSurface } from './contracts';
 import { getDiagnosticBuildId } from './build';
 import { createDiagnosticJournalSink } from './journal';
 
-/** Root category shared by every extension runtime and shared library module. */
-export const KAIJU_SITE_SCOPE_LOG_CATEGORY = ['kaiju-site-scope'] as const;
+/** Root category shared by every DeepScope execution surface. */
+export const category = ['kaiju', 'deepscope'] as const;
 
-/** Runtime surface that owns LogTape configuration for one execution context. */
-export type KaijuSiteScopeLogSurface = DiagnosticSurface;
-
-/** Category suffixes used below the shared `kaiju-site-scope` root category. */
-export type KaijuSiteScopeLogCategory = readonly string[];
-
-const LOGTAPE_CONFIGURED_KEY = '__kaijuSiteScopeLogTapeConfigV1';
-const DEFAULT_LOWEST_LEVEL: LogLevel = 'debug';
-const META_LOWEST_LEVEL: LogLevel = 'warning';
-const BURST_LOG_LIMIT = 80;
-const BURST_LOG_WINDOW_MS = 1_000;
+/** Marker for the LogTape configuration owned by the current injected bundle. */
+const CONFIG_KEY = '__kaijuDeepScopeLogTapeConfigV1';
+const LOWEST_LEVEL: LogLevel = 'debug';
+const META_LEVEL: LogLevel = 'warning';
+const BURST_LIMIT = 80;
+const BURST_WINDOW_MS = 1_000;
+const BURST_KEYS = 256;
 
 /**
- * Configure LogTape for the current extension application context.
+ * Configure LogTape for one DeepScope execution surface.
  *
- * WXT runtime-injected content scripts can outlive an extension update. An old
- * bundle can therefore leave LogTape configured in the isolated world after its
- * extension APIs become invalid. The build-aware marker handles current bundles,
- * while `getConfig()` detects that legacy configuration and deliberately replaces
- * it instead of letting `configureSync()` crash the new content script.
+ * WXT-injected content scripts can outlive an extension update. The build-aware
+ * marker therefore replaces LogTape configuration left by an older bundle
+ * instead of letting a new content script fail during startup.
  */
-export function configureKaijuSiteScopeLogging(surface: KaijuSiteScopeLogSurface): void {
-	type LogConfigState = { readonly buildId: string; readonly surface: KaijuSiteScopeLogSurface };
-	const runtime = globalThis as typeof globalThis & Record<string, LogConfigState | undefined>;
+export function configure(surface: DiagnosticSurface): void {
+	type ConfigState = { readonly buildId: string; readonly surface: DiagnosticSurface };
+	const runtime = globalThis as typeof globalThis & Record<string, ConfigState | undefined>;
 	const buildId = getDiagnosticBuildId();
-	const existing = runtime[LOGTAPE_CONFIGURED_KEY];
+	const existing = runtime[CONFIG_KEY];
 	if (existing?.buildId === buildId && existing.surface === surface) return;
 
-	const consoleSink = createThrottledConsoleSink();
+	const consoleSink = createConsoleSink();
 	const journalSink = createDiagnosticJournalSink(surface);
 	configureSync({
 		reset: getConfig() != null,
 		sinks: { console: consoleSink, journal: journalSink },
 		loggers: [
-			{
-				category: [...KAIJU_SITE_SCOPE_LOG_CATEGORY],
-				lowestLevel: DEFAULT_LOWEST_LEVEL,
-				sinks: ['console', 'journal'],
-			},
-			{
-				category: ['logtape', 'meta'],
-				lowestLevel: META_LOWEST_LEVEL,
-				sinks: ['console', 'journal'],
-			},
+			{ category: [...category], lowestLevel: LOWEST_LEVEL, sinks: ['console', 'journal'] },
+			{ category: ['logtape', 'meta'], lowestLevel: META_LEVEL, sinks: ['console', 'journal'] },
 		],
 	});
 
-	runtime[LOGTAPE_CONFIGURED_KEY] = { buildId, surface };
-	getKaijuSiteScopeLogger(surface, 'logging').debug('Configured Kaiju Deepscope logging for {surface}.', {
-		buildId,
-		surface,
+	runtime[CONFIG_KEY] = { buildId, surface };
+	get(surface, 'logging').debug('Configured DeepScope logging for {surface}.', { buildId, surface });
+}
+
+/** Return a logger below the shared `kaiju.deepscope` category. */
+export function get(...suffix: readonly string[]): ReturnType<typeof getLogger> {
+	return getLogger([...category, ...suffix]);
+}
+
+/**
+ * Create the human console projection of diagnostic records.
+ *
+ * Warning and failure records always pass. Lower-level bursts use LogTape's
+ * throttling filter. The durable journal remains a separate sink, so console
+ * rate control cannot discard diagnostic history.
+ */
+function createConsoleSink(): Sink {
+	const sink = getConsoleSink();
+	const accept = getThrottlingFilter({
+		limit: BURST_LIMIT,
+		windowMs: BURST_WINDOW_MS,
+		maxKeys: BURST_KEYS,
+		summary: {
+			logger: getLogger([...category, 'console-throttle']),
+			level: 'info',
+			message: 'Suppressed {suppressed} repeated console diagnostics.',
+		},
 	});
-}
-
-/** Create a logger under the shared Kaiju Deepscope category tree. */
-export function getKaijuSiteScopeLogger(...category: KaijuSiteScopeLogCategory): ReturnType<typeof getLogger> {
-	return getLogger([...KAIJU_SITE_SCOPE_LOG_CATEGORY, ...category]);
-}
-
-function createThrottledConsoleSink(): Sink {
-	const consoleSink = getConsoleSink();
-	const burstFilter = getThrottlingFilter({ limit: BURST_LOG_LIMIT, windowMs: BURST_LOG_WINDOW_MS });
 	return ((record: LogRecord) => {
-		if (isImportantLevel(record.level) || burstFilter(record)) consoleSink(record);
+		if (isImportant(record.level) || accept(record)) sink(record);
 	}) as Sink;
 }
 
-function isImportantLevel(level: LogLevel): boolean {
+/** Return whether a level must bypass console throttling. */
+function isImportant(level: LogLevel): boolean {
 	return level === 'warning' || level === 'error' || level === 'fatal';
 }

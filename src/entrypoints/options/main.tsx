@@ -4,16 +4,16 @@ import { render } from 'solid-js/web';
 import { SupportFallback } from '@/app/components/support-fallback';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import { persistDiagnosticFailure } from '@/lib/diagnostics/journal';
-import { configureKaijuSiteScopeLogging } from '@/lib/diagnostics/logging';
+import * as logging from '@/lib/diagnostics/logging';
 
 import '@/styles/app.css';
 import '@/styles/panel.css';
 
-configureKaijuSiteScopeLogging('options');
+logging.configure('options');
 installDiagnosticCrashHooks('options');
 
 const root = document.getElementById('root');
-if (!root) throw new Error('Kaiju Deepscope diagnostics root is missing.');
+if (!root) throw new Error('Kaiju DeepScope diagnostics root is missing.');
 
 void import('@/app/components/diagnostics-view')
 	.then(({ DiagnosticsView }) => {
@@ -33,7 +33,7 @@ void import('@/app/components/diagnostics-view')
 	.catch((error: unknown) => {
 		persistDiagnosticFailure({
 			surface: 'options',
-			category: ['kaiju-site-scope', 'options', 'startup'],
+			category: ['kaiju-deepscope', 'options', 'startup'],
 			message: 'The diagnostics application failed before its primary UI mounted.',
 			error,
 		});

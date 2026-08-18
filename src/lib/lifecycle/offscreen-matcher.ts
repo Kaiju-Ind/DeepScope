@@ -1,6 +1,6 @@
 import { browser } from 'wxt/browser';
 
-import { getKaijuSiteScopeLogger } from '@/lib/diagnostics/logging';
+import * as logging from '@/lib/diagnostics/logging';
 
 import { matchIndexedObservationBatch } from '../detection/observation-matcher-index';
 import {
@@ -14,7 +14,7 @@ import {
 	type RunMatcherJobRequest,
 } from '../matcher';
 
-const matcherLogger = getKaijuSiteScopeLogger('background', 'offscreen-matcher');
+const matcherLogger = logging.get('background', 'offscreen-matcher');
 
 /** Static WXT output path for the hidden matcher host document. */
 const MATCHER_OFFSCREEN_DOCUMENT_PATH = '/offscreen.html';
@@ -85,7 +85,7 @@ function shouldUseDevelopmentMatcherFallback(): boolean {
 async function tryRunMatcherJobInOffscreen(
 	request: RunMatcherJobRequest,
 ): Promise<MatcherJobRunResult | null> {
-	if (!await ensureKaijuSiteScopeOffscreenDocument()) {
+	if (!await ensureOffscreenDocument()) {
 		return null;
 	}
 
@@ -120,7 +120,7 @@ function isOffscreenMatcherCancellationMessage(message: string): boolean {
 	return message.toLowerCase().includes('canceled');
 }
 
-export async function ensureKaijuSiteScopeOffscreenDocument(): Promise<boolean> {
+export async function ensureOffscreenDocument(): Promise<boolean> {
 	const offscreen = browser.offscreen;
 	if (!offscreen) {
 		return false;

@@ -5,7 +5,7 @@ import { limitStringsByTotalChars, truncate, uniqueStrings } from '../detection/
 import { SOURCE_LIMITS } from '../detection/source-limits';
 import { timeAsyncSpan, type TimingContext } from '../diagnostics/timing';
 import type { NormalizedObservation, ObservationBatch } from '../observations';
-import { getOrigin } from '@/utils/url';
+import * as url from '@/utils/url';
 
 /** Value shape stored for a page-owned JavaScript global. */
 export type JsGlobalSignalValue = string | boolean | number;
@@ -43,7 +43,7 @@ const BACKGROUND_FETCH_CONCURRENCY = 4;
 export async function collectBackgroundObservationBatch(
 	input: BackgroundObservationCollectorInput,
 ): Promise<ObservationBatch> {
-	const pageOrigin = getOrigin(input.batch.target.url);
+	const pageOrigin = url.origin(input.batch.target.url);
 	const timingContext: TimingContext = {
 		traceId: input.timingTraceId,
 		surface: 'collector',

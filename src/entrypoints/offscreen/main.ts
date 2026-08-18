@@ -1,5 +1,5 @@
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
-import { configureKaijuSiteScopeLogging, getKaijuSiteScopeLogger } from '@/lib/diagnostics/logging';
+import * as logging from '@/lib/diagnostics/logging';
 import { browser } from 'wxt/browser';
 
 import {
@@ -21,10 +21,10 @@ import {
 } from '@/lib/matcher/contracts';
 import { createMatcherPartitionTasks, createMatcherPipelineResult } from '@/lib/matcher/partition';
 
-configureKaijuSiteScopeLogging('offscreen');
+logging.configure('offscreen');
 installDiagnosticCrashHooks('offscreen');
 
-const offscreenLogger = getKaijuSiteScopeLogger('offscreen', 'matcher-host');
+const offscreenLogger = logging.get('offscreen', 'matcher-host');
 
 /** Default worker count used before benchmark data justifies a larger pool. */
 const DEFAULT_WORKER_COUNT = 2;
@@ -109,7 +109,7 @@ class MatcherWorkerSlot {
 		this.#index = index;
 		this.#worker = new Worker(new URL('./matcher.worker.ts', import.meta.url), {
 			type: 'module',
-			name: `kaiju-site-scope-matcher-${index}`,
+			name: `kaiju-deepscope-matcher-${index}`,
 		});
 	}
 

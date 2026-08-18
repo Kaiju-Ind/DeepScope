@@ -9,11 +9,11 @@ import { createBackgroundRuntime } from '@/lib/background/runtime';
 import { collectExtensionObservationBatch } from '@/lib/collectors/extension-page-collector';
 import { bundledTechnologyRegistryProvider } from '@/lib/detection/registry-provider';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
-import { configureKaijuSiteScopeLogging, getKaijuSiteScopeLogger } from '@/lib/diagnostics/logging';
+import * as logging from '@/lib/diagnostics/logging';
 import type { SiteAnalysis } from '@/lib/detection/types';
 import {
 	cancelOffscreenMatcherJob,
-	ensureKaijuSiteScopeOffscreenDocument,
+	ensureOffscreenDocument,
 	runMatcherJobWithOffscreenFallback,
 } from '@/lib/lifecycle/offscreen-matcher';
 import {
@@ -54,10 +54,10 @@ async function executeContentScript(tabId: number): Promise<void> {
 
 /** Create the runtime-owned logging projections after WXT starts the service worker. */
 function createBackgroundLoggers() {
-	const backgroundLogger = getKaijuSiteScopeLogger('background');
+	const backgroundLogger = logging.get('background');
 
 	function logBackgroundEvent(event: string, details?: Record<string, unknown>): void {
-		backgroundLogger.debug('[kaiju-site-scope][background] {event}{summary}', {
+		backgroundLogger.debug('[kaiju-deepscope][background] {event}{summary}', {
 			event,
 			summary: formatBackgroundLogSummary(details),
 			...(details ?? {}),
@@ -65,7 +65,7 @@ function createBackgroundLoggers() {
 	}
 
 	function logAnalysisSummary(analysis: SiteAnalysis): void {
-		backgroundLogger.info('[kaiju-site-scope] analysis summary', {
+		backgroundLogger.info('[kaiju-deepscope] analysis summary', {
 			hostname: analysis.hostname,
 			resultCount: analysis.results.length,
 			technologyIds: analysis.results.map((result) => result.technologyId),
@@ -175,8 +175,18 @@ function notifySidePanelTab(
  * all browser-owned resources and side effects inside `defineBackground` so the
  * module remains import-safe in that Node.js build process.
  */
+/** Show a compact technology count without opening the side panel. */
+async function setTechnologyBadge(tabId: number, count: number): Promise<void> {
+	const text = count <= 0 ? '' : count > 99 ? '99+' : String(count);
+	await Promise.all([
+		browser.action.setBadgeText({ tabId, text }),
+		browser.action.setBadgeBackgroundColor({ tabId, color: '#54def0' }),
+		browser.action.setBadgeTextColor({ tabId, color: '#030812' }),
+	]);
+}
+
 export default defineBackground(() => {
-	configureKaijuSiteScopeLogging('background');
+	logging.configure('background');
 	installDiagnosticCrashHooks('background');
 	const { logBackgroundEvent, logAnalysisSummary } = createBackgroundLoggers();
 
@@ -188,12 +198,13 @@ export default defineBackground(() => {
 		registryProvider: bundledTechnologyRegistryProvider,
 		matcher: {
 			cancelJob: cancelOffscreenMatcherJob,
-			ensureOffscreenDocument: ensureKaijuSiteScopeOffscreenDocument,
+			ensureOffscreenDocument,
 			runJob: runMatcherJobWithOffscreenFallback,
 		},
 		persistence: browserDetectionPersistence,
 		logEvent: logBackgroundEvent,
 		logAnalysisSummary,
+		setBadge: setTechnologyBadge,
 	});
 	const autoScanController = createAutoScanController({
 		getEnabled: getAutoScanEnabled,
@@ -224,6 +235,8 @@ export default defineBackground(() => {
 		if (tab.active !== true) {
 			return;
 		}
+
+		if (changeInfo.status === 'loading') void setTechnologyBadge(tabId, 0);
 
 		if (isSidePanelTabUpdateChange(changeInfo)) {
 			notifySidePanelTab(tabId, tab.windowId, 'updated');

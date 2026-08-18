@@ -4,16 +4,16 @@ import { render } from 'solid-js/web';
 import { SupportFallback } from '@/app/components/support-fallback';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import { persistDiagnosticFailure } from '@/lib/diagnostics/journal';
-import { configureKaijuSiteScopeLogging } from '@/lib/diagnostics/logging';
+import * as logging from '@/lib/diagnostics/logging';
 
 import '@/styles/app.css';
 import '@/styles/panel.css';
 
-configureKaijuSiteScopeLogging('sidepanel');
+logging.configure('sidepanel');
 installDiagnosticCrashHooks('sidepanel');
 
 const root = document.getElementById('root');
-if (!root) throw new Error('Kaiju Deepscope side-panel root is missing.');
+if (!root) throw new Error('Kaiju DeepScope side-panel root is missing.');
 
 void import('@/app/app')
 	.then(({ PanelApp }) => {
@@ -29,7 +29,7 @@ void import('@/app/app')
 	.catch((error: unknown) => {
 		persistDiagnosticFailure({
 			surface: 'sidepanel',
-			category: ['kaiju-site-scope', 'sidepanel', 'startup'],
+			category: ['kaiju-deepscope', 'sidepanel', 'startup'],
 			message: 'The side-panel application failed before its routed UI mounted.',
 			error,
 		});

@@ -2,7 +2,7 @@ import { getDiagnosticBuildId } from './build';
 import type { DiagnosticSurface } from './contracts';
 import { persistDiagnosticFailure, toDiagnosticError } from './journal';
 
-const CRASH_HOOKS_KEY = '__kaijuSiteScopeCrashHooksV2';
+const CRASH_HOOKS_KEY = '__kaijuDeepScopeCrashHooksV2';
 
 export interface DiagnosticCrashHookOptions {
 	/**
@@ -48,7 +48,7 @@ export function installDiagnosticCrashHooks(
 			const error = toDiagnosticError(errorEvent.error ?? errorEvent.message ?? 'Unhandled error');
 			persistDiagnosticFailure({
 				surface,
-				category: ['kaiju-site-scope', surface, 'crash'],
+				category: ['kaiju-deepscope', surface, 'crash'],
 				message: 'Unhandled JavaScript error.',
 				error,
 				properties: {
@@ -64,7 +64,7 @@ export function installDiagnosticCrashHooks(
 		const rejection = event as PromiseRejectionEvent;
 		persistDiagnosticFailure({
 			surface,
-			category: ['kaiju-site-scope', surface, 'crash'],
+			category: ['kaiju-deepscope', surface, 'crash'],
 			message: 'Unhandled promise rejection.',
 			error: rejection.reason,
 		});
@@ -73,7 +73,7 @@ export function installDiagnosticCrashHooks(
 	add('messageerror', (() => {
 		persistDiagnosticFailure({
 			surface,
-			category: ['kaiju-site-scope', surface, 'crash'],
+			category: ['kaiju-deepscope', surface, 'crash'],
 			message: 'A structured-clone message could not be decoded.',
 		});
 	}) as EventListener);

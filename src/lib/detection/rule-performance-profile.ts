@@ -360,10 +360,10 @@ export function formatRuleTimingRecord(record: RuleTimingRecord): string {
 /** Read benchmark budgets from environment variables with safe defaults. */
 export function readRuleProfileBudgets(env: Record<string, string | undefined>): RuleProfileBudgets {
 	return {
-		passBudgetMs: readPositiveNumberEnv(env.KAIJU_SITE_SCOPE_RULE_BENCH_PASS_BUDGET_MS, DEFAULT_RULE_PROFILE_PASS_BUDGET_MS),
-		missBudgetMs: readPositiveNumberEnv(env.KAIJU_SITE_SCOPE_RULE_BENCH_MISS_BUDGET_MS, DEFAULT_RULE_PROFILE_MISS_BUDGET_MS),
-		reportLimit: readPositiveIntegerEnv(env.KAIJU_SITE_SCOPE_RULE_BENCH_REPORT_LIMIT, DEFAULT_RULE_PROFILE_REPORT_LIMIT),
-		failOnBudget: env.KAIJU_SITE_SCOPE_RULE_BENCH_FAIL_ON_BUDGET === '1',
+		passBudgetMs: readPositiveNumberEnv(env.KAIJU_DEEPSCOPE_RULE_BENCH_PASS_BUDGET_MS, DEFAULT_RULE_PROFILE_PASS_BUDGET_MS),
+		missBudgetMs: readPositiveNumberEnv(env.KAIJU_DEEPSCOPE_RULE_BENCH_MISS_BUDGET_MS, DEFAULT_RULE_PROFILE_MISS_BUDGET_MS),
+		reportLimit: readPositiveIntegerEnv(env.KAIJU_DEEPSCOPE_RULE_BENCH_REPORT_LIMIT, DEFAULT_RULE_PROFILE_REPORT_LIMIT),
+		failOnBudget: env.KAIJU_DEEPSCOPE_RULE_BENCH_FAIL_ON_BUDGET === '1',
 	};
 }
 
@@ -390,7 +390,7 @@ export function makeRuleProfileObservation(
 
 /** Build a React Router-style hydration payload that should miss technology markers. */
 export function makeReactRouterHydrationPayload(
-	length: number = getConfiguredHydrationPayloadLength(process.env.KAIJU_SITE_SCOPE_RULE_BENCH_PAYLOAD_CHARS),
+	length: number = getConfiguredHydrationPayloadLength(process.env.KAIJU_DEEPSCOPE_RULE_BENCH_PAYLOAD_CHARS),
 ): string {
 	const bodyLength = Math.max(0, length);
 	return `window.__reactRouterContext.streamController.enqueue("${'x'.repeat(bodyLength)}");`;
@@ -398,7 +398,7 @@ export function makeReactRouterHydrationPayload(
 
 /** Build a Next.js-style hydration payload that should miss unrelated technology markers. */
 export function makeNextHydrationPayload(
-	length: number = getConfiguredHydrationPayloadLength(process.env.KAIJU_SITE_SCOPE_RULE_BENCH_PAYLOAD_CHARS),
+	length: number = getConfiguredHydrationPayloadLength(process.env.KAIJU_DEEPSCOPE_RULE_BENCH_PAYLOAD_CHARS),
 ): string {
 	const bodyLength = Math.max(0, length);
 	return `self.__next_f.push([1,"${'x'.repeat(bodyLength)}"]);`;

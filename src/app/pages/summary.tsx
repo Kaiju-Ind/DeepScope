@@ -1,5 +1,6 @@
 import ArrowRightIcon from '~icons/fluent/arrow-right-24-regular';
 import RefreshIcon from '~icons/fluent/arrow-clockwise-24-regular';
+import StopIcon from '~icons/fluent/dismiss-24-regular';
 import { Link } from '@tanstack/solid-router';
 import { For, Show } from 'solid-js';
 
@@ -16,7 +17,6 @@ import { Skeleton } from '@/ui/skeleton';
 /** Default side-panel page that summarizes the current tab before deeper inspection. */
 export function SummaryPage() {
 	const summary = useSummary();
-	const hostname = () => summary.analysis()?.hostname ?? summary.visibleTabIdentity()?.hostname;
 	const groups = () => summary.groupedResults();
 	const topResults = () => groups().flatMap((group) => group.results).slice(0, 5);
 	const isInitialLoad = () => !summary.analysis() && summary.analysisActivity().busy;
@@ -27,19 +27,18 @@ export function SummaryPage() {
 				<div class="k-page-heading">
 					<p class="k-page-eyebrow">Current tab</p>
 					<h1 class="k-page-title">Summary</h1>
-					<p class="k-page-description">
-						{hostname() ?? 'Open an HTTP or HTTPS page to inspect it.'}
-					</p>
+					<p class="k-page-description">What DeepScope found on the active page.</p>
 				</div>
-				<Button
-					variant="outline"
-					size="icon-sm"
-					aria-label="Refresh site analysis"
-					disabled={summary.busy()}
-					onClick={() => void summary.refresh()}
-				>
-					<RefreshIcon />
-				</Button>
+				<div class="flex items-center gap-2">
+					<Show when={summary.liveUpdateMode() === 'active'}>
+						<Button variant="outline" size="icon-sm" aria-label="Stop live observation" onClick={() => void summary.stopObservation()}>
+							<StopIcon />
+						</Button>
+					</Show>
+					<Button variant="outline" size="icon-sm" aria-label="Refresh site analysis" disabled={summary.busy()} onClick={() => void summary.refresh()}>
+						<RefreshIcon />
+					</Button>
+				</div>
 			</header>
 
 			<Show when={summary.analysisActivity().busy}>
@@ -63,16 +62,26 @@ export function SummaryPage() {
 				)}
 			</Show>
 
-			<div class="k-status-grid">
-				<SummaryMetric label="Technologies" value={String(summary.resultCount())} loading={isInitialLoad()} />
-				<SummaryMetric label="Categories" value={String(groups().length)} loading={isInitialLoad()} />
-				<SummaryMetric label="Evidence" value={summary.evidenceCompletenessLabel()} loading={isInitialLoad()} />
-				<SummaryMetric label="Observation" value={summary.liveUpdateChipLabel()} loading={isInitialLoad()} />
-			</div>
+			<Show when={summary.analysis() || isInitialLoad()}>
+				<div class="panel-section p-4">
+					<p class="panel-label">Detected on this page</p>
+					<Show when={!isInitialLoad()} fallback={<Skeleton class="mt-2 h-9 w-40" aria-label="Loading technology count" />}>
+						<div class="mt-1.5 flex items-baseline gap-2">
+							<strong class="font-display text-3xl font-semibold tracking-tight text-white">{summary.resultCount()}</strong>
+							<span class="text-sm text-white/48">{summary.resultCount() === 1 ? 'technology' : 'technologies'}</span>
+						</div>
+					</Show>
+					<div class="mt-3 flex flex-wrap gap-2">
+						<Badge variant="outline">{groups().length} {groups().length === 1 ? 'category' : 'categories'}</Badge>
+						<Badge variant="outline">{summary.evidenceCompletenessLabel()}</Badge>
+						<Show when={summary.liveUpdateMode() === 'active'}><Badge variant="secondary">Observing</Badge></Show>
+					</div>
+				</div>
+			</Show>
 
 			<Show
 				when={summary.analysis()}
-				fallback={summary.analysisActivity().busy ? <SummarySkeleton /> : <NoAnalysis />}
+				fallback={summary.analysisActivity().busy ? <SummarySkeleton /> : summary.errorMessage() ? null : <NoAnalysis />}
 			>
 				{(analysis) => (
 					<Show
@@ -141,33 +150,7 @@ export function SummaryPage() {
 				)}
 			</Show>
 
-			<Card size="sm">
-				<CardHeader>
-					<CardTitle>Scan details</CardTitle>
-					<CardDescription>Open the operational view for observation state, matcher state, and replay receipts.</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<ButtonLink to="/scans" variant="outline" class="w-full justify-between">
-						Open scans
-						<ArrowRightIcon />
-					</ButtonLink>
-				</CardContent>
-			</Card>
 		</>
-	);
-}
-
-function SummaryMetric(props: { readonly label: string; readonly value: string; readonly loading: boolean }) {
-	return (
-		<div class="k-status-card">
-			<p class="k-status-label">{props.label}</p>
-			<Show
-				when={!props.loading}
-				fallback={<Skeleton class="mt-1 h-5 w-16" aria-label={`Loading ${props.label.toLowerCase()}`} />}
-			>
-				<p class="k-status-value break-words text-sm">{props.value}</p>
-			</Show>
-		</div>
 	);
 }
 
@@ -190,7 +173,7 @@ function NoAnalysis() {
 		<Empty class="panel-section min-h-40 p-6">
 			<EmptyHeader>
 				<EmptyTitle>No site analysis yet</EmptyTitle>
-				<EmptyDescription>Kaiju scans the active page when this panel opens or when you press Refresh.</EmptyDescription>
+				<EmptyDescription>DeepScope inspects the active page when this panel opens or when you press Refresh.</EmptyDescription>
 			</EmptyHeader>
 		</Empty>
 	);

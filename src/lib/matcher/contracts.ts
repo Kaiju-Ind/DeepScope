@@ -178,7 +178,7 @@ export interface MatcherJobRunResult {
 }
 
 /** Offscreen-host message channel used by background and the hidden page. */
-export const MATCHER_OFFSCREEN_CHANNEL = 'kaiju-site-scope.matcher-offscreen.v1';
+export const MATCHER_OFFSCREEN_CHANNEL = 'kaiju-deepscope.matcher-offscreen.v1';
 
 /** Message asking the offscreen host to run a matcher job. */
 export interface RunMatcherJobMessage {

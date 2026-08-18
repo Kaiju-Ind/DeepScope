@@ -2,7 +2,7 @@ import { defineProxy } from "comctx";
 import { createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { createStore } from "solid-js/store";
 
-import { getKaijuSiteScopeLogger } from "@/lib/diagnostics/logging";
+import * as logging from '@/lib/diagnostics/logging';
 import {
   DEFAULT_AUTO_SCAN_ENABLED,
   getAutoScanEnabled,
@@ -63,7 +63,7 @@ import { PanelContext, type PanelContextType } from "@/app/context";
 import { getTabTarget, getWindowId, subscribeTabTargetChanges, type TabTarget } from "@/app/tab";
 
 
-const panelLogger = getKaijuSiteScopeLogger("sidepanel");
+const panelLogger = logging.get("sidepanel");
 const [, injectBackgroundApi] = defineProxy(() => ({}) as BackgroundApi, {
   namespace: BACKGROUND_RPC_NAMESPACE,
   heartbeatCheck: false,
@@ -78,7 +78,7 @@ const backgroundApi = injectBackgroundApi(
 type AnalysisCommandInput = Omit<AnalyzeVisibleTabInput, "target">;
 
 function logPanelEvent(event: string, details?: Record<string, unknown>): void {
-  panelLogger.debug("[kaiju-site-scope][sidepanel] {event}", {
+  panelLogger.debug("[kaiju-deepscope][sidepanel] {event}", {
     event,
     ...(details ?? {}),
   });
@@ -600,8 +600,8 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
       preserveReplayState ? explanationsByTechnologyId() : update.explanationsByTechnologyId,
     );
     setMatcherStatus(getMatcherStatusForAnalysisResponse(revision, options.source, matcherStatus()));
-    const shouldApplyReplayState = shouldApplyReplayState(revision);
-    const nextReplayHistory = shouldApplyReplayState
+    const _shouldApplyReplayState = shouldApplyReplayState(revision);
+    const nextReplayHistory = _shouldApplyReplayState
       ? getReplayHistoryForVisibleAnalysis(
         revision.replayHistory ?? (preserveReplayState ? replayHistory() : []),
         update.analysis,

@@ -1,6 +1,6 @@
 import type { LogRecord, Sink } from '@logtape/logtape';
 
-import { redactEvidenceValue } from '@/lib/privacy/redaction';
+import { redactDiagnosticValue } from '@/lib/privacy/redaction';
 import { getDiagnosticBuildId } from './build';
 import type {
 	DiagnosticContext,
@@ -25,7 +25,7 @@ const MAX_ARRAY_ITEMS = 16;
 const MAX_DEPTH = 4;
 const MAX_STRING_CHARS = 400;
 const MAX_STACK_CHARS = 4_000;
-const JOURNAL_STATE_KEY = '__kaijuSiteScopeDiagnosticJournalV3';
+const JOURNAL_STATE_KEY = '__kaijuDeepScopeDiagnosticJournalV3';
 const FLUSH_DELAY_MS = 80;
 const MAX_PENDING_RECORDS = 12;
 
@@ -191,8 +191,8 @@ export function toDiagnosticError(error: unknown): DiagnosticError {
 	if (error instanceof Error) {
 		return {
 			name: error.name || 'Error',
-			message: redactEvidenceValue(error.message || 'Unknown error', MAX_STRING_CHARS),
-			...(error.stack ? { stack: redactEvidenceValue(error.stack, MAX_STACK_CHARS) } : {}),
+			message: redactDiagnosticValue(error.message || 'Unknown error', MAX_STRING_CHARS),
+			...(error.stack ? { stack: redactDiagnosticValue(error.stack, MAX_STACK_CHARS) } : {}),
 			...(error.cause === undefined ? {} : { cause: sanitizeDiagnosticValue(error.cause, 1, 'cause') }),
 		};
 	}
@@ -200,15 +200,15 @@ export function toDiagnosticError(error: unknown): DiagnosticError {
 	if (typeof error === 'object' && error !== null) {
 		const value = error as Record<string, unknown>;
 		return {
-			name: typeof value.name === 'string' ? redactEvidenceValue(value.name, 120) : 'Error',
+			name: typeof value.name === 'string' ? redactDiagnosticValue(value.name, 120) : 'Error',
 			message: typeof value.message === 'string'
-				? redactEvidenceValue(value.message, MAX_STRING_CHARS)
-				: redactEvidenceValue(String(error), MAX_STRING_CHARS),
-			...(typeof value.stack === 'string' ? { stack: redactEvidenceValue(value.stack, MAX_STACK_CHARS) } : {}),
+				? redactDiagnosticValue(value.message, MAX_STRING_CHARS)
+				: redactDiagnosticValue(String(error), MAX_STRING_CHARS),
+			...(typeof value.stack === 'string' ? { stack: redactDiagnosticValue(value.stack, MAX_STACK_CHARS) } : {}),
 		};
 	}
 
-	return { name: 'Error', message: redactEvidenceValue(String(error), MAX_STRING_CHARS) };
+	return { name: 'Error', message: redactDiagnosticValue(String(error), MAX_STRING_CHARS) };
 }
 
 function persistLogRecord(journal: DiagnosticJournalState, record: LogRecord): void {
@@ -287,7 +287,7 @@ function persistSuccessfulDiagnosticSummary(
 	const timestamp = bucket.lastSuppressedAt ?? bucket.windowStart;
 	persistRecord(journal, {
 		level: 'debug',
-		category: ['kaiju-site-scope', journal.context.surface, 'diagnostics'],
+		category: ['kaiju', 'deepscope', journal.context.surface, 'diagnostics'],
 		message: 'Repeated successful diagnostic records were compacted.',
 		properties: {
 			event: getDiagnosticEvent(bucket.properties),
@@ -348,7 +348,7 @@ function persistRecord(
 		...(input.repeatCount === undefined ? {} : { repeatCount: input.repeatCount }),
 		level: input.level,
 		category: [...input.category],
-		message: redactEvidenceValue(input.message, MAX_STRING_CHARS),
+		message: redactDiagnosticValue(input.message, MAX_STRING_CHARS),
 		properties: sanitizeDiagnosticProperties(input.properties),
 	};
 	journal.pending.push(record);
@@ -445,10 +445,10 @@ function sanitizeDiagnosticValue(value: unknown, depth: number, key?: string): D
 	if (value === null || value === undefined) return value === null ? null : '[undefined]';
 	if (typeof value === 'boolean' || typeof value === 'number') return Number.isFinite(value) ? value : String(value);
 	if (typeof value === 'string') {
-		return redactEvidenceValue(value, key === 'stack' ? MAX_STACK_CHARS : MAX_STRING_CHARS);
+		return redactDiagnosticValue(value, key === 'stack' ? MAX_STACK_CHARS : MAX_STRING_CHARS);
 	}
 	if (typeof value === 'bigint' || typeof value === 'symbol' || typeof value === 'function') {
-		return redactEvidenceValue(String(value), MAX_STRING_CHARS);
+		return redactDiagnosticValue(String(value), MAX_STRING_CHARS);
 	}
 	if (value instanceof Error) return sanitizeDiagnosticValue(toDiagnosticError(value), depth + 1, key);
 	if (depth >= MAX_DEPTH) return '[truncated]';
@@ -462,7 +462,7 @@ function sanitizeDiagnosticValue(value: unknown, depth: number, key?: string): D
 		}
 		return result;
 	}
-	return redactEvidenceValue(String(value), MAX_STRING_CHARS);
+	return redactDiagnosticValue(String(value), MAX_STRING_CHARS);
 }
 
 function isImportantDiagnosticLevel(level: LogRecord['level']): boolean {

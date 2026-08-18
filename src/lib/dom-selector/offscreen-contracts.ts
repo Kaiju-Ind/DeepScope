@@ -1,7 +1,7 @@
 import type { DomSelectorPlan } from '../collectors/planning';
 
 /** Offscreen-host channel used for DOM selector matching. */
-export const DOM_SELECTOR_OFFSCREEN_CHANNEL = 'kaiju-site-scope.dom-selector-offscreen.v1';
+export const DOM_SELECTOR_OFFSCREEN_CHANNEL = 'kaiju-deepscope.dom-selector-offscreen.v1';
 
 /** Request payload for matching DOM selectors against serialized HTML. */
 export interface MatchDomSelectorsOffscreenRequest {

@@ -18,7 +18,7 @@ export function SupportFallback(props: SupportFallbackProps) {
 	onMount(() => {
 		persistDiagnosticFailure({
 			surface: props.surface,
-			category: ['kaiju-site-scope', props.surface, 'render'],
+			category: ['kaiju-deepscope', props.surface, 'render'],
 			message: 'The extension UI entered its support fallback.',
 			error: props.error,
 		});
@@ -38,7 +38,7 @@ export function SupportFallback(props: SupportFallbackProps) {
 
 	return (
 		<main style={{ 'min-height': '100dvh', padding: '1rem', background: '#030812', color: 'white', 'font-family': 'system-ui, sans-serif' }}>
-			<p style={{ 'font-size': '0.7rem', 'letter-spacing': '0.08em', 'text-transform': 'uppercase', opacity: 0.6 }}>Kaiju Deepscope</p>
+			<p style={{ 'font-size': '0.7rem', 'letter-spacing': '0.08em', 'text-transform': 'uppercase', opacity: 0.6 }}>Kaiju DeepScope</p>
 			<h1 style={{ margin: '0.5rem 0 0', 'font-size': '1.25rem' }}>The extension UI stopped unexpectedly</h1>
 			<p style={{ 'margin-top': '0.75rem', 'font-size': '0.875rem', 'line-height': 1.6, opacity: 0.72 }}>
 				The failure was written to the local diagnostic journal. Copy a report before retrying the interface.

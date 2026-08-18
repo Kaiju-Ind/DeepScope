@@ -11,7 +11,7 @@ import {
 } from './collect-page-signals';
 import { mergeStringsByTotalChars } from '../detection/normalizers';
 import { SOURCE_LIMITS } from '../detection/source-limits';
-import { getKaijuSiteScopeLogger } from '../diagnostics/logging';
+import * as logging from '../diagnostics/logging';
 import type { PageSignals } from '../detection/types';
 import type { DomSelectorPlan } from '../collectors/planning';
 import { isObservationSessionForUrl } from '../lifecycle/observation';
@@ -112,7 +112,7 @@ export type ObservedPageSignalsOptions = {
 };
 
 const MAX_PENDING_MUTATION_NODES = 100;
-const observerLogger = getKaijuSiteScopeLogger('content', 'observer');
+const observerLogger = logging.get('content', 'observer');
 
 type ActiveObservationSession = {
 	sessionId: string;
@@ -127,7 +127,7 @@ type ActiveObservationSession = {
 };
 
 function logObserverEvent(event: string, details?: Record<string, unknown>): void {
-	observerLogger.debug('[kaiju-site-scope][content][observer] {event}', {
+	observerLogger.debug('[kaiju-deepscope][content][observer] {event}', {
 		event,
 		...(details ?? {}),
 	});

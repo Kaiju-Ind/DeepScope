@@ -1,6 +1,6 @@
 import type { DetectionSessionKey } from './session';
 
-import { getOrigin } from '@/utils/url';
+import * as url from '@/utils/url';
 import { createFnv1a32Hash } from './hash';
 
 /** Prefix used for exact page-document detection snapshot records. */
@@ -55,7 +55,7 @@ export const STORAGE_LIMITS = {
  * storage reads and writes use session and origin snapshot keys.
  */
 export function getAnalysisResponseKey(url: string): string {
-	return `${ANALYSIS_RESPONSE_PREFIX}${getOrigin(url)}`;
+	return `${ANALYSIS_RESPONSE_PREFIX}${url.origin(url)}`;
 }
 
 /**
@@ -65,12 +65,12 @@ export function getAnalysisResponseKey(url: string): string {
  * metadata without changing the `SiteAnalysis` response shape.
  */
 export function getReplayTraceCacheKey(url: string): string {
-	return `${REPLAY_TRACE_CACHE_PREFIX}${getOrigin(url)}`;
+	return `${REPLAY_TRACE_CACHE_PREFIX}${url.origin(url)}`;
 }
 
 /** Build the storage key for bounded replay history on one origin. */
 export function getReplayTraceHistoryCacheKey(url: string): string {
-	return `${REPLAY_TRACE_HISTORY_CACHE_PREFIX}${getOrigin(url)}`;
+	return `${REPLAY_TRACE_HISTORY_CACHE_PREFIX}${url.origin(url)}`;
 }
 
 /** Build the storage key for one matcher job lifecycle record. */

@@ -1,7 +1,7 @@
 import type { ObservationSessionState } from '../content/observed-page-signals';
 
 /** Message type used by content scripts to wake the background after page facts change. */
-export const OBSERVATION_DIRTY_NOTIFICATION_TYPE = 'kaiju-site-scope.observation-dirty.v1';
+export const OBSERVATION_DIRTY_NOTIFICATION_TYPE = 'kaiju-deepscope.observation-dirty.v1';
 
 /**
  * Runtime notification sent outside RPC when a live page observation session queues facts.

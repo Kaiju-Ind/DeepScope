@@ -1,8 +1,8 @@
 /** Runtime message sent after a toolbar action grants active-tab access and opens the side panel. */
-export const SIDE_PANEL_ACTION_NOTIFICATION_TYPE = 'kaiju-site-scope.side-panel-action.v1';
+export const SIDE_PANEL_ACTION_NOTIFICATION_TYPE = 'kaiju-deepscope.side-panel-action.v1';
 
 /** Runtime message sent when Chrome changes the active page shown beside a mounted side panel. */
-export const SIDE_PANEL_TAB_NOTIFICATION_TYPE = 'kaiju-site-scope.side-panel-tab.v1';
+export const SIDE_PANEL_TAB_NOTIFICATION_TYPE = 'kaiju-deepscope.side-panel-tab.v1';
 
 /** Lets an already-mounted window-scoped side panel retry its active-tab sync after a toolbar action. */
 export type SidePanelActionNotification = {

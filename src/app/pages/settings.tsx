@@ -36,7 +36,7 @@ export function SettingsPage() {
 			<Card size="sm">
 				<CardHeader>
 					<CardTitle>Local detector data</CardTitle>
-					<CardDescription>Detection results and replay summaries stay in extension storage until you clear them or uninstall Kaiju Deepscope.</CardDescription>
+					<CardDescription>Detection results and replay summaries stay in extension storage until you clear them or uninstall Kaiju DeepScope.</CardDescription>
 				</CardHeader>
 				<CardContent class="grid gap-4">
 					<div class="grid grid-cols-2 gap-2">

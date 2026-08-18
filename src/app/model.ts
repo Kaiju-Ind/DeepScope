@@ -892,7 +892,11 @@ export function buildAnalysisUpdate(
 	 * stays live only when an observation session is active; follow-up evidence
 	 * passes publish normal background snapshots without a separate pending state.
 	 */
-	const shouldKeepLiveUpdatesActive = shouldKeepLiveUpdatesActive(observationMode);
+	console.log({
+		observationMode,
+		shouldKeepLiveUpdatesActive
+	})
+	const keepLiveUpdates = shouldKeepLiveUpdatesActive(observationMode);
 	const notice = getAnalysisNotice({
 		addedDetectionIds,
 		nextAnalysis,
@@ -906,7 +910,7 @@ export function buildAnalysisUpdate(
 		lateDetectionIds,
 		explanationsByTechnologyId,
 		observationMode,
-		shouldKeepLiveUpdatesActive,
+		shouldKeepLiveUpdatesActive: keepLiveUpdates,
 		notice,
 	};
 }

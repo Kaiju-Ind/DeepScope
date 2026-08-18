@@ -1,6 +1,6 @@
 import { browser } from 'wxt/browser';
 
-import { mergeStringsByTotalChars, normalizeMetaMap, truncate, uniqueStrings } from '../detection/normalizers';
+import { limitStringsByTotalChars, mergeStringsByTotalChars, normalizeMetaMap, truncate, uniqueStrings } from '../detection/normalizers';
 import { SOURCE_LIMITS } from '../detection/source-limits';
 import { timeAsyncSpan, timeSyncSpan, type TimingContext } from '../diagnostics/timing';
 import type {

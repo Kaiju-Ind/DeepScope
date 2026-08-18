@@ -58,29 +58,13 @@ export type SummaryPageType = Pick<
 	| 'liveUpdateChipLabel'
 	| 'evidenceCompletenessLabel'
 	| 'analysisActivity'
-	| 'refresh'
->;
-
-/** State and commands required by the scan operations page. */
-export type ScansPageType = Pick<
-	PanelContextType,
-	| 'status'
-	| 'busy'
-	| 'liveUpdateMode'
-	| 'notice'
-	| 'errorMessage'
-	| 'analysis'
-	| 'visibleTabIdentity'
-	| 'resultCount'
-	| 'liveUpdateChipLabel'
-	| 'evidenceCompletenessLabel'
-	| 'analysisActivity'
 	| 'matcherStatus'
-	| 'replayHistory'
-	| 'latestReplaySummary'
 	| 'refresh'
 	| 'stopObservation'
 >;
+
+/** State required by the retained detector history page. */
+export type HistoryPageType = Pick<PanelContextType, 'analysis' | 'visibleTabIdentity'>;
 
 /** State and commands required by the settings page. */
 export type SettingsPageType = Pick<
@@ -132,8 +116,8 @@ export function useSummary(): SummaryPageType {
 	return usePanel();
 }
 
-/** Return only the state and commands used by the scan page. */
-export function useScans(): ScansPageType {
+/** Return only the active-origin identity needed by the history page. */
+export function useHistory(): HistoryPageType {
 	return usePanel();
 }
 

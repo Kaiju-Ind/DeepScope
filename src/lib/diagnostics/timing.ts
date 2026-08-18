@@ -1,4 +1,4 @@
-import { getKaijuSiteScopeLogger } from '../diagnostics/logging';
+import * as logging from '../diagnostics/logging';
 
 /** Summary-only timing context shared by background, content, collector, and pipeline code. */
 export type TimingContext = {
@@ -20,8 +20,8 @@ export type TimingSpan = {
 	context?: TimingContext;
 };
 
-const TIMING_LOG_MARKER = '[kaiju-site-scope][timing]';
-const timingLogger = getKaijuSiteScopeLogger('timing');
+const TIMING_LOG_MARKER = '[kaiju-deepscope][timing]';
+const timingLogger = logging.get('timing');
 
 /**
  * Browser runtimes expose a monotonic performance clock, while tests can run in

@@ -110,7 +110,7 @@ const storageHashTextEncoder = new TextEncoder();
  * hash = multiply(hash, prime);
  * ```
  *
- * Kaiju Deepscope uses FNV-1a because it is the common variant used for compact
+ * Kaiju DeepScope uses FNV-1a because it is the common variant used for compact
  * non-cryptographic byte hashing.
  *
  * JavaScript-specific notes:

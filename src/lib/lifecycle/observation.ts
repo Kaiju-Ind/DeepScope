@@ -4,7 +4,7 @@ import type {
 	BeginObservationSessionInput,
 } from '../messaging/analysis';
 import type { ObservationSessionState } from '../content/observed-page-signals';
-import { isSameDocumentUrl } from '@/utils/url';
+import * as url from '@/utils/url';
 
 /**
  * Standard observation policy for the visible-tab extension flow.
@@ -66,7 +66,7 @@ export function isObservationSessionForUrl(
 	session: Pick<ObservationSessionState, 'expectedUrl'>,
 	activeUrl: string,
 ): boolean {
-	return !session.expectedUrl || isSameDocumentUrl(session.expectedUrl, activeUrl);
+	return !session.expectedUrl || url.same(session.expectedUrl, activeUrl);
 }
 
 /** Reason the background should refuse an observation refresh, if any. */

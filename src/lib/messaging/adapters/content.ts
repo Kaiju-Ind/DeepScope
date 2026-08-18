@@ -1,7 +1,7 @@
 import type { Adapter, Message, MessageMeta, OnMessage, SendMessage } from 'comctx';
 import { browser, type Browser } from 'wxt/browser';
 
-export const CONTENT_RPC_NAMESPACE = 'kaiju-site-scope.content-rpc.v1';
+export const CONTENT_RPC_NAMESPACE = 'kaiju-deepscope.content-rpc.v1';
 export const CONTENT_RPC_CHANNEL = 'content-rpc';
 
 export type ContentRpcMeta = MessageMeta & {

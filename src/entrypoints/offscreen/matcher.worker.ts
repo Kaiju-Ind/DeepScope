@@ -3,7 +3,7 @@ import {
 	type ObservationRuleEvaluationEvent,
 } from '@/lib/detection/observation-matcher-index';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
-import { configureKaijuSiteScopeLogging, getKaijuSiteScopeLogger } from '@/lib/diagnostics/logging';
+import * as logging from '@/lib/diagnostics/logging';
 import type { CompiledTechnologyRegistryArtifact } from '@/lib/registry/compiler-core';
 import { createPackagedTechnologyRegistryProvider } from '@/lib/registry/packaged-provider';
 import type {
@@ -26,9 +26,9 @@ const SLOW_SHARD_LOAD_MS = 250;
 /** Number of worst rule evaluations retained for one partition summary. */
 const MAX_SLOW_EVALUATION_SUMMARY_ITEMS = 5;
 
-configureKaijuSiteScopeLogging('matcher-worker');
+logging.configure('matcher-worker');
 installDiagnosticCrashHooks('matcher-worker');
-const matcherWorkerLogger = getKaijuSiteScopeLogger('matcher-worker', 'matcher');
+const matcherWorkerLogger = logging.get('matcher-worker', 'matcher');
 
 /** Worker global with the message contract used by the offscreen host. */
 type MatcherWorkerGlobal = typeof globalThis & {

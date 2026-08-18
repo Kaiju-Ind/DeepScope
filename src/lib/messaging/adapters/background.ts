@@ -1,7 +1,7 @@
 import type { Adapter, Message, MessageMeta, OnMessage, SendMessage } from 'comctx';
 import { browser, type Browser } from 'wxt/browser';
 
-export const BACKGROUND_RPC_NAMESPACE = 'kaiju-site-scope.background-rpc.v1';
+export const BACKGROUND_RPC_NAMESPACE = 'kaiju-deepscope.background-rpc.v1';
 export const BACKGROUND_RPC_CHANNEL = 'background-rpc';
 
 export type BackgroundClientKind = 'content' | 'options' | 'sidepanel' | 'devtools';

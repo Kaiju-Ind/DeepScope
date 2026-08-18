@@ -13,10 +13,10 @@ import {
 	contentScriptFailure,
 	withTimeout,
 } from '../messaging/rpc';
-import { ensureKaijuSiteScopeOffscreenDocument } from '../lifecycle/offscreen-matcher';
+import { ensureOffscreenDocument } from '../lifecycle/offscreen-matcher';
 import { timeAsyncSpan, type TimingContext } from '../diagnostics/timing';
 import { errorResponse, extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
-import { isSameDocumentUrl } from '@/utils/url';
+import * as url from '@/utils/url';
 
 /** Input needed to collect one visible tab through extension APIs. */
 export type ExtensionPageCollectorInput = {
@@ -79,7 +79,7 @@ export async function collectExtensionObservationBatch(
 	});
 
 	try {
-		await ensureKaijuSiteScopeOffscreenDocument();
+		await ensureOffscreenDocument();
 		const response = await timeAsyncSpan(
 			'collector.content-rpc.collect-observation-batch',
 			timingContext,
@@ -146,7 +146,7 @@ function validateObservationBatchTarget(
 	output: CollectObservationBatchOutput,
 	expectedUrl: string,
 ): ExtensionResult<never> | null {
-	if (isSameDocumentUrl(output.batch.target.url, expectedUrl)) {
+	if (url.same(output.batch.target.url, expectedUrl)) {
 		return null;
 	}
 
