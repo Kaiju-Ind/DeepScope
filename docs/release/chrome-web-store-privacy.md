@@ -6,13 +6,13 @@ the extension UI, and the final built manifest aligned before each release.
 
 ## Single purpose
 
-Kaiju Deepscope detects web technologies used by active website pages and
+Kaiju DeepScope detects web technologies used by active website pages and
 shows the evidence behind each detection. Automatic scanning can be disabled
 from Settings.
 
 ## Data handled
 
-Kaiju Deepscope can analyze page signals automatically when an active HTTP or
+Kaiju DeepScope can analyze page signals automatically when an active HTTP or
 HTTPS page finishes loading. Automatic scanning is enabled by default and can be
 turned off from Settings; users can still start analysis manually.
 
@@ -21,7 +21,7 @@ the page URL and hostname, DOM markers, meta tags, script and resource URLs,
 selected response/request header data available to the extension, cookie names,
 storage key names, JavaScript global names, and short bounded evidence snippets.
 
-Kaiju Deepscope does not intentionally collect passwords, cookie values,
+Kaiju DeepScope does not intentionally collect passwords, cookie values,
 localStorage values, sessionStorage values, payment details, health information,
 precise location, authentication secrets, or personal communications. Because
 website pages can contain incidental personal or sensitive text, persisted
@@ -62,7 +62,7 @@ extension-local storage.
 
 ## Sharing and remote services
 
-Kaiju Deepscope does not send page analysis, detector evidence, browsing
+Kaiju DeepScope does not send page analysis, detector evidence, browsing
 activity, cached results, or diagnostic reports to a remote server for the first
 release. Detection rules and registry files are packaged with the extension.
 The extension does not sell user data, use user data for advertising, or
@@ -97,13 +97,13 @@ extension does not read clipboard contents and does not upload the report.
 
 ## Remote code answer
 
-No. Kaiju Deepscope does not load or execute remotely hosted extension code.
+No. Kaiju DeepScope does not load or execute remotely hosted extension code.
 Detector rules, matcher workers, side-panel assets, fonts used by the general UI,
 and registry artifacts are bundled inside the extension package.
 
 ## Dashboard data disclosure summary
 
-Disclose website content/page content because Kaiju Deepscope inspects
+Disclose website content/page content because Kaiju DeepScope inspects
 page-derived signals to identify technologies. Disclose browsing activity/context
 because automatic analysis can start when active HTTP/HTTPS pages load and uses
 the current page URL and hostname.

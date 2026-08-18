@@ -1,4 +1,4 @@
-# Kaiju Deepscope Web Extension
+# Kaiju DeepScope Web Extension
 
 A Chrome-first Manifest V3 technology detector built with WXT, TypeScript, Solid, and `comctx`.
 
@@ -102,7 +102,7 @@ mise run bench:rules
 mise run bench:rules:gate
 ```
 
-`bench:rules` profiles curated pass/fail samples plus generated miss cases across the registry. `bench:rules:gate` also enables generated structural pass cases, high-risk hydration miss scans, and failing budget checks through the rule-profile environment flags. Use `KAIJU_SITE_SCOPE_RULE_BENCH_PASS_BUDGET_MS`, `KAIJU_SITE_SCOPE_RULE_BENCH_MISS_BUDGET_MS`, and `KAIJU_SITE_SCOPE_RULE_BENCH_REPORT_LIMIT` when a local machine needs different diagnostic thresholds.
+`bench:rules` profiles curated pass/fail samples plus generated miss cases across the registry. `bench:rules:gate` also enables generated structural pass cases, high-risk hydration miss scans, and failing budget checks through the rule-profile environment flags. Use `KAIJU_DEEPSCOPE_RULE_BENCH_PASS_BUDGET_MS`, `KAIJU_DEEPSCOPE_RULE_BENCH_MISS_BUDGET_MS`, and `KAIJU_DEEPSCOPE_RULE_BENCH_REPORT_LIMIT` when a local machine needs different diagnostic thresholds.
 
 You can also run package scripts directly with pnpm:
 

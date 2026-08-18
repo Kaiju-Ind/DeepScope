@@ -36,7 +36,7 @@ That lets the extension skip broad text collection, inline source collection, ba
 
 Shared source limits now live in a small standalone module. Hot-path collectors, validation helpers, and focused tests can read safety caps without importing the generated registry tree.
 
-The generated registry now lives as JSON assets under `.wxt/kaiju-site-scope-registry/` and is copied into the extension output as `kaiju-site-scope-registry/*.json`. The module in `modules/compile-registry.ts` refreshes those assets through WXT's build lifecycle. Runtime code fetches the enrichment asset only when fresh analysis needs the full registry, then hydrates regular expressions and compiles matcher buckets, relationship tables, technology metadata, and collection plans once for reuse.
+The generated registry now lives as JSON assets under `.wxt/kaiju-deepscope-registry/` and is copied into the extension output as `kaiju-deepscope-registry/*.json`. The module in `modules/compile-registry.ts` refreshes those assets through WXT's build lifecycle. Runtime code fetches the enrichment asset only when fresh analysis needs the full registry, then hydrates regular expressions and compiles matcher buckets, relationship tables, technology metadata, and collection plans once for reuse.
 
 Initial collection now uses the cheap tier only. Deeper HTML, text, headers, script-content, and stylesheet-content evidence runs as deferred enrichment after the first analysis response when an observation session is active. The popup can render the first useful detections while deeper evidence is still being checked.
 
@@ -98,7 +98,7 @@ The literal greenfield architecture still contains work outside this browser-ext
 
 ## Commands run in this workspace
 
-Dependency installation created `node_modules` and WXT generated files in this archive workspace. `aube run postinstall` previously completed and generated the compiled registry artifact used at that point in the migration, then TypeScript compilation completed successfully. Newer registry work writes JSON assets under `.wxt/kaiju-site-scope-registry/` instead. The focused validation commands below also completed:
+Dependency installation created `node_modules` and WXT generated files in this archive workspace. `aube run postinstall` previously completed and generated the compiled registry artifact used at that point in the migration, then TypeScript compilation completed successfully. Newer registry work writes JSON assets under `.wxt/kaiju-deepscope-registry/` instead. The focused validation commands below also completed:
 
 ```text
 aube run postinstall

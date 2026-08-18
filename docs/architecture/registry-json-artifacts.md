@@ -1,18 +1,18 @@
 # Registry JSON artifacts
 
-Kaiju Deepscope keeps the technology registry authored as TypeScript for now, but the extension runtime should not import the full generated registry during background startup. The registry is large enough that a static import makes every service-worker wake pay for rule payload parsing before the background has even learned whether the popup can render a cached snapshot.
+Kaiju DeepScope keeps the technology registry authored as TypeScript for now, but the extension runtime should not import the full generated registry during background startup. The registry is large enough that a static import makes every service-worker wake pay for rule payload parsing before the background has even learned whether the popup can render a cached snapshot.
 
 The WXT module at `modules/compile-registry.ts` turns the TypeScript registry into packaged JSON assets during prepare and build:
 
 ```txt
 TypeScript registry source
   -> WXT module
-  -> .wxt/kaiju-site-scope-registry/*.json
-  -> .wxt/kaiju-site-scope-public/kaiju-site-scope-registry/*.json
-  -> .output/<target>/kaiju-site-scope-registry/*.json
+  -> .wxt/kaiju-deepscope-registry/*.json
+  -> .wxt/kaiju-deepscope-public/kaiju-deepscope-registry/*.json
+  -> .output/<target>/kaiju-deepscope-registry/*.json
 ```
 
-The cache copy under `.wxt/kaiju-site-scope-registry` gives maintainers a predictable place to inspect generated artifacts. The public-asset copy is registered with WXT so the same JSON files are copied into the extension output. Runtime code resolves the output path with `browser.runtime.getURL(...)`, while matcher workers resolve the same packaged paths from their extension origin.
+The cache copy under `.wxt/kaiju-deepscope-registry` gives maintainers a predictable place to inspect generated artifacts. The public-asset copy is registered with WXT so the same JSON files are copied into the extension output. Runtime code resolves the output path with `browser.runtime.getURL(...)`, while matcher workers resolve the same packaged paths from their extension origin.
 
 ## Generated files
 
@@ -63,9 +63,9 @@ The old bootstrap artifact is no longer the normal visible-tab truth surface. It
 A healthy build should prove these facts:
 
 ```txt
-.wxt/kaiju-site-scope-registry/registry.manifest.json exists after WXT prepare
-.wxt/kaiju-site-scope-registry/registry.kind.<kind>.json exists for every observation kind
-.output/<target>/kaiju-site-scope-registry/*.json exists after WXT build
+.wxt/kaiju-deepscope-registry/registry.manifest.json exists after WXT prepare
+.wxt/kaiju-deepscope-registry/registry.kind.<kind>.json exists for every observation kind
+.output/<target>/kaiju-deepscope-registry/*.json exists after WXT build
 background entrypoint no longer imports #/compiled-registry
 packaged registry hydration preserves detector order and regular expressions
 observation-kind shards only contain rules that can receive that kind

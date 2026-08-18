@@ -6,7 +6,7 @@ Use this checklist against the final zip, not only the source tree.
 
 - `manifest.json` is at the zip root.
 - `manifest_version` is `3`.
-- `name`, `description`, and `action.default_title` all say Kaiju Deepscope.
+- `name`, `description`, and `action.default_title` all say Kaiju DeepScope.
 - `description` has no trailing quote or stale placeholder copy.
 - `permissions` contains only `activeTab`, `scripting`, `storage`, `offscreen`,
   `sidePanel`, and `clipboardWrite` for the first release.
@@ -32,7 +32,7 @@ Use this checklist against the final zip, not only the source tree.
 ## Final artifact checks
 
 ```sh
-unzip -q kaiju-site-scope-web-extension-0.1.0-chrome.zip -d /tmp/kaiju-cws
+unzip -q kaiju-deepscope-web-extension-0.1.0-chrome.zip -d /tmp/kaiju-cws
 cat /tmp/kaiju-cws/manifest.json
 grep -R "new Function\\|eval(" /tmp/kaiju-cws || true
 grep -R "https://\\|http://" /tmp/kaiju-cws/*.js /tmp/kaiju-cws/assets /tmp/kaiju-cws/chunks || true

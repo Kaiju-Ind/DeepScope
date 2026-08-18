@@ -1,25 +1,20 @@
 # Side-panel application composition
 
-Kaiju Deepscope is one persistent, window-scoped side-panel application. Chrome owns the outer side-panel surface. The extension owns one mounted Solid application inside that browser window.
+Kaiju DeepScope is one persistent, window-scoped side-panel application. Chrome owns the outer side-panel surface. The extension owns one mounted Solid application inside that browser window.
 
-The application separates browser targeting, detector state, routing, pages, and presentation so changing routes does not restart a scan or lose the active-tab lifecycle.
+The routed product model is now:
 
 ```text
-src/entrypoints/sidepanel/main.tsx
-  -> minimal boot + crash hooks
-      -> dynamic import PanelApp
-          -> PanelProvider
-              owns detector state and mounts tab-target subscription
-              -> TanStack Router with hash history
-                  -> PanelShell
-                      -> Summary
-                      -> Technologies
-                      -> Technology detail
-                      -> Scans
-                      -> Diagnostics
-                      -> Settings
-      -> raw SupportFallback when normal UI cannot mount
+DeepScope
+  Summary       current findings + live inspection controls
+  Technologies search/filter/sort + list/card/group views
+  History       retained replay receipts + emitted-result comparison
+  More
+    Diagnostics extension health, jobs, contexts, virtualized log timeline
+    Settings    automatic inspection and local data controls
 ```
+
+There is no separate Scan page. Live inspection state belongs to Summary, while completed runs belong to History. This removes the previous duplication where Summary and Scans described the same active detector state in two places.
 
 ## Browser ownership
 
@@ -34,106 +29,84 @@ side panel mounts
                   -> background validates that exact target
 ```
 
-The side panel listens to `tabs.onActivated` for its own `windowId` and to `tabs.onUpdated` for navigation in the active tab. The background service worker forwards the same activated/updated target through a typed runtime notification. These two signals are intentionally redundant. Exact `{ windowId, tabId }` validation and visible-identity comparison make duplicate notifications harmless while giving the panel another recovery path after an MV3 lifecycle transition.
+The background never guesses which tab the side panel means. Analysis commands carry the exact target. Initial mount and lifecycle recovery may query the current active tab again.
 
-The background does not guess which tab the side panel means. Analysis commands carry the exact target. Only initial mount, visibility recovery, and queued retry recovery query the current active tab again.
+## Current state owner
 
-## State ownership
-
-`src/app/tab.ts` owns Chrome active-tab subscriptions and exact window/tab targeting. `src/app/provider.tsx` mounts that subscription and owns state that must survive route changes:
-
-- current window and visible-tab identity;
-- current normalized analysis and detector snapshot revisions;
-- observation-session and matcher state;
-- replay history and explanation summaries;
-- automatic-scan preference state;
-- local detector-data clearing state;
-- in-flight refresh and tab-switch ownership.
-
-The provider is mounted above `RouterProvider`. Page navigation therefore does not recreate browser listeners, observation state, or the current detector result.
-
-Each product page consumes a narrow projection from `src/app/context.ts`:
+`src/app/provider.tsx` still owns state that must survive route changes, including current analysis, observation state, matcher state, settings, and tab identity. Pages use narrow projections from `src/app/context.ts`:
 
 ```text
 SummaryPage      -> useSummary()
 TechnologiesPage -> useTechnologies()
 TechnologyPage   -> useTechnology()
-ScansPage        -> useScans()
+HistoryPage      -> useHistory()
 SettingsPage     -> useSettings()
 ```
 
-Diagnostics is deliberately different. `DiagnosticsView` reads only the crash-durable diagnostic and matcher stores. It does not need the detector registry to assemble a support report.
+This is not the final state-ownership refactor. The provider remains larger than the desired capability model. New History and Diagnostics work does not add more replay or diagnostic responsibilities to it: History reads retained replay receipts through storage, and Diagnostics remains independent of detector UI state.
 
 ## Routed user flows
 
-TanStack Router uses hash history because all side-panel routes live inside the generated `sidepanel.html` document.
+TanStack Router uses hash history because every side-panel route lives inside generated `sidepanel.html`.
 
 ```text
-#/                              Summary of current findings
-#/technologies                  Full technology list
+#/                              Summary and live inspection
+#/technologies                  Searchable technology results
 #/technology/$technologyId      Technology evidence
-#/scans                         Scan controls and replay history
-#/diagnostics                   Extension health and support report
-#/settings                      Automatic scan and local-data controls
+#/history                       Retained replay history and comparison
+#/diagnostics                   Extension health and support investigator
+#/settings                      Automatic inspection and local-data controls
 ```
 
-The route split follows a realistic side-panel workflow:
+The normal flow is:
 
-1. Open the panel and get a concise summary of the current page.
-2. Open Technologies when the complete detection list matters.
-3. Select a technology when evidence or version detail matters.
-4. Open Scans when work is active, failed, or needs manual control.
-5. Open Settings only to change persistent behavior or clear detector data.
-6. Open Diagnostics when the extension behaves unexpectedly or support needs a report.
+1. Open Summary and understand the current page.
+2. Open Technologies to find or compare current detections.
+3. Open History to inspect earlier detector runs and changes.
+4. Open More only for Diagnostics, Settings, or version information.
 
-Summary, Technologies, and Scans use the same `AnalysisActivity` model. The UI keeps stale usable results visible while a refresh is active and shows indeterminate progress until matcher partition counts are known. Once the matcher publishes partition counts, the pages show determinate `completed / total` progress.
+## Adaptive navigation
 
-Raw evidence, replay history, storage controls, and runtime diagnostics are available without competing with the first summary view.
+Available width and pointing mode are separate design inputs. Fine-pointer layouts keep compact navigation under the header. Coarse-pointer or no-hover environments use a fixed bottom application bar with safe-area padding.
 
-## Independent diagnostics page
+The More surface uses the existing Corvu drawer primitive. It opens from the right for fine pointers and from the bottom for touch-oriented input. This preserves the same product model without forcing a desktop sidebar into a narrow browser side panel.
 
-WXT also builds `src/entrypoints/options/` as an extension options page and opens it in its own browser tab. Its minimal boot dynamically imports `DiagnosticsView` without importing `PanelProvider`, the route tree, detector registry, content-script connection, or offscreen matcher host. If that import or render fails, the page falls back to the raw support surface instead of depending on the normal Zaidan tree.
+## Diagnostics
+
+The options entrypoint remains independent of `PanelProvider`. `DiagnosticsView` reads the crash-durable diagnostic journal, matcher jobs, runtime contexts, and build data directly.
+
+Diagnostics has five views:
 
 ```text
-Chrome extension options
-  -> DiagnosticsView
-      -> chrome.storage.local diagnostic journal
-      -> durable matcher jobs
-      -> runtime.getContexts()
+Overview  health and build identity
+Timeline  searchable/filterable chronological LogTape records
+Jobs      matcher lifecycle records
+Contexts  active contexts + persisted context starts
+Raw       complete bounded support snapshot
 ```
 
-This is intentional. If the side-panel renderer or detector state is unhealthy, support still has a separate extension page from which to copy a report.
+Timeline filtering is a derived projection. It does not mutate the journal. TanStack Virtual limits DOM rows after filtering, uses stable record ids, and measures variable-height rows. The journal currently retains at most 400 records, while the query layer has a 10,000-record synthetic test so UI scaling work does not accidentally couple search cost to DOM size.
 
-## Zaidan UI ownership
+## Typography and brand
 
-`src/ui/` contains the Platform Zaidan primitive catalogue used by the extension. The extension also carries the Platform component CSS, density fixes, component registry metadata, Tailwind Vite integration, and Unplugin Icons integration.
-
-The user removed the unused local custom-icon collection. `wxt.config.ts` therefore keeps the normal Solid Unplugin Icons compiler but does not reference a nonexistent `src/icons/` directory. Add a filesystem icon collection again only when the extension has actual project-owned icons that need it.
-
-The extension does not copy the Platform application shell. Chrome already supplies the outer sidebar, so putting the desktop Platform sidebar inside the browser side panel would waste narrow horizontal space and duplicate navigation chrome.
-
-The extension uses the Platform typography roles:
+The header mirrors the DeepScope website treatment:
 
 ```text
-Space Grotesk -> primary UI and display text
-Space Mono     -> metadata and diagnostic identifiers
-brand role     -> Kaiju mark/wordmark
+KAIJU      American Kestrel
+DeepScope  Space Grotesk on the cyan brand surface
 ```
 
-The extension keeps its general fonts package-contained so the built extension does not need a runtime font request. Proprietary font binaries are not copied into this repository.
+The licensed American Kestrel face is copied into the extension at `public/fonts/american-kestrel/americankestral.ttf`. The regular UI keeps package-contained Space Grotesk, Inter, and Space Mono assets. Fontless runs in the WXT/Vite build so font CSS remains build-owned, with no runtime remote-font requirement.
 
 ## Review rules
 
-When changing this area, keep these rules true:
-
-1. One mounted side panel follows only the active tab in its own browser window.
-2. Browser tab targeting stays explicit. Do not restore last-focused-window heuristics in the background.
-3. A stale response from a previous tab cannot replace the currently visible tab.
-4. Route navigation does not recreate the state owner or browser subscriptions.
-5. Summary is the first page and explains current findings before exposing operational detail.
-6. Technologies visibly shows loading and matcher progress without removing usable prior results during refresh.
-7. Raw evidence belongs on technology detail, not every result row.
-8. Scan/replay state belongs on Scans. Persistent preferences and storage controls belong on Settings.
-9. Diagnostics remains independently readable when detector UI state is unhealthy.
-10. Declarative technology definitions stay under `src/registry/`; runtime detector behavior stays under `src/lib/detection/`.
-11. Generic reusable primitives stay under `src/utils/`; executable browser composition stays in `src/entrypoints/` and `src/app/`.
+1. One side panel follows only the active tab in its own browser window.
+2. Live inspection state belongs to Summary, not a duplicate route.
+3. Completed replay receipts belong to History.
+4. History comparison only claims facts persisted by replay v1. It does not claim rejected candidates.
+5. Diagnostics remains usable without normal detector UI state.
+6. Diagnostic filters never mutate persistent records.
+7. Console rate control cannot remove records from the durable diagnostic journal.
+8. Touch navigation must preserve keyboard accessibility and focus behavior.
+9. `src/ui/` primitives are the default building blocks before new UI components are introduced.
+10. The extension remains one package. Do not create a monorepo or top-level package workspace for internal capabilities.

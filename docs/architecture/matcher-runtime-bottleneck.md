@@ -1,6 +1,6 @@
 # Matcher runtime bottleneck
 
-Kaiju Deepscope now has durable popup snapshots, content-owned page observation, a disposable background coordinator, and packaged registry JSON artifacts. Those pieces make visible state safer, but they do not make CPU-bound matching fast by themselves.
+Kaiju DeepScope now has durable popup snapshots, content-owned page observation, a disposable background coordinator, and packaged registry JSON artifacts. Those pieces make visible state safer, but they do not make CPU-bound matching fast by themselves.
 
 The current slow-load trace points at one dominant cost:
 

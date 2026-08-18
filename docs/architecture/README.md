@@ -1,6 +1,6 @@
 # Architecture docs
 
-These docs describe the current Kaiju Deepscope extension after the event-runtime cleanup. The browser extension now asks for normalized observations, enriches those observations in the background, and runs the event pipeline as the extension detector path.
+These docs describe the current Kaiju DeepScope extension after the event-runtime cleanup. The browser extension now asks for normalized observations, enriches those observations in the background, and runs the event pipeline as the extension detector path.
 
 Start with the overview when you need the runtime map, then use the workflow or side-panel guide for narrower review questions.
 
