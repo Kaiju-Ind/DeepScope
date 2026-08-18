@@ -30,6 +30,7 @@ import {
   type ObservationBatchControllerStats,
 } from "@/lib/observations";
 import { errorResponse, extensionSuccess } from "@/lib/messaging/result";
+import * as url from "@/utils/url";
 
 const contentLogger = logging.get("content");
 const DOM_MUTATION_THROTTLE_MS = 1_500;
@@ -457,7 +458,15 @@ export function createContentRuntime(observedSignals: ObservedPageSignals): Cont
       return extensionSuccess(flush);
     },
 
-    async stopObservationSession() {
+    async stopObservationSession(input) {
+      const active = observedSignals.status();
+      if (active.sessionId !== input.sessionId || !active.expectedUrl || !url.sameDocument(active.expectedUrl, input.expectedUrl)) {
+        return errorResponse(
+          "OBSERVATION_SESSION_UNAVAILABLE",
+          "The requested observation session no longer owns this content runtime.",
+        );
+      }
+
       clearObservationExpiry();
       const session = observedSignals.stopObservationSession("manual");
       publishContentSnapshot("stopped", {

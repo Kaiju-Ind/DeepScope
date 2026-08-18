@@ -10,6 +10,10 @@ import { collectExtensionObservationBatch } from '@/lib/collectors/extension-pag
 import { bundledTechnologyRegistryProvider } from '@/lib/detection/registry-provider';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import * as logging from '@/lib/diagnostics/logging';
+import {
+	isDiagnosticTransportMessage,
+	persistTransportedDiagnosticMessage,
+} from '@/lib/diagnostics/journal';
 import type { SiteAnalysis } from '@/lib/detection/types';
 import {
 	cancelOffscreenMatcherJob,
@@ -254,6 +258,7 @@ export default defineBackground(() => {
 		void autoScanController.scanVisibleTab(tabId, tab.windowId, 'refresh', 'page-load');
 	});
 	browser.tabs.onActivated.addListener(({ tabId, windowId }) => {
+		backgroundRuntime.onTabActivated(tabId, windowId);
 		notifySidePanelTab(tabId, windowId, 'activated');
 		void browser.tabs.get(tabId).then((tab) => {
 			if (tab.status !== 'complete') {
@@ -269,6 +274,10 @@ export default defineBackground(() => {
 		});
 	});
 	browser.runtime.onMessage.addListener((message, sender) => {
+		if (isDiagnosticTransportMessage(message)) {
+			void persistTransportedDiagnosticMessage(message);
+			return;
+		}
 		backgroundRuntime.handleRuntimeMessage(message, sender);
 	});
 	registerBackgroundLifecycleListeners({

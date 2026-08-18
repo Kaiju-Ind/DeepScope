@@ -244,6 +244,7 @@ export function createStoredVisibleRevision(stored: Omit<StoredAnalysisResult, '
 export function isSnapshotForActiveTab(identity: VisibleTabIdentity, snapshot: DetectionSessionSnapshot): boolean {
 	return (
 		snapshot.key.tabId === identity.tabId &&
+		snapshot.key.frameId === identity.frameId &&
 		snapshot.key.originHash === identity.originHash &&
 		snapshot.urlHash === identity.urlHash
 	);

@@ -26,6 +26,9 @@ const SLOW_SHARD_LOAD_MS = 250;
 /** Number of worst rule evaluations retained for one partition summary. */
 const MAX_SLOW_EVALUATION_SUMMARY_ITEMS = 5;
 
+/** Maximum compiled registry shards retained by one matcher worker. */
+const MAX_CACHED_OBSERVATION_KIND_SHARDS = 4;
+
 logging.configure('matcher-worker');
 installDiagnosticCrashHooks('matcher-worker');
 const matcherWorkerLogger = logging.get('matcher-worker', 'matcher');
@@ -52,13 +55,15 @@ const workerScope = globalThis as Partial<MatcherWorkerGlobal>;
  * different evidence surfaces in parallel.
  */
 const registryProvider = createPackagedTechnologyRegistryProvider({
+	maxObservationKindShards: MAX_CACHED_OBSERVATION_KIND_SHARDS,
 	resolveUrl(path) {
 		const workerOrigin = workerScope.location?.origin ?? globalThis.location.origin;
 		return new globalThis.URL(path, `${workerOrigin}/`).toString();
 	},
 });
 
-const shardArtifactByKind = new Map<NormalizedObservationKind, Promise<CompiledTechnologyRegistryArtifact>>();
+/** Observation kinds currently expected to resolve from the provider's bounded LRU cache. */
+const recentShardKinds = new Map<NormalizedObservationKind, true>();
 
 if (typeof workerScope.addEventListener === 'function') {
 	workerScope.addEventListener('message', (event: MessageEvent<MatcherWorkerRunMessage>) => {
@@ -89,7 +94,7 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 		task.observationIndexes[index] ?? index,
 	]));
 	const slowestRuleEvaluations: SlowRuleEvaluationSummary[] = [];
-	const shardCacheHit = shardArtifactByKind.has(task.kind);
+	const shardCacheHit = recentShardKinds.has(task.kind);
 	const shardLoadStartedAt = globalThis.performance.now();
 	const shardArtifact = await getShardArtifact(task.kind);
 	const shardReadyAt = globalThis.performance.now();
@@ -183,14 +188,14 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 }
 
 function getShardArtifact(kind: NormalizedObservationKind): Promise<CompiledTechnologyRegistryArtifact> {
-	const existing = shardArtifactByKind.get(kind);
-	if (existing) {
-		return existing;
+	if (recentShardKinds.has(kind)) recentShardKinds.delete(kind);
+	recentShardKinds.set(kind, true);
+	while (recentShardKinds.size > MAX_CACHED_OBSERVATION_KIND_SHARDS) {
+		const leastRecentlyUsedKind = recentShardKinds.keys().next().value as NormalizedObservationKind | undefined;
+		if (leastRecentlyUsedKind === undefined) break;
+		recentShardKinds.delete(leastRecentlyUsedKind);
 	}
-
-	const artifact = registryProvider.getCompiledObservationKindRegistry(kind);
-	shardArtifactByKind.set(kind, artifact);
-	return artifact;
+	return registryProvider.getCompiledObservationKindRegistry(kind);
 }
 
 interface SlowRuleEvaluationSummary {

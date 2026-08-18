@@ -41,6 +41,7 @@ export type PanelContextType = {
 	readonly stopObservation: () => Promise<void>;
 	readonly setAutoScanEnabled: (enabled: boolean) => Promise<void>;
 	readonly clearStoredData: () => Promise<void>;
+	readonly getReplayHistory: (url: string) => Promise<readonly DetectionReplayTrace[]>;
 };
 
 
@@ -55,6 +56,8 @@ export type SummaryPageType = Pick<
 	| 'visibleTabIdentity'
 	| 'resultCount'
 	| 'groupedResults'
+	| 'lateAddedIds'
+	| 'hasLateDetections'
 	| 'liveUpdateChipLabel'
 	| 'evidenceCompletenessLabel'
 	| 'analysisActivity'
@@ -64,7 +67,7 @@ export type SummaryPageType = Pick<
 >;
 
 /** State required by the retained detector history page. */
-export type HistoryPageType = Pick<PanelContextType, 'analysis' | 'visibleTabIdentity'>;
+export type HistoryPageType = Pick<PanelContextType, 'analysis' | 'visibleTabIdentity' | 'getReplayHistory'>;
 
 /** State and commands required by the settings page. */
 export type SettingsPageType = Pick<
@@ -123,6 +126,8 @@ export function useSummary(): SummaryPageType {
 		visibleTabIdentity: panel.visibleTabIdentity,
 		resultCount: panel.resultCount,
 		groupedResults: panel.groupedResults,
+		lateAddedIds: panel.lateAddedIds,
+		hasLateDetections: panel.hasLateDetections,
 		liveUpdateChipLabel: panel.liveUpdateChipLabel,
 		evidenceCompletenessLabel: panel.evidenceCompletenessLabel,
 		analysisActivity: panel.analysisActivity,
@@ -135,7 +140,7 @@ export function useSummary(): SummaryPageType {
 /** Return only the active page identity required by retained history. */
 export function useHistory(): HistoryPageType {
 	const panel = usePanel();
-	return { analysis: panel.analysis, visibleTabIdentity: panel.visibleTabIdentity };
+	return { analysis: panel.analysis, visibleTabIdentity: panel.visibleTabIdentity, getReplayHistory: panel.getReplayHistory };
 }
 
 /** Return only the settings state and commands. */

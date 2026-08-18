@@ -23,6 +23,8 @@ export type TabTargetSubscription = {
 	readonly getWindowId: () => number | null;
 	readonly getVisibleTabId: () => number | null;
 	readonly sync: (target?: TabTarget) => void;
+	/** Remove panel-local state when Chrome closes a tab in this panel window. */
+	readonly closed?: (tabId: number) => void;
 	readonly visibility?: TabVisibility;
 };
 
@@ -82,6 +84,10 @@ export function subscribeTabTargetChanges(input: TabTargetSubscription): () => v
 
 		input.sync({ windowId: tab.windowId!, tabId });
 	};
+	const onRemoved = (tabId: number, removeInfo: { readonly windowId: number }): void => {
+		if (input.getWindowId() !== removeInfo.windowId) return;
+		input.closed?.(tabId);
+	};
 	const onRuntimeMessage = (message: unknown): void => {
 		const panelWindowId = input.getWindowId();
 		if (isSidePanelActionNotification(message)) {
@@ -99,12 +105,14 @@ export function subscribeTabTargetChanges(input: TabTargetSubscription): () => v
 
 	browser.tabs.onActivated.addListener(onActivated);
 	browser.tabs.onUpdated.addListener(onUpdated);
+	browser.tabs.onRemoved.addListener(onRemoved);
 	browser.runtime.onMessage.addListener(onRuntimeMessage);
 	visibility.addEventListener('visibilitychange', onVisibilityChange);
 
 	return () => {
 		browser.tabs.onActivated.removeListener(onActivated);
 		browser.tabs.onUpdated.removeListener(onUpdated);
+		browser.tabs.onRemoved.removeListener(onRemoved);
 		browser.runtime.onMessage.removeListener(onRuntimeMessage);
 		visibility.removeEventListener('visibilitychange', onVisibilityChange);
 	};

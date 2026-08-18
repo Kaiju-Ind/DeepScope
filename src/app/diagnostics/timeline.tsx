@@ -8,6 +8,7 @@ import type { DiagnosticRecord } from '@/lib/diagnostics/contracts';
 import * as query from '@/lib/diagnostics/query';
 import { Badge } from '@/ui/badge';
 import {
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
@@ -55,7 +56,12 @@ export function Timeline(props: TimelinePropsType) {
 		getItemKey: (index) => records()[index]?.id ?? index,
 		overscan: 8,
 	});
-	const virtualItems = () => virtualizer.getVirtualItems();
+	const virtualRows = createMemo(() => virtualizer.getVirtualItems().flatMap((item) => {
+		const record = records()[item.index];
+		return record
+			? [{ record, start: item.start, size: item.size }]
+			: [];
+	}));
 
 	createEffect(() => {
 		const next = state.get(props.tabId);
@@ -141,17 +147,17 @@ export function Timeline(props: TimelinePropsType) {
 					aria-label="Diagnostic timeline"
 				>
 					<div class="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
-						<For each={virtualItems()}>
-							{(item) => {
-								const record = () => records()[item.index];
-								return (
-									<div ref={(element) => virtualizer.measureElement(element)} data-index={item.index} class="absolute left-0 top-0 w-full px-3" style={{ transform: `translateY(${item.start}px)` }}>
-										<button type="button" class="k-diagnostic-record w-full text-left focus-kaiju" onClick={() => select(record())}>
-											<Record record={record()} />
-										</button>
-									</div>
-								);
-							}}
+						<For each={virtualRows()}>
+							{(row) => (
+								<div
+									class="absolute left-0 top-0 w-full px-3"
+									style={{ height: `${row.size}px`, transform: `translateY(${row.start}px)` }}
+								>
+									<button type="button" class="k-diagnostic-record h-full w-full text-left focus-kaiju" onClick={() => select(row.record)}>
+										<Record record={row.record} />
+									</button>
+								</div>
+							)}
 						</For>
 					</div>
 				</div>
@@ -170,12 +176,16 @@ export function Timeline(props: TimelinePropsType) {
 function Filter(props: { readonly level: string; readonly surface: string; readonly surfaces: readonly DiagnosticRecord['surface'][]; readonly count: number; readonly onChange: (next: { readonly level?: string; readonly surface?: string }) => void }) {
 	return (
 		<FilterMenu label="Filter diagnostics" count={props.count}>
-			<DropdownMenuLabel>Severity</DropdownMenuLabel>
-			<For each={['all', 'warning', 'error', 'fatal', 'info', 'debug', 'trace']}>{(value) => <DropdownMenuItem onSelect={() => props.onChange({ level: value })}><span class="flex-1">{levelLabel(value)}</span><Show when={props.level === value}>✓</Show></DropdownMenuItem>}</For>
+			<DropdownMenuGroup>
+				<DropdownMenuLabel>Severity</DropdownMenuLabel>
+				<For each={['all', 'warning', 'error', 'fatal', 'info', 'debug', 'trace']}>{(value) => <DropdownMenuItem onSelect={() => props.onChange({ level: value })}><span class="flex-1">{levelLabel(value)}</span><Show when={props.level === value}>✓</Show></DropdownMenuItem>}</For>
+			</DropdownMenuGroup>
 			<DropdownMenuSeparator />
-			<DropdownMenuLabel>Runtime surface</DropdownMenuLabel>
-			<DropdownMenuItem onSelect={() => props.onChange({ surface: 'all' })}><span class="flex-1">All surfaces</span><Show when={props.surface === 'all'}>✓</Show></DropdownMenuItem>
-			<For each={props.surfaces}>{(value) => <DropdownMenuItem onSelect={() => props.onChange({ surface: value })}><span class="flex-1">{value}</span><Show when={props.surface === value}>✓</Show></DropdownMenuItem>}</For>
+			<DropdownMenuGroup>
+				<DropdownMenuLabel>Runtime surface</DropdownMenuLabel>
+				<DropdownMenuItem onSelect={() => props.onChange({ surface: 'all' })}><span class="flex-1">All surfaces</span><Show when={props.surface === 'all'}>✓</Show></DropdownMenuItem>
+				<For each={props.surfaces}>{(value) => <DropdownMenuItem onSelect={() => props.onChange({ surface: value })}><span class="flex-1">{value}</span><Show when={props.surface === value}>✓</Show></DropdownMenuItem>}</For>
+			</DropdownMenuGroup>
 		</FilterMenu>
 	);
 }
@@ -202,7 +212,7 @@ function Detail(props: { readonly record: DiagnosticRecord }) {
 	);
 }
 
-/** Compact record content used by each dynamically measured virtual row. */
+/** Compact record content used by each fixed-height virtual row. */
 function Record(props: { readonly record: DiagnosticRecord }) {
 	return (
 		<>

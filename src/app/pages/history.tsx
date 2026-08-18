@@ -9,12 +9,12 @@ import { useHistory } from '@/app/context';
 import * as session from '@/app/session';
 import * as history from '@/lib/history';
 import type { DetectionReplayTrace } from '@/lib/pipeline';
-import { getCachedReplayTraceHistory } from '@/lib/storage';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/ui/drawer';
 import {
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
@@ -47,7 +47,7 @@ export function HistoryPage() {
 	const tabId = () => panel.visibleTabIdentity()?.tabId;
 	const currentUrl = () => panel.analysis()?.url ?? panel.visibleTabIdentity()?.url ?? '';
 	const initial = session.get<HistoryStateType>(tabId(), 'history') ?? defaultState;
-	const [runs, { refetch }] = createResource(currentUrl, async (value) => value ? getCachedReplayTraceHistory(value) : []);
+	const [runs, { refetch }] = createResource(currentUrl, async (value) => value ? panel.getReplayHistory(value) : []);
 	const [query, setQuery] = createSignal(initial.query);
 	const [scope, setScope] = createSignal<history.HistoryScopeType>(initial.scope);
 	const [change, setChange] = createSignal<history.HistoryChangeFilterType>(initial.change);
@@ -187,16 +187,20 @@ function HistoryFilter(props: {
 }) {
 	return (
 		<FilterMenu label="Filter history" count={props.count}>
-			<DropdownMenuLabel>Pages</DropdownMenuLabel>
-			<DropdownMenuItem onSelect={() => props.onScope('page')}><span class="flex-1">Current page only</span><Show when={props.scope === 'page'}>✓</Show></DropdownMenuItem>
-			<DropdownMenuItem onSelect={() => props.onScope('origin')}><span class="flex-1">All pages on this origin</span><Show when={props.scope === 'origin'}>✓</Show></DropdownMenuItem>
+			<DropdownMenuGroup>
+				<DropdownMenuLabel>Pages</DropdownMenuLabel>
+				<DropdownMenuItem onSelect={() => props.onScope('page')}><span class="flex-1">Current page only</span><Show when={props.scope === 'page'}>✓</Show></DropdownMenuItem>
+				<DropdownMenuItem onSelect={() => props.onScope('origin')}><span class="flex-1">All pages on this origin</span><Show when={props.scope === 'origin'}>✓</Show></DropdownMenuItem>
+			</DropdownMenuGroup>
 			<DropdownMenuSeparator />
-			<DropdownMenuLabel>Changes</DropdownMenuLabel>
-			<DropdownMenuItem onSelect={() => props.onChange('any')}><span class="flex-1">Any run</span><Show when={props.change === 'any'}>✓</Show></DropdownMenuItem>
-			<DropdownMenuItem onSelect={() => props.onChange('changed')}><span class="flex-1">Any difference</span><Show when={props.change === 'changed'}>✓</Show></DropdownMenuItem>
-			<DropdownMenuItem onSelect={() => props.onChange('added')}><span class="flex-1">Technology added</span><Show when={props.change === 'added'}>✓</Show></DropdownMenuItem>
-			<DropdownMenuItem onSelect={() => props.onChange('removed')}><span class="flex-1">Technology removed</span><Show when={props.change === 'removed'}>✓</Show></DropdownMenuItem>
-			<DropdownMenuItem onSelect={() => props.onChange('modified')}><span class="flex-1">Version, evidence, or confidence changed</span><Show when={props.change === 'modified'}>✓</Show></DropdownMenuItem>
+			<DropdownMenuGroup>
+				<DropdownMenuLabel>Changes</DropdownMenuLabel>
+				<DropdownMenuItem onSelect={() => props.onChange('any')}><span class="flex-1">Any run</span><Show when={props.change === 'any'}>✓</Show></DropdownMenuItem>
+				<DropdownMenuItem onSelect={() => props.onChange('changed')}><span class="flex-1">Any difference</span><Show when={props.change === 'changed'}>✓</Show></DropdownMenuItem>
+				<DropdownMenuItem onSelect={() => props.onChange('added')}><span class="flex-1">Technology added</span><Show when={props.change === 'added'}>✓</Show></DropdownMenuItem>
+				<DropdownMenuItem onSelect={() => props.onChange('removed')}><span class="flex-1">Technology removed</span><Show when={props.change === 'removed'}>✓</Show></DropdownMenuItem>
+				<DropdownMenuItem onSelect={() => props.onChange('modified')}><span class="flex-1">Version, evidence, or confidence changed</span><Show when={props.change === 'modified'}>✓</Show></DropdownMenuItem>
+			</DropdownMenuGroup>
 		</FilterMenu>
 	);
 }

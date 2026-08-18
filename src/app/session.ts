@@ -53,3 +53,8 @@ export function save<T>(tabId: number | undefined, page: string, value: T): void
 	tab.pages.set(page, value);
 	tabs.set(tabId, tab);
 }
+
+/** Remove all panel-local state after Chrome closes a browser tab. */
+export function remove(tabId: number): void {
+	tabs.delete(tabId);
+}

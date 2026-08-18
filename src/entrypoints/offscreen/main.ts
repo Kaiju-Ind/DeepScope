@@ -1,5 +1,7 @@
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import * as logging from '@/lib/diagnostics/logging';
+import { isDiagnosticTransportMessage } from '@/lib/diagnostics/journal';
+import type { DiagnosticTransportMessage } from '@/lib/diagnostics/contracts';
 import { browser } from 'wxt/browser';
 
 import {
@@ -17,9 +19,9 @@ import {
 	type MatcherPartitionTask,
 	type MatcherWorkerResponseMessage,
 	type MatcherWorkerRunMessage,
-	type RunMatcherJobRequest,
+	type OffscreenMatcherJobRequest,
 } from '@/lib/matcher/contracts';
-import { createMatcherPartitionTasks, createMatcherPipelineResult } from '@/lib/matcher/partition';
+import { createMatcherPartitionTasks } from '@/lib/matcher/partition';
 
 logging.configure('offscreen');
 installDiagnosticCrashHooks('offscreen');
@@ -28,6 +30,9 @@ const offscreenLogger = logging.get('offscreen', 'matcher-host');
 
 /** Default worker count used before benchmark data justifies a larger pool. */
 const DEFAULT_WORKER_COUNT = 2;
+
+/** Release matcher workers and compiled shard caches after a short idle period. */
+const MATCHER_WORKER_IDLE_MS = 30_000;
 
 /** Jobs canceled by the background before their queued partitions finish. */
 const canceledJobs = new Set<string>();
@@ -38,13 +43,19 @@ const queuedJobs: QueuedMatcherJob[] = [];
 /** Whether the offscreen host is currently feeding partitions to the pool. */
 let matcherQueueRunning = false;
 
-/** Shared worker pool kept hot for the lifetime of the offscreen document. */
+/** Job currently owning the shared worker pool. */
+let activeMatcherJobId: string | undefined;
+
+/** Shared worker pool kept hot only across nearby matcher jobs. */
 let sharedMatcherWorkerPool: MatcherWorkerPool | undefined;
+
+/** Delayed worker-pool disposal so short follow-up evidence passes can reuse hot shards. */
+let matcherWorkerIdleTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
 
 /** Matcher job queued with the promise callbacks returned to the background. */
 interface QueuedMatcherJob {
 	/** Request sent by the background. */
-	readonly request: RunMatcherJobRequest;
+	readonly request: OffscreenMatcherJobRequest;
 	/** Lower values run before inactive or lower-priority evidence work. */
 	readonly priority: number;
 	/** Resolve the background runtime message when the job completes. */
@@ -68,7 +79,7 @@ class MatcherWorkerPool {
 		this.#workers = Array.from({ length: Math.max(1, workerCount) }, (_item, index) => new MatcherWorkerSlot(index));
 	}
 
-	async run(request: RunMatcherJobRequest, tasks: readonly MatcherPartitionTask[]): Promise<readonly MatcherPartitionResult[]> {
+	async run(tasks: readonly MatcherPartitionTask[]): Promise<readonly MatcherPartitionResult[]> {
 		const results: MatcherPartitionResult[] = [];
 		let nextTaskIndex = 0;
 
@@ -93,9 +104,9 @@ class MatcherWorkerPool {
 		return results.sort(comparePartitionResults);
 	}
 
-	dispose(): void {
+	dispose(reason = 'Matcher worker pool was disposed.'): void {
 		for (const worker of this.#workers) {
-			worker.dispose();
+			worker.dispose(reason);
 		}
 	}
 }
@@ -104,6 +115,12 @@ class MatcherWorkerPool {
 class MatcherWorkerSlot {
 	readonly #worker: Worker;
 	readonly #index: number;
+	readonly #diagnosticListener = (event: MessageEvent<unknown>): void => {
+		if (!isDiagnosticTransportMessage(event.data)) return;
+		forwardMatcherWorkerDiagnostic(event.data);
+	};
+	/** Reject callback for the partition currently owned by this worker slot. */
+	#activeReject: ((error: Error) => void) | undefined;
 
 	constructor(index: number) {
 		this.#index = index;
@@ -111,16 +128,14 @@ class MatcherWorkerSlot {
 			type: 'module',
 			name: `kaiju-deepscope-matcher-${index}`,
 		});
+		this.#worker.addEventListener('message', this.#diagnosticListener);
 	}
 
 	run(task: MatcherPartitionTask): Promise<MatcherPartitionResult> {
 		return new Promise((resolve, reject) => {
-			const cleanup = (): void => {
-				this.#worker.removeEventListener('message', onMessage);
-				this.#worker.removeEventListener('error', onError);
-				this.#worker.removeEventListener('messageerror', onMessageError);
-			};
-			const onMessage = (event: MessageEvent<MatcherWorkerResponseMessage>): void => {
+			let cleanup = (): void => undefined;
+			const onMessage = (event: MessageEvent<MatcherWorkerResponseMessage | DiagnosticTransportMessage>): void => {
+				if (isDiagnosticTransportMessage(event.data)) return;
 				if (event.data.type === 'matcher-worker.partition-complete') {
 					cleanup();
 					resolve(event.data.result);
@@ -166,6 +181,16 @@ class MatcherWorkerSlot {
 				});
 				reject(error);
 			};
+			cleanup = (): void => {
+				this.#activeReject = undefined;
+				this.#worker.removeEventListener('message', onMessage);
+				this.#worker.removeEventListener('error', onError);
+				this.#worker.removeEventListener('messageerror', onMessageError);
+			};
+			this.#activeReject = (error) => {
+				cleanup();
+				reject(error);
+			};
 
 			this.#worker.addEventListener('message', onMessage);
 			this.#worker.addEventListener('error', onError);
@@ -190,9 +215,17 @@ class MatcherWorkerSlot {
 		});
 	}
 
-	dispose(): void {
+	dispose(reason = 'Matcher worker was disposed.'): void {
+		this.#activeReject?.(new Error(reason));
+		this.#activeReject = undefined;
+		this.#worker.removeEventListener('message', this.#diagnosticListener);
 		this.#worker.terminate();
 	}
+}
+
+/** Relay already-sanitized dedicated-worker diagnostics through the offscreen runtime channel. */
+function forwardMatcherWorkerDiagnostic(message: DiagnosticTransportMessage): void {
+	void browser.runtime.sendMessage(message).catch(() => undefined);
 }
 
 if (canRegisterMatcherOffscreenHost()) {
@@ -210,6 +243,13 @@ if (canRegisterMatcherOffscreenHost()) {
 		if (message.type === 'matcher.cancel-job') {
 			canceledJobs.add(message.jobId);
 			cancelQueuedMatcherJob(message.jobId);
+			if (activeMatcherJobId === message.jobId) {
+				disposeMatcherResources('Matcher job was canceled.');
+			} else {
+				// No active executor can observe this marker. Do not retain canceled job
+				// ids after a late best-effort cancel for work that already settled.
+				canceledJobs.delete(message.jobId);
+			}
 			return Promise.resolve({ ok: true, canceled: true, jobId: message.jobId });
 		}
 
@@ -233,7 +273,8 @@ function canRegisterMatcherOffscreenHost(): boolean {
 	return typeof globalThis.document !== 'undefined' && typeof globalThis.Worker !== 'undefined';
 }
 
-function enqueueMatcherJob(request: RunMatcherJobRequest): Promise<Awaited<ReturnType<typeof runMatcherJob>>> {
+function enqueueMatcherJob(request: OffscreenMatcherJobRequest): Promise<Awaited<ReturnType<typeof runMatcherJob>>> {
+	clearMatcherWorkerIdleTimer();
 	return new Promise((resolve, reject) => {
 		queuedJobs.push({
 			request,
@@ -245,13 +286,17 @@ function enqueueMatcherJob(request: RunMatcherJobRequest): Promise<Awaited<Retur
 	});
 }
 
-function cancelQueuedMatcherJob(jobId: string): void {
+
+function cancelQueuedMatcherJob(jobId: string): boolean {
+	let canceled = false;
 	for (let index = queuedJobs.length - 1; index >= 0; index -= 1) {
 		if (queuedJobs[index]?.request.job.jobId === jobId) {
 			const [queued] = queuedJobs.splice(index, 1);
 			queued?.reject(new Error('Matcher job was canceled before dispatch.'));
+			canceled = true;
 		}
 	}
+	return canceled;
 }
 
 function drainMatcherQueue(): void {
@@ -265,11 +310,21 @@ function drainMatcherQueue(): void {
 	}
 
 	matcherQueueRunning = true;
+	activeMatcherJobId = next.request.job.jobId;
 	void runMatcherJob(next.request)
-		.then(next.resolve, next.reject)
+		.then(next.resolve, (error) => {
+			disposeMatcherResources(error instanceof Error ? error.message : 'Matcher job failed.');
+			next.reject(error);
+		})
 		.finally(() => {
+			canceledJobs.delete(next.request.job.jobId);
+			activeMatcherJobId = undefined;
 			matcherQueueRunning = false;
-			drainMatcherQueue();
+			if (queuedJobs.length) {
+				drainMatcherQueue();
+			} else {
+				scheduleMatcherWorkerIdleDisposal();
+			}
 		});
 }
 
@@ -282,59 +337,91 @@ function takeNextQueuedMatcherJob(): QueuedMatcherJob | undefined {
 	return queuedJobs.shift();
 }
 
-function getJobQueuePriority(request: RunMatcherJobRequest): number {
+function getJobQueuePriority(request: OffscreenMatcherJobRequest): number {
 	if (request.mode === 'complete') {
 		return 1;
 	}
 	return 2;
 }
 
-async function runMatcherJob(request: RunMatcherJobRequest) {
+async function runMatcherJob(request: OffscreenMatcherJobRequest) {
 	const tasks = createMatcherPartitionTasks({
 		job: request.job,
 		batch: request.batch,
 		options: request.options,
 	});
 	const pool = getSharedMatcherWorkerPool(request);
-	const partitions = await pool.run(request, tasks);
+	const partitions = await pool.run(tasks);
 	if (canceledJobs.has(request.job.jobId)) {
 		throw new Error('Matcher job was canceled before completion.');
 	}
 
-	const result = createMatcherPipelineResult({
-		batch: request.batch,
-		registry: request.registry,
-		compiledRegistryArtifact: { relationshipGraph: request.relationshipGraph },
-		partitions,
-		analyzedAt: request.analyzedAt,
-		source: request.source,
-	});
-
 	return {
 		job: request.job,
 		mode: request.mode,
-		result,
 		partitions,
-		executor: 'offscreen-worker-pool' as const,
 		completedAt: Date.now(),
 	};
 }
 
 /**
- * Keep workers and their shard caches alive across matcher jobs.
+ * Reuse workers and their bounded shard caches across nearby matcher jobs.
  *
  * Worker startup and registry-shard hydration were previously paid for every
  * matcher job, which made follow-up evidence passes behave like cold full runs.
- * A shared pool keeps the offscreen document as the durable CPU executor while
- * the background remains the owner of tab lifecycle and storage writes.
+ * A shared pool avoids repeated worker startup for immediate follow-up passes,
+ * then the idle timer terminates the worker heaps. The background remains the
+ * owner of tab lifecycle and storage writes.
  */
-function getSharedMatcherWorkerPool(request: RunMatcherJobRequest): MatcherWorkerPool {
+function getSharedMatcherWorkerPool(request: OffscreenMatcherJobRequest): MatcherWorkerPool {
+	clearMatcherWorkerIdleTimer();
 	if (sharedMatcherWorkerPool) {
 		return sharedMatcherWorkerPool;
 	}
 
-	sharedMatcherWorkerPool = new MatcherWorkerPool(request.maxWorkerCount ?? DEFAULT_WORKER_COUNT);
+	const workerCount = request.maxWorkerCount ?? DEFAULT_WORKER_COUNT;
+	sharedMatcherWorkerPool = new MatcherWorkerPool(workerCount);
+	offscreenLogger.debug('Created matcher worker pool.', {
+		event: 'matcher-worker-pool-created',
+		workerCount,
+		jobId: request.job.jobId,
+		queuedJobCount: queuedJobs.length,
+	});
 	return sharedMatcherWorkerPool;
+}
+
+/** Release every matcher-worker heap after cancellation, failure, or idle expiry. */
+function disposeMatcherResources(reason = 'Matcher resources were disposed.'): void {
+	clearMatcherWorkerIdleTimer();
+	const pool = sharedMatcherWorkerPool;
+	if (!pool) return;
+
+	pool.dispose(reason);
+	sharedMatcherWorkerPool = undefined;
+	offscreenLogger.debug('Disposed matcher worker pool.', {
+		event: 'matcher-worker-pool-disposed',
+		reason,
+		activeJobId: activeMatcherJobId,
+		queuedJobCount: queuedJobs.length,
+	});
+}
+
+/** Keep workers warm briefly, then terminate them so compiled registry shards can be collected. */
+function scheduleMatcherWorkerIdleDisposal(): void {
+	clearMatcherWorkerIdleTimer();
+	if (!sharedMatcherWorkerPool) return;
+	matcherWorkerIdleTimer = globalThis.setTimeout(() => {
+		matcherWorkerIdleTimer = undefined;
+		if (matcherQueueRunning || queuedJobs.length > 0) return;
+		disposeMatcherResources(`Matcher worker pool reached the ${MATCHER_WORKER_IDLE_MS}ms idle limit.`);
+	}, MATCHER_WORKER_IDLE_MS);
+}
+
+/** Cancel delayed disposal when new matcher work needs the shared worker pool. */
+function clearMatcherWorkerIdleTimer(): void {
+	if (matcherWorkerIdleTimer === undefined) return;
+	globalThis.clearTimeout(matcherWorkerIdleTimer);
+	matcherWorkerIdleTimer = undefined;
 }
 
 function emitPartitionProgress(

@@ -12,6 +12,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import {
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
@@ -116,6 +117,7 @@ export function TechnologiesPage() {
 			<Show when={technologies.analysisActivity().busy}><AnalysisProgress activity={technologies.analysisActivity()} /></Show>
 			<Show when={technologies.errorMessage()}>{(message) => <Alert variant="destructive"><AlertTitle>Analysis failed</AlertTitle><AlertDescription>{message()}</AlertDescription></Alert>}</Show>
 			<Show when={technologies.notice()}>{(notice) => <Alert><AlertTitle>{notice().variant === 'success' ? 'Analysis updated' : 'Analysis status'}</AlertTitle><AlertDescription>{notice().text}</AlertDescription></Alert>}</Show>
+			<Show when={technologies.liveUpdateMode() === 'active'}><Alert><AlertTitle>{technologies.lateAddedIds().length > 0 ? 'New technologies arrived' : 'Watching for more technologies'}</AlertTitle><AlertDescription>{technologies.lateAddedIds().length > 0 ? `${technologies.lateAddedIds().length} result${technologies.lateAddedIds().length === 1 ? '' : 's'} were detected after the initial scan and are marked New below.` : 'DeepScope is still observing this page for late-loaded technology evidence.'}</AlertDescription></Alert></Show>
 
 			<Show when={technologies.analysis()} fallback={technologies.analysisActivity().busy ? <TechnologyListSkeleton /> : <NoAnalysis />}>
 				{(analysis) => (
@@ -209,14 +211,18 @@ function filterResults(results: readonly TechnologyResultType[], options: { read
 function TechnologyFilter(props: { readonly categories: readonly { readonly id: string; readonly label: string }[]; readonly category: string; readonly confidence: ConfidenceFilterType; readonly newOnly: boolean; readonly count: number; readonly onCategory: (value: string) => void; readonly onConfidence: (value: ConfidenceFilterType) => void; readonly onNewOnly: (value: boolean) => void }) {
 	return (
 		<FilterMenu label="Filter technologies" count={props.count}>
-			<DropdownMenuLabel>Evidence</DropdownMenuLabel>
-			<DropdownMenuItem onSelect={() => props.onConfidence('all')}><span class="flex-1">Any confidence</span><Show when={props.confidence === 'all'}>✓</Show></DropdownMenuItem>
-			<DropdownMenuItem onSelect={() => props.onConfidence('high')}><span class="flex-1">High or certain</span><Show when={props.confidence === 'high'}>✓</Show></DropdownMenuItem>
-			<DropdownMenuItem onSelect={() => props.onNewOnly(!props.newOnly)}><span class="flex-1">New this inspection</span><Show when={props.newOnly}>✓</Show></DropdownMenuItem>
+			<DropdownMenuGroup>
+				<DropdownMenuLabel>Evidence</DropdownMenuLabel>
+				<DropdownMenuItem onSelect={() => props.onConfidence('all')}><span class="flex-1">Any confidence</span><Show when={props.confidence === 'all'}>✓</Show></DropdownMenuItem>
+				<DropdownMenuItem onSelect={() => props.onConfidence('high')}><span class="flex-1">High or certain</span><Show when={props.confidence === 'high'}>✓</Show></DropdownMenuItem>
+				<DropdownMenuItem onSelect={() => props.onNewOnly(!props.newOnly)}><span class="flex-1">New this inspection</span><Show when={props.newOnly}>✓</Show></DropdownMenuItem>
+			</DropdownMenuGroup>
 			<DropdownMenuSeparator />
-			<DropdownMenuLabel>Category</DropdownMenuLabel>
-			<DropdownMenuItem onSelect={() => props.onCategory('all')}><span class="flex-1">All categories</span><Show when={props.category === 'all'}>✓</Show></DropdownMenuItem>
-			<For each={props.categories}>{(item) => <DropdownMenuItem onSelect={() => props.onCategory(item.id)}><span class="flex-1">{item.label}</span><Show when={props.category === item.id}>✓</Show></DropdownMenuItem>}</For>
+			<DropdownMenuGroup>
+				<DropdownMenuLabel>Category</DropdownMenuLabel>
+				<DropdownMenuItem onSelect={() => props.onCategory('all')}><span class="flex-1">All categories</span><Show when={props.category === 'all'}>✓</Show></DropdownMenuItem>
+				<For each={props.categories}>{(item) => <DropdownMenuItem onSelect={() => props.onCategory(item.id)}><span class="flex-1">{item.label}</span><Show when={props.category === item.id}>✓</Show></DropdownMenuItem>}</For>
+			</DropdownMenuGroup>
 		</FilterMenu>
 	);
 }

@@ -63,6 +63,17 @@ export function SummaryPage() {
 				)}
 			</Show>
 
+			<Show when={summary.liveUpdateMode() === 'active'}>
+				<Alert>
+					<AlertTitle>{summary.hasLateDetections() ? 'Additional technologies detected' : 'Watching for additional technologies'}</AlertTitle>
+					<AlertDescription>
+						{summary.hasLateDetections()
+							? `${summary.lateAddedIds().length} ${summary.lateAddedIds().length === 1 ? 'technology' : 'technologies'} appeared after the initial result as the page continued loading.`
+							: 'This page is still being observed. Late scripts, plugins, or application features can add technologies without requiring a manual refresh.'}
+					</AlertDescription>
+				</Alert>
+			</Show>
+
 			<Show when={summary.analysis() || isInitialLoad()}>
 				<div class="panel-section p-4">
 					<p class="panel-label">Detected on this page</p>
