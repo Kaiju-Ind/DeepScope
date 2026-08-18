@@ -10,6 +10,7 @@ export type {
 	BackgroundApi,
 	ObservationSessionTarget,
 	ObservationSessionTargetInput,
+	ContentObservationSessionTarget,
 	ReplayTraceHistoryInput,
 	BeginObservationSessionInput,
 	CollectObservationBatchOutput,

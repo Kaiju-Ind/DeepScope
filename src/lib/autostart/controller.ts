@@ -55,7 +55,7 @@ export function createAutoScanController(
 		const response: ExtensionResult<AnalyzeVisibleTabOutput> = await dependencies.analyzeVisibleTab({
 			target: identity,
 			mode,
-			observe: 'bounded',
+			observe: 'none',
 		});
 		dependencies.log?.(response.ok ? 'auto-scan-queued' : 'auto-scan-failed', {
 			tabId,

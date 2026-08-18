@@ -1,5 +1,8 @@
 import type { LogLevel } from '@logtape/logtape';
 
+/** Runtime channel used by storage-less extension contexts to forward durable diagnostics. */
+export const DIAGNOSTIC_TRANSPORT_CHANNEL = 'kaiju-deepscope.diagnostics.v1' as const;
+
 /** Extension execution contexts that can own diagnostic records. */
 export type DiagnosticSurface =
 	| 'background'
@@ -45,6 +48,23 @@ export type DiagnosticContext = {
 	readonly startedAt: number;
 	readonly buildId: string;
 };
+
+/** Diagnostic context forwarded toward the background by a storage-less runtime. */
+export type DiagnosticContextTransportMessage = {
+	readonly channel: typeof DIAGNOSTIC_TRANSPORT_CHANNEL;
+	readonly type: 'diagnostics.context';
+	readonly context: DiagnosticContext;
+};
+
+/** Diagnostic record forwarded toward the background by a storage-less runtime. */
+export type DiagnosticRecordTransportMessage = {
+	readonly channel: typeof DIAGNOSTIC_TRANSPORT_CHANNEL;
+	readonly type: 'diagnostics.record';
+	readonly record: DiagnosticRecord;
+};
+
+/** Storage-less diagnostic message accepted by the background persistence owner. */
+export type DiagnosticTransportMessage = DiagnosticContextTransportMessage | DiagnosticRecordTransportMessage;
 
 /** Serializable error information retained by crash hooks and worker hosts. */
 export type DiagnosticError = {

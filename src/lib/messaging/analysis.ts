@@ -23,12 +23,11 @@ export type AnalyzeVisibleTabMode = typeof ANALYSIS_MODES[number];
 /**
  * Observation choices accepted by the background API.
  *
- * Every value except `none` asks the content script to keep watching the page
- * after event analysis. The same bounded observation policy is used today for
- * `while-panel-open` and `bounded`; callers use the names to describe intent,
- * while the lifecycle policy owns the actual duration and event-storm limits.
+ * `none` is a one-shot collection. `while-panel-open` starts one live content
+ * session that the mounted panel owns and stops on tab change or panel close.
+ * The observation policy still supplies an expiry as a safety limit.
  */
-export const OBSERVATION_MODES = ['none', 'while-panel-open', 'bounded'] as const;
+export const OBSERVATION_MODES = ['none', 'while-panel-open'] as const;
 
 /** Request value that controls whether live page watching starts. */
 export type VisibleTabObservationMode = typeof OBSERVATION_MODES[number];
@@ -115,6 +114,9 @@ export type ObservationSessionTarget = {
 
 /** Request that targets a specific existing observation session. */
 export type ObservationSessionTargetInput = ObservationSessionTarget;
+
+/** Content-local session identity used to make stop requests atomic inside one page runtime. */
+export type ContentObservationSessionTarget = Pick<ObservationSessionTarget, 'sessionId' | 'expectedUrl'>;
 
 /** Request for replay history tied to the analysis currently visible in the side panel. */
 export type ReplayTraceHistoryInput = {
@@ -296,8 +298,8 @@ export interface ContentApi {
 	collectObservationBatch(input: CollectPageSignalsInput): Promise<ExtensionResult<CollectObservationBatchOutput>>;
 	/** Start watching late-added scripts, links, styles, and metadata. */
 	beginObservationSession(input: BeginObservationSessionInput): Promise<ExtensionResult<ObservationSessionState>>;
-	/** Stop the current observation session manually. */
-	stopObservationSession(): Promise<ExtensionResult<ObservationSessionState>>;
+	/** Stop the exact observation session only if it still owns this content runtime. */
+	stopObservationSession(input: ContentObservationSessionTarget): Promise<ExtensionResult<ObservationSessionState>>;
 	/** Flush late normalized observations queued by DOM and resource observers. */
 	flushObservationBatch(): Promise<ExtensionResult<FlushObservationBatchOutput>>;
 	/** Return the current observation session state. */

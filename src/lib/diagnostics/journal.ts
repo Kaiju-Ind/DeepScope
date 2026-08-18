@@ -7,8 +7,10 @@ import type {
 	DiagnosticError,
 	DiagnosticRecord,
 	DiagnosticSurface,
+	DiagnosticTransportMessage,
 	DiagnosticValue,
 } from './contracts';
+import { DIAGNOSTIC_TRANSPORT_CHANNEL } from './contracts';
 
 const DIAGNOSTIC_RECORD_PREFIX = 'diagnostics:record:';
 const DIAGNOSTIC_CONTEXT_PREFIX = 'diagnostics:context:';
@@ -70,7 +72,7 @@ export function startDiagnosticJournal(surface: DiagnosticSurface): DiagnosticJo
 		if (existing.rateTimer !== undefined) clearTimeout(existing.rateTimer);
 	}
 
-	if (!getStorageArea()) return null;
+	if (!getStorageArea() && !getDiagnosticTransportSender()) return null;
 
 	const startedAt = Date.now();
 	const context: DiagnosticContext = {
@@ -332,7 +334,6 @@ function persistRecord(
 	},
 ): void {
 	const storage = getStorageArea();
-	if (!storage) return;
 
 	const sequence = ++journal.sequence;
 	const timestamp = input.timestamp ?? Date.now();
@@ -351,6 +352,14 @@ function persistRecord(
 		message: redactDiagnosticValue(input.message, MAX_STRING_CHARS),
 		properties: sanitizeDiagnosticProperties(input.properties),
 	};
+	if (!storage) {
+		transportDiagnosticMessage({
+			channel: DIAGNOSTIC_TRANSPORT_CHANNEL,
+			type: 'diagnostics.record',
+			record,
+		});
+		return;
+	}
 	journal.pending.push(record);
 	if (record.level === 'error' || record.level === 'fatal' || journal.pending.length >= MAX_PENDING_RECORDS) {
 		void flushDiagnosticJournal(journal);
@@ -394,8 +403,45 @@ async function flushDiagnosticJournal(journal: DiagnosticJournalState): Promise<
 
 async function persistContext(context: DiagnosticContext): Promise<void> {
 	const storage = getStorageArea();
-	if (!storage) return;
+	if (!storage) {
+		transportDiagnosticMessage({
+			channel: DIAGNOSTIC_TRANSPORT_CHANNEL,
+			type: 'diagnostics.context',
+			context,
+		});
+		return;
+	}
 	await storage.set({ [getDiagnosticContextKey(context)]: context }).catch(() => undefined);
+}
+
+/** Persist a diagnostic forwarded by a storage-less extension context. */
+export async function persistTransportedDiagnosticMessage(message: DiagnosticTransportMessage): Promise<void> {
+	const storage = getStorageArea();
+	if (!storage) return;
+
+	if (message.type === 'diagnostics.context') {
+		if (!isDiagnosticContext(message.context)) return;
+		await storage.set({ [getDiagnosticContextKey(message.context)]: message.context }).catch(() => undefined);
+		// Dedicated matcher workers can be recreated repeatedly while the background
+		// context stays alive. Trim on each transported context start so those short
+		// worker lifetimes cannot accumulate outside the global context limit.
+		await trimDiagnosticJournal().catch(() => undefined);
+		return;
+	}
+
+	if (!isDiagnosticRecord(message.record)) return;
+	await storage.set({ [getDiagnosticRecordKey(message.record)]: message.record }).catch(() => undefined);
+	if (message.record.sequence % TRIM_EVERY_RECORDS === 0) await trimDiagnosticJournal().catch(() => undefined);
+}
+
+/** Guard the runtime transport contract before the background writes forwarded diagnostics. */
+export function isDiagnosticTransportMessage(value: unknown): value is DiagnosticTransportMessage {
+	if (!value || typeof value !== 'object') return false;
+	const candidate = value as Partial<DiagnosticTransportMessage> & { channel?: unknown; type?: unknown };
+	if (candidate.channel !== DIAGNOSTIC_TRANSPORT_CHANNEL) return false;
+	if (candidate.type === 'diagnostics.context') return 'context' in candidate && isDiagnosticContext(candidate.context);
+	if (candidate.type === 'diagnostics.record') return 'record' in candidate && isDiagnosticRecord(candidate.record);
+	return false;
 }
 
 async function trimDiagnosticJournal(): Promise<void> {
@@ -490,6 +536,44 @@ function getStorageArea(): StorageArea | null {
 		chrome?: { storage?: { local?: StorageArea } };
 	};
 	return runtime.browser?.storage?.local ?? runtime.chrome?.storage?.local ?? null;
+}
+
+/** Minimal sender used to move storage-less diagnostics toward the background. */
+type DiagnosticTransportSender = {
+	send(message: DiagnosticTransportMessage): Promise<unknown> | unknown;
+};
+
+/** Return a runtime or parent-worker sender without importing browser-only APIs at build time. */
+function getDiagnosticTransportSender(): DiagnosticTransportSender | null {
+	const runtime = globalThis as typeof globalThis & {
+		browser?: { runtime?: { sendMessage(message: DiagnosticTransportMessage): Promise<unknown> | unknown } };
+		chrome?: { runtime?: { sendMessage(message: DiagnosticTransportMessage): Promise<unknown> | unknown } };
+		postMessage?: (message: DiagnosticTransportMessage) => void;
+		document?: Document;
+	};
+	const extensionRuntime = runtime.browser?.runtime ?? runtime.chrome?.runtime;
+	if (extensionRuntime) {
+		return { send: (message) => extensionRuntime.sendMessage(message) };
+	}
+
+	// Dedicated matcher workers do not own extension storage or runtime APIs. Their
+	// parent offscreen document forwards the same validated transport message.
+	if (runtime.document === undefined && typeof runtime.postMessage === 'function') {
+		return { send: (message) => runtime.postMessage?.(message) };
+	}
+
+	return null;
+}
+
+/** Forward one already-sanitized diagnostic to the background persistence owner. */
+function transportDiagnosticMessage(message: DiagnosticTransportMessage): void {
+	const sender = getDiagnosticTransportSender();
+	if (!sender) return;
+	try {
+		void Promise.resolve(sender.send(message)).catch(() => undefined);
+	} catch {
+		// Diagnostics must never crash the extension surface they are trying to describe.
+	}
 }
 
 function getDiagnosticRecordKey(record: DiagnosticRecord): string {

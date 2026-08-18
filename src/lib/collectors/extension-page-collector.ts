@@ -79,7 +79,9 @@ export async function collectExtensionObservationBatch(
 	});
 
 	try {
-		await ensureOffscreenDocument();
+		if (collectionPlan.domSelectorPlan.candidateSelector) {
+			await ensureOffscreenDocument();
+		}
 		const response = await timeAsyncSpan(
 			'collector.content-rpc.collect-observation-batch',
 			timingContext,

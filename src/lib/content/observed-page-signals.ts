@@ -161,6 +161,20 @@ export function createObservedPageSignals(
 	let pendingFullDocumentScan = false;
 	const observationBatchController = createObservationBatchController();
 
+	/** Release page-owned evidence retained by a completed observation session. */
+	function clearEvidence(): void {
+		scripts.clear();
+		images.clear();
+		stylesheets.clear();
+		scriptContents = [];
+		stylesheetContents = [];
+		metaEntries.clear();
+		domSelectorEntries.clear();
+		linkEntries.clear();
+		resourceEntries.clear();
+		requestEntries.clear();
+	}
+
 	/** Drop queued mutation roots and reset the current mutation burst count. */
 	function clearMutations(): void {
 		pendingNodes.clear();
@@ -197,6 +211,9 @@ export function createObservedPageSignals(
 
 	/** Stop every live observer owned by the current document session. */
 	function stopSession(reason: ObservationStopReason): ObservationSessionState {
+		const session = activeSession;
+		const queue = observationBatchController.stats();
+		const retained = getRetainedEvidenceCounts();
 		observer.disconnect();
 		stopResources();
 		clearFlushTimer();
@@ -206,7 +223,42 @@ export function createObservedPageSignals(
 		activeSession = undefined;
 		sessionStatus = 'stopped';
 		stopReason = reason;
-		return getState();
+		clearEvidence();
+		logObserverEvent('session-stopped', {
+			sessionId: session?.sessionId,
+			reason,
+			queuedObservationCount: queue.queuedCount,
+			acceptedObservationCount: queue.acceptedCount,
+			duplicateDropCount: queue.duplicateDropCount,
+			queueLimitDropCount: queue.queueLimitDropCount,
+			stormLimitDropCount: queue.stormLimitDropCount,
+			...retained,
+		});
+		return {
+			...getState(),
+			...(session ? {
+				sessionId: session.sessionId,
+				expectedUrl: session.expectedUrl,
+				startedAt: session.startedAt,
+				expiresAt: session.expiresAt,
+			} : {}),
+		};
+	}
+
+	/** Return count-only evidence-retention diagnostics without exposing page values. */
+	function getRetainedEvidenceCounts(): Record<string, number> {
+		return {
+			retainedScriptCount: scripts.size,
+			retainedImageCount: images.size,
+			retainedStylesheetCount: stylesheets.size,
+			retainedScriptContentCount: scriptContents.length,
+			retainedStylesheetContentCount: stylesheetContents.length,
+			retainedMetaKeyCount: metaEntries.size,
+			retainedSelectorCount: domSelectorEntries.size,
+			retainedLinkCount: linkEntries.size,
+			retainedResourceCount: resourceEntries.size,
+			retainedRequestCount: requestEntries.size,
+		};
 	}
 
 	/** Stop before old-document evidence can cross into a newly loaded page. */
@@ -289,8 +341,11 @@ export function createObservedPageSignals(
 
 	/** Preserve selector matches once observed because later DOM removal does not erase evidence. */
 	function rememberSelectors(selectors: Record<string, boolean>): void {
+		const selectorLimit = activeSession?.domSelectorPlan?.selectors.length ?? Number.POSITIVE_INFINITY;
 		for (const [selector, matched] of Object.entries(selectors)) {
-			if (matched) domSelectorEntries.set(selector, true);
+			if (!matched) continue;
+			if (!domSelectorEntries.has(selector) && domSelectorEntries.size >= selectorLimit) continue;
+			domSelectorEntries.set(selector, true);
 		}
 	}
 
@@ -298,14 +353,14 @@ export function createObservedPageSignals(
 	function rememberSnapshot(snapshot: ObservedPageSignalsSnapshot): void {
 		const observedAt = Date.now();
 		for (const source of snapshot.images) {
-			images.add(source);
+			addBoundedValue(images, source, SOURCE_LIMITS.imageSrc);
 		}
 		for (const source of snapshot.scripts) {
-			scripts.add(source);
+			addBoundedValue(scripts, source, SOURCE_LIMITS.scriptSrc);
 		}
 
 		for (const href of snapshot.stylesheets) {
-			stylesheets.add(href);
+			addBoundedValue(stylesheets, href, SOURCE_LIMITS.stylesheetHref);
 		}
 
 		scriptContents = mergeStringsByTotalChars(
@@ -325,15 +380,15 @@ export function createObservedPageSignals(
 		);
 
 		for (const link of snapshot.links) {
-			linkEntries.set(`${link.rel}:${link.type ?? ''}:${link.href}`, link);
+			setBoundedEntry(linkEntries, `${link.rel}:${link.type ?? ''}:${link.href}`, link, SOURCE_LIMITS.linkTags);
 		}
 
 		for (const resource of snapshot.resources) {
-			resourceEntries.set(resource.url, resource);
+			setBoundedEntry(resourceEntries, resource.url, resource, SOURCE_LIMITS.resourceUrls);
 		}
 
 		for (const request of snapshot.requests) {
-			requestEntries.set(request.url, request);
+			setBoundedEntry(requestEntries, request.url, request, SOURCE_LIMITS.requestUrls);
 		}
 
 		rememberMeta(snapshot.meta);
@@ -445,10 +500,12 @@ export function createObservedPageSignals(
 		}
 	}
 
-	/** Rebuild complete document evidence only for explicit snapshots or overflow fallback. */
-	async function scanDocument(content: ObservedPageSignalsSnapshotOptions): Promise<void> {
+	/** Collect one bounded current-document snapshot without retaining it in the content-script closure. */
+	async function collectDocumentSnapshot(
+		content: ObservedPageSignalsSnapshotOptions,
+	): Promise<ObservedPageSignalsSnapshot> {
 		const resources = collectResourceTimings();
-		rememberSnapshot({
+		return {
 			images: collectImageSources(globalThis.document),
 			scripts: collectScriptSources(globalThis.document),
 			stylesheets: collectStylesheetSources(globalThis.document),
@@ -459,7 +516,12 @@ export function createObservedPageSignals(
 			stylesheetContents: content.includeStylesheetContent ? collectStylesheetContents(globalThis.document) : [],
 			meta: collectMetaTags(globalThis.document),
 			dom: { selectors: await getSelectors(globalThis.document) },
-		});
+		};
+	}
+
+	/** Rebuild complete document evidence only for an active session or overflow fallback. */
+	async function scanDocument(content: ObservedPageSignalsSnapshotOptions): Promise<void> {
+		rememberSnapshot(await collectDocumentSnapshot(content));
 		lastScannedAt = Date.now();
 	}
 
@@ -656,6 +718,7 @@ export function createObservedPageSignals(
 		clearNoticeTimer();
 		clearMutations();
 		observationBatchController.reset();
+		clearEvidence();
 
 		const startedAt = Date.now();
 		activeSession = {
@@ -689,6 +752,10 @@ export function createObservedPageSignals(
 	return {
 		async snapshot(content = { includeScriptContent: true, includeStylesheetContent: true }) {
 			stopIfNavigated();
+			if (!activeSession) {
+				return collectDocumentSnapshot(content);
+			}
+
 			await flushMutations(content, false);
 			await scanDocument(content);
 
@@ -754,6 +821,16 @@ function createAttributeFilter(plan: DomSelectorPlan | undefined): string[] {
 	}
 
 	return ['src', 'href', 'rel', 'name', 'property', 'http-equiv', 'content'];
+}
+
+/** Add one unique value without letting a long-lived observation cache exceed its public source limit. */
+function addBoundedValue(target: Set<string>, value: string, limit: number): void {
+	if (target.has(value) || target.size < limit) target.add(value);
+}
+
+/** Insert or update one keyed value while bounding the number of retained page-owned objects. */
+function setBoundedEntry<T>(target: Map<string, T>, key: string, value: T, limit: number): void {
+	if (target.has(key) || target.size < limit) target.set(key, value);
 }
 
 /** Return whether one queued mutation root already contains another. */

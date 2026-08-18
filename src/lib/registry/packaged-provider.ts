@@ -24,6 +24,8 @@ export interface PackagedTechnologyRegistryProviderInput {
 	readonly resolveUrl?: (path: string) => string;
 	/** Fetch a generated JSON asset. */
 	readonly fetchAsset?: RegistryAssetFetch;
+	/** Maximum compiled observation-kind shards retained by this provider. Omit to retain every loaded shard. */
+	readonly maxObservationKindShards?: number;
 }
 
 /** Registry asset tier that contains executable technology definitions. */
@@ -36,9 +38,6 @@ interface PackagedRegistryTierCache {
 	/** Compiled matcher, graph, and collection-plan artifact for the hydrated registry. */
 	artifactPromise?: Promise<CompiledTechnologyRegistryArtifact>;
 }
-
-/** Cached runtime state for observation-kind matcher shards. */
-type PackagedRegistryShardCache = Partial<Record<PackagedRegistryObservationKind, PackagedRegistryTierCache>>;
 
 /**
  * Create a registry provider backed by generated JSON assets.
@@ -57,7 +56,8 @@ export function createPackagedTechnologyRegistryProvider(
 	const fetchAsset = input.fetchAsset ?? fetchRegistryAsset;
 	const bootstrap = createRegistryTierCache();
 	const enrichment = createRegistryTierCache();
-	const shards: PackagedRegistryShardCache = Object.create(null) as PackagedRegistryShardCache;
+	const shards = new Map<PackagedRegistryObservationKind, PackagedRegistryTierCache>();
+	const maxObservationKindShards = normalizeShardCacheLimit(input.maxObservationKindShards);
 
 	const loadRegistry = (kind: PackagedExecutableRegistryKind, cache: PackagedRegistryTierCache) => {
 		cache.registryPromise ??= loadPackagedRegistry({ kind, resolveUrl, fetchAsset });
@@ -72,7 +72,22 @@ export function createPackagedTechnologyRegistryProvider(
 	};
 	const getShardCache = (kind: NormalizedObservationKind) => {
 		const observationKind = normalizePackagedRegistryObservationKind(kind);
-		return shards[observationKind] ?? (shards[observationKind] = createRegistryTierCache());
+		const existing = shards.get(observationKind);
+		if (existing) {
+			// Refresh insertion order so the first Map entry remains the least recently used shard.
+			shards.delete(observationKind);
+			shards.set(observationKind, existing);
+			return existing;
+		}
+
+		const cache = createRegistryTierCache();
+		shards.set(observationKind, cache);
+		while (shards.size > maxObservationKindShards) {
+			const leastRecentlyUsedKind = shards.keys().next().value as PackagedRegistryObservationKind | undefined;
+			if (leastRecentlyUsedKind === undefined) break;
+			shards.delete(leastRecentlyUsedKind);
+		}
+		return cache;
 	};
 
 	return {
@@ -91,6 +106,13 @@ export function createPackagedTechnologyRegistryProvider(
 			return cache.artifactPromise;
 		},
 	};
+}
+
+/** Normalize an optional worker cache budget while keeping existing providers unbounded by default. */
+function normalizeShardCacheLimit(value: number | undefined): number {
+	if (value === undefined) return Number.POSITIVE_INFINITY;
+	if (!Number.isFinite(value)) return Number.POSITIVE_INFINITY;
+	return Math.max(1, Math.floor(value));
 }
 
 function createRegistryTierCache(): PackagedRegistryTierCache {

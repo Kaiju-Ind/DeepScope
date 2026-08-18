@@ -8,6 +8,8 @@ export type {
 	MatcherJobTerminalReason,
 	MatcherOffscreenRequestMessage,
 	MatcherOffscreenResponse,
+	OffscreenMatcherJobRequest,
+	OffscreenMatcherJobResult,
 	MatcherPartitionMatch,
 	MatcherPartitionPriority,
 	MatcherPartitionProgressMessage,

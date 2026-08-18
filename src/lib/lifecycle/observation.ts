@@ -28,15 +28,9 @@ export const REFRESHABLE_OBSERVATION_STATUSES = ['observing', 'dirty'] as const;
 export type RefreshableObservationSessionStatus =
 	typeof REFRESHABLE_OBSERVATION_STATUSES[number];
 
-/**
- * Returns whether a fresh analysis should open page watching afterwards.
- *
- * `bounded` and `while-panel-open` both start the same content-script observation
- * session today. The helper keeps that product choice in one place so the modes
- * can diverge without changing every visible-tab call site.
- */
+/** Return whether a fresh analysis should open the panel-owned page watcher. */
 export function shouldStartObservation(mode: VisibleTabObservationMode): boolean {
-	return mode !== 'none';
+	return mode === 'while-panel-open';
 }
 
 /** Return whether a visible-tab request should start page watching. */

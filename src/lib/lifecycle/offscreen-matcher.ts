@@ -10,6 +10,7 @@ import {
 	createMatcherPipelineResult,
 	type MatcherJobRunResult,
 	type MatcherOffscreenResponse,
+	type OffscreenMatcherJobRequest,
 	type RunMatcherJobMessage,
 	type RunMatcherJobRequest,
 } from '../matcher';
@@ -92,7 +93,7 @@ async function tryRunMatcherJobInOffscreen(
 	const message: RunMatcherJobMessage = {
 		channel: MATCHER_OFFSCREEN_CHANNEL,
 		type: 'matcher.run-job',
-		request,
+		request: createOffscreenMatcherJobRequest(request),
 	};
 	try {
 		const response = await withMatcherTimeout(
@@ -100,7 +101,22 @@ async function tryRunMatcherJobInOffscreen(
 			MATCHER_OFFSCREEN_TIMEOUT_MS,
 		);
 		if (response.ok && 'value' in response) {
-			return response.value;
+			const result = createMatcherPipelineResult({
+				batch: request.batch,
+				registry: request.registry,
+				compiledRegistryArtifact: { relationshipGraph: request.relationshipGraph },
+				partitions: response.value.partitions,
+				analyzedAt: request.analyzedAt,
+				source: request.source,
+			});
+			return {
+				job: response.value.job,
+				mode: response.value.mode,
+				result,
+				partitions: response.value.partitions,
+				executor: 'offscreen-worker-pool',
+				completedAt: Date.now(),
+			};
 		}
 		if (!response.ok && isOffscreenMatcherCancellationMessage(response.message)) {
 			throw new OffscreenMatcherJobCanceledError(response.message);
@@ -111,9 +127,25 @@ async function tryRunMatcherJobInOffscreen(
 		if (error instanceof OffscreenMatcherJobCanceledError) {
 			throw error;
 		}
+
+		// A timeout only stops the caller's wait. Explicitly cancel the offscreen copy
+		// before background fallback starts so both executors cannot keep matching the
+		// same large page batch at the same time.
+		await cancelOffscreenMatcherJob(request.job.jobId);
 		matcherLogger.warning('Offscreen matcher failed; using background fallback.', { error });
 		return null;
 	}
+}
+
+/** Remove registry-scale fields before one matcher job crosses into the offscreen context. */
+function createOffscreenMatcherJobRequest(request: RunMatcherJobRequest): OffscreenMatcherJobRequest {
+	return {
+		job: request.job,
+		mode: request.mode,
+		batch: request.batch,
+		...(request.options ? { options: request.options } : {}),
+		...(request.maxWorkerCount === undefined ? {} : { maxWorkerCount: request.maxWorkerCount }),
+	};
 }
 
 function isOffscreenMatcherCancellationMessage(message: string): boolean {
