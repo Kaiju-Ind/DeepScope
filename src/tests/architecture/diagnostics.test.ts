@@ -57,14 +57,16 @@ describe('crash-durable diagnostics architecture', () => {
 		expect(reconcile).toContain('cancelOffscreenMatcherJob(record.jobId)');
 		expect(contracts).toContain("| 'context-interrupted';");
 	});
-	it('virtualizes the diagnostic timeline after filtering instead of truncating visible records', () => {
+	it('keeps the diagnostic composition root small and virtualizes the filtered timeline', () => {
 		const view = read('../../app/components/diagnostics-view.tsx');
+		const timeline = read('../../app/diagnostics/timeline.tsx');
 
-		expect(view).toContain("from '@tanstack/solid-virtual'");
-		expect(view).toContain('query.find(props.records');
-		expect(view).toContain('virtualizer.getVirtualItems()');
-		expect(view).toContain('ref={virtualizer.measureElement}');
-		expect(view).not.toContain('records.slice(0, 80)');
+		expect(view).toContain("import { Timeline } from '@/app/diagnostics/timeline';");
+		expect(timeline).toContain("from '@tanstack/solid-virtual'");
+		expect(timeline).toContain('query.find(props.records');
+		expect(timeline).toContain('virtualizer.getVirtualItems()');
+		expect(timeline).toContain('virtualizer.measureElement(element)');
+		expect(timeline).not.toContain('records.slice(0, 80)');
 	});
 
 });

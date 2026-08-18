@@ -62,9 +62,14 @@ describe('side-panel page composition', () => {
 		const technologies = read('../../app/pages/technologies.tsx');
 
 		expect(summary).toContain('<AnalysisProgress activity=');
-		expect(summary).toContain('Current inspection');
+		expect(summary).toContain('Detected on this page');
+		expect(summary).toContain('Key findings');
+		expect(summary).not.toContain('Current inspection');
 		expect(history).toContain('getCachedReplayTraceHistory');
-		expect(history).toContain('Comparison covers emitted technologies only');
+		expect(history).toContain('Changes from previous run');
+		expect(history).toContain("scope: 'page'");
+		expect(history).toContain("showUrl={scope() === 'origin'}");
+		expect(history).toContain('Emitted technologies only.');
 		expect(technologies).toContain('<AnalysisProgress activity=');
 		expect(technologies).toContain('TechnologyListSkeleton');
 	});

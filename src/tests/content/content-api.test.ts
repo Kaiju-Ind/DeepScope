@@ -370,21 +370,21 @@ describe.sequential('content API observation baseline', () => {
 		});
 		await api.flushObservationBatch();
 
+		expect(writeContentPageSessionSnapshot).toHaveBeenCalledTimes(1);
 		expect(writeContentPageSessionSnapshot).toHaveBeenLastCalledWith({
 			target: SNAPSHOT_TARGET,
 			status: 'observing',
-			observedAt: lateBatch.observedAt,
-			reason: 'observation-batch-flushed',
+			observedAt: session.startedAt,
+			reason: 'observation-session-started',
 		});
 	});
 
 
 	/**
-	 * The observer callback uses the runtime publisher instead of waiting for a
-	 * background flush request. That keeps side panel storage revisions moving at the
-	 * content observer throttle, while the detector rerun remains background-owned.
+	 * Late facts still notify background immediately, but they do not create a new
+	 * content lifecycle record while the observation session remains active.
 	 */
-	it('publishes content and background notifications when the observer queues late facts directly', async () => {
+	it('notifies background without rewriting unchanged content lifecycle state', async () => {
 		const { createContentRuntime, sendMessage, writeContentPageSessionSnapshot } = await loadContentApiFactory();
 		const session = makeState({
 			status: 'observing',
@@ -419,11 +419,12 @@ describe.sequential('content API observation baseline', () => {
 			session,
 		});
 
+		expect(writeContentPageSessionSnapshot).toHaveBeenCalledTimes(1);
 		expect(writeContentPageSessionSnapshot).toHaveBeenLastCalledWith({
 			target: SNAPSHOT_TARGET,
 			status: 'observing',
-			observedAt: 1_700_000_000_250,
-			reason: 'observation-batch-queued',
+			observedAt: session.startedAt,
+			reason: 'observation-session-started',
 		});
 		expect(sendMessage).toHaveBeenCalledWith({
 			type: 'kaiju-deepscope.observation-dirty.v1',

@@ -294,6 +294,17 @@ describe('side panel model', () => {
 		expect(shouldApplySnapshotRevision({ currentAnalysis, snapshot })).toBe(false);
 	});
 
+	it('treats same-page content revisions as lifecycle-only even when they preserve detector results', () => {
+		const currentAnalysis = makeAnalysis([makeDetection('react'), makeDetection('vite')]);
+		const snapshot = makeDetectionSessionSnapshot({
+			source: 'content',
+			status: 'observing',
+			analysis: makeAnalysis(currentAnalysis.results, { url: currentAnalysis.url, analyzedAt: currentAnalysis.analyzedAt }),
+		});
+
+		expect(shouldApplySnapshotRevision({ currentAnalysis, snapshot })).toBe(false);
+	});
+
 	/**
 	 * Worker partitions can finish out of order across an initial run and a dirty
 	 * refresh. A lower-count partial should not replace richer visible results; the

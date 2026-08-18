@@ -83,8 +83,8 @@ describe('background composition-root ownership', () => {
 	it('keeps live side-panel revisions on origin storage until the exact page session is known', () => {
 		const source = readFileSync(SIDE_PANEL_PROVIDER, 'utf8');
 
-		expect(source).toContain('subscribeToVisibleSnapshotRevisions(identity, null)');
-		expect(source).toContain('subscribeToVisibleSnapshotRevisions(identity, stored.snapshot.key)');
+		expect(source).toContain('subscribeToSnapshotRevisions(');
+		expect(source).toContain('exactSessionKey,');
 		expect(source).toContain('visibleDetectorSnapshotRevision');
 		expect(source).toContain('visibleLifecycleSnapshotRevision');
 		expect(source).not.toContain('browserDetectionSnapshotRevisionSource');

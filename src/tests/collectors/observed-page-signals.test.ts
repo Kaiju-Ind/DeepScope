@@ -85,6 +85,7 @@ function makeDocument(): Document {
 }
 
 const mutationObservers: FakeMutationObserver[] = [];
+const performanceObservers: FakePerformanceObserver[] = [];
 
 class FakeMutationObserver {
 	observe = vi.fn();
@@ -92,6 +93,21 @@ class FakeMutationObserver {
 
 	constructor(readonly callback: MutationCallback) {
 		mutationObservers.push(this);
+	}
+}
+
+
+class FakePerformanceObserver {
+	observe = vi.fn();
+	disconnect = vi.fn();
+
+	constructor(readonly callback: PerformanceObserverCallback) {
+		performanceObservers.push(this);
+	}
+
+	emit(entries: PerformanceEntry[]): void {
+		const list = { getEntries: () => entries } as PerformanceObserverEntryList;
+		this.callback(list, this as unknown as PerformanceObserver);
 	}
 }
 
@@ -109,6 +125,7 @@ class FakeObservedScriptElement {
 
 afterEach(() => {
 	mutationObservers.length = 0;
+	performanceObservers.length = 0;
 	vi.useRealTimers();
 	vi.unstubAllGlobals();
 });
@@ -363,6 +380,133 @@ describe('observed page signals', () => {
 			session: expect.objectContaining({ status: 'observing', sessionId: 'session-1' }),
 		}));
 		expect(queued.mock.calls[0]?.[0].stats.acceptedCount).toBeGreaterThan(0);
+	});
+
+	it('keeps MutationObserver callbacks free of descendant selector scans', () => {
+		vi.useFakeTimers();
+		vi.stubGlobal('document', makeDocument());
+		vi.stubGlobal('location', { href: 'https://example.com/products' });
+		vi.stubGlobal('MutationObserver', FakeMutationObserver);
+		vi.stubGlobal('PerformanceObserver', undefined);
+		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+
+		const querySelector = vi.fn(() => null);
+		class FakeContainerElement {
+			readonly childElementCount = 1;
+			readonly localName = 'div';
+			readonly id = '';
+			readonly classList: readonly string[] = [];
+			readonly querySelector = querySelector;
+
+			getAttributeNames(): string[] {
+				return [];
+			}
+		}
+		vi.stubGlobal('Element', FakeContainerElement);
+
+		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		observedSignals.beginObservationSession({
+			sessionId: 'session-1',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: 10,
+			maxMutations: 100,
+		});
+
+		mutationObservers[0]?.callback([{
+			type: 'childList',
+			addedNodes: [new FakeContainerElement()] as unknown as NodeList,
+			removedNodes: [] as unknown as NodeList,
+			target: document,
+		} as unknown as MutationRecord], mutationObservers[0] as unknown as MutationObserver);
+
+		expect(querySelector).not.toHaveBeenCalled();
+		observedSignals.stopObservationSession('manual');
+	});
+
+	it('uses PerformanceObserver entries without rescanning the full resource timeline', async () => {
+		vi.useFakeTimers();
+		vi.stubGlobal('document', makeDocument());
+		vi.stubGlobal('location', { href: 'https://example.com/products' });
+		vi.stubGlobal('MutationObserver', FakeMutationObserver);
+		vi.stubGlobal('PerformanceObserver', FakePerformanceObserver);
+		const getEntriesByType = vi.fn(() => [
+			{ name: 'https://example.com/initial.js', initiatorType: 'script' } as PerformanceEntry,
+		]);
+		vi.stubGlobal('performance', { getEntriesByType });
+
+		const queued = vi.fn();
+		const observedSignals = createObservedPageSignals({ throttleMs: 25, onObservationBatchQueued: queued });
+		observedSignals.beginObservationSession({
+			sessionId: 'session-1',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: 10,
+			maxMutations: 100,
+		});
+
+		performanceObservers[0]?.emit([
+			{ name: 'https://example.com/late.js', initiatorType: 'script' } as PerformanceEntry,
+		]);
+		await vi.advanceTimersByTimeAsync(25);
+
+		expect(getEntriesByType).toHaveBeenCalledTimes(1);
+		expect(queued).toHaveBeenCalledOnce();
+		const flush = await observedSignals.flushObservationBatch();
+		expect(flush.batch?.observations).toEqual(expect.arrayContaining([
+			expect.objectContaining({ kind: 'resourceUrl', value: 'https://example.com/initial.js' }),
+			expect.objectContaining({ kind: 'resourceUrl', value: 'https://example.com/late.js' }),
+		]));
+	});
+
+	it('coalesces resource-only dirty notifications to the observer throttle', async () => {
+		vi.useFakeTimers();
+		vi.stubGlobal('document', makeDocument());
+		vi.stubGlobal('location', { href: 'https://example.com/products' });
+		vi.stubGlobal('MutationObserver', FakeMutationObserver);
+		vi.stubGlobal('PerformanceObserver', FakePerformanceObserver);
+		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+		const queued = vi.fn();
+		const observedSignals = createObservedPageSignals({ throttleMs: 25, onObservationBatchQueued: queued });
+		observedSignals.beginObservationSession({
+			sessionId: 'session-1',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: 10,
+			maxMutations: 100,
+		});
+
+		performanceObservers[0]?.emit([{ name: 'https://example.com/one.js', initiatorType: 'script' } as PerformanceEntry]);
+		performanceObservers[0]?.emit([{ name: 'https://example.com/two.js', initiatorType: 'script' } as PerformanceEntry]);
+		expect(queued).not.toHaveBeenCalled();
+
+		await vi.advanceTimersByTimeAsync(25);
+		expect(queued).toHaveBeenCalledOnce();
+	});
+
+	it('does not publish another dirty notification for an explicit background flush', async () => {
+		vi.useFakeTimers();
+		vi.stubGlobal('document', makeDocument());
+		vi.stubGlobal('location', { href: 'https://example.com/products' });
+		vi.stubGlobal('MutationObserver', FakeMutationObserver);
+		vi.stubGlobal('PerformanceObserver', FakePerformanceObserver);
+		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+		const queued = vi.fn();
+		const observedSignals = createObservedPageSignals({ throttleMs: 25, onObservationBatchQueued: queued });
+		observedSignals.beginObservationSession({
+			sessionId: 'session-1',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: 10,
+			maxMutations: 100,
+		});
+
+		performanceObservers[0]?.emit([{ name: 'https://example.com/late.js', initiatorType: 'script' } as PerformanceEntry]);
+		const flush = await observedSignals.flushObservationBatch();
+		expect(flush.batch?.observations.length).toBeGreaterThan(0);
+
+		await vi.advanceTimersByTimeAsync(25);
+		expect(queued).not.toHaveBeenCalled();
 	});
 
 });

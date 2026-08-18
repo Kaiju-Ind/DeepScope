@@ -60,7 +60,7 @@ describe.sequential('side panel snapshot state', () => {
 			[getDetectionOriginSnapshotKey(ACTIVE_IDENTITY.originHash)]: snapshot,
 		});
 
-		const stored = await harness.readStoredAnalysis(ACTIVE_IDENTITY);
+		const stored = await harness.getStoredAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toMatchObject({
 			source: 'origin-snapshot',
@@ -99,7 +99,7 @@ describe.sequential('side panel snapshot state', () => {
 			},
 		});
 
-		const stored = await harness.readStoredAnalysis(ACTIVE_IDENTITY);
+		const stored = await harness.getStoredAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toMatchObject({
 			source: 'session-snapshot',
@@ -146,7 +146,7 @@ describe.sequential('side panel snapshot state', () => {
 			},
 		});
 
-		const stored = await harness.readStoredAnalysis(ACTIVE_IDENTITY);
+		const stored = await harness.getStoredAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toMatchObject({
 			snapshot: { key: exactSnapshot.key },
@@ -161,7 +161,7 @@ describe.sequential('side panel snapshot state', () => {
 	it('returns null when no matching snapshot exists for the visible tab', async () => {
 		const harness = await loadSnapshotStateHarness();
 
-		const stored = await harness.readStoredAnalysis(ACTIVE_IDENTITY);
+		const stored = await harness.getStoredAnalysis(ACTIVE_IDENTITY);
 
 		expect(stored).toBeNull();
 	});
