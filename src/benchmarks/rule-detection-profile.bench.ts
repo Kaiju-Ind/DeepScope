@@ -11,7 +11,7 @@ import {
 	makeNextHydrationPayload,
 	makeReactRouterHydrationPayload,
 	profileRuleCase,
-	readRuleProfileBudgets,
+	getRuleProfileBudgets,
 	recordSlowRule,
 	summarizeRuleProfileCoverage,
 	type RuleProfileCase,
@@ -30,7 +30,7 @@ const BENCHMARK_OPTIONS = {
 const ENABLE_REGISTRY_WIDE_SCAN = process.env.KAIJU_DEEPSCOPE_RULE_BENCH_REGISTRY_SCAN === '1';
 const ENABLE_GENERATED_PASS_SCAN = process.env.KAIJU_DEEPSCOPE_RULE_BENCH_GENERATED_PASS_SCAN === '1';
 const registry = technologyDefinitions;
-const budgets = readRuleProfileBudgets(process.env);
+const budgets = getRuleProfileBudgets(process.env);
 const curatedCases = createCuratedRuleProfileCases({
 	registry,
 	fixtures: RULE_PERFORMANCE_FIXTURES,
