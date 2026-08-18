@@ -51,7 +51,7 @@ export type ContentRuntime = {
   contentApi: ContentApi;
   /** Stop timers and observers for content-runtime shutdown. */
   dispose(reason: ObservationStopReason): void;
-  /** Publish a durable lifecycle revision after the observer queues new facts. */
+  /** Notify background after the observer queues new facts for detector refresh. */
   publishObservedBatchQueued(event: ObservedPageSignalsQueuedBatchEvent): void;
 };
 
@@ -340,6 +340,8 @@ async function collectInitialObservationBatch(
 export function createContentRuntime(observedSignals: ObservedPageSignals): ContentRuntime {
   let observationExpiryTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
   let activeSnapshotTarget: ContentPageSessionSnapshotTarget | undefined;
+  /** Serialize lifecycle writes so start and stop cannot settle out of order. */
+  let snapshotWriteQueue: Promise<void> = Promise.resolve();
 
   function clearObservationExpiry() {
     if (observationExpiryTimer !== undefined) {
@@ -349,25 +351,26 @@ export function createContentRuntime(observedSignals: ObservedPageSignals): Cont
   }
 
   /**
-   * Content lifecycle changes become durable side-panel-visible revisions when the
-   * background has supplied a storage target for the current tab document. The
-   * write runs outside the RPC response so observation can start and flush
-   * without waiting on storage latency.
+   * Publish one durable lifecycle transition for the current document session.
+   *
+   * Late observation batches travel through the background dirty notification and
+   * do not rewrite the lifecycle record. Serializing these writes preserves start
+   * before stop ordering without putting storage latency on the RPC response path.
    */
   function publishContentSnapshot(
     status: "observing" | "stopped",
     details: { readonly observedAt?: number; readonly reason?: string } = {},
   ): void {
     const target = activeSnapshotTarget;
-    if (!target) {
-      return;
-    }
+    if (!target) return;
 
-    void writeContentPageSessionSnapshot({
-      target,
-      status,
-      observedAt: details.observedAt,
-      reason: details.reason,
+    snapshotWriteQueue = snapshotWriteQueue.then(async () => {
+      await writeContentPageSessionSnapshot({
+        target,
+        status,
+        observedAt: details.observedAt,
+        reason: details.reason,
+      });
     }).catch((error) => {
       logContentEvent("snapshot-write-failed", {
         status,
@@ -450,13 +453,6 @@ export function createContentRuntime(observedSignals: ObservedPageSignals): Cont
         status: flush.session.status,
         pendingMutationCount: flush.session.pendingMutationCount,
       });
-      if (flush.batch && flush.batch.observations.length > 0) {
-        publishContentSnapshot("observing", {
-          observedAt: flush.batch.observedAt,
-          reason: "observation-batch-flushed",
-        });
-      }
-
       return extensionSuccess(flush);
     },
 
@@ -504,10 +500,6 @@ export function createContentRuntime(observedSignals: ObservedPageSignals): Cont
         status: event.session.status,
         observedAt: event.observedAt,
         pendingMutationCount: event.session.pendingMutationCount,
-      });
-      publishContentSnapshot("observing", {
-        observedAt: event.observedAt,
-        reason: "observation-batch-queued",
       });
       notifyBackgroundObservationDirty(event);
     },

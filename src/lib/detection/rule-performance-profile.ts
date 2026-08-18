@@ -357,12 +357,12 @@ export function formatRuleTimingRecord(record: RuleTimingRecord): string {
 	].join(' ');
 }
 
-/** Read benchmark budgets from environment variables with safe defaults. */
-export function readRuleProfileBudgets(env: Record<string, string | undefined>): RuleProfileBudgets {
+/** Get benchmark budgets from environment variables with safe defaults. */
+export function getRuleProfileBudgets(env: Record<string, string | undefined>): RuleProfileBudgets {
 	return {
-		passBudgetMs: readPositiveNumberEnv(env.KAIJU_DEEPSCOPE_RULE_BENCH_PASS_BUDGET_MS, DEFAULT_RULE_PROFILE_PASS_BUDGET_MS),
-		missBudgetMs: readPositiveNumberEnv(env.KAIJU_DEEPSCOPE_RULE_BENCH_MISS_BUDGET_MS, DEFAULT_RULE_PROFILE_MISS_BUDGET_MS),
-		reportLimit: readPositiveIntegerEnv(env.KAIJU_DEEPSCOPE_RULE_BENCH_REPORT_LIMIT, DEFAULT_RULE_PROFILE_REPORT_LIMIT),
+		passBudgetMs: getPositiveNumberEnv(env.KAIJU_DEEPSCOPE_RULE_BENCH_PASS_BUDGET_MS, DEFAULT_RULE_PROFILE_PASS_BUDGET_MS),
+		missBudgetMs: getPositiveNumberEnv(env.KAIJU_DEEPSCOPE_RULE_BENCH_MISS_BUDGET_MS, DEFAULT_RULE_PROFILE_MISS_BUDGET_MS),
+		reportLimit: getPositiveIntegerEnv(env.KAIJU_DEEPSCOPE_RULE_BENCH_REPORT_LIMIT, DEFAULT_RULE_PROFILE_REPORT_LIMIT),
 		failOnBudget: env.KAIJU_DEEPSCOPE_RULE_BENCH_FAIL_ON_BUDGET === '1',
 	};
 }
@@ -567,7 +567,7 @@ function quoteReportValue(value: string): string {
 	return JSON.stringify(value);
 }
 
-function readPositiveNumberEnv(value: string | undefined, fallback: number): number {
+function getPositiveNumberEnv(value: string | undefined, fallback: number): number {
 	if (!value) {
 		return fallback;
 	}
@@ -576,7 +576,7 @@ function readPositiveNumberEnv(value: string | undefined, fallback: number): num
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function readPositiveIntegerEnv(value: string | undefined, fallback: number): number {
+function getPositiveIntegerEnv(value: string | undefined, fallback: number): number {
 	if (!value) {
 		return fallback;
 	}

@@ -712,10 +712,10 @@ export function shouldApplySnapshotRevision(input: {
 		return true;
 	}
 
-	if (input.snapshot.analysis.results.length > 0 || currentAnalysis.results.length === 0) {
-		return true;
-	}
-
+	// Content snapshots own page-session lifecycle only. They can preserve detector
+	// output while writing storage, but replaying that copied analysis into Solid on
+	// every observer revision creates unnecessary list work and visible churn. The
+	// background-owned detector snapshot remains the authority for same-page results.
 	return false;
 }
 
@@ -892,10 +892,6 @@ export function buildAnalysisUpdate(
 	 * stays live only when an observation session is active; follow-up evidence
 	 * passes publish normal background snapshots without a separate pending state.
 	 */
-	console.log({
-		observationMode,
-		shouldKeepLiveUpdatesActive
-	})
 	const keepLiveUpdates = shouldKeepLiveUpdatesActive(observationMode);
 	const notice = getAnalysisNotice({
 		addedDetectionIds,

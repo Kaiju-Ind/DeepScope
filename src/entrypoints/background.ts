@@ -175,13 +175,18 @@ function notifySidePanelTab(
  * all browser-owned resources and side effects inside `defineBackground` so the
  * module remains import-safe in that Node.js build process.
  */
-/** Show a compact technology count without opening the side panel. */
-async function setTechnologyBadge(tabId: number, count: number): Promise<void> {
+/** Show a compact count and useful finding in the browser action without opening the panel. */
+async function setBadge(tabId: number, count: number, finding?: string): Promise<void> {
 	const text = count <= 0 ? '' : count > 99 ? '99+' : String(count);
+	const title = count <= 0
+		? 'Kaiju DeepScope'
+		: `Kaiju DeepScope · ${count} ${count === 1 ? 'technology' : 'technologies'}${finding ? ` · Top finding: ${finding}` : ''}`;
+	const textColor = browser.action.setBadgeTextColor?.({ tabId, color: '#030812' });
 	await Promise.all([
 		browser.action.setBadgeText({ tabId, text }),
 		browser.action.setBadgeBackgroundColor({ tabId, color: '#54def0' }),
-		browser.action.setBadgeTextColor({ tabId, color: '#030812' }),
+		browser.action.setTitle({ tabId, title }),
+		...(textColor ? [textColor] : []),
 	]);
 }
 
@@ -204,7 +209,7 @@ export default defineBackground(() => {
 		persistence: browserDetectionPersistence,
 		logEvent: logBackgroundEvent,
 		logAnalysisSummary,
-		setBadge: setTechnologyBadge,
+		setBadge,
 	});
 	const autoScanController = createAutoScanController({
 		getEnabled: getAutoScanEnabled,
@@ -236,7 +241,7 @@ export default defineBackground(() => {
 			return;
 		}
 
-		if (changeInfo.status === 'loading') void setTechnologyBadge(tabId, 0);
+		if (changeInfo.status === 'loading' || changeInfo.url !== undefined) void setBadge(tabId, 0);
 
 		if (isSidePanelTabUpdateChange(changeInfo)) {
 			notifySidePanelTab(tabId, tab.windowId, 'updated');

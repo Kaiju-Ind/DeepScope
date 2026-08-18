@@ -24,6 +24,21 @@ function PanelRoot() {
 	const panel = usePanel();
 	const location = useLocation();
 	let activeTabId: number | undefined;
+	let restoreGeneration = 0;
+
+	/** Restore scroll after route composition and one delayed data-layout pass. */
+	function restoreScroll(top: number): void {
+		const generation = ++restoreGeneration;
+		const apply = () => {
+			if (generation === restoreGeneration) globalThis.scrollTo?.(0, top);
+		};
+
+		globalThis.requestAnimationFrame?.(() => {
+			apply();
+			globalThis.requestAnimationFrame?.(apply);
+		});
+		globalThis.setTimeout?.(apply, 120);
+	}
 
 	createEffect(() => {
 		const tabId = panel.visibleTabIdentity()?.tabId;
@@ -34,10 +49,15 @@ function PanelRoot() {
 			return;
 		}
 
-		if (activeTabId !== undefined) session.route(activeTabId, location().href);
+		if (activeTabId !== undefined) {
+			session.route(activeTabId, location().href);
+			session.scroll(activeTabId, globalThis.scrollY ?? 0);
+		}
+
 		activeTabId = tabId;
 		const visit = session.open(tabId);
 		panelRouter.history.replace(visit.first ? '/' : visit.route);
+		restoreScroll(visit.first ? 0 : visit.scrollY);
 	});
 
 	return (

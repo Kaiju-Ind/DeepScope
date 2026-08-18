@@ -6,6 +6,7 @@ import { For, Show } from 'solid-js';
 
 import { AnalysisProgress } from '@/app/components/analysis-progress';
 import { useSummary } from '@/app/context';
+import * as rank from '@/lib/detection/rank';
 import { Alert, AlertDescription, AlertTitle } from '@/ui/alert';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -18,7 +19,7 @@ import { Skeleton } from '@/ui/skeleton';
 export function SummaryPage() {
 	const summary = useSummary();
 	const groups = () => summary.groupedResults();
-	const topResults = () => groups().flatMap((group) => group.results).slice(0, 5);
+	const topResults = () => rank.sort(summary.analysis()?.results ?? []).slice(0, 5);
 	const isInitialLoad = () => !summary.analysis() && summary.analysisActivity().busy;
 
 	return (

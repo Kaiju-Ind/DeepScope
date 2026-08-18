@@ -69,6 +69,8 @@ import {
 } from '@/lib/matcher';
 import type { BackgroundDetectionPersistence } from '@/lib/persistence/ports';
 import type { CompiledTechnologyRegistryArtifact } from '@/lib/registry/compiler-core';
+import * as revision from '@/lib/background/revision';
+import * as rank from '@/lib/detection/rank';
 import * as url from '@/utils/url';
 import {
 	STORAGE_LIMITS,
@@ -105,8 +107,8 @@ export interface BackgroundRuntimeDependencies {
 	readonly persistence: BackgroundDetectionPersistence;
 	readonly logEvent: (event: string, details?: Record<string, unknown>) => void;
 	readonly logAnalysisSummary: (analysis: SiteAnalysis) => void;
-	/** Update the toolbar technology count for one tab after a completed analysis. */
-	readonly setBadge: (tabId: number, count: number) => Promise<void>;
+	/** Update the toolbar count and optional highest-confidence finding for one tab. */
+	readonly setBadge: (tabId: number, count: number, finding?: string) => Promise<void>;
 }
 
 /** Public surface owned by one isolated background runtime instance. */
@@ -141,6 +143,11 @@ function canInspectTab(tab: { readonly url?: string }): boolean {
 	}
 }
 
+/** Select one concise finding for the browser action tooltip without inventing impact scoring. */
+function getFinding(analysis: SiteAnalysis): string | undefined {
+	return rank.top(analysis.results)?.name;
+}
+
 /**
  * Create one background orchestration runtime around explicit browser/infrastructure adapters.
  *
@@ -169,12 +176,6 @@ export function createBackgroundRuntime(
 
 	/** Each follow-up evidence surface is bounded so one slow collector cannot own the UX. */
 	const EVIDENCE_PASS_TIMEOUT_MS = 10_000;
-
-	/** Minimum wall-clock gap between visible partial detector revisions. */
-	const MATCHER_VISIBLE_REVISION_MIN_INTERVAL_MS = 250;
-
-	/** Minimum new detections that justify an immediate visible partial revision. */
-	const MATCHER_VISIBLE_REVISION_MIN_RESULT_DELTA = 4;
 
 	/**
 	 * In-flight runtime injections are deduplicated per tab.
@@ -1789,7 +1790,7 @@ export function createBackgroundRuntime(
 
 		eventObservationBatchByTab.set(tab.id, batch);
 		logAnalysisSummary(savedAnalysis);
-		void dependencies.setBadge(tab.id, savedAnalysis.results.length).catch((error) => {
+		void dependencies.setBadge(tab.id, savedAnalysis.results.length, getFinding(savedAnalysis)).catch((error) => {
 			logBackgroundEvent('toolbar-badge-update-failed', {
 				tabId: tab.id,
 				message: error instanceof Error ? error.message : String(error),
@@ -2366,12 +2367,7 @@ export function createBackgroundRuntime(
 		const isFinalPartition = message.completedPartitionCount >= message.partitionCount;
 		const resultDelta = Math.max(0, partial.analysis.results.length - context.lastVisibleResultCount);
 		const elapsedSinceVisibleRevision = now - context.lastVisibleRevisionAt;
-		if (
-			!isFinalPartition &&
-			context.lastVisibleRevisionAt > 0 &&
-			elapsedSinceVisibleRevision < MATCHER_VISIBLE_REVISION_MIN_INTERVAL_MS &&
-			resultDelta < MATCHER_VISIBLE_REVISION_MIN_RESULT_DELTA
-		) {
+		if (!revision.shouldPublish({ final: isFinalPartition, previousAt: context.lastVisibleRevisionAt, now })) {
 			logBackgroundEvent('matcher-partition-revision-coalesced', {
 				...summarizeTab(context.tab),
 				jobId,

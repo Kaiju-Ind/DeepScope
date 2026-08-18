@@ -55,7 +55,7 @@ import {
 import {
   createStoredVisibleRevision,
   isNewerSnapshotRevision,
-  readStoredAnalysis,
+  getStoredAnalysis,
   subscribeToSnapshotRevisions,
 } from "@/app/snapshot";
 import { browserDetectionPersistence } from "@/lib/persistence";
@@ -75,8 +75,9 @@ const backgroundApi = injectBackgroundApi(
 );
 
 /** Panel commands own the visible target separately from mode and observation policy. */
-type AnalysisCommandInput = Omit<AnalyzeVisibleTabInput, "target">;
+type AnalysisCommandInputType = Omit<AnalyzeVisibleTabInput, "target">;
 
+/** Write one structured side-panel lifecycle record. */
 function logPanelEvent(event: string, details?: Record<string, unknown>): void {
   panelLogger.debug("[kaiju-deepscope][sidepanel] {event}", {
     event,
@@ -84,6 +85,7 @@ function logPanelEvent(event: string, details?: Record<string, unknown>): void {
   });
 }
 
+/** Convert thrown messaging values into user-safe panel text. */
 function normalizeError(error: unknown): string {
   return error instanceof Error
     ? error.message
@@ -98,7 +100,7 @@ function normalizeError(error: unknown): string {
  * revisions later. Auto-applied storage revisions keep the status chosen from the
  * snapshot itself so final replay-backed snapshots can clear the busy state.
  */
-function getMatcherStatusForAnalysisResponse(
+function getMatcherStatus(
   revision: VisibleRevision,
   source: "initial" | "manual" | "auto",
   currentStatus: MatcherStatus,
@@ -118,7 +120,8 @@ function getMatcherStatusForAnalysisResponse(
   return revision.analysis.results.length > 0 ? "matching" : "recording";
 }
 
-function isSameVisibleTabIdentity(left: VisibleTabIdentity | null, right: VisibleTabIdentity): boolean {
+/** Compare the exact tab, frame, origin, and document identity rendered by the panel. */
+function sameTab(left: VisibleTabIdentity | null, right: VisibleTabIdentity): boolean {
   return Boolean(
     left &&
       left.windowId === right.windowId &&
@@ -130,7 +133,8 @@ function isSameVisibleTabIdentity(left: VisibleTabIdentity | null, right: Visibl
 }
 
 
-type WorkflowState =
+/** User-visible side-panel work that can own buttons, progress, or tab transition state. */
+type WorkflowStateType =
   | { readonly kind: "idle" }
   | { readonly kind: "loading-stored-snapshot"; readonly identity: VisibleTabIdentity }
   | { readonly kind: "queued-initial-analysis"; readonly identity: VisibleTabIdentity | null }
@@ -140,10 +144,11 @@ type WorkflowState =
   | { readonly kind: "stopped"; readonly identity: VisibleTabIdentity | null }
   | { readonly kind: "failed"; readonly identity: VisibleTabIdentity | null; readonly message: string };
 
-type VisibleTabIdentitySyncReason = "initial" | "tab-change";
+/** Why the panel needs to resolve the browser's visible tab again. */
+type TabSyncReasonType = "initial" | "tab-change";
 
 /** Panel actions are busy only while user-visible commands own the current tab target. */
-function isWorkflowBusy(state: WorkflowState): boolean {
+function isWorkflowBusy(state: WorkflowStateType): boolean {
   return (
     state.kind === "loading-stored-snapshot" ||
     state.kind === "queued-initial-analysis" ||
@@ -153,7 +158,7 @@ function isWorkflowBusy(state: WorkflowState): boolean {
 }
 
 /** True when a background response still belongs to the tab the side panel is rendering. */
-function canApplyAnalysisResponseToVisibleIdentity(
+function canApplyResponse(
   response: AnalyzeVisibleTabOutput,
   requestedIdentity: VisibleTabIdentity | null,
   visibleIdentity: VisibleTabIdentity | null,
@@ -162,11 +167,11 @@ function canApplyAnalysisResponseToVisibleIdentity(
     return true;
   }
 
-  return response.analysis.url === requestedIdentity.url && isSameVisibleTabIdentity(visibleIdentity, requestedIdentity);
+  return response.analysis.url === requestedIdentity.url && sameTab(visibleIdentity, requestedIdentity);
 }
 
 /** Whether a background command only registered queued matcher work. */
-function isQueuedPlaceholderResponse(response: AnalyzeVisibleTabOutput): boolean {
+function isQueuedResponse(response: AnalyzeVisibleTabOutput): boolean {
   return (
     response.enrichment?.status === "pending" &&
     response.analysis.results.length === 0 &&
@@ -176,7 +181,7 @@ function isQueuedPlaceholderResponse(response: AnalyzeVisibleTabOutput): boolean
 }
 
 /** Whether a queued placeholder should preserve the richer analysis already visible. */
-function shouldPreserveVisibleAnalysisForQueuedPlaceholder(
+function shouldKeepAnalysis(
   response: AnalyzeVisibleTabOutput,
   identity: VisibleTabIdentity,
   currentAnalysis: SiteAnalysis | null,
@@ -184,11 +189,12 @@ function shouldPreserveVisibleAnalysisForQueuedPlaceholder(
   return Boolean(
     currentAnalysis &&
       currentAnalysis.url === identity.url &&
-      isQueuedPlaceholderResponse(response),
+      isQueuedResponse(response),
   );
 }
 
-function formatEvidenceCompleteness(state: DetectionEvidenceState | null): string {
+/** Convert evidence progress into the compact Summary label. */
+function formatCompleteness(state: DetectionEvidenceState | null): string {
   if (!state) return "unknown";
 
   if (state.level === "full") return "complete";
@@ -209,7 +215,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
    * User-visible commands and tab switches share one workflow state so buttons,
    * busy affordances, and stale-response guards read the same target ownership.
    */
-  const [workflow, setWorkflow] = createSignal<WorkflowState>({ kind: "idle" });
+  const [workflow, setWorkflow] = createSignal<WorkflowStateType>({ kind: "idle" });
   const [liveUpdateMode, setLiveUpdateMode] = createSignal<ObservationMode>("unknown");
   const [notice, setNotice] = createSignal<Notice | null>(null);
   const [errorMessage, setErrorMessage] = createSignal("");
@@ -231,9 +237,10 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
   const [autoScanEnabled, setAutoScanEnabled] = createSignal(DEFAULT_AUTO_SCAN_ENABLED);
   const [autoScanSettingInFlight, setAutoScanSettingInFlight] = createSignal(false);
   const [pendingVisibleTabIdentitySync, setPendingVisibleTabIdentitySync] =
-    createSignal<VisibleTabIdentitySyncReason | null>(null);
+    createSignal<TabSyncReasonType | null>(null);
   const [visibleDetectorSnapshotRevision, setVisibleDetectorSnapshotRevision] = createSignal<DetectionSessionSnapshot | null>(null);
-  const [visibleLifecycleSnapshotRevision, setVisibleLifecycleSnapshotRevision] = createSignal<DetectionSessionSnapshot | null>(null);
+  /** Latest content-owned lifecycle revision. It is not reactive because no UI renders the revision itself. */
+  let visibleLifecycleSnapshotRevision: DetectionSessionSnapshot | null = null;
   let unsubscribeSnapshotRevisions: (() => void) | undefined;
   let subscribedSnapshotSessionKey: DetectionSessionKey | null = null;
   let panelWindowId: number | null = null;
@@ -243,12 +250,12 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
   const visibleAnalysisRequestInFlight = createMemo(() => {
     const target = analysisRequestTarget();
     const visible = visibleTabIdentity();
-    return Boolean(target && visible && isSameVisibleTabIdentity(visible, target));
+    return Boolean(target && visible && sameTab(visible, target));
   });
   const queuedVisibleAnalysis = createMemo(() => {
     const visible = visibleTabIdentity();
     const queued = queuedManualRefreshIdentity() ?? queuedAnalysisIdentity();
-    return Boolean(visible && queued && isSameVisibleTabIdentity(visible, queued));
+    return Boolean(visible && queued && sameTab(visible, queued));
   });
   const workflowBusy = createMemo(() => isWorkflowBusy(workflow()));
   const busy = createMemo(() => isWorkflowBusy(workflow()) || analysisRequestInFlight());
@@ -264,9 +271,10 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
   const groupedResults = createMemo(() => groupDetectionsByPrimaryCategory(analysis()?.results ?? []));
   const hasLateDetections = createMemo(() => lateAddedIds().length > 0);
   const liveUpdateChipLabel = createMemo(() => getObservationLabel(liveUpdateMode()));
-  const evidenceCompletenessLabel = createMemo(() => formatEvidenceCompleteness(evidenceState()));
+  const evidenceCompletenessLabel = createMemo(() => formatCompleteness(evidenceState()));
 
-  async function hydrateReplayHistoryIfMissing(revision: VisibleRevision) {
+  /** Recover replay details only when the visible revision lacks them. */
+  async function hydrateReplay(revision: VisibleRevision) {
     if (!shouldApplyReplayState(revision)) {
       return;
     }
@@ -292,18 +300,19 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
   }
 
 
-  async function drainQueuedAnalysisWork(): Promise<void> {
+  /** Start the newest queued analysis after the current request releases ownership. */
+  async function drainAnalysis(): Promise<void> {
     if (disposed || analysisRequestInFlight()) {
       return;
     }
 
     const visibleIdentity = visibleTabIdentity();
     const manualIdentity = queuedManualRefreshIdentity();
-    if (manualIdentity && (!visibleIdentity || !isSameVisibleTabIdentity(visibleIdentity, manualIdentity))) {
+    if (manualIdentity && (!visibleIdentity || !sameTab(visibleIdentity, manualIdentity))) {
       setQueuedManualRefreshIdentity(null);
     } else if (manualIdentity) {
       setQueuedManualRefreshIdentity(null);
-      await loadLatestAnalysisForIdentity(manualIdentity, {
+      await loadAnalysisForTab(manualIdentity, {
         input: { mode: "refresh", observe: "while-panel-open" },
         resetLateMarkers: true,
         source: "manual",
@@ -312,11 +321,11 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     }
 
     const queuedIdentity = queuedAnalysisIdentity();
-    if (queuedIdentity && (!visibleIdentity || !isSameVisibleTabIdentity(visibleIdentity, queuedIdentity))) {
+    if (queuedIdentity && (!visibleIdentity || !sameTab(visibleIdentity, queuedIdentity))) {
       setQueuedAnalysisIdentity(null);
     } else if (queuedIdentity) {
       setQueuedAnalysisIdentity(null);
-      await loadLatestAnalysisForIdentity(queuedIdentity, {
+      await loadAnalysisForTab(queuedIdentity, {
         input: { mode: "snapshot-first", observe: "while-panel-open" },
         resetLateMarkers: !analysis(),
         source: "initial",
@@ -324,6 +333,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     }
   }
 
+  /** Preserve one manual refresh request while another analysis owns the tab. */
   function queueManualRefresh(identity: VisibleTabIdentity): void {
     setQueuedManualRefreshIdentity(identity);
     setNotice({
@@ -332,17 +342,20 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     });
   }
 
-  async function readObservationSessionState() {
+  /** Get the current content observation state for the visible session target. */
+  async function getObservationState() {
     const target = sessionTarget();
     return target ? backgroundApi.getObservationSessionState(target) : null;
   }
 
-  function updateMatcherStatusFromSnapshot(snapshot: DetectionSessionSnapshot): void {
+  /** Project persisted matcher progress into the compact panel status. */
+  function updateMatcherStatus(snapshot: DetectionSessionSnapshot): void {
     const status = getMatcherStatusFromSnapshot(snapshot);
     if (status) setMatcherStatus(status);
   }
 
-  function isSameDetectionSessionKey(
+  /** Compare a snapshot key with the exact visible document session. */
+  function sameSession(
     left: DetectionSessionKey | null,
     right: DetectionSessionKey | null,
   ): boolean {
@@ -360,14 +373,14 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
    * Keep the live storage listener on the origin until the first detector snapshot
    * reveals the exact document session, then narrow it to that detector/lifecycle pair.
    */
-  function subscribeToVisibleSnapshotRevisions(
+  function subscribeSnapshots(
     identity: VisibleTabIdentity,
     exactSessionKey: DetectionSessionKey | null,
   ): void {
     if (
       unsubscribeSnapshotRevisions &&
       ((exactSessionKey === null && subscribedSnapshotSessionKey === null) ||
-        isSameDetectionSessionKey(subscribedSnapshotSessionKey, exactSessionKey))
+        sameSession(subscribedSnapshotSessionKey, exactSessionKey))
     ) {
       return;
     }
@@ -377,15 +390,16 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     unsubscribeSnapshotRevisions = subscribeToSnapshotRevisions(
       identity,
       exactSessionKey,
-      applySnapshotRevision,
+      applySnapshot,
     );
   }
 
-  function applySnapshotRevision(snapshot: DetectionSessionSnapshot) {
+  /** Apply one accepted storage revision without replacing state from another tab. */
+  function applySnapshot(snapshot: DetectionSessionSnapshot) {
     if (disposed) return;
 
     const currentSnapshot = snapshot.source === "content"
-      ? visibleLifecycleSnapshotRevision()
+      ? visibleLifecycleSnapshotRevision
       : visibleDetectorSnapshotRevision();
     if (!isNewerSnapshotRevision(currentSnapshot, snapshot)) {
       logPanelEvent("snapshot-revision-ignored", { revision: snapshot.revision, updatedAt: snapshot.updatedAt });
@@ -394,16 +408,16 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
 
     const identity = visibleTabIdentity();
     if (identity && snapshot.source !== "content") {
-      subscribeToVisibleSnapshotRevisions(identity, snapshot.key);
+      subscribeSnapshots(identity, snapshot.key);
     }
 
     if (!shouldApplySnapshotRevision({ currentAnalysis: analysis(), snapshot })) {
       if (snapshot.source === "content") {
-        setVisibleLifecycleSnapshotRevision(snapshot);
+        visibleLifecycleSnapshotRevision = snapshot;
       } else {
         setVisibleDetectorSnapshotRevision(snapshot);
       }
-      updateMatcherStatusFromSnapshot(snapshot);
+      updateMatcherStatus(snapshot);
       const nextMode = getObservationModeFromSnapshot(snapshot);
       setLiveUpdateMode(nextMode);
       if (snapshot.replaySummary) {
@@ -428,20 +442,20 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     }
 
     if (snapshot.source === "content") {
-      setVisibleLifecycleSnapshotRevision(snapshot);
+      visibleLifecycleSnapshotRevision = snapshot;
     } else {
       setVisibleDetectorSnapshotRevision(snapshot);
     }
     if (snapshot.replaySummary) {
       setLatestReplaySummary(snapshot.replaySummary);
     }
-    updateMatcherStatusFromSnapshot(snapshot);
+    updateMatcherStatus(snapshot);
     logPanelEvent("snapshot-revision-applied", {
       revision: snapshot.revision,
       resultCount: snapshot.analysis.results.length,
       status: snapshot.status,
     });
-    applyPanelRevision(createStoredVisibleRevision({
+    applyRevision(createStoredVisibleRevision({
       source: "origin-snapshot",
       analysis: snapshot.analysis,
       snapshot,
@@ -449,10 +463,11 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     void refreshStatus();
   }
 
-  async function renderStoredAnalysisForVisibleTab(identity: VisibleTabIdentity) {
+  /** Recover the best retained analysis before requesting fresh page work. */
+  async function showStoredAnalysis(identity: VisibleTabIdentity) {
     setWorkflow({ kind: "loading-stored-snapshot", identity });
     try {
-      const stored = await readStoredAnalysis(identity, browserDetectionPersistence);
+      const stored = await getStoredAnalysis(identity, browserDetectionPersistence);
       if (disposed) return false;
       if (!stored) {
         const current = analysis();
@@ -480,14 +495,14 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
         revision: stored.snapshot?.revision ?? 0,
       });
       setVisibleDetectorSnapshotRevision(stored.snapshot ?? null);
-      setVisibleLifecycleSnapshotRevision(stored.lifecycleSnapshot ?? null);
+      visibleLifecycleSnapshotRevision = stored.lifecycleSnapshot ?? null;
       if (stored.snapshot) {
-        subscribeToVisibleSnapshotRevisions(identity, stored.snapshot.key);
-        updateMatcherStatusFromSnapshot(stored.snapshot);
+        subscribeSnapshots(identity, stored.snapshot.key);
+        updateMatcherStatus(stored.snapshot);
       } else {
         setMatcherStatus("idle");
       }
-      applyPanelRevision(stored.revision, {
+      applyRevision(stored.revision, {
         source: "initial",
         resetLateMarkers: true,
         identity,
@@ -502,6 +517,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     }
   }
 
+  /** Refresh durable analysis counters shown by the panel chrome. */
   async function refreshStatus() {
     try {
       const response = await backgroundApi.getAnalysisStatus();
@@ -515,7 +531,8 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
   }
 
 
-  async function updateAutoScanSetting(enabled: boolean): Promise<void> {
+  /** Persist the automatic-inspection setting and update local UI state. */
+  async function setAutoScan(enabled: boolean): Promise<void> {
     if (autoScanSettingInFlight()) {
       return;
     }
@@ -537,6 +554,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     }
   }
 
+  /** Clear retained detector data while preserving unrelated extension settings. */
   async function clearStoredData() {
     setClearStoredDataInFlight(true);
     setErrorMessage("");
@@ -545,7 +563,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
       const removedCount = await browserDetectionPersistence.clearStoredData();
       setAnalysis(null);
       setVisibleDetectorSnapshotRevision(null);
-      setVisibleLifecycleSnapshotRevision(null);
+      visibleLifecycleSnapshotRevision = null;
       setReplayHistory([]);
       setLatestReplaySummary(null);
       setEvidenceState(null);
@@ -565,7 +583,8 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     }
   }
 
-  function applyAnalysisResponse(
+  /** Normalize one direct background response into the revision application path. */
+  function applyResponse(
     response: AnalyzeVisibleTabOutput,
     options: {
       source: "initial" | "manual" | "auto";
@@ -573,10 +592,11 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
       identity?: VisibleTabIdentity;
     },
   ) {
-    applyPanelRevision(createVisibleRevisionFromAnalysisResponse(response), options);
+    applyRevision(createVisibleRevisionFromAnalysisResponse(response), options);
   }
 
-  function applyPanelRevision(
+  /** Apply one visible revision and keep replay, evidence, and matcher state coherent. */
+  function applyRevision(
     revision: VisibleRevision,
     options: {
       source: "initial" | "manual" | "auto";
@@ -599,9 +619,9 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     setExplanationsByTechnologyId(
       preserveReplayState ? explanationsByTechnologyId() : update.explanationsByTechnologyId,
     );
-    setMatcherStatus(getMatcherStatusForAnalysisResponse(revision, options.source, matcherStatus()));
-    const _shouldApplyReplayState = shouldApplyReplayState(revision);
-    const nextReplayHistory = _shouldApplyReplayState
+    setMatcherStatus(getMatcherStatus(revision, options.source, matcherStatus()));
+    const applyReplay = shouldApplyReplayState(revision);
+    const nextReplayHistory = applyReplay
       ? getReplayHistoryForVisibleAnalysis(
         revision.replayHistory ?? (preserveReplayState ? replayHistory() : []),
         update.analysis,
@@ -612,7 +632,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
       : null;
     setReplayHistory(nextReplayHistory);
     setLatestReplaySummary(
-      !shouldApplyReplayState
+      !applyReplay
         ? null
         : revision.replayTrace
         ? createReplaySummaryFromTrace(revision.replayTrace)
@@ -648,12 +668,13 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
       setNotice(update.notice);
     }
 
-    void hydrateReplayHistoryIfMissing(revision);
+    void hydrateReplay(revision);
   }
 
-  async function syncObservationState() {
+  /** Reconcile content observation state after analysis or a tab change. */
+  async function syncObservation() {
     try {
-      const response = await readObservationSessionState();
+      const response = await getObservationState();
       if (disposed) return;
       if (!response) {
         setLiveUpdateMode("unknown");
@@ -683,8 +704,9 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     }
   }
 
-  async function loadLatestAnalysis(options: {
-    input: AnalysisCommandInput;
+  /** Analyze the currently visible identity through the guarded tab-specific path. */
+  async function loadAnalysis(options: {
+    input: AnalysisCommandInputType;
     resetLateMarkers?: boolean;
     source: "initial" | "manual" | "auto";
   }) {
@@ -694,11 +716,12 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
       return;
     }
 
-    await loadLatestAnalysisForIdentity(identity, options);
+    await loadAnalysisForTab(identity, options);
   }
 
-  async function loadLatestAnalysisForIdentity(identity: VisibleTabIdentity, options: {
-    input: AnalysisCommandInput;
+  /** Own one analysis request for an exact visible tab identity. */
+  async function loadAnalysisForTab(identity: VisibleTabIdentity, options: {
+    input: AnalysisCommandInputType;
     resetLateMarkers?: boolean;
     source: "initial" | "manual" | "auto";
   }) {
@@ -715,7 +738,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     // until that new exact key is known so the first matcher revision cannot race
     // past a listener that is still pinned to the previous document session.
     if (options.input.mode === "refresh" || !visibleDetectorSnapshotRevision()) {
-      subscribeToVisibleSnapshotRevisions(identity, null);
+      subscribeSnapshots(identity, null);
     }
 
     setAnalysisRequestTarget(identity);
@@ -753,7 +776,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
           code: response.error.code,
           message: response.error.message,
         });
-        if (isUserVisibleRefresh && isSameVisibleTabIdentity(visibleTabIdentity(), identity)) {
+        if (isUserVisibleRefresh && sameTab(visibleTabIdentity(), identity)) {
           setErrorMessage(formatError(response.error));
         }
         setMatcherStatus("idle");
@@ -769,7 +792,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
         return;
       }
 
-      if (!canApplyAnalysisResponseToVisibleIdentity(response.value, identity, visibleTabIdentity())) {
+      if (!canApplyResponse(response.value, identity, visibleTabIdentity())) {
         logPanelEvent("analysis-response-ignored-for-stale-tab", {
           source: options.source,
           responseUrl: response.value.analysis.url,
@@ -779,7 +802,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
       }
 
       if (response.value.sessionTarget && !response.value.sessionTarget.incognito) {
-        subscribeToVisibleSnapshotRevisions(identity, {
+        subscribeSnapshots(identity, {
           tabId: response.value.sessionTarget.tabId,
           frameId: identity.frameId,
           documentId: response.value.sessionTarget.sessionId,
@@ -787,7 +810,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
         });
       }
 
-      if (shouldPreserveVisibleAnalysisForQueuedPlaceholder(response.value, identity, analysis())) {
+      if (shouldKeepAnalysis(response.value, identity, analysis())) {
         setMatcherStatus("matching");
         setSessionTarget(response.value.sessionTarget ?? sessionTarget());
         setLiveUpdateMode(
@@ -806,7 +829,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
         return;
       }
 
-      applyAnalysisResponse(response.value, { ...options, identity });
+      applyResponse(response.value, { ...options, identity });
       await refreshStatus();
     } catch (error) {
       if (disposed) return;
@@ -814,23 +837,24 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
         source: options.source,
         message: normalizeError(error),
       });
-      if (isUserVisibleRefresh && isSameVisibleTabIdentity(visibleTabIdentity(), identity)) {
+      if (isUserVisibleRefresh && sameTab(visibleTabIdentity(), identity)) {
         setErrorMessage(normalizeError(error));
       }
       setMatcherStatus("idle");
     } finally {
       if (!disposed) {
-        if (isSameVisibleTabIdentity(analysisRequestTarget(), identity)) {
+        if (sameTab(analysisRequestTarget(), identity)) {
           setAnalysisRequestTarget(null);
         }
-        if (isUserVisibleRefresh && isSameVisibleTabIdentity(visibleTabIdentity(), identity)) {
+        if (isUserVisibleRefresh && sameTab(visibleTabIdentity(), identity)) {
           setWorkflow({ kind: "idle" });
         }
-        await drainQueuedAnalysisWork();
+        await drainAnalysis();
       }
     }
   }
 
+  /** Stop the live observation session attached to the visible tab. */
   async function stopObservation() {
     setWorkflow({ kind: "refreshing-observed-session", identity: visibleTabIdentity() });
     setErrorMessage("");
@@ -875,14 +899,15 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     }
   }
 
-  async function refreshAndRestartObservation() {
+  /** Start a fresh observation-backed analysis for the visible tab. */
+  async function refreshObservation() {
     if (analysisRequestInFlight()) {
       const identity = visibleTabIdentity();
       if (identity) queueManualRefresh(identity);
       return;
     }
 
-    await loadLatestAnalysis({
+    await loadAnalysis({
       input: {
         mode: "refresh",
         observe: "while-panel-open",
@@ -892,19 +917,20 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     });
   }
 
-  function resetVisibleStateForVisibleTab(identity: VisibleTabIdentity): void {
+  /** Reset document-owned analysis state before showing another browser tab. */
+  function resetTab(identity: VisibleTabIdentity): void {
     unsubscribeSnapshotRevisions?.();
     unsubscribeSnapshotRevisions = undefined;
     subscribedSnapshotSessionKey = null;
-    subscribeToVisibleSnapshotRevisions(identity, null);
+    subscribeSnapshots(identity, null);
     logPanelEvent("visible-state-reset", {
       previousUrl: analysis()?.url,
       previousResultCount: analysis()?.results.length ?? 0,
       nextUrl: identity.url,
-      sameVisibleIdentity: isSameVisibleTabIdentity(visibleTabIdentity(), identity),
+      sameVisibleIdentity: sameTab(visibleTabIdentity(), identity),
     });
     setVisibleDetectorSnapshotRevision(null);
-    setVisibleLifecycleSnapshotRevision(null);
+    visibleLifecycleSnapshotRevision = null;
     setVisibleTabIdentity(identity);
     setSessionTarget(null);
     setLiveUpdateMode("unknown");
@@ -912,16 +938,17 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     setWorkflow({ kind: "switching-tab", identity });
   }
 
-  async function activateVisibleTab(identity: VisibleTabIdentity, reason: "initial" | "tab-change"): Promise<void> {
-    if (isSameVisibleTabIdentity(visibleTabIdentity(), identity)) return;
+  /** Recover stored state, analyze, and reconcile observation for a new visible tab. */
+  async function activateTab(identity: VisibleTabIdentity, reason: "initial" | "tab-change"): Promise<void> {
+    if (sameTab(visibleTabIdentity(), identity)) return;
 
     logPanelEvent("visible-tab-identity-applied", {
       reason,
       tabId: identity.tabId,
       hostname: identity.hostname,
     });
-    resetVisibleStateForVisibleTab(identity);
-    await renderStoredAnalysisForVisibleTab(identity);
+    resetTab(identity);
+    await showStoredAnalysis(identity);
     if (disposed) return;
     if (pendingVisibleTabIdentitySync() === "tab-change") {
       logPanelEvent("visible-tab-analysis-deferred-for-pending-sync", {
@@ -930,7 +957,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
       });
       return;
     }
-    await loadLatestAnalysisForIdentity(identity, {
+    await loadAnalysisForTab(identity, {
       input: {
         mode: "snapshot-first",
         observe: "while-panel-open",
@@ -942,10 +969,11 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     if (pendingVisibleTabIdentitySync() === "tab-change") {
       return;
     }
-    await syncObservationState();
+    await syncObservation();
   }
 
-  function queueVisibleTabIdentitySync(reason: VisibleTabIdentitySyncReason): void {
+  /** Coalesce tab identity changes while another identity lookup is in flight. */
+  function queueTabSync(reason: TabSyncReasonType): void {
     setPendingVisibleTabIdentitySync((current) => {
       if (current === "tab-change" || reason === "tab-change") {
         return "tab-change";
@@ -955,12 +983,13 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     });
   }
 
-  function resetVisibleStateForUnavailableTab(message: string): void {
+  /** Clear tab-owned state when Chrome cannot provide an inspectable active page. */
+  function resetUnavailableTab(message: string): void {
     unsubscribeSnapshotRevisions?.();
     unsubscribeSnapshotRevisions = undefined;
     subscribedSnapshotSessionKey = null;
     setVisibleDetectorSnapshotRevision(null);
-    setVisibleLifecycleSnapshotRevision(null);
+    visibleLifecycleSnapshotRevision = null;
     setVisibleTabIdentity(null);
     setSessionTarget(null);
     setQueuedAnalysisIdentity(null);
@@ -978,19 +1007,20 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     setWorkflow({ kind: "failed", identity: null, message });
   }
 
-  async function syncVisibleTabIdentity(
-    reason: VisibleTabIdentitySyncReason,
+  /** Resolve and activate the current browser tab without overlapping identity syncs. */
+  async function syncTab(
+    reason: TabSyncReasonType,
     requestedTarget?: TabTarget,
   ): Promise<void> {
     if (disposed) return;
 
     if (visibleTabIdentitySyncInFlight()) {
-      queueVisibleTabIdentitySync(reason);
+      queueTabSync(reason);
       return;
     }
 
     if (panelWindowId === null) {
-      queueVisibleTabIdentitySync(reason);
+      queueTabSync(reason);
       return;
     }
 
@@ -1005,7 +1035,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
       if (!target) {
         const message = "No active browser tab is available in this window.";
         logPanelEvent("visible-tab-target-unavailable", { reason, windowId: panelWindowId });
-        resetVisibleStateForUnavailableTab(message);
+        resetUnavailableTab(message);
         return;
       }
 
@@ -1020,11 +1050,11 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
           code: identityResponse.error.code,
           message: identityResponse.error.message,
         });
-        resetVisibleStateForUnavailableTab(message);
+        resetUnavailableTab(message);
         return;
       }
 
-      if (isSameVisibleTabIdentity(visibleTabIdentity(), identityResponse.value)) {
+      if (sameTab(visibleTabIdentity(), identityResponse.value)) {
         setErrorMessage("");
         if (workflow().kind === "failed") setWorkflow({ kind: "idle" });
         return;
@@ -1037,8 +1067,8 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
           tabId: identityResponse.value.tabId,
           hostname: identityResponse.value.hostname,
         });
-        resetVisibleStateForVisibleTab(identityResponse.value);
-        await renderStoredAnalysisForVisibleTab(identityResponse.value);
+        resetTab(identityResponse.value);
+        await showStoredAnalysis(identityResponse.value);
         setNotice({
           variant: "warning",
           text: "Visible tab changed. Stored detections are shown while the previous analysis finishes.",
@@ -1046,18 +1076,18 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
         return;
       }
 
-      await activateVisibleTab(identityResponse.value, reason);
+      await activateTab(identityResponse.value, reason);
     } catch (error) {
       if (disposed) return;
       const message = normalizeError(error);
       logPanelEvent("visible-tab-sync-failed", { reason, windowId: panelWindowId, message });
-      resetVisibleStateForUnavailableTab(message);
+      resetUnavailableTab(message);
     } finally {
       setVisibleTabIdentitySyncInFlight(false);
       const pendingReason = pendingVisibleTabIdentitySync();
       if (!disposed && pendingReason) {
         setPendingVisibleTabIdentitySync(null);
-        void syncVisibleTabIdentity(pendingReason);
+        void syncTab(pendingReason);
       }
     }
   }
@@ -1066,7 +1096,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     const unsubscribeTabTargets = subscribeTabTargetChanges({
       getWindowId: () => panelWindowId,
       getVisibleTabId: () => visibleTabIdentity()?.tabId ?? null,
-      sync: (target) => { void syncVisibleTabIdentity("tab-change", target); },
+      sync: (target) => { void syncTab("tab-change", target); },
     });
 
     void (async () => {
@@ -1079,7 +1109,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
         if (disposed) return;
         const message = normalizeError(error);
         logPanelEvent("window-target-failed", { message });
-        resetVisibleStateForUnavailableTab(message);
+        resetUnavailableTab(message);
         return;
       }
 
@@ -1091,7 +1121,7 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
         if (!disposed) logPanelEvent("auto-scan-setting-read-failed", { message: normalizeError(error) });
       }
       await refreshStatus();
-      await syncVisibleTabIdentity("initial");
+      await syncTab("initial");
     })();
 
     onCleanup(() => {
@@ -1133,9 +1163,9 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     autoScanEnabled,
     autoScanSettingInFlight,
     clearStoredDataInFlight,
-    refresh: refreshAndRestartObservation,
+    refresh: refreshObservation,
     stopObservation,
-    setAutoScanEnabled: updateAutoScanSetting,
+    setAutoScanEnabled: setAutoScan,
     clearStoredData,
   };
 

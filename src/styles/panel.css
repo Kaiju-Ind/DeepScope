@@ -87,11 +87,11 @@
 	}
 
 	.k-page-title {
-		@apply mt-1 font-display text-xl font-semibold tracking-tight text-white;
+		@apply mt-1 text-balance font-display text-xl font-semibold tracking-tight text-white;
 	}
 
 	.k-page-description {
-		@apply mt-1 max-w-prose text-sm leading-6 text-white/52;
+		@apply mt-1 max-w-prose text-pretty text-sm leading-6 text-white/52;
 	}
 
 	.k-section-title {
@@ -115,7 +115,7 @@
 	}
 
 	.k-status-value {
-		@apply mt-1.5 text-lg font-semibold text-white;
+		@apply mt-1.5 text-lg font-semibold tabular-nums text-white;
 	}
 
 	.k-status-label {

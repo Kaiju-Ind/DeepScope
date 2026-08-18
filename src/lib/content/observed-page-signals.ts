@@ -2,6 +2,7 @@ import {
 	collectLinkTags,
 	collectImageSources,
 	collectMetaTags,
+	collectResourceEntries,
 	collectResourceTimings,
 	collectScriptContents,
 	collectScriptSources,
@@ -133,6 +134,7 @@ function logObserverEvent(event: string, details?: Record<string, unknown>): voi
 	});
 }
 
+/** Create one bounded document observer and its local late-observation queue. */
 export function createObservedPageSignals(
 	options: ObservedPageSignalsOptions,
 ): ObservedPageSignals {
@@ -148,6 +150,7 @@ export function createObservedPageSignals(
 	const requestEntries = new Map<string, PageSignals['requests'][number]>();
 	const pendingNodes = new Set<Node>();
 	let throttleTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+	let batchNoticeTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
 	let resourceObserver: PerformanceObserver | undefined;
 	let activeSession: ActiveObservationSession | undefined;
 	let sessionStatus: ObservationSessionStatus = 'idle';
@@ -158,41 +161,56 @@ export function createObservedPageSignals(
 	let pendingFullDocumentScan = false;
 	const observationBatchController = createObservationBatchController();
 
-	function clearPendingMutations(): void {
+	/** Drop queued mutation roots and reset the current mutation burst count. */
+	function clearMutations(): void {
 		pendingNodes.clear();
 		pendingFullDocumentScan = false;
 		pendingMutationCount = 0;
 	}
 
-	function maxPendingMutationNodes(): number {
+	/** Return the active mutation-root limit, with a safe pre-session fallback. */
+	function getPendingLimit(): number {
 		return activeSession?.maxPendingNodes ?? MAX_PENDING_MUTATION_NODES;
 	}
 
-	function clearThrottleTimer(): void {
+	/** Cancel the pending DOM mutation flush. */
+	function clearFlushTimer(): void {
 		if (throttleTimer !== undefined) {
 			clearTimeout(throttleTimer);
 			throttleTimer = undefined;
 		}
 	}
 
-	function stopResourceObserver(): void {
+	/** Cancel the pending background dirty notification. */
+	function clearNoticeTimer(): void {
+		if (batchNoticeTimer !== undefined) {
+			clearTimeout(batchNoticeTimer);
+			batchNoticeTimer = undefined;
+		}
+	}
+
+	/** Disconnect the incremental Performance Timeline observer. */
+	function stopResources(): void {
 		resourceObserver?.disconnect();
 		resourceObserver = undefined;
 	}
 
-	function stopObservationSessionWithReason(reason: ObservationStopReason): ObservationSessionState {
+	/** Stop every live observer owned by the current document session. */
+	function stopSession(reason: ObservationStopReason): ObservationSessionState {
 		observer.disconnect();
-		stopResourceObserver();
-		clearThrottleTimer();
-		clearPendingMutations();
+		stopResources();
+		clearFlushTimer();
+		clearNoticeTimer();
+		clearMutations();
 		observationBatchController.reset();
 		activeSession = undefined;
 		sessionStatus = 'stopped';
 		stopReason = reason;
-		return observationState();
+		return getState();
 	}
 
-	function stopIfDocumentChanged(): void {
+	/** Stop before old-document evidence can cross into a newly loaded page. */
+	function stopIfNavigated(): void {
 		if (!activeSession || isObservationSessionForUrl(activeSession, location.href)) {
 			return;
 		}
@@ -202,12 +220,14 @@ export function createObservedPageSignals(
 			expectedUrl: activeSession.expectedUrl,
 			actualUrl: location.href,
 		});
-		stopObservationSessionWithReason('navigation');
+		stopSession('navigation');
 	}
 
-	function rememberResourceTimings(): void {
-		const resources = collectResourceTimings();
-		const acceptedBeforeScan = observationBatchController.stats().acceptedCount;
+	/** Remember resource entries without rescanning the complete Performance Timeline. */
+	function rememberResources(resources: PageSignals['resources'], notify: boolean): void {
+		if (resources.length === 0) return;
+
+		const acceptedBefore = observationBatchController.stats().acceptedCount;
 		rememberSnapshot({
 			...emptySnapshot(),
 			resources,
@@ -217,39 +237,39 @@ export function createObservedPageSignals(
 			})),
 		});
 
-		if (resources.length > 0) {
-			lastObservedAt = Date.now();
-			publishQueuedObservationBatch(acceptedBeforeScan);
-		}
+		if (observationBatchController.stats().acceptedCount <= acceptedBefore) return;
+		lastObservedAt = Date.now();
+		if (notify) scheduleNotice();
 	}
 
-	function startResourceObserver(): void {
-		stopResourceObserver();
+	/** Remember resources that existed before the live PerformanceObserver started reporting entries. */
+	function rememberTimings(notify = false): void {
+		rememberResources(collectResourceTimings(), notify);
+	}
 
-		if (typeof PerformanceObserver !== 'function') {
-			return;
-		}
+	/** Observe only new resource entries after the initial timeline snapshot. */
+	function startResources(): void {
+		stopResources();
+
+		if (typeof PerformanceObserver !== 'function') return;
 
 		try {
-			resourceObserver = new PerformanceObserver(() => {
-				if (!activeSession) {
-					return;
-				}
-
-				rememberResourceTimings();
-				lastObservedAt = Date.now();
+			resourceObserver = new PerformanceObserver((list) => {
+				if (!activeSession) return;
+				rememberResources(collectResourceEntries(list.getEntries()), true);
 			});
 
 			try {
-				resourceObserver.observe({ type: 'resource', buffered: true });
+				resourceObserver.observe({ type: 'resource' });
 			} catch {
 				resourceObserver.observe({ entryTypes: ['resource'] });
 			}
 		} catch {
-			stopResourceObserver();
+			stopResources();
 		}
 	}
 
+	/** Merge bounded meta values into the document-level evidence cache. */
 	function rememberMeta(meta: Record<string, string[]>): void {
 		for (const [key, values] of Object.entries(meta)) {
 			let bucket = metaEntries.get(key);
@@ -267,12 +287,14 @@ export function createObservedPageSignals(
 		}
 	}
 
-	function rememberDomSelectors(selectors: Record<string, boolean>): void {
+	/** Preserve selector matches once observed because later DOM removal does not erase evidence. */
+	function rememberSelectors(selectors: Record<string, boolean>): void {
 		for (const [selector, matched] of Object.entries(selectors)) {
 			if (matched) domSelectorEntries.set(selector, true);
 		}
 	}
 
+	/** Merge one incremental page snapshot and enqueue its normalized observations. */
 	function rememberSnapshot(snapshot: ObservedPageSignalsSnapshot): void {
 		const observedAt = Date.now();
 		for (const source of snapshot.images) {
@@ -315,12 +337,13 @@ export function createObservedPageSignals(
 		}
 
 		rememberMeta(snapshot.meta);
-		rememberDomSelectors(snapshot.dom.selectors);
-		enqueueObservationSnapshot(snapshot, observedAt);
+		rememberSelectors(snapshot.dom.selectors);
+		enqueueSnapshot(snapshot, observedAt);
 	}
 
-	function enqueueObservationSnapshot(snapshot: ObservedPageSignalsSnapshot, observedAt: number): void {
-		const target = currentObservationTarget();
+	/** Normalize one incremental snapshot into the bounded observation controller. */
+	function enqueueSnapshot(snapshot: ObservedPageSignalsSnapshot, observedAt: number): void {
+		const target = getTarget();
 		if (!target || sessionStatus === 'stopped') return;
 
 		const batch = normalizeObservedPageSignalsSnapshot(snapshot, {
@@ -332,7 +355,8 @@ export function createObservedPageSignals(
 		for (const observation of batch.observations) observationBatchController.push(observation);
 	}
 
-	function currentObservationTarget(): ObservationTarget | undefined {
+	/** Return the current session target used to normalize late observations. */
+	function getTarget(): ObservationTarget | undefined {
 		if (!activeSession) return undefined;
 
 		return {
@@ -341,6 +365,7 @@ export function createObservedPageSignals(
 		};
 	}
 
+	/** Create a sparse snapshot for one focused mutation or resource update. */
 	function emptySnapshot(): ObservedPageSignalsSnapshot {
 		return {
 			images: [],
@@ -356,13 +381,14 @@ export function createObservedPageSignals(
 		};
 	}
 
+	/** Scan only the changed subtree that can contain evidence-bearing page signals. */
 	async function scanNode(node: Node, content: ObservedPageSignalsSnapshotOptions): Promise<void> {
 		if (node instanceof HTMLScriptElement) {
 			rememberSnapshot({
 				...emptySnapshot(),
 				scripts: collectScriptSources([node]),
 				scriptContents: content.includeScriptContent ? collectScriptContents([node]) : [],
-				dom: { selectors: await collectDomSelectors(node) },
+				dom: { selectors: await getSelectors(node) },
 			});
 			return;
 		}
@@ -371,7 +397,7 @@ export function createObservedPageSignals(
 			rememberSnapshot({
 				...emptySnapshot(),
 				images: collectImageSources([node]),
-				dom: { selectors: await collectDomSelectors(node) },
+				dom: { selectors: await getSelectors(node) },
 			});
 			return;
 		}
@@ -380,7 +406,7 @@ export function createObservedPageSignals(
 			rememberSnapshot({
 				...emptySnapshot(),
 				stylesheetContents: content.includeStylesheetContent ? collectStylesheetContents([node]) : [],
-				dom: { selectors: await collectDomSelectors(node) },
+				dom: { selectors: await getSelectors(node) },
 			});
 			return;
 		}
@@ -390,7 +416,7 @@ export function createObservedPageSignals(
 				...emptySnapshot(),
 				stylesheets: collectStylesheetSources([node]),
 				links: collectLinkTags([node]),
-				dom: { selectors: await collectDomSelectors(node) },
+				dom: { selectors: await getSelectors(node) },
 			});
 			return;
 		}
@@ -399,29 +425,28 @@ export function createObservedPageSignals(
 			rememberSnapshot({
 				...emptySnapshot(),
 				meta: collectMetaTags([node]),
-				dom: { selectors: await collectDomSelectors(node) },
+				dom: { selectors: await getSelectors(node) },
 			});
 			return;
 		}
 
 		if (node instanceof Element || node instanceof DocumentFragment || node instanceof Document) {
-			const resources = collectResourceTimings();
 			rememberSnapshot({
+				...emptySnapshot(),
 				images: collectImageSources(node),
 				scripts: collectScriptSources(node),
 				stylesheets: collectStylesheetSources(node),
 				links: collectLinkTags(node),
-				resources,
-				requests: resources.map((resource) => ({ url: resource.url, type: resource.initiatorType })),
 				scriptContents: content.includeScriptContent ? collectScriptContents(node) : [],
 				stylesheetContents: content.includeStylesheetContent ? collectStylesheetContents(node) : [],
 				meta: collectMetaTags(node),
-				dom: { selectors: await collectDomSelectors(node) },
+				dom: { selectors: await getSelectors(node) },
 			});
 		}
 	}
 
-	async function scanCurrentDocument(content: ObservedPageSignalsSnapshotOptions): Promise<void> {
+	/** Rebuild complete document evidence only for explicit snapshots or overflow fallback. */
+	async function scanDocument(content: ObservedPageSignalsSnapshotOptions): Promise<void> {
 		const resources = collectResourceTimings();
 		rememberSnapshot({
 			images: collectImageSources(document),
@@ -433,82 +458,104 @@ export function createObservedPageSignals(
 			scriptContents: content.includeScriptContent ? collectScriptContents(document) : [],
 			stylesheetContents: content.includeStylesheetContent ? collectStylesheetContents(document) : [],
 			meta: collectMetaTags(document),
-			dom: { selectors: await collectDomSelectors(document) },
+			dom: { selectors: await getSelectors(document) },
 		});
 		lastScannedAt = Date.now();
 	}
 
-	function collectDomSelectors(root: ParentNode): Promise<Record<string, boolean>> {
+	/** Evaluate the current compiled DOM selector plan against one root. */
+	function getSelectors(root: ParentNode): Promise<Record<string, boolean>> {
 		return collectDomSelectorMatches(activeSession?.domSelectorPlan, activeSession?.domSelectorPlan?.selectors ?? [], root);
 	}
 
 
-	function getObservedContentOptions(): ObservedPageSignalsSnapshotOptions {
+	/** Return content flags owned by the active observation session. */
+	function getContent(): ObservedPageSignalsSnapshotOptions {
 		return {
 			includeScriptContent: activeSession?.includeScriptContent === true,
 			includeStylesheetContent: activeSession?.includeStylesheetContent === true,
 		};
 	}
 
-	async function flushPendingMutations(content = getObservedContentOptions()): Promise<void> {
-		clearThrottleTimer();
-		const acceptedBeforeScan = observationBatchController.stats().acceptedCount;
+	/** Flush the coalesced mutation roots without rescanning unrelated page state. */
+	async function flushMutations(
+		content = getContent(),
+		notify = true,
+	): Promise<void> {
+		clearFlushTimer();
+		const acceptedBefore = observationBatchController.stats().acceptedCount;
 
 		if (pendingFullDocumentScan) {
-			await scanCurrentDocument(content);
+			await scanDocument(content);
 		} else {
-			for (const node of pendingNodes) {
-				await scanNode(node, content);
-			}
+			for (const node of pendingNodes) await scanNode(node, content);
 		}
 
-		clearPendingMutations();
+		clearMutations();
 		lastScannedAt = Date.now();
 
 		if (activeSession && sessionStatus !== 'stopped') {
 			sessionStatus = 'observing';
-			publishQueuedObservationBatch(acceptedBeforeScan);
+			if (notify && observationBatchController.stats().acceptedCount > acceptedBefore) {
+				publishBatch();
+			}
 		}
 	}
 
 	/**
-	 * Notify content runtime after the throttled observer scan queues new facts.
+	 * Notify content runtime that bounded late observations are ready to flush.
 	 *
-	 * The batch itself stays inside the controller so the background can still
-	 * flush and analyze it later. The callback only carries enough lifecycle
-	 * information for a durable side-panel snapshot revision, which avoids waiting for
-	 * the next background refresh request before the open side panel knows the page has
-	 * changed.
+	 * The callback carries lifecycle counters only. The observation records remain
+	 * inside the local controller until the background explicitly flushes them.
 	 */
-	function publishQueuedObservationBatch(acceptedBeforeScan: number): void {
+	function publishBatch(): void {
+		clearNoticeTimer();
+		if (!activeSession || sessionStatus === 'stopped') return;
+
 		const stats = observationBatchController.stats();
-		if (stats.acceptedCount <= acceptedBeforeScan) {
-			return;
-		}
+		if (stats.queuedCount === 0) return;
 
 		options.onObservationBatchQueued?.({
 			observedAt: lastScannedAt ?? lastObservedAt ?? Date.now(),
 			stats,
-			session: observationState(),
+			session: getState(),
 		});
 	}
 
-	function scheduleThrottledFlush(): void {
+	/** Coalesce resource-only dirty notifications to the same cadence as DOM scans. */
+	function scheduleNotice(): void {
+		if (batchNoticeTimer !== undefined || observationBatchController.stats().queuedCount === 0) return;
+
+		batchNoticeTimer = setTimeout(() => {
+			batchNoticeTimer = undefined;
+			publishBatch();
+		}, options.throttleMs);
+	}
+
+	/** Schedule one trailing DOM scan for the current mutation burst. */
+	function scheduleFlush(): void {
 		if (throttleTimer !== undefined) {
 			return;
 		}
 
 		throttleTimer = setTimeout(() => {
-			void flushPendingMutations();
+			void flushMutations();
 		}, options.throttleMs);
 	}
 
-	function queueMutationNode(node: Node): void {
-		if (pendingFullDocumentScan || !nodeMayContainSignal(node, activeSession?.domSelectorPlan)) {
-			return;
+	/** Keep only minimal non-overlapping roots for the next mutation scan. */
+	function queueNode(node: Node): void {
+		if (pendingFullDocumentScan || !canQueueNode(node, activeSession?.domSelectorPlan)) return;
+
+		for (const pending of pendingNodes) {
+			if (containsNode(pending, node)) return;
 		}
 
-		if (pendingNodes.size >= maxPendingMutationNodes()) {
+		for (const pending of pendingNodes) {
+			if (containsNode(node, pending)) pendingNodes.delete(pending);
+		}
+
+		if (pendingNodes.size >= getPendingLimit()) {
 			pendingNodes.clear();
 			pendingFullDocumentScan = true;
 			return;
@@ -517,7 +564,8 @@ export function createObservedPageSignals(
 		pendingNodes.add(node);
 	}
 
-	function snapshotMeta(): Record<string, string[]> {
+	/** Materialize bounded meta evidence for an explicit page snapshot. */
+	function getMeta(): Record<string, string[]> {
 		return Object.fromEntries(
 			[...metaEntries.entries()].map(([key, values]) => [
 				key,
@@ -526,7 +574,8 @@ export function createObservedPageSignals(
 		);
 	}
 
-	function observationState(): ObservationSessionState {
+	/** Snapshot the authoritative lifecycle state without mutating the observer. */
+	function getState(): ObservationSessionState {
 		return {
 			sessionId: activeSession?.sessionId,
 			expectedUrl: activeSession?.expectedUrl,
@@ -553,7 +602,7 @@ export function createObservedPageSignals(
 				for (const node of mutation.addedNodes) {
 					const before = pendingNodes.size;
 					const neededFullScan = pendingFullDocumentScan;
-					queueMutationNode(node);
+					queueNode(node);
 					hasRelevantMutation ||= pendingNodes.size > before || pendingFullDocumentScan !== neededFullScan;
 				}
 
@@ -562,9 +611,9 @@ export function createObservedPageSignals(
 
 			if (
 				mutation.type === 'attributes' &&
-				nodeMayContainSignal(mutation.target, activeSession.domSelectorPlan)
+				canQueueNode(mutation.target, activeSession.domSelectorPlan)
 			) {
-				queueMutationNode(mutation.target);
+				queueNode(mutation.target);
 				hasRelevantMutation = true;
 			}
 		}
@@ -590,20 +639,22 @@ export function createObservedPageSignals(
 				pendingMutationCount,
 				maxMutations: activeSession.maxMutations,
 			});
-			stopObservationSessionWithReason('expired');
+			stopSession('expired');
 			return;
 		}
 
-		scheduleThrottledFlush();
+		scheduleFlush();
 	});
 
-	function beginObservationSession(
+	/** Reset prior observation state and start one bounded session for this document. */
+	function beginSession(
 		input: BeginObservationSessionInput,
 	): ObservationSessionState {
 		observer.disconnect();
-		stopResourceObserver();
-		clearThrottleTimer();
-		clearPendingMutations();
+		stopResources();
+		clearFlushTimer();
+		clearNoticeTimer();
+		clearMutations();
 		observationBatchController.reset();
 
 		const startedAt = Date.now();
@@ -629,17 +680,17 @@ export function createObservedPageSignals(
 			attributes: true,
 			attributeFilter: createAttributeFilter(input.domSelectorPlan),
 		});
-		startResourceObserver();
-		rememberResourceTimings();
+		startResources();
+		rememberTimings();
 
-		return observationState();
+		return getState();
 	}
 
 	return {
 		async snapshot(content = { includeScriptContent: true, includeStylesheetContent: true }) {
-			stopIfDocumentChanged();
-			await flushPendingMutations(content);
-			await scanCurrentDocument(content);
+			stopIfNavigated();
+			await flushMutations(content, false);
+			await scanDocument(content);
 
 			if (activeSession && sessionStatus !== 'stopped') {
 				sessionStatus = 'observing';
@@ -654,45 +705,49 @@ export function createObservedPageSignals(
 				requests: [...requestEntries.values()].slice(0, SOURCE_LIMITS.requestUrls),
 				scriptContents: content.includeScriptContent ? scriptContents : [],
 				stylesheetContents: content.includeStylesheetContent ? stylesheetContents : [],
-				meta: snapshotMeta(),
+				meta: getMeta(),
 				dom: { selectors: Object.fromEntries(domSelectorEntries) },
 			};
 		},
 
 		async flushObservationBatch() {
-			stopIfDocumentChanged();
-			if (activeSession && sessionStatus !== 'stopped') await flushPendingMutations();
+			stopIfNavigated();
+			clearNoticeTimer();
+			if (activeSession && sessionStatus !== 'stopped') await flushMutations(undefined, false);
 
-			const session = observationState();
-			const target = currentObservationTarget();
+			const session = getState();
+			const target = getTarget();
 			const batch = target && session.status !== 'stopped'
 				? observationBatchController.flush({ target, observedAt: Date.now() })
 				: null;
+			const stats = observationBatchController.stats();
+			if (stats.queuedCount > 0) scheduleNotice();
 
 			return {
 				...(batch ? { batch } : {}),
-				stats: observationBatchController.stats(),
+				stats,
 				session,
 			};
 		},
 
-		beginObservationSession,
+		beginObservationSession: beginSession,
 
 		stopObservationSession(reason = 'manual') {
-			return stopObservationSessionWithReason(reason);
+			return stopSession(reason);
 		},
 
 		status() {
-			stopIfDocumentChanged();
-			return observationState();
+			stopIfNavigated();
+			return getState();
 		},
 
 		disconnect(reason = 'invalidated') {
-			stopObservationSessionWithReason(reason);
+			stopSession(reason);
 		},
 	};
 }
 
+/** Limit attribute observation to selectors and resource-bearing DOM attributes. */
 function createAttributeFilter(plan: DomSelectorPlan | undefined): string[] {
 	if (plan?.attributeFilter.length) {
 		return [...plan.attributeFilter];
@@ -701,43 +756,39 @@ function createAttributeFilter(plan: DomSelectorPlan | undefined): string[] {
 	return ['src', 'href', 'rel', 'name', 'property', 'http-equiv', 'content'];
 }
 
-function nodeMayContainSignal(node: Node, plan?: DomSelectorPlan): boolean {
-	if (isSignalElement(node)) {
-		return true;
-	}
-
-	if (plan && nodeMayContainDomSelectorSignal(node, plan)) {
-		return true;
-	}
-
-	if (node instanceof Element || node instanceof DocumentFragment || node instanceof Document) {
-		return node.querySelector('script,link,meta,style') !== null;
-	}
-
-	return false;
+/** Return whether one queued mutation root already contains another. */
+function containsNode(parent: Node, child: Node): boolean {
+	if (parent === child) return true;
+	const contains = (parent as Node & { contains?: (node: Node) => boolean }).contains;
+	return typeof contains === 'function' ? contains.call(parent, child) : false;
 }
 
-function nodeMayContainDomSelectorSignal(node: Node, plan: DomSelectorPlan): boolean {
-	if (!plan.candidateSelector) {
-		return false;
+/**
+ * Return whether a mutation root is worth scanning after the throttle delay.
+ *
+ * Keep this check synchronous and cheap. MutationObserver callbacks run on the
+ * page's main thread, so descendant selector queries here can make a busy site
+ * pay DeepScope's scan cost once per DOM mutation. Detailed selector and
+ * resource queries run later against the coalesced roots.
+ */
+function canQueueNode(node: Node, plan?: DomSelectorPlan): boolean {
+	if (isSignalElement(node)) return true;
+
+	if (typeof Element !== 'undefined' && node instanceof Element) {
+		if (matchesPlan(node, plan)) return true;
+		return node.childElementCount > 0;
 	}
 
-	if (node instanceof Element && elementHasDomSelectorSignal(node, plan)) {
-		return true;
+	if (typeof DocumentFragment !== 'undefined' && node instanceof DocumentFragment) {
+		return node.childNodes.length > 0;
 	}
 
-	if (node instanceof Element || node instanceof DocumentFragment || node instanceof Document) {
-		try {
-			return node.querySelector(plan.candidateSelector) !== null;
-		} catch {
-			return false;
-		}
-	}
-
-	return false;
+	return typeof Document !== 'undefined' && node instanceof Document;
 }
 
-function elementHasDomSelectorSignal(element: Element, plan: DomSelectorPlan): boolean {
+/** Check only direct tag, attribute, id, and class indexes without querying descendants. */
+function matchesPlan(element: Element, plan?: DomSelectorPlan): boolean {
+	if (!plan) return false;
 	const tagName = element.localName.toLowerCase();
 	if (plan.selectorsByTag[tagName]?.length) return true;
 
@@ -754,13 +805,15 @@ function elementHasDomSelectorSignal(element: Element, plan: DomSelectorPlan): b
 	return false;
 }
 
+/** Narrow direct resource and metadata elements handled without descendant scanning. */
 function isSignalElement(
 	node: Node,
-): node is HTMLScriptElement | HTMLStyleElement | HTMLLinkElement | HTMLMetaElement {
+): node is HTMLScriptElement | HTMLStyleElement | HTMLLinkElement | HTMLMetaElement | HTMLImageElement {
 	return (
-		node instanceof HTMLScriptElement ||
-		node instanceof HTMLStyleElement ||
-		node instanceof HTMLLinkElement ||
-		node instanceof HTMLMetaElement
+		(typeof HTMLScriptElement !== 'undefined' && node instanceof HTMLScriptElement) ||
+		(typeof HTMLStyleElement !== 'undefined' && node instanceof HTMLStyleElement) ||
+		(typeof HTMLLinkElement !== 'undefined' && node instanceof HTMLLinkElement) ||
+		(typeof HTMLMetaElement !== 'undefined' && node instanceof HTMLMetaElement) ||
+		(typeof HTMLImageElement !== 'undefined' && node instanceof HTMLImageElement)
 	);
 }

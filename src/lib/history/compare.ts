@@ -1,7 +1,7 @@
 import type { DetectionExplanation, DetectionReplayTrace } from '@/lib/pipeline';
 
 /** One technology that changed between two persisted detector runs. */
-export type ChangeType = {
+export type TechnologyChangeType = {
 	readonly technologyId: string;
 	readonly name: string;
 	readonly before: DetectionExplanation;
@@ -10,22 +10,22 @@ export type ChangeType = {
 };
 
 /** Structured comparison between an older and a newer replay trace. */
-export type ComparisonType = {
+export type HistoryComparisonType = {
 	readonly before: DetectionReplayTrace;
 	readonly after: DetectionReplayTrace;
 	readonly added: readonly DetectionExplanation[];
 	readonly removed: readonly DetectionExplanation[];
-	readonly changed: readonly ChangeType[];
+	readonly changed: readonly TechnologyChangeType[];
 	readonly unchanged: readonly DetectionExplanation[];
 };
 
 /** Compare emitted detector results from two replay traces. */
-export function compare(before: DetectionReplayTrace, after: DetectionReplayTrace): ComparisonType {
+export function compare(before: DetectionReplayTrace, after: DetectionReplayTrace): HistoryComparisonType {
 	const previous = new Map(before.explanations.map((item) => [item.technologyId, item]));
 	const current = new Map(after.explanations.map((item) => [item.technologyId, item]));
 	const added: DetectionExplanation[] = [];
 	const removed: DetectionExplanation[] = [];
-	const changed: ChangeType[] = [];
+	const changed: TechnologyChangeType[] = [];
 	const unchanged: DetectionExplanation[] = [];
 
 	for (const item of after.explanations) {
@@ -56,8 +56,8 @@ export function key(trace: DetectionReplayTrace): string {
 }
 
 /** Return the persisted result fields that changed for one emitted technology. */
-function getFields(before: DetectionExplanation, after: DetectionExplanation): ChangeType['fields'] {
-	const fields: Array<ChangeType['fields'][number]> = [];
+function getFields(before: DetectionExplanation, after: DetectionExplanation): TechnologyChangeType['fields'] {
+	const fields: Array<TechnologyChangeType['fields'][number]> = [];
 	if (before.version !== after.version) fields.push('version');
 	if (before.confidence.level !== after.confidence.level || before.confidence.value !== after.confidence.value) fields.push('confidence');
 	if (before.evidenceCount !== after.evidenceCount || before.directEvidenceCount !== after.directEvidenceCount) fields.push('evidence');

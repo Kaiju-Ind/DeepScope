@@ -54,8 +54,8 @@ export const STORAGE_LIMITS = {
  * Runtime detection state now lives in durable session snapshots. The response envelope still exposes an analysis key for diagnostics, while
  * storage reads and writes use session and origin snapshot keys.
  */
-export function getAnalysisResponseKey(url: string): string {
-	return `${ANALYSIS_RESPONSE_PREFIX}${url.origin(url)}`;
+export function getAnalysisResponseKey(value: string): string {
+	return `${ANALYSIS_RESPONSE_PREFIX}${url.origin(value)}`;
 }
 
 /**
@@ -64,13 +64,13 @@ export function getAnalysisResponseKey(url: string): string {
  * Replay traces use their own namespace so callers can fetch or delete replay
  * metadata without changing the `SiteAnalysis` response shape.
  */
-export function getReplayTraceCacheKey(url: string): string {
-	return `${REPLAY_TRACE_CACHE_PREFIX}${url.origin(url)}`;
+export function getReplayTraceCacheKey(value: string): string {
+	return `${REPLAY_TRACE_CACHE_PREFIX}${url.origin(value)}`;
 }
 
 /** Build the storage key for bounded replay history on one origin. */
-export function getReplayTraceHistoryCacheKey(url: string): string {
-	return `${REPLAY_TRACE_HISTORY_CACHE_PREFIX}${url.origin(url)}`;
+export function getReplayTraceHistoryCacheKey(value: string): string {
+	return `${REPLAY_TRACE_HISTORY_CACHE_PREFIX}${url.origin(value)}`;
 }
 
 /** Build the storage key for one matcher job lifecycle record. */

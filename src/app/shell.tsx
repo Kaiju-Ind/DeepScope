@@ -19,30 +19,30 @@ import {
 } from '@/ui/drawer';
 import { Spinner } from '@/ui/spinner';
 
-export type PanelShellProps = {
+export type PanelShellPropsType = {
 	readonly children: JSX.Element;
 	readonly busy: boolean;
 	readonly hostname?: string;
 };
 
-type PrimaryNavigationItem = {
+type NavigationItemType = {
 	readonly to: '/' | '/technologies' | '/history';
 	readonly label: string;
 	readonly icon: Component<JSX.SvgSVGAttributes<SVGSVGElement>>;
 };
 
-const primaryNavigation: readonly PrimaryNavigationItem[] = [
+const primaryNavigation: readonly NavigationItemType[] = [
 	{ to: '/', label: 'Summary', icon: HomeIcon },
 	{ to: '/technologies', label: 'Tech', icon: TechnologyIcon },
 	{ to: '/history', label: 'History', icon: HistoryIcon },
 ];
 
 /** Persistent chrome around routed side-panel pages. */
-export function PanelShell(props: PanelShellProps) {
+export function PanelShell(props: PanelShellPropsType) {
 	const location = useLocation();
 	const touch = createMediaQuery('(pointer: coarse), (hover: none)');
 	const [moreOpen, setMoreOpen] = createSignal(false);
-	const isActive = (to: PrimaryNavigationItem['to']) => {
+	const isActive = (to: NavigationItemType['to']) => {
 		if (to === '/technologies') return location().pathname === to || location().pathname.startsWith('/technology/');
 		return location().pathname === to;
 	};
@@ -54,9 +54,9 @@ export function PanelShell(props: PanelShellProps) {
 				<div class="k-panel-brand">
 					<div class="min-w-0 flex-1">
 						<div class="flex items-center gap-3">
-							<p class="inline-flex min-w-0 items-center gap-3 text-white">
-								<span class="rounded font-logo text-2xl leading-none text-white">Kaiju</span>
-								<span class="rounded-md bg-kaiju-cyan/10 px-2 py-1 font-display text-lg font-semibold tracking-tight text-kaiju-cyan">DeepScope</span>
+							<p class="inline-flex min-w-0 items-center gap-3 text-2xl text-white">
+								<span class="rounded font-logo leading-none text-white">Kaiju</span>
+								<span class="rounded bg-kaiju-cyan/10 px-2 font-display text-lg font-semibold tracking-tight text-kaiju-cyan">DeepScope</span>
 							</p>
 							<Show when={props.busy}>
 								<Badge variant="outline" class="ml-auto gap-1.5">
@@ -115,7 +115,7 @@ export function PanelShell(props: PanelShellProps) {
 }
 
 /** Render one primary route in top or touch-oriented bottom navigation. */
-function NavigationLink(props: { readonly item: PrimaryNavigationItem; readonly active: boolean; readonly bottom?: boolean }) {
+function NavigationLink(props: { readonly item: NavigationItemType; readonly active: boolean; readonly bottom?: boolean }) {
 	const Icon = props.item.icon;
 	return (
 		<Link

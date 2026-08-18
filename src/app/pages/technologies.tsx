@@ -1,9 +1,9 @@
-import FilterIcon from '~icons/fluent/filter-24-regular';
 import RefreshIcon from '~icons/fluent/arrow-clockwise-24-regular';
 import { Link } from '@tanstack/solid-router';
 import { For, Show, createEffect, createMemo, createSignal } from 'solid-js';
 
 import { AnalysisProgress } from '@/app/components/analysis-progress';
+import { FilterMenu } from '@/app/components/filter-menu';
 import { useTechnologies } from '@/app/context';
 import * as session from '@/app/session';
 import type { SiteAnalysis } from '@/lib/detection/types';
@@ -12,12 +12,9 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import {
-	DropdownMenu,
-	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
-	DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/ui/empty';
 import { Input } from '@/ui/input';
@@ -26,13 +23,13 @@ import { Skeleton } from '@/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group';
 
 /** Technology result displayed by the current analysis. */
-type TechnologyResult = SiteAnalysis['results'][number];
+type TechnologyResultType = SiteAnalysis['results'][number];
 
 /** Supported result layouts. */
-type TechnologyView = 'list' | 'cards' | 'groups';
+type TechnologyViewType = 'list' | 'cards' | 'groups';
 
 /** Supported result ordering policies. */
-type TechnologySort = 'name' | 'evidence' | 'confidence';
+type TechnologySortType = 'name' | 'evidence' | 'confidence';
 
 /** Confidence filter for results where the user wants only stronger evidence. */
 type ConfidenceFilterType = 'all' | 'high';
@@ -43,22 +40,30 @@ interface TechnologyStateType {
 	readonly category: string;
 	readonly confidence: ConfidenceFilterType;
 	readonly newOnly: boolean;
-	readonly sort: TechnologySort;
-	readonly view: TechnologyView;
+	readonly sort: TechnologySortType;
+	readonly view: TechnologyViewType;
 }
+
+const defaultState: TechnologyStateType = {
+	query: '',
+	category: 'all',
+	confidence: 'all',
+	newOnly: false,
+	sort: 'name',
+	view: 'list',
+};
 
 /** Primary extension view for finding and comparing technologies on the active tab. */
 export function TechnologiesPage() {
 	const technologies = useTechnologies();
 	const tabId = () => technologies.visibleTabIdentity()?.tabId;
-	const defaults: TechnologyStateType = { query: '', category: 'all', confidence: 'all', newOnly: false, sort: 'name', view: 'list' };
-	const initial = session.get<TechnologyStateType>(tabId(), 'technologies') ?? defaults;
+	const initial = session.get<TechnologyStateType>(tabId(), 'technologies') ?? defaultState;
 	const [query, setQuery] = createSignal(initial.query);
 	const [category, setCategory] = createSignal(initial.category);
 	const [confidence, setConfidence] = createSignal<ConfidenceFilterType>(initial.confidence);
 	const [newOnly, setNewOnly] = createSignal(initial.newOnly);
-	const [sort, setSort] = createSignal<TechnologySort>(initial.sort);
-	const [view, setView] = createSignal<TechnologyView>(initial.view);
+	const [sort, setSort] = createSignal<TechnologySortType>(initial.sort);
+	const [view, setView] = createSignal<TechnologyViewType>(initial.view);
 	const count = () => technologies.analysis()?.results.length ?? 0;
 	const categories = createMemo(() => technologies.groupedResults().map((group) => ({ id: group.category, label: group.label })));
 	const filters = () => (category() === 'all' ? 0 : 1) + (confidence() === 'all' ? 0 : 1) + (newOnly() ? 1 : 0);
@@ -73,8 +78,7 @@ export function TechnologiesPage() {
 	}
 
 	createEffect(() => {
-		const state = session.get<TechnologyStateType>(tabId(), 'technologies');
-		if (!state) return;
+		const state = session.get<TechnologyStateType>(tabId(), 'technologies') ?? defaultState;
 		setQuery(state.query);
 		setCategory(state.category);
 		setConfidence(state.confidence);
@@ -116,12 +120,12 @@ export function TechnologiesPage() {
 								<Input class="min-w-0 flex-1" type="search" value={query()} onInput={(event) => { const value = event.currentTarget.value; setQuery(value); save({ query: value }); }} placeholder="Search technologies" aria-label="Search detected technologies" />
 								<TechnologyFilter categories={categories()} category={category()} confidence={confidence()} newOnly={newOnly()} count={filters()} onCategory={(value) => { setCategory(value); save({ category: value }); }} onConfidence={(value) => { setConfidence(value); save({ confidence: value }); }} onNewOnly={(value) => { setNewOnly(value); save({ newOnly: value }); }} />
 							</div>
-							<NativeSelect size="sm" value={sort()} onChange={(event) => { const value = event.currentTarget.value as TechnologySort; setSort(value); save({ sort: value }); }} aria-label="Sort technologies">
+							<NativeSelect size="sm" value={sort()} onChange={(event) => { const value = event.currentTarget.value as TechnologySortType; setSort(value); save({ sort: value }); }} aria-label="Sort technologies">
 								<NativeSelectOption value="name">Name</NativeSelectOption>
 								<NativeSelectOption value="evidence">Most evidence</NativeSelectOption>
 								<NativeSelectOption value="confidence">Confidence</NativeSelectOption>
 							</NativeSelect>
-							<ToggleGroup value={[view()]} onChange={(value) => { const next = (value[0] as TechnologyView | undefined) ?? 'list'; setView(next); save({ view: next }); }} variant="outline" size="sm" class="w-full" aria-label="Technology view">
+							<ToggleGroup value={[view()]} onChange={(value) => { const next = (value[0] as TechnologyViewType | undefined) ?? 'list'; setView(next); save({ view: next }); }} variant="outline" size="sm" class="w-full" aria-label="Technology view">
 								<ToggleGroupItem value="list" class="flex-1">List</ToggleGroupItem>
 								<ToggleGroupItem value="cards" class="flex-1">Cards</ToggleGroupItem>
 								<ToggleGroupItem value="groups" class="flex-1">Groups</ToggleGroupItem>
@@ -134,7 +138,7 @@ export function TechnologiesPage() {
 									<For each={grouped()}>
 										{(group) => (
 											<section>
-												<div class="k-category-heading"><h2 class="k-category-name">{group.label}</h2><span class="k-category-count">{group.results.length}</span></div>
+												<div class="k-category-heading"><h2 class="k-category-name">{group.label}</h2><span class="k-category-count tabular-nums">{group.results.length}</span></div>
 												<TechnologyCollection results={group.results} view="list" lateIds={technologies.lateAddedIds()} />
 											</section>
 										)}
@@ -150,7 +154,7 @@ export function TechnologiesPage() {
 }
 
 /** Render result cards without coupling filtering rules to presentation. */
-function TechnologyCollection(props: { readonly results: readonly TechnologyResult[]; readonly view: TechnologyView; readonly lateIds: readonly string[] }) {
+function TechnologyCollection(props: { readonly results: readonly TechnologyResultType[]; readonly view: TechnologyViewType; readonly lateIds: readonly string[] }) {
 	return (
 		<div class={props.view === 'cards' ? 'grid gap-2 sm:grid-cols-2' : 'k-card-list'}>
 			<For each={props.results}>{(result) => <TechnologyLink result={result} late={props.lateIds.includes(result.technologyId)} card={props.view === 'cards'} />}</For>
@@ -159,9 +163,9 @@ function TechnologyCollection(props: { readonly results: readonly TechnologyResu
 }
 
 /** One route-backed technology result in either dense or card layout. */
-function TechnologyLink(props: { readonly result: TechnologyResult; readonly late: boolean; readonly card: boolean }) {
+function TechnologyLink(props: { readonly result: TechnologyResultType; readonly late: boolean; readonly card: boolean }) {
 	return (
-		<Link to="/technology/$technologyId" params={{ technologyId: props.result.technologyId }} class={props.card ? 'panel-section block p-4 transition hover:border-kaiju-cyan/20 hover:bg-white/[0.045] focus-kaiju' : 'k-tech-row'}>
+		<Link to="/technology/$technologyId" params={{ technologyId: props.result.technologyId }} class={props.card ? 'panel-section block p-4 transition-[background-color,border-color] duration-150 hover:border-kaiju-cyan/20 hover:bg-white/[0.045] focus-kaiju' : 'k-tech-row'}>
 			<div class="min-w-0 flex-1">
 				<div class="flex min-w-0 items-center gap-2">
 					<p class="k-tech-title">{props.result.name}</p>
@@ -179,10 +183,10 @@ function TechnologyLink(props: { readonly result: TechnologyResult; readonly lat
 }
 
 /** Apply search, category, confidence, change-state, and sort policy without mutating detector results. */
-function filterResults(results: readonly TechnologyResult[], options: { readonly query: string; readonly category: string; readonly confidence: ConfidenceFilterType; readonly newOnly: boolean; readonly sort: TechnologySort; readonly lateIds: readonly string[] }): TechnologyResult[] {
+function filterResults(results: readonly TechnologyResultType[], options: { readonly query: string; readonly category: string; readonly confidence: ConfidenceFilterType; readonly newOnly: boolean; readonly sort: TechnologySortType; readonly lateIds: readonly string[] }): TechnologyResultType[] {
 	const search = options.query.trim().toLocaleLowerCase();
 	const filtered = results.filter((result) => {
-		if (options.category !== 'all' && !result.categories.includes(options.category as TechnologyResult['categories'][number])) return false;
+		if (options.category !== 'all' && !result.categories.includes(options.category as TechnologyResultType['categories'][number])) return false;
 		if (options.confidence === 'high' && result.confidence.level !== 'high' && result.confidence.level !== 'certain') return false;
 		if (options.newOnly && !options.lateIds.includes(result.technologyId)) return false;
 		if (!search) return true;
@@ -199,21 +203,16 @@ function filterResults(results: readonly TechnologyResult[], options: { readonly
 /** Explicit filter menu separates filtering from ordering and view layout. */
 function TechnologyFilter(props: { readonly categories: readonly { readonly id: string; readonly label: string }[]; readonly category: string; readonly confidence: ConfidenceFilterType; readonly newOnly: boolean; readonly count: number; readonly onCategory: (value: string) => void; readonly onConfidence: (value: ConfidenceFilterType) => void; readonly onNewOnly: (value: boolean) => void }) {
 	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger as={Button} variant="outline" class="shrink-0 gap-2" aria-label="Filter technologies">
-				<FilterIcon class="size-4" /><span class="hidden xs:inline">Filter</span><Show when={props.count > 0}><Badge>{props.count}</Badge></Show>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent class="min-w-60">
-				<DropdownMenuLabel>Evidence</DropdownMenuLabel>
-				<DropdownMenuItem onSelect={() => props.onConfidence('all')}><span class="flex-1">Any confidence</span><Show when={props.confidence === 'all'}>✓</Show></DropdownMenuItem>
-				<DropdownMenuItem onSelect={() => props.onConfidence('high')}><span class="flex-1">High or certain</span><Show when={props.confidence === 'high'}>✓</Show></DropdownMenuItem>
-				<DropdownMenuItem onSelect={() => props.onNewOnly(!props.newOnly)}><span class="flex-1">New this inspection</span><Show when={props.newOnly}>✓</Show></DropdownMenuItem>
-				<DropdownMenuSeparator />
-				<DropdownMenuLabel>Category</DropdownMenuLabel>
-				<DropdownMenuItem onSelect={() => props.onCategory('all')}><span class="flex-1">All categories</span><Show when={props.category === 'all'}>✓</Show></DropdownMenuItem>
-				<For each={props.categories}>{(item) => <DropdownMenuItem onSelect={() => props.onCategory(item.id)}><span class="flex-1">{item.label}</span><Show when={props.category === item.id}>✓</Show></DropdownMenuItem>}</For>
-			</DropdownMenuContent>
-		</DropdownMenu>
+		<FilterMenu label="Filter technologies" count={props.count}>
+			<DropdownMenuLabel>Evidence</DropdownMenuLabel>
+			<DropdownMenuItem onSelect={() => props.onConfidence('all')}><span class="flex-1">Any confidence</span><Show when={props.confidence === 'all'}>✓</Show></DropdownMenuItem>
+			<DropdownMenuItem onSelect={() => props.onConfidence('high')}><span class="flex-1">High or certain</span><Show when={props.confidence === 'high'}>✓</Show></DropdownMenuItem>
+			<DropdownMenuItem onSelect={() => props.onNewOnly(!props.newOnly)}><span class="flex-1">New this inspection</span><Show when={props.newOnly}>✓</Show></DropdownMenuItem>
+			<DropdownMenuSeparator />
+			<DropdownMenuLabel>Category</DropdownMenuLabel>
+			<DropdownMenuItem onSelect={() => props.onCategory('all')}><span class="flex-1">All categories</span><Show when={props.category === 'all'}>✓</Show></DropdownMenuItem>
+			<For each={props.categories}>{(item) => <DropdownMenuItem onSelect={() => props.onCategory(item.id)}><span class="flex-1">{item.label}</span><Show when={props.category === item.id}>✓</Show></DropdownMenuItem>}</For>
+		</FilterMenu>
 	);
 }
 
@@ -234,5 +233,5 @@ function NoTechnologies() {
 
 /** Empty state for filters that exclude every current result. */
 function NoMatches() {
-	return <Empty class="panel-section min-h-32 p-5"><EmptyHeader><EmptyTitle>No matching technologies</EmptyTitle><EmptyDescription>Change the search, category, or sort controls to broaden the current view.</EmptyDescription></EmptyHeader></Empty>;
+	return <Empty class="panel-section min-h-32 p-5"><EmptyHeader><EmptyTitle>No matching technologies</EmptyTitle><EmptyDescription>Change the search or filters to broaden the current view.</EmptyDescription></EmptyHeader></Empty>;
 }

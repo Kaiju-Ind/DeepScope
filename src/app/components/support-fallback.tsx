@@ -2,16 +2,17 @@ import { createSignal, onMount } from 'solid-js';
 import { browser } from 'wxt/browser';
 
 import type { DiagnosticSurface } from '@/lib/diagnostics/contracts';
+import * as clipboard from '@/utils/clipboard';
 import { persistDiagnosticFailure } from '@/lib/diagnostics/journal';
 
-export type SupportFallbackProps = {
+export type SupportFallbackPropsType = {
 	readonly surface: Extract<DiagnosticSurface, 'sidepanel' | 'options'>;
 	readonly error: unknown;
 	readonly reset?: () => void;
 };
 
 /** Minimal support UI that avoids Zaidan primitives when the normal application tree fails. */
-export function SupportFallback(props: SupportFallbackProps) {
+export function SupportFallback(props: SupportFallbackPropsType) {
 	const [status, setStatus] = createSignal('');
 	const message = () => props.error instanceof Error ? props.error.message : String(props.error);
 
@@ -29,7 +30,7 @@ export function SupportFallback(props: SupportFallbackProps) {
 		try {
 			const { formatDiagnosticReport, getDiagnosticSnapshot } = await import('@/lib/diagnostics/report');
 			const report = formatDiagnosticReport(await getDiagnosticSnapshot());
-			await writeClipboard(report);
+			await clipboard.copy(report);
 			setStatus('Diagnostic report copied.');
 		} catch (error) {
 			setStatus(error instanceof Error ? error.message : 'Unable to copy the diagnostic report.');
@@ -64,20 +65,3 @@ const buttonStyle = {
 	color: 'white',
 	cursor: 'pointer',
 } as const;
-
-async function writeClipboard(text: string): Promise<void> {
-	if (navigator.clipboard?.writeText) {
-		await navigator.clipboard.writeText(text);
-		return;
-	}
-
-	const textarea = document.createElement('textarea');
-	textarea.value = text;
-	textarea.style.position = 'fixed';
-	textarea.style.opacity = '0';
-	document.body.append(textarea);
-	textarea.select();
-	const copied = document.execCommand('copy');
-	textarea.remove();
-	if (!copied) throw new Error('Browser clipboard access is unavailable.');
-}

@@ -1,5 +1,7 @@
 import { browser } from 'wxt/browser';
 
+import * as bytes from '@/utils/bytes';
+
 import { listMatcherJobRecords } from '@/lib/storage/matcher-jobs';
 import { redactDiagnosticValue } from '@/lib/privacy/redaction';
 import { getDiagnosticBuildId } from './build';
@@ -54,7 +56,7 @@ export function formatDiagnosticReport(snapshot: DiagnosticSnapshot): string {
 		`Extension: ${snapshot.extension.name} ${snapshot.extension.version}`,
 		`Build: ${snapshot.extension.buildId}`,
 		`Platform: ${formatPlatform(snapshot.platform)}`,
-		`Extension storage: ${snapshot.storageBytes === undefined ? 'unknown' : formatBytes(snapshot.storageBytes)}`,
+		`Extension storage: ${snapshot.storageBytes === undefined ? 'unknown' : bytes.format(snapshot.storageBytes)}`,
 		`Active contexts: ${snapshot.contexts.length}`,
 		`Recent context runs: ${snapshot.runs.length}`,
 		`Matcher jobs: ${snapshot.jobs.length} recent, ${active.length} active-looking, ${interrupted.length} interrupted`,
@@ -205,10 +207,4 @@ function isActiveMatcherStatus(status: string): boolean {
 function formatPlatform(platform: DiagnosticSnapshot['platform'] | undefined): string {
 	if (!platform) return 'unknown';
 	return [platform.os, platform.arch, platform.naclArch].filter(Boolean).join(' / ') || 'unknown';
-}
-
-function formatBytes(bytes: number): string {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
-	return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
 }

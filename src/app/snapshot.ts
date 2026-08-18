@@ -64,13 +64,13 @@ export type StoredAnalysisResult = {
 };
 
 /**
- * Read the best stored detector result for the active side panel target.
+ * Get the best stored detector result for the active side panel target.
  *
  * Incognito tabs skip persistent storage reads for the same reason they skip
  * writes: visible state should come from the live page command, not from durable
  * records that can outlive the private browsing context.
  */
-export async function readStoredAnalysis(
+export async function getStoredAnalysis(
   identity: VisibleTabIdentity,
   persistence: SnapshotPersistence = browserDetectionPersistence,
 ): Promise<StoredAnalysisResult | null> {
@@ -87,7 +87,7 @@ export async function readStoredAnalysis(
     return null;
   }
 
-  const replay = await readStoredReplayState(storedSnapshot.snapshot.analysis, persistence);
+  const replay = await getStoredReplayState(storedSnapshot.snapshot.analysis, persistence);
   const stored = {
     source: storedSnapshot.source,
     analysis: storedSnapshot.snapshot.analysis,
@@ -146,14 +146,14 @@ async function getStoredVisibleSnapshot(
 }
 
 /**
- * Read replay data next to startup analysis so explanations survive side panel reopen.
+ * Get replay data next to startup analysis so explanations survive side panel reopen.
  *
  * Snapshots keep only a compact replay summary to avoid duplicating full traces
  * across every visible revision. The side panel can still recover the newest full
  * trace and bounded history from the dedicated replay storage namespace before
  * the background service worker has to start a fresh analysis command.
  */
-async function readStoredReplayState(
+async function getStoredReplayState(
   analysis: AnalyzeVisibleTabOutput['analysis'],
   persistence: SnapshotPersistence,
 ): Promise<Pick<StoredAnalysisResult, 'replayTrace' | 'replayHistory'>> {

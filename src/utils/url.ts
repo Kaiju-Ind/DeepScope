@@ -1,9 +1,15 @@
 /** Display-safe URL parts used by dense extension surfaces. */
-export interface UrlParts {
+export interface UrlPartsType {
 	/** Host and optional port without protocol or credentials. */
 	readonly host: string;
-	/** Path, query, and hash retained as the page-specific identity. */
-	readonly path: string;
+	/** Pathname without query or fragment. */
+	readonly pathname: string;
+	/** Query text including the leading `?`, when present. */
+	readonly search: string;
+	/** Fragment text including the leading `#`, when present. */
+	readonly hash: string;
+	/** Number of query parameters represented by the URL. */
+	readonly parameterCount: number;
 }
 
 /** Return the origin for an absolute URL. */
@@ -36,13 +42,19 @@ export function same(left: string, right: string): boolean {
 	}
 }
 
-/** Split an absolute URL into a stable host and page-specific display path. */
-export function parts(value: string): UrlParts {
+/** Split an absolute URL into host and page-specific display parts. */
+export function parts(value: string): UrlPartsType {
 	try {
 		const parsed = new URL(value);
-		const path = `${parsed.pathname}${parsed.search}${parsed.hash}`;
-		return { host: parsed.host, path: path === '/' ? '/' : path };
+		const pathname = parsed.pathname || '/';
+		return {
+			host: parsed.host,
+			pathname,
+			search: parsed.search,
+			hash: parsed.hash,
+			parameterCount: parsed.searchParams.size,
+		};
 	} catch {
-		return { host: value, path: '' };
+		return { host: value, pathname: '', search: '', hash: '', parameterCount: 0 };
 	}
 }

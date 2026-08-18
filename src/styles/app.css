@@ -9,20 +9,20 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-	--font-inter: 'Inter', sans-serif;
-	--font-space-grotesk: 'Space Grotesk', sans-serif;
-	--font-space-mono: 'Space Mono', monospace;
-	--font-american-kestrel: 'American Kestrel', 'Space Grotesk', sans-serif;
+	/* Literal provider families let Fontless discover the same faces used by the website. */
+	--font-space-grotesk: 'Space Grotesk';
+	--font-space-mono: 'Space Mono';
+	--font-american-kestrel: 'American Kestrel';
 	--breakpoint-xs: 20rem;
 }
 
 @theme inline {
+	/* Keep the website font-token hierarchy so product branding stays consistent. */
 	--font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif,
 		'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 	--font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
 	--font-mono: var(--font-space-mono), ui-monospace, monospace;
-	--font-brand: var(--font-american-kestrel), var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
-	--font-logo: var(--font-brand);
+	--font-logo: var(--font-american-kestrel), var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
 
 	--color-kaiju-cyan: #54def0;
 	--color-kaiju-navy: #07162f;
@@ -54,6 +54,8 @@
 		font-weight: var(--font-weight-light);
 		letter-spacing: var(--tracking-normal);
 		background: var(--color-kaiju-navy-deep);
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
 	}
 
 	body {

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import { fontless } from 'fontless';
@@ -7,6 +7,18 @@ import { defineConfig } from 'wxt';
 
 /** Build identity embedded into diagnostic records and support bundles. */
 const buildId = `0.1.0-${new Date().toISOString()}`;
+
+/**
+ * Local logo font source owned by Fontless during the Vite build.
+ *
+ * A data URL lets Fontless hash and emit the licensed local font through the
+ * same asset pipeline as provider fonts. A public `/fonts/...` URL would make
+ * Fontless attempt to fetch an extension-relative URL while Node owns the build.
+ */
+const kestrelPath = fileURLToPath(new URL('./src/assets/fonts/american-kestrel/americankestral.ttf', import.meta.url));
+const kestrelSource = existsSync(kestrelPath)
+	? `data:font/ttf;base64,${readFileSync(kestrelPath).toString('base64')}`
+	: undefined;
 
 export default defineConfig({
 	srcDir: 'src',
@@ -41,29 +53,40 @@ export default defineConfig({
 				provider: 'fontsource',
 				processCSSVariables: 'font-prefixed-only',
 				defaults: {
-					preload: true,
+					preload: false,
 					formats: ['woff2'],
 					weights: [400, 700],
-					styles: ['normal', 'italic'],
-
-					// Fallbacks use category-aware presets from fontaine
-					// Override specific generic families as needed
-					fallbacks: {
-						'sans-serif': ['Arial', 'Helvetica Neue'],
-						// serif, monospace, cursive, fantasy, system-ui, etc. use shared defaults
-					}
+					styles: ['normal'],
+					fallbacks: { 'sans-serif': ['Arial', 'Helvetica Neue'] },
 				},
 				families: [
-					{ name: 'American Kestrel', src: [{ url: "/fonts/american-kestrel/americankestral.ttf", format: 'truetype' }], weight: 400, style: 'normal', fallbacks: ['Space Grotesk'] },
-					{ name: 'Space Grotesk', provider: 'fontsource', weights: [300, 400, 500, 600, 700] },
-					{ name: 'Inter', provider: 'fontsource', weights: [400, 500, 600, 700] },
-					{ name: 'Space Mono', provider: 'fontsource', weights: [400, 700] },
+					kestrelSource
+						? {
+							name: 'American Kestrel',
+							src: [{ url: kestrelSource, format: 'truetype' }],
+							weight: 400,
+							style: 'normal',
+							fallbacks: ['Space Grotesk'],
+							preload: true,
+						}
+						: { name: 'American Kestrel', provider: 'none' },
+					{
+						name: 'Space Grotesk',
+						provider: 'fontsource',
+						weights: ['300 700'],
+						styles: ['normal'],
+						preload: true,
+					},
+					{
+						name: 'Space Mono',
+						provider: 'fontsource',
+						weights: ['400 700'],
+						styles: ['normal'],
+						preload: false,
+					},
 				],
-
-				// Experimental features
-				experimental: {
-					disableLocalFallbacks: false
-				}
+				assets: { prefix: '/assets/_fonts' },
+				experimental: { disableLocalFallbacks: false },
 			}),
 			tailwindcss(),
 			Icons({ compiler: 'solid' }),

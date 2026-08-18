@@ -426,7 +426,8 @@ function collectInjectedJsGlobalsFromPageContext(
 	const values: Record<string, JsGlobalSignalValue> = {};
 	const root = globalThis as Record<string, unknown>;
 
-	function readGlobalPath(propertyPath: string): unknown {
+	/** Get one injected page-global value without invoking unrelated global properties. */
+	function getGlobalPath(propertyPath: string): unknown {
 		if (Object.hasOwn(root, propertyPath)) {
 			return root[propertyPath];
 		}
@@ -443,6 +444,7 @@ function collectInjectedJsGlobalsFromPageContext(
 		return current;
 	}
 
+	/** Convert an injected page-global value into the bounded signal representation. */
 	function summarizeValue(value: unknown): JsGlobalSignalValue {
 		const valueType = typeof value;
 		if (valueType === 'string') {
@@ -469,7 +471,7 @@ function collectInjectedJsGlobalsFromPageContext(
 
 	for (const propertyPath of propertyPaths) {
 		try {
-			const value = readGlobalPath(propertyPath);
+			const value = getGlobalPath(propertyPath);
 			if (value === undefined || value === null) {
 				continue;
 			}

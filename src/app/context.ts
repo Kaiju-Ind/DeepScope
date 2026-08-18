@@ -113,25 +113,66 @@ export function usePanel(): PanelContextType {
 
 /** Return only the state and commands used by the summary page. */
 export function useSummary(): SummaryPageType {
-	return usePanel();
+	const panel = usePanel();
+	return {
+		busy: panel.busy,
+		liveUpdateMode: panel.liveUpdateMode,
+		notice: panel.notice,
+		errorMessage: panel.errorMessage,
+		analysis: panel.analysis,
+		visibleTabIdentity: panel.visibleTabIdentity,
+		resultCount: panel.resultCount,
+		groupedResults: panel.groupedResults,
+		liveUpdateChipLabel: panel.liveUpdateChipLabel,
+		evidenceCompletenessLabel: panel.evidenceCompletenessLabel,
+		analysisActivity: panel.analysisActivity,
+		matcherStatus: panel.matcherStatus,
+		refresh: panel.refresh,
+		stopObservation: panel.stopObservation,
+	};
 }
 
-/** Return only the active-origin identity needed by the history page. */
+/** Return only the active page identity required by retained history. */
 export function useHistory(): HistoryPageType {
-	return usePanel();
+	const panel = usePanel();
+	return { analysis: panel.analysis, visibleTabIdentity: panel.visibleTabIdentity };
 }
 
-/** Return only the state and commands used by the settings page. */
+/** Return only the settings state and commands. */
 export function useSettings(): SettingsPageType {
-	return usePanel();
+	const panel = usePanel();
+	return {
+		autoScanEnabled: panel.autoScanEnabled,
+		autoScanSettingInFlight: panel.autoScanSettingInFlight,
+		clearStoredDataInFlight: panel.clearStoredDataInFlight,
+		status: panel.status,
+		setAutoScanEnabled: panel.setAutoScanEnabled,
+		clearStoredData: panel.clearStoredData,
+	};
 }
 
-/** Return only the state used by the technology result page. */
+/** Return only the state and commands used by the technology result page. */
 export function useTechnologies(): TechnologiesPageType {
-	return usePanel();
+	const panel = usePanel();
+	return {
+		analysis: panel.analysis,
+		busy: panel.busy,
+		liveUpdateMode: panel.liveUpdateMode,
+		notice: panel.notice,
+		errorMessage: panel.errorMessage,
+		visibleTabIdentity: panel.visibleTabIdentity,
+		lateAddedIds: panel.lateAddedIds,
+		groupedResults: panel.groupedResults,
+		analysisActivity: panel.analysisActivity,
+		refresh: panel.refresh,
+	};
 }
 
-/** Return only the state used by one technology detail page. */
+/** Return only the analysis data used by one technology detail page. */
 export function useTechnology(): TechnologyPageType {
-	return usePanel();
+	const panel = usePanel();
+	return {
+		analysis: panel.analysis,
+		explanationsByTechnologyId: panel.explanationsByTechnologyId,
+	};
 }
