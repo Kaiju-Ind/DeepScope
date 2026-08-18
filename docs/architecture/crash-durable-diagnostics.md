@@ -60,6 +60,27 @@ The content script deliberately does **not** persist the host page's global `err
 
 The offscreen matcher host also retains dedicated-worker `ErrorEvent` information and `messageerror` failures instead of reducing them to an error message string.
 
+Chrome offscreen documents do not own the normal extension storage API used by the journal. Their journal therefore sanitizes the same `DiagnosticContext` and `DiagnosticRecord` contracts locally, then forwards them over the extension runtime channel to the background service worker. Background validates the transport contract before writing those records to local storage.
+
+```text
+offscreen LogTape / crash hook
+  -> sanitize + redact diagnostic record
+  -> runtime.sendMessage(diagnostics.record)
+  -> background validates transport message
+  -> background storage.local write
+
+dedicated matcher Worker failure
+  -> worker journal sanitizes the record
+  -> worker postMessage(diagnostics.record)
+  -> offscreen relays the transport message
+  -> background validates and persists it
+
+worker slot ErrorEvent / messageerror / partition-failed
+  -> offscreen also records host-side failure metadata
+```
+
+This makes offscreen and matcher-worker LogTape records visible in the same Diagnostics Timeline and copied support report as background and content records. The same success-only journal compaction still applies before high-volume debug records are transported. Host-side worker error handling remains a second source of failure metadata when a worker cannot complete its own diagnostic message. An active worker failure also disposes the shared matcher pool, which rejects the in-flight partition and prevents a broken worker heap from remaining resident after the job has already fallen back or failed.
+
 LogTape sends records to two sinks. The console sink rate-limits ordinary trace/debug/info bursts. Warning, error, and fatal records bypass console throttling. The durable journal is not behind that console throttle. It applies its own success-only compaction after the detailed sample limit, while warning, error, and fatal records are always persisted.
 
 ## Interrupted matcher work

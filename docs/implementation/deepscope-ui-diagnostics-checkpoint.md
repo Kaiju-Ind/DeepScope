@@ -27,7 +27,7 @@ Implemented
 - The toolbar action badge shows the latest detected technology count for the tab.  A new navigation clears the stale count.  Badge updates happen after analysis without extending the analysis response path.
 - Touch/coarse-pointer navigation uses the bottom application bar.  Diagnostics and Settings remain behind the More drawer.
 - Diagnostics has Overview, Timeline, Jobs, Contexts, and Raw views.
-- The Timeline uses TanStack Virtual with stable record keys, dynamic row measurement, bounded overscan, and a fixed scroll viewport.  Search and filters operate on a derived projection and do not mutate the journal.
+- The Timeline uses TanStack Virtual with stable record keys, fixed-height rows, bounded overscan, and a fixed scroll viewport. Search and filters operate on a derived projection and do not mutate the journal. Fixed-height rows avoid the dynamic `data-index` measurement path that could crash after reactive list changes.
 - Timeline filtering is behind an explicit Filter control.  It covers severity, runtime surface, and chronology.  Newest-first is the investigation default; oldest-first remains available for trace reading.
 - Diagnostic search, filter, selected record, job search, and active diagnostic tab remain in the current diagnostics document session.
 - Diagnostic detail uses the existing drawer component.  It opens from the bottom for coarse/no-hover input and from the right for fine-pointer input.

@@ -45,6 +45,34 @@ SettingsPage     -> useSettings()
 
 This is not the final state-ownership refactor. The provider remains larger than the desired capability model. New History and Diagnostics work does not add more replay or diagnostic responsibilities to it: History reads retained replay receipts through storage, and Diagnostics remains independent of detector UI state.
 
+### Observation ownership while switching tabs
+
+The mounted panel can own at most one live observation session. Opening the panel on an inspectable page or pressing Refresh may start `while-panel-open` observation for that exact tab and document. A tab switch releases that panel-owned session before the new tab projection is shown.
+
+Tab activation itself does not make the panel start another scan. Background automatic scanning owns that decision. Automatic scans are one-shot analyses with `observe: "none"`, so enabling automatic scanning does not leave a five-minute observer behind in every tab the user visits. When automatic scanning is disabled, switching tabs only restores the newest retained snapshot for that tab. A fresh scan happens when the panel is first opened or the user presses Refresh.
+
+```text
+panel opens on A
+  -> restore A snapshot
+  -> explicit panel analysis may observe A
+
+user activates B
+  -> release panel-owned observation A
+  -> restore B snapshot
+  -> do not start panel analysis because of the tab switch
+
+background tabs.onActivated
+  -> auto-scan enabled  -> one-shot B analysis, no observer retained
+  -> auto-scan disabled -> no analysis
+
+panel closes
+  -> release its current observation target
+```
+
+Analysis responses also carry exact session identity. If an old response finishes after the panel has moved to another tab, the panel rejects the UI result and best-effort stops any observation session created by that stale response. The stop request carries the old `sessionId` and expected document URL, and content refuses it if a newer session already owns the document. This prevents a response race from producing an orphan content observer or terminating a newer observer.
+
+Panel-local route, scroll, search, and view state is also tied to live browser tabs. `tabs.onRemoved` deletes that transient state when Chrome closes a tab in the panel's window, so a long-running side-panel document does not keep state for closed tabs.
+
 ## Routed user flows
 
 TanStack Router uses hash history because every side-panel route lives inside generated `sidepanel.html`.
@@ -85,7 +113,7 @@ Contexts  active contexts + persisted context starts
 Raw       complete bounded support snapshot
 ```
 
-Timeline filtering is a derived projection. It does not mutate the journal. TanStack Virtual limits DOM rows after filtering, uses stable record ids, and measures variable-height rows. The journal currently retains at most 400 records, while the query layer has a 10,000-record synthetic test so UI scaling work does not accidentally couple search cost to DOM size.
+Timeline filtering is a derived projection. It does not mutate the journal. TanStack Virtual limits DOM rows after filtering and uses stable record ids. Diagnostic rows use a fixed 84-pixel virtual size with a two-line message clamp, so the Timeline does not depend on `measureElement()` or TanStack's `data-index` measurement contract. This removes a Solid reactive timing failure that could leave a virtual item undefined while the row closure still tried to read its index. The journal currently retains at most 400 records, while the query layer has a 10,000-record synthetic test so UI scaling work does not accidentally couple search cost to DOM size.
 
 ## Typography and brand
 

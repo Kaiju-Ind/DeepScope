@@ -277,7 +277,7 @@ The timeline uses TanStack Solid Virtual with:
 
 - the real scroll element;
 - stable diagnostic record IDs;
-- dynamic row measurement;
+- fixed 84-pixel rows that do not call `measureElement()`;
 - overscan;
 - a fixed viewport height;
 - a virtual total-size container;

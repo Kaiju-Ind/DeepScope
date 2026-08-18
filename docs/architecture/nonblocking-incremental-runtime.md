@@ -52,7 +52,11 @@ This keeps side-panel reopen behavior stable. Opening and closing the side panel
 
 Large observation kinds are chunked before they enter the offscreen pool. A single Vercel-style `resourceUrl` or `requestUrl` partition can otherwise block visible progress until the entire kind completes. Chunking turns high-fan-out surfaces into multiple progress events while preserving deterministic merge order through original observation indexes.
 
-The offscreen document keeps a shared worker pool alive for its lifetime. Worker-local shard caches stay warm across initial analysis, refreshes, and follow-up observation jobs. Background logs must show whether each job completed through `offscreen-worker-pool` or fell back to `background-fallback`.
+The offscreen document can remain available because DOM-selector parsing also uses it, but matcher workers do not stay alive for the document's full lifetime. The host reuses one small pool across nearby jobs, then terminates the pool after 30 seconds without matcher work. Each worker keeps at most four observation-kind compiled shards in a least-recently-used cache. This preserves warm reuse for immediate follow-up passes without allowing every shard loaded during a long browser session to remain resident indefinitely. Background logs must show whether each job completed through `offscreen-worker-pool` or fell back to `background-fallback`.
+
+The background-to-offscreen runtime message is deliberately compact. It contains the matcher job identity, page observation batch, mode, and small execution options. It does not clone the full technology registry, matcher index, or relationship graph into every queued runtime message. The offscreen host also does not load a full finalization registry. Workers load only the observation-kind shards they need and return partition matches. Background then finalizes those partitions with the registry and relationship graph it already holds for collection planning and emergency fallback. This removes a second full registry object graph from the offscreen context while keeping CPU-heavy rule matching in dedicated workers.
+
+A timeout only ends the background's wait for the offscreen response. It does not stop JavaScript that is already running in the offscreen document. The background therefore sends an explicit cancel request and waits for that best-effort cancellation request to complete before starting `background-fallback`. The offscreen host terminates the active worker pool on cancellation or worker failure. This prevents the normal fallback path from knowingly running a second copy of the same large matcher job while the first copy is still consuming memory and CPU.
 
 Active work is keyed by visible session rather than only by tab id:
 
@@ -60,7 +64,7 @@ Active work is keyed by visible session rather than only by tab id:
 tabId:frameId:documentId:urlHash
 ```
 
-Navigation, tab close, or a newer job for the same visible session cancels the old matcher job and drops late partition progress before it can write snapshot lifecycle updates.
+Navigation, tab deactivation in the same browser window, tab close, or a newer job for the same visible session cancels the old matcher job and drops late partition progress before it can write snapshot lifecycle updates. Background also rechecks the current tab and document before it creates a matcher job, after expensive evidence collection, and before it persists a completed result.
 
 ## Trace markers
 

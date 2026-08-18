@@ -14,6 +14,7 @@ Start with the overview when you need the runtime map, then use the workflow or 
 | [`background-coordinator-runtime.md`](background-coordinator-runtime.md) | You are changing background service-worker lifecycle listeners, tab cleanup, or disposable coordinator state. |
 | [`kind-sharded-incremental-matcher.md`](kind-sharded-incremental-matcher.md) | You are changing continuous evidence passes, kind-sharded matcher workers, or side-panel snapshot revisions. |
 | [`live-revision-ownership.md`](live-revision-ownership.md) | You are changing side-panel target ownership, snapshot revision application, tab switching, replay hydration, or matcher lifecycle state. |
+| [`extension-context-lifecycle.md`](extension-context-lifecycle.md) | You are changing active-tab synchronization, automatic scans, side-panel recovery, cross-context message ownership, or late-detection UX. |
 | [`../migration/status.md`](../migration/status.md) | You need the current migration status matrix and remaining completion notes. |
 
 Migration phase notes remain under [`../migration/`](../migration/). Older notes document how the event path was introduced; the overview records the current shape after the legacy extension path was removed from the background runtime.

@@ -40,6 +40,36 @@ This also reduces the service-worker risk. If the background suspends after star
 
 Content does not load the full technology registry in this step. It does not run privileged enrichment. It does not fetch cross-origin resources, read response headers, run page-main-world probes, or store raw observation payloads. Those limits preserve the split between page-local observation and background-owned enrichment while the runtime moves toward storage-backed streaming.
 
+## Quiescent injected runtime
+
+Runtime injection and active observation are different lifecycles. Once Chrome injects the content runtime into a document, that lightweight RPC runtime can remain until the document navigates or the tab closes. It must not keep the expensive observation state alive when no session exists.
+
+```text
+content runtime injected
+  -> no observation session
+      -> no MutationObserver
+      -> no PerformanceObserver
+      -> no observer timers
+      -> no retained page-evidence cache
+
+explicit observation starts
+  -> bounded page-evidence cache
+  -> bounded mutation roots
+  -> MutationObserver + PerformanceObserver
+
+observation stops / panel leaves tab / panel closes
+  -> disconnect observers
+  -> cancel timers
+  -> clear queued observations
+  -> release retained page evidence
+```
+
+An inactive `snapshot()` collects the current document directly and returns it to the caller. It does not merge that snapshot into the long-lived content-script closure. During an active observation, scripts, images, stylesheets, links, resource URLs, request URLs, source text, metadata, and selector matches are capped as they enter the cache instead of only being sliced when the snapshot is returned.
+
+This matters on long-lived browser tabs. A dormant injected content script is acceptable. A dormant content script that still owns old page evidence or observers is not.
+
+Stopping is targeted to the exact local session. Background sends the `sessionId` and expected document URL to the content runtime. The content runtime compares both values against the currently active session before it clears timers or disconnects observers. If a newer session already owns the document, the stale stop returns `OBSERVATION_SESSION_UNAVAILABLE` and leaves the newer session untouched. This check and the actual stop happen in the same content-script RPC, so a background read followed by a later untargeted stop cannot race with a newly started session.
+
 ## Validation points
 
 The tests and benchmark protect the new behavior from three directions:
@@ -47,6 +77,9 @@ The tests and benchmark protect the new behavior from three directions:
 - content writes an initial observing revision when no detector analysis exists yet
 - content preserves background detector results while advancing lifecycle state
 - late observation batches publish newer snapshot revisions while the popup is open
+- stopping observation preserves the stopped session identity for lifecycle reporting but releases session-only evidence
+- inactive snapshots do not retain page evidence in the content runtime after the response completes
+- active source collections cannot grow beyond the shared source limits
 - benchmark coverage measures page-signal normalization for common and late-heavy content bootstrap workloads
 
 ## Faster observer revisions

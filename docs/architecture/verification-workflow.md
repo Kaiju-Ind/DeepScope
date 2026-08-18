@@ -47,13 +47,13 @@ pnpm vitest run src/tests/collectors/planning.test.ts --reporter=verbose
 pnpm vitest run src/tests/messaging/messages.test.ts --reporter=verbose
 ```
 
-Use targeted tests to answer a specific review question. For example, a side-panel page or TSX change should run panel tests and build. A storage mock change should run storage tests and at least one consumer test that imports the shared mock.
+Use targeted tests to answer a specific review question. For example, a side-panel page or TSX change should run panel tests and build. A storage mock change should run storage tests and at least one consumer test that imports the shared mock. Architecture tests parse handwritten TypeScript and TSX with Oxc instead of depending on the TypeScript compiler API, so TypeScript-native toolchain changes do not silently disable source-structure checks.
 
 ## Generated Chrome artifact runtime check
 
 `pnpm validate:chrome-artifact` executes code from `.output/chrome-mv3` in headless Chrome or Chromium. It does not import the TypeScript source as a substitute for the emitted artifact.
 
-The content check covers bounded DOM collection, images, metadata, inline scripts, stylesheets, visible text, cookie names, storage key names, live mutation observation, flush, stop, and cleanup. The app-model check executes the emitted `buildAnalysisUpdate` path for active and idle observation state. Separate startup checks execute each generated `sidepanel.html` and `options.html` entry prefix through its root guard with a real DOM root. They reject root-binding failures such as a generated URL helper replacing the browser `document` object without claiming that the complete routed UI has been mounted.
+The content check covers bounded DOM collection, images, metadata, inline scripts, stylesheets, visible text, cookie names, storage key names, live mutation observation, flush, stop, and cleanup. The app-model check executes the emitted `buildAnalysisUpdate` path for active and idle observation state. Separate startup checks execute each generated `sidepanel.html` and `options.html` entry prefix through its root guard with a real DOM root. They reject root-binding failures such as a generated URL helper replacing the browser `document` object without claiming that the complete routed UI has been mounted. The validator also rejects generated HTML `preload` and `modulepreload` tags so extension-resource and unused-preload warnings cannot re-enter the packaged artifact unnoticed.
 
 This stage exists because source tests and `node --check` can both pass while scope hoisting or minification changes the meaning of a generated identifier. A missing Chrome/Chromium executable is a failed validation stage. Set `CHROME_BIN=/absolute/path/to/chrome` or pass `--chrome=/absolute/path/to/chrome` when automatic discovery is not suitable.
 
@@ -65,12 +65,12 @@ Run this checklist after changes that touch side panel, background, content, lif
 
 1. Build and load the extension from the WXT output directory.
 2. Open a normal `https://` page and confirm the side panel returns either detections or a stable empty result.
-3. Pin the side panel, switch between two supported tabs in the same browser window, and confirm the panel follows the active tab without showing the previous tab or `NO_ACTIVE_TAB`.
+3. Pin the side panel, switch between two supported tabs in the same browser window, and confirm the panel follows the active tab without showing the previous tab or `NO_ACTIVE_TAB`. With automatic scanning disabled, confirm tab switching alone does not start a new analysis or observer.
 4. Open a second browser window, keep its active tab changing, and confirm those activations do not retarget the panel mounted in the first window.
 5. Open an unsupported page such as `chrome://extensions` and confirm the side panel shows `UNSUPPORTED_URL` without hanging.
-6. Close and reopen the side panel on the same origin and confirm the snapshot-hit path renders without starting live observation.
+6. Close the side panel while observation is active and confirm that exact panel-owned observation stops. Reopen on the same origin and confirm a snapshot hit renders without creating an observer. On a snapshot miss, confirm the fresh panel-open analysis can start one panel-owned observation.
 7. Click Refresh and confirm analysis bypasses stored snapshot reuse and starts observation again.
-8. Close the side panel and confirm the UI unsubscribes from live revisions without starting a new scan on reopen. If you explicitly click Stop observation, confirm the visible tab's observation session stops.
+8. Switch away from a tab with panel observation active and confirm the old tab's observer stops. Switch repeatedly with automatic scanning disabled and confirm only retained snapshots change the UI until Refresh is pressed.
 9. Test a page that lazy-loads scripts, links, or meta tags and confirm late detections can appear while the side panel is subscribed to storage revisions.
 10. Navigate within the tab and confirm old observation state does not refresh the new page.
 11. Open Technologies, a technology detail, History, Diagnostics, and Settings. Confirm route changes do not restart analysis or replace the visible-tab state owner.
@@ -79,6 +79,11 @@ Run this checklist after changes that touch side panel, background, content, lif
 14. Interrupt or reload the background service worker while matcher work is non-terminal. Reopen Diagnostics and confirm the orphaned job is marked `context-interrupted` with its previous status retained.
 15. Exercise a page with many or repeatedly changing stylesheets. Confirm source collection stays within aggregate script/stylesheet limits and does not surface `PAYLOAD_TOO_LARGE` from cumulative observation snapshots.
 16. Switch tabs while analysis is in flight, including onto a newly loading HTTP/HTTPS tab. Confirm the previous result cannot win after the active target changes.
+17. Open every filter menu in Technologies, History, and Diagnostics. Repeatedly search, filter, sort, scroll, select records, and switch away from and back to Timeline. Confirm no Kobalte context errors are logged, no `Cannot read properties of undefined (reading 'index')` failure occurs, no TanStack `data-index` measurement warning appears, and extension HTML emits no unused/cross-world preload warnings.
+18. Keep the panel open for at least ten minutes with automatic scanning disabled and switch through at least 20 to 50 HTTP/HTTPS tabs repeatedly. Use Chrome Task Manager to confirm DeepScope memory reaches a stable range instead of increasing with every switch. Revisit previously scanned tabs and confirm their injected content runtime is idle when no observation session owns the tab: no active `MutationObserver`, no `PerformanceObserver`, no refresh timer, and no retained session evidence. Close several tabs and confirm panel-local route, scroll, search, and view state for those tabs is released.
+19. After matcher work finishes, wait more than 30 seconds. Confirm matcher worker processes disappear or their memory is reclaimed, then run another scan and confirm workers restart and matching still succeeds. Inspect Diagnostics to confirm the idle-disposal record appears and DOM-selector parsing still works through the offscreen document.
+20. Trigger or simulate an offscreen matcher failure or timeout. Confirm its structured error appears in Diagnostics and Copy report rather than only in the offscreen DevTools console. Confirm the old offscreen job is canceled before `background-fallback` starts, and confirm Diagnostics does not show the same job continuing in both executors after the timeout.
+21. Start observation session A, start a newer session B for the same tab/document, then deliver a delayed stop for A. Confirm content returns `OBSERVATION_SESSION_UNAVAILABLE` and B remains observing.
 
 If a step cannot be verified, record the browser, page URL type, and failure mode in the pull request notes.
 
