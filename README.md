@@ -39,9 +39,10 @@ Dirty observation refreshes do not merge final detection results. The background
 The side panel is now task-oriented rather than one long diagnostics surface:
 
 ```text
-Technologies      default result list for the active tab
+Summary           current page analysis, refresh, and live observation status
+Technologies      detected technologies for the active tab
 Technology detail evidence, version, confidence, and explanation
-Scans             manual controls, matcher state, observation state, replay history
+History           retained detector runs and same-page change comparison
 Diagnostics       extension contexts, interrupted work, durable crash journal, support report
 Settings          automatic scanning and local detector-data controls
 ```
@@ -69,7 +70,7 @@ The current permission model supports both automatic and manual analysis:
 Run the extension in Chrome and verify:
 
 - With **Scan pages automatically** enabled, loading a normal `https://` page starts analysis before the side panel is opened.
-- Open **Scans** and confirm detector, observation, evidence, and result state update for the active tab.
+- Open **Summary** and confirm the current analysis and observation state belong to the active tab. Open **History** and confirm retained runs remain separate from the live inspection.
 - `chrome://extensions` returns `UNSUPPORTED_URL` and the side panel remains responsive.
 - Browser/internal or PDF-like pages that do not run the content script do not hang the side panel.
 - A page with no content-script response returns `CONTENT_SCRIPT_UNAVAILABLE`.
@@ -111,17 +112,23 @@ pnpm dev
 pnpm build
 pnpm zip
 pnpm test
+pnpm check:release
+pnpm validate:chrome-artifact
 pnpm bench
 pnpm bench:rules
 pnpm bench:rules:gate
 ```
+
+`pnpm build` type-checks before WXT emits the default browser build. `pnpm build:chrome` adds a generated-artifact Chromium check after the Chrome build. `pnpm check:release` runs TypeScript, the complete Vitest suite, the Chrome WXT build, and the generated-artifact Chromium check. `pnpm zip:chrome` applies the same source checks before packaging and validates the generated Chrome output. Set `CHROME_BIN` when Chrome or Chromium is not discoverable from the normal platform paths.
+
+The generated-artifact check is deliberate. It executes the emitted content collector, live observation lifecycle, side-panel analysis model, and the generated side-panel/options entry startup prefixes through their root guards. Source tests and JavaScript syntax checks do not prove that bundling preserved browser globals. The generated UI root-binding startup check specifically rejects errors such as `getElementById is not a function` before a release can pass.
 
 If you prefer `mise`, it keeps the repo's Node and pnpm versions aligned before you run the package scripts above.
 
 ## Project areas
 
 - `src/entrypoints/` — WXT side panel, independent diagnostics/options page, background service worker, content script, and offscreen matcher entrypoints.
-- `src/app/` — mounted side-panel application: browser-window/tab ownership, routed Summary/Technologies/Scans/Diagnostics/Settings pages, page-specific state projections, and presentation components.
+- `src/app/` — mounted side-panel application: browser-window/tab ownership, routed Summary/Technologies/History/Diagnostics/Settings pages, page-specific state projections, and presentation components.
 - `src/ui/` — complete current Platform Zaidan primitive catalogue, adapted only where the extension needs a local integration such as typed router links.
 - `src/hooks/` — UI hooks copied with the Zaidan component catalogue when a component directly depends on them.
 - `src/lib/` — concrete extension capabilities such as collection, detection, evidence, messaging, persistence, diagnostics, observation, matching, and browser orchestration.
