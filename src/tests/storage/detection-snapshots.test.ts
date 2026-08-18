@@ -417,6 +417,7 @@ describe.sequential('detection session snapshots', () => {
 		await storage.saveDetectionSessionSnapshot(exactSnapshot);
 		await storage.saveDetectionSessionSnapshot(newerOriginSnapshot);
 		const visibleSnapshot = await storage.getBestVisibleDetectionSessionSnapshot({
+			windowId: 3,
 			tabId: 42,
 			frameId: 0,
 			url: exactSnapshot.analysis.url,
@@ -445,6 +446,7 @@ describe.sequential('detection session snapshots', () => {
 
 		await storage.saveDetectionSessionSnapshot(otherTabSnapshot);
 		const visibleSnapshot = await storage.getBestVisibleDetectionSessionSnapshot({
+			windowId: 3,
 			tabId: 42,
 			frameId: 0,
 			url: otherTabSnapshot.analysis.url,

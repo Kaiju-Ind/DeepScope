@@ -294,6 +294,7 @@ describe.sequential('content API observation baseline', () => {
 		const { createContentApi } = await loadContentApiFactory();
 		const observedSignals = {
 			snapshot: vi.fn(async () => ({
+				images: [],
 				scripts: [],
 				stylesheets: [],
 				links: [],

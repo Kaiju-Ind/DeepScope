@@ -321,7 +321,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		analyzeSite,
 	}));
 
-	const { buildCollectionPlan } = await import('@/lib/collectors/planning');
+	const { buildCollectionPlan: buildPlan } = await import('@/lib/collectors/planning');
 	const { createObservationMatcherIndex } = await import('@/lib/detection/observation-matcher-index');
 	const { createCompiledDetectionRegistry } = await import('@/lib/detection/registry-graph');
 	const compiledRegistryArtifact: CompiledTechnologyRegistryArtifact = {
@@ -332,7 +332,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		patternTables: {},
 		relationshipGraph: createCompiledDetectionRegistry([]),
 		matcherIndex: createObservationMatcherIndex([]),
-		collectionPlan: input.collectionPlan ?? buildCollectionPlan([]),
+		collectionPlan: input.collectionPlan ?? buildPlan([]),
 		sourceMap: {},
 		diagnostics: [],
 	};

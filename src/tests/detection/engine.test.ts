@@ -87,9 +87,9 @@ describe('detection helpers', () => {
 
 	it('bounds normalized meta values', () => {
 		const longValue = 'x'.repeat(SOURCE_LIMITS.metaValueChars + 50);
-		expect(normalizeMetaMap({ generator: [longValue] }).generator[0]).toHaveLength(
-			SOURCE_LIMITS.metaValueChars,
-		);
+		expect(normalizeMetaMap({ generator: [longValue] }).generator).toEqual([
+			'x'.repeat(SOURCE_LIMITS.metaValueChars),
+		]);
 	});
 
 	it('rejects non-http signals', () => {

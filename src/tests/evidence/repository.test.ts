@@ -109,7 +109,11 @@ describe('evidence repository', () => {
 
 		target.url = 'https://mutated.example/';
 
-		expect(repository.list({ technologyId: 'react' })[0].target.url).toBe('https://example.com/products');
+		expect(repository.list({ technologyId: 'react' })).toEqual([
+			expect.objectContaining({
+				target: expect.objectContaining({ url: 'https://example.com/products' }),
+			}),
+		]);
 	});
 
 	it('summarizes evidence by technology without choosing final detections', () => {
