@@ -146,7 +146,7 @@ function validateObservationBatchTarget(
 	output: CollectObservationBatchOutput,
 	expectedUrl: string,
 ): ExtensionResult<never> | null {
-	if (url.same(output.batch.target.url, expectedUrl)) {
+	if (url.sameDocument(output.batch.target.url, expectedUrl)) {
 		return null;
 	}
 

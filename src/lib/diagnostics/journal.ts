@@ -145,7 +145,7 @@ export async function getDiagnosticRecords(limit = 200): Promise<DiagnosticRecor
 	if (!storage) return [];
 	const all = await storage.get(null);
 	return Object.entries(all)
-		.filter(([key, value]): value is DiagnosticRecord => key.startsWith(DIAGNOSTIC_RECORD_PREFIX) && isDiagnosticRecord(value))
+		.filter(isDiagnosticRecordEntry)
 		.map(([, value]) => value)
 		.sort((left, right) => right.timestamp - left.timestamp || right.sequence - left.sequence)
 		.slice(0, Math.max(0, limit));
@@ -159,7 +159,7 @@ export async function getDiagnosticContexts(limit = MAX_CONTEXTS): Promise<Diagn
 	if (!storage) return [];
 	const all = await storage.get(null);
 	return Object.entries(all)
-		.filter(([key, value]): value is DiagnosticContext => key.startsWith(DIAGNOSTIC_CONTEXT_PREFIX) && isDiagnosticContext(value))
+		.filter(isDiagnosticContextEntry)
 		.map(([, value]) => value)
 		.sort((left, right) => right.startedAt - left.startedAt)
 		.slice(0, Math.max(0, limit));
@@ -502,6 +502,16 @@ function getDiagnosticContextKey(context: DiagnosticContext): string {
 
 function isDiagnosticStorageKey(key: string): boolean {
 	return key.startsWith(DIAGNOSTIC_RECORD_PREFIX) || key.startsWith(DIAGNOSTIC_CONTEXT_PREFIX);
+}
+
+/** Return whether a storage entry contains one persisted diagnostic record. */
+function isDiagnosticRecordEntry(entry: [string, unknown]): entry is [string, DiagnosticRecord] {
+	return entry[0].startsWith(DIAGNOSTIC_RECORD_PREFIX) && isDiagnosticRecord(entry[1]);
+}
+
+/** Return whether a storage entry contains one persisted diagnostic context. */
+function isDiagnosticContextEntry(entry: [string, unknown]): entry is [string, DiagnosticContext] {
+	return entry[0].startsWith(DIAGNOSTIC_CONTEXT_PREFIX) && isDiagnosticContext(entry[1]);
 }
 
 function isDiagnosticRecord(value: unknown): value is DiagnosticRecord {

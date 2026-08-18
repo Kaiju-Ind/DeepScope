@@ -960,3 +960,22 @@ function getAddedDetectionIds(
 function mergeUniqueIds(previous: readonly string[], next: readonly string[]): string[] {
 	return Array.from(new Set([...previous, ...next]));
 }
+
+const APP_ARTIFACT_VALIDATION_KEY = '__kaijuDeepScopeAppArtifactValidationV1';
+
+/** Release-check probe that exposes the generated model seam only when requested. */
+type AppArtifactValidationProbeType = {
+	publish(runtime: { readonly buildAnalysisUpdate: typeof buildAnalysisUpdate }): void;
+};
+
+/** Publish the model seam for the post-build Chromium validation harness. */
+function publishArtifactRuntime(): void {
+	const scope = globalThis as typeof globalThis & {
+		[APP_ARTIFACT_VALIDATION_KEY]?: AppArtifactValidationProbeType;
+	};
+	const probe = scope[APP_ARTIFACT_VALIDATION_KEY];
+	if (typeof probe?.publish !== 'function') return;
+	probe.publish({ buildAnalysisUpdate });
+}
+
+publishArtifactRuntime();

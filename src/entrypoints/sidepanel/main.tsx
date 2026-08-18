@@ -12,7 +12,7 @@ import '@/styles/panel.css';
 logging.configure('sidepanel');
 installDiagnosticCrashHooks('sidepanel');
 
-const root = document.getElementById('root');
+const root = globalThis.document.getElementById('root');
 if (!root) throw new Error('Kaiju DeepScope side-panel root is missing.');
 
 void import('@/app/app')

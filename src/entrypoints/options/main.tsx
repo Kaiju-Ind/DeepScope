@@ -12,7 +12,7 @@ import '@/styles/panel.css';
 logging.configure('options');
 installDiagnosticCrashHooks('options');
 
-const root = document.getElementById('root');
+const root = globalThis.document.getElementById('root');
 if (!root) throw new Error('Kaiju DeepScope diagnostics root is missing.');
 
 void import('@/app/components/diagnostics-view')

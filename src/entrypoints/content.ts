@@ -1,6 +1,7 @@
 import { defineProxy } from "comctx";
 import { browser } from "wxt/browser";
 
+import * as artifact from "@/lib/content/artifact";
 import { collectPageSignals } from "@/lib/content/collect-page-signals";
 import {
   createObservedPageSignals,
@@ -570,8 +571,14 @@ export default defineContentScript({
         runtime?.publishObservedBatchQueued(event);
       },
     });
-    runtime = createContentRuntime(observedSignals);
-    const { contentApi } = runtime;
+    const contentRuntime = createContentRuntime(observedSignals);
+    runtime = contentRuntime;
+    const { contentApi } = contentRuntime;
+    artifact.publish({
+      contentApi,
+      collectPageSignals,
+      dispose: (reason) => contentRuntime.dispose(reason),
+    });
 
     const state: ContentRuntimeState = {
       buildId,
@@ -579,7 +586,7 @@ export default defineContentScript({
         logContentEvent("runtime-dispose", {
           ...summarizeCurrentDocument(),
         });
-        runtime.dispose("invalidated");
+        contentRuntime.dispose("invalidated");
         clearRuntimeState(state);
       },
     };

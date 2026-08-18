@@ -66,7 +66,7 @@ export function Jobs(props: JobsPropsType) {
 export function Contexts(props: { readonly snapshot: DiagnosticSnapshot }) {
 	return (
 		<div class="grid gap-4">
-			<Card size="sm"><CardHeader><CardTitle>Active extension contexts</CardTitle><CardDescription>Runtime contexts visible at the time of this snapshot.</CardDescription></CardHeader><CardContent><Show when={props.snapshot.contexts.length > 0} fallback={<p class="text-xs text-white/42">No contexts returned, or runtime.getContexts is unavailable.</p>}><div class="grid gap-2"><For each={props.snapshot.contexts}>{(context) => <div class="rounded-lg border border-white/8 bg-white/[0.025] p-3"><div class="flex items-center justify-between gap-2"><Badge variant="outline">{context.contextType}</Badge><span class="font-mono text-[0.625rem] text-white/28">{context.contextId}</span></div><p class="mt-2 text-xs text-white/48">{location(context)}</p></div>}</For></div></Show></CardContent></Card>
+			<Card size="sm"><CardHeader><CardTitle>Active extension contexts</CardTitle><CardDescription>Runtime contexts visible at the time of this snapshot.</CardDescription></CardHeader><CardContent><Show when={props.snapshot.contexts.length > 0} fallback={<p class="text-xs text-white/42">No contexts returned, or runtime.getContexts is unavailable.</p>}><div class="grid gap-2"><For each={props.snapshot.contexts}>{(context) => <div class="rounded-lg border border-white/8 bg-white/[0.025] p-3"><div class="flex items-center justify-between gap-2"><Badge variant="outline">{context.contextType}</Badge><span class="font-mono text-[0.625rem] text-white/28">{context.contextId}</span></div><p class="mt-2 text-xs text-white/48">{formatLocation(context)}</p></div>}</For></div></Show></CardContent></Card>
 			<Card size="sm"><CardHeader><CardTitle>Recent context starts</CardTitle><CardDescription>Persisted starts survive context termination and help explain which surface disappeared before a failure.</CardDescription></CardHeader><CardContent><Show when={props.snapshot.runs.length > 0} fallback={<p class="text-xs text-white/42">No context-run records are stored.</p>}><div class="grid gap-2"><For each={props.snapshot.runs}>{(run) => <div class="flex items-center gap-2 rounded-lg border border-white/8 bg-white/[0.025] p-3"><Badge variant="outline">{run.surface}</Badge><span class="min-w-0 flex-1 truncate font-mono text-[0.625rem] text-white/32">{run.id}</span><time class="font-mono text-[0.625rem] text-white/32">{new Date(run.startedAt).toLocaleTimeString()}</time></div>}</For></div></Show></CardContent></Card>
 		</div>
 	);
@@ -88,7 +88,7 @@ function Row(props: { readonly label: string; readonly value: string; readonly m
 }
 
 /** Describe where one runtime context was attached. */
-function location(context: DiagnosticSnapshot['contexts'][number]): string {
+function formatLocation(context: DiagnosticSnapshot['contexts'][number]): string {
 	const parts = [context.windowId === undefined ? undefined : `window ${context.windowId}`, context.tabId === undefined ? undefined : `tab ${context.tabId}`, context.frameId === undefined ? undefined : `frame ${context.frameId}`, context.documentUrl].filter(Boolean);
 	return parts.join(' · ') || 'No tab or document location';
 }

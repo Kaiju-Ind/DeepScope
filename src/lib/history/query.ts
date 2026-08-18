@@ -33,7 +33,7 @@ export function query(runs: readonly DetectionReplayTrace[], options: HistoryQue
 	const change = options.change ?? 'any';
 
 	return runs.filter((run) => {
-		if (scope === 'page' && options.page && !url.same(run.target.url, options.page)) return false;
+		if (scope === 'page' && options.page && !url.sameDocument(run.target.url, options.page)) return false;
 		if (change !== 'any' && !matchesChange(runs, run, change)) return false;
 
 		if (!text) return true;
@@ -55,7 +55,7 @@ export function previous(runs: readonly DetectionReplayTrace[], current: Detecti
 
 	for (let position = index + 1; position < runs.length; position += 1) {
 		const candidate = runs[position];
-		if (candidate && url.same(candidate.target.url, current.target.url)) return candidate;
+		if (candidate && url.sameDocument(candidate.target.url, current.target.url)) return candidate;
 	}
 
 	return undefined;

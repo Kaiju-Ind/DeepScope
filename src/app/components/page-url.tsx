@@ -22,7 +22,7 @@ export interface PageUrlPropsType {
  * remain available in the detail view when a diagnostic investigation needs them.
  */
 export function PageUrl(props: PageUrlPropsType) {
-	const parts = () => url.parts(props.value);
+	const parts = () => url.getParts(props.value);
 	const compact = () => (props.mode ?? 'compact') === 'compact';
 	const pathFirst = () => (props.focus ?? 'host') === 'path';
 

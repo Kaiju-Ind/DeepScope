@@ -107,7 +107,7 @@ class MatcherWorkerSlot {
 
 	constructor(index: number) {
 		this.#index = index;
-		this.#worker = new Worker(new URL('./matcher.worker.ts', import.meta.url), {
+		this.#worker = new globalThis.Worker(new globalThis.URL('./matcher.worker.ts', import.meta.url), {
 			type: 'module',
 			name: `kaiju-deepscope-matcher-${index}`,
 		});
@@ -356,8 +356,8 @@ function matchDomSelectorsOffscreen(
 	request: MatchDomSelectorsOffscreenRequest,
 ): DomSelectorOffscreenResponse {
 	try {
-		const document = new DOMParser().parseFromString(request.html, 'text/html');
-		const selectors = collectDomSelectorMatchesInDocument(document, request);
+		const parsedDocument = new globalThis.DOMParser().parseFromString(request.html, 'text/html');
+		const selectors = collectDomSelectorMatchesInDocument(parsedDocument, request);
 		return { ok: true, selectors };
 	} catch (error) {
 		return {
@@ -368,7 +368,7 @@ function matchDomSelectorsOffscreen(
 }
 
 function collectDomSelectorMatchesInDocument(
-	document: Document,
+	parsedDocument: Document,
 	request: MatchDomSelectorsOffscreenRequest,
 ): Record<string, boolean> {
 	const matches: Record<string, boolean> = Object.create(null) as Record<string, boolean>;
@@ -376,7 +376,7 @@ function collectDomSelectorMatchesInDocument(
 		return matches;
 	}
 
-	for (const element of safeQuerySelectorAll(document, request.plan.candidateSelector)) {
+	for (const element of safeQuerySelectorAll(parsedDocument, request.plan.candidateSelector)) {
 		for (const selector of routeElementSelectors(request.plan, element)) {
 			if (matches[selector]) continue;
 			if (safeElementMatches(element, selector)) {

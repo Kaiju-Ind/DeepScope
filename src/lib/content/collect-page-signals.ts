@@ -75,7 +75,7 @@ export async function collectPageSignals(
 		traceId: input.timingTraceId,
 		surface: 'content',
 		details: {
-			hostname: location.hostname,
+			hostname: globalThis.location.hostname,
 			tier: input.tier ?? 'initial',
 		},
 	};
@@ -88,7 +88,7 @@ export async function collectPageSignals(
 	const fullHtml = timeSyncSpan(
 		'content.collect-page-signals.read-html',
 		timingContext,
-		() => input.includeHtml ? document.documentElement.outerHTML : '',
+		() => input.includeHtml ? globalThis.document.documentElement.outerHTML : '',
 		(value) => ({ includeHtml: Boolean(input.includeHtml), htmlChars: value.length }),
 	);
 	const htmlProbeList = input.htmlProbeList ?? [];
@@ -170,7 +170,7 @@ export async function collectPageSignals(
 		timingContext,
 		async () => mergeObservedDomSelectorMatches(
 			runtime.dom?.selectors,
-			await collectDomSelectorMatches(input.domSelectorPlan, selectorProbeList, document),
+			await collectDomSelectorMatches(input.domSelectorPlan, selectorProbeList, globalThis.document),
 		),
 		(values) => ({
 			selectorProbeCount: selectorProbeList.length,
@@ -202,8 +202,8 @@ export async function collectPageSignals(
 	);
 
 	return {
-		url: location.href,
-		hostname: location.hostname,
+		url: globalThis.location.href,
+		hostname: globalThis.location.hostname,
 		html,
 		htmlMatches,
 		text,
@@ -215,7 +215,7 @@ export async function collectPageSignals(
 		requests: runtime.requests ?? resources.map(resourceToRequestSignal),
 		scriptContents,
 		stylesheetContents,
-		cookies: collectCookieNames(document.cookie),
+		cookies: collectCookieNames(globalThis.document.cookie),
 		headers: runtime.headers ?? {},
 		meta,
 		dom: {
@@ -378,7 +378,7 @@ function htmlProbeKey(technologyId: string, ruleIndex: number): string {
 	return `${technologyId}:${ruleIndex}`;
 }
 
-export function collectMetaTags(input: MetaTagInput = document): Record<string, string[]> {
+export function collectMetaTags(input: MetaTagInput = globalThis.document): Record<string, string[]> {
 	const grouped: Record<string, string[]> = Object.create(null) as Record<string, string[]>;
 
 	for (const node of iterateMetaTags(input)) {
@@ -396,7 +396,7 @@ export function collectMetaTags(input: MetaTagInput = document): Record<string, 
 	return normalizeMetaMap(grouped);
 }
 
-export function collectScriptSources(input: ScriptSourceInput = document): string[] {
+export function collectScriptSources(input: ScriptSourceInput = globalThis.document): string[] {
 	return uniqueStrings(
 		Array.from(iterateScripts(input))
 			.map((script) => normalizeResourceUrl(script.getAttribute('src') ?? script.src))
@@ -405,7 +405,7 @@ export function collectScriptSources(input: ScriptSourceInput = document): strin
 }
 
 /** Collect rendered image source URLs without reading image bytes. */
-export function collectImageSources(input: ImageSourceInput = document): string[] {
+export function collectImageSources(input: ImageSourceInput = globalThis.document): string[] {
 	return uniqueStrings(
 		Array.from(iterateImages(input))
 			.map((image) => normalizeResourceUrl(image.currentSrc || image.getAttribute('src') || image.src))
@@ -413,7 +413,7 @@ export function collectImageSources(input: ImageSourceInput = document): string[
 	).slice(0, SOURCE_LIMITS.imageSrc);
 }
 
-export function collectScriptContents(input: ScriptContentInput = document): string[] {
+export function collectScriptContents(input: ScriptContentInput = globalThis.document): string[] {
 	return limitStringsByTotalChars(
 		Array.from(iterateScripts(input))
 			.filter((script) => !script.src)
@@ -424,7 +424,7 @@ export function collectScriptContents(input: ScriptContentInput = document): str
 	);
 }
 
-export function collectStylesheetSources(input: StylesheetSourceInput = document): string[] {
+export function collectStylesheetSources(input: StylesheetSourceInput = globalThis.document): string[] {
 	return uniqueStrings(
 		Array.from(iterateStylesheetLinks(input))
 			.map((link) => normalizeResourceUrl(link.getAttribute('href') ?? link.href))
@@ -432,7 +432,7 @@ export function collectStylesheetSources(input: StylesheetSourceInput = document
 	).slice(0, SOURCE_LIMITS.stylesheetHref);
 }
 
-export function collectStylesheetContents(input: StylesheetContentInput = document): string[] {
+export function collectStylesheetContents(input: StylesheetContentInput = globalThis.document): string[] {
 	const inlineStyles = Array.from(iterateStyleTags(input))
 		.map((style) => truncate(style.textContent ?? '', SOURCE_LIMITS.stylesheetContentChars))
 		.filter(Boolean);
@@ -445,7 +445,7 @@ export function collectStylesheetContents(input: StylesheetContentInput = docume
 	);
 }
 
-export function collectLinkTags(input: LinkTagInput = document): LinkSignal[] {
+export function collectLinkTags(input: LinkTagInput = globalThis.document): LinkSignal[] {
 	const links: LinkSignal[] = [];
 	for (const link of iterateLinks(input)) {
 		const href = normalizeResourceUrl(link.getAttribute('href') ?? link.href);
@@ -493,8 +493,8 @@ export function collectResourceEntries(entries: Iterable<PerformanceEntry>): Res
 
 /** Return the bounded resource signals already present in the page Performance Timeline. */
 export function collectResourceTimings(): ResourceSignal[] {
-	if (!('performance' in globalThis) || typeof performance.getEntriesByType !== 'function') return [];
-	return collectResourceEntries(performance.getEntriesByType('resource'));
+	if (!('performance' in globalThis) || typeof globalThis.performance.getEntriesByType !== 'function') return [];
+	return collectResourceEntries(globalThis.performance.getEntriesByType('resource'));
 }
 
 export function collectCookieNames(cookieString: string): CookieSignals {
@@ -517,13 +517,13 @@ function isPerformanceResourceTiming(entry: PerformanceEntry): entry is Performa
 }
 
 function collectVisibleText(): string {
-	const text = document.body?.innerText ?? document.documentElement.textContent ?? '';
+	const text = globalThis.document.body?.innerText ?? globalThis.document.documentElement.textContent ?? '';
 	return truncate(text, SOURCE_LIMITS.textChars);
 }
 
 function collectAccessibleCssRules(): string[] {
 	const values: string[] = [];
-	for (const sheet of Array.from(document.styleSheets)) {
+	for (const sheet of Array.from(globalThis.document.styleSheets)) {
 		if (values.length >= SOURCE_LIMITS.stylesheetContentItems) {
 			break;
 		}
@@ -545,8 +545,8 @@ function collectAccessibleCssRules(): string[] {
 
 function collectStorageKeys(): StorageSignals {
 	return {
-		localStorage: collectStorageAreaKeys(() => localStorage),
-		sessionStorage: collectStorageAreaKeys(() => sessionStorage),
+		localStorage: collectStorageAreaKeys(() => globalThis.localStorage),
+		sessionStorage: collectStorageAreaKeys(() => globalThis.sessionStorage),
 	};
 }
 
@@ -603,14 +603,14 @@ export async function collectDomSelectorMatches(
 }
 
 function serializeDomRoot(root: ParentNode): string {
-	if (root instanceof Document) {
+	if (root instanceof globalThis.Document) {
 		return root.documentElement?.outerHTML ?? '';
 	}
-	if (root instanceof Element) {
+	if (root instanceof globalThis.Element) {
 		return root.outerHTML;
 	}
-	if (root instanceof DocumentFragment) {
-		const container = document.createElement('template');
+	if (root instanceof globalThis.DocumentFragment) {
+		const container = globalThis.document.createElement('template');
 		container.content.append(root.cloneNode(true));
 		return container.innerHTML;
 	}
@@ -697,7 +697,7 @@ function normalizeResourceUrl(value: string | null | undefined): string | null {
 	}
 
 	try {
-		return new URL(value, location.href).href;
+		return new globalThis.URL(value, globalThis.location.href).href;
 	} catch {
 		return value;
 	}

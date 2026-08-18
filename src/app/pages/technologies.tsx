@@ -28,6 +28,11 @@ type TechnologyResultType = SiteAnalysis['results'][number];
 /** Supported result layouts. */
 type TechnologyViewType = 'list' | 'cards' | 'groups';
 
+/** Return whether a toggle value names one supported technology layout. */
+function isTechnologyView(value: string | null): value is TechnologyViewType {
+	return value === 'list' || value === 'cards' || value === 'groups';
+}
+
 /** Supported result ordering policies. */
 type TechnologySortType = 'name' | 'evidence' | 'confidence';
 
@@ -125,7 +130,7 @@ export function TechnologiesPage() {
 								<NativeSelectOption value="evidence">Most evidence</NativeSelectOption>
 								<NativeSelectOption value="confidence">Confidence</NativeSelectOption>
 							</NativeSelect>
-							<ToggleGroup value={[view()]} onChange={(value) => { const next = (value[0] as TechnologyViewType | undefined) ?? 'list'; setView(next); save({ view: next }); }} variant="outline" size="sm" class="w-full" aria-label="Technology view">
+							<ToggleGroup value={view()} onChange={(value) => { if (!isTechnologyView(value)) return; setView(value); save({ view: value }); }} variant="outline" size="sm" class="w-full" aria-label="Technology view">
 								<ToggleGroupItem value="list" class="flex-1">List</ToggleGroupItem>
 								<ToggleGroupItem value="cards" class="flex-1">Cards</ToggleGroupItem>
 								<ToggleGroupItem value="groups" class="flex-1">Groups</ToggleGroupItem>

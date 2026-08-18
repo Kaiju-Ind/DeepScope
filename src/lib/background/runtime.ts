@@ -136,7 +136,7 @@ function canInspectTab(tab: { readonly url?: string }): boolean {
 	}
 
 	try {
-		const { protocol } = new URL(tab.url);
+		const { protocol } = new globalThis.URL(tab.url);
 		return protocol === 'http:' || protocol === 'https:';
 	} catch {
 		return false;
@@ -145,7 +145,7 @@ function canInspectTab(tab: { readonly url?: string }): boolean {
 
 /** Select one concise finding for the browser action tooltip without inventing impact scoring. */
 function getFinding(analysis: SiteAnalysis): string | undefined {
-	return rank.top(analysis.results)?.name;
+	return rank.best(analysis.results)?.name;
 }
 
 /**
@@ -433,21 +433,21 @@ export function createBackgroundRuntime(
 		return {
 			windowId: tab.windowId,
 			tabId: tab.id,
-			hostname: new URL(tab.url).hostname,
+			hostname: new globalThis.URL(tab.url).hostname,
 		};
 	}
 
 	function createVisibleTabIdentity(tab: InspectableTab): VisibleTabIdentity {
-		const _url = new URL(tab.url);
-		const origin = url.origin(tab.url);
+		const parsedUrl = new globalThis.URL(tab.url);
+		const tabOrigin = url.getOrigin(tab.url);
 
 		return {
 			windowId: tab.windowId,
 			tabId: tab.id,
 			frameId: 0,
 			url: tab.url,
-			hostname: _url.hostname,
-			originHash: createDetectionStorageHash(origin),
+			hostname: parsedUrl.hostname,
+			originHash: createDetectionStorageHash(tabOrigin),
 			urlHash: createDetectionStorageHash(tab.url),
 			incognito: tab.incognito,
 		};
@@ -673,7 +673,7 @@ export function createBackgroundRuntime(
 			surface: 'background',
 			details: {
 				tabId,
-				hostname: new URL(expectedUrl).hostname,
+				hostname: new globalThis.URL(expectedUrl).hostname,
 				tier,
 			},
 		};
@@ -766,11 +766,11 @@ export function createBackgroundRuntime(
 				tabId: tab.id,
 				frameId: 0,
 				documentId: sessionId,
-				originHash: createDetectionStorageHash(url.origin(tab.url)),
+				originHash: createDetectionStorageHash(url.getOrigin(tab.url)),
 			},
 			url: tab.url,
 			urlHash: createDetectionStorageHash(tab.url),
-			hostname: new URL(tab.url).hostname,
+			hostname: new globalThis.URL(tab.url).hostname,
 			...(tab.incognito ? { incognito: true } : {}),
 		};
 	}
@@ -899,7 +899,7 @@ export function createBackgroundRuntime(
 			tabId: tab.id,
 			frameId: 0,
 			documentId: output.sessionTarget?.sessionId ?? output.session?.sessionId ?? createDetectionStorageHash(output.analysis.url),
-			originHash: createDetectionStorageHash(url.origin(output.analysis.url)),
+			originHash: createDetectionStorageHash(url.getOrigin(output.analysis.url)),
 		};
 	}
 
@@ -994,7 +994,7 @@ export function createBackgroundRuntime(
 			);
 		}
 
-		if (!actual.expectedUrl || !url.same(actual.expectedUrl, expected.expectedUrl)) {
+		if (!actual.expectedUrl || !url.sameDocument(actual.expectedUrl, expected.expectedUrl)) {
 			return errorResponse(
 				'OBSERVATION_SESSION_UNAVAILABLE',
 				'The visible tab navigated away from the observed document.',
@@ -1601,7 +1601,7 @@ export function createBackgroundRuntime(
 			if (!current.url) {
 				return true;
 			}
-			return url.same(current.url, expectedUrl);
+			return url.sameDocument(current.url, expectedUrl);
 		} catch {
 			return false;
 		}
@@ -2010,7 +2010,7 @@ export function createBackgroundRuntime(
 				);
 			}
 
-			if (!tab.url || !url.same(tab.url, target.expectedUrl)) {
+			if (!tab.url || !url.sameDocument(tab.url, target.expectedUrl)) {
 				return errorResponse(
 					'OBSERVATION_SESSION_UNAVAILABLE',
 					'The visible tab navigated away from the observed document.',
@@ -2048,7 +2048,7 @@ export function createBackgroundRuntime(
 	function createPendingSiteAnalysis(tab: InspectableTab, analyzedAt = Date.now()): SiteAnalysis {
 		return {
 			url: tab.url,
-			hostname: new URL(tab.url).hostname,
+			hostname: new globalThis.URL(tab.url).hostname,
 			analyzedAt,
 			source: 'fresh',
 			results: [],
@@ -2424,7 +2424,7 @@ export function createBackgroundRuntime(
 				{
 					tabId: sender.tab.id,
 					sessionId: message.sessionId,
-					hostname: new URL(message.expectedUrl).hostname,
+					hostname: new globalThis.URL(message.expectedUrl).hostname,
 					observedAt: message.observedAt,
 					pendingMutationCount: message.pendingMutationCount,
 				},

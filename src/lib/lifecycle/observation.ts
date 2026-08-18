@@ -66,7 +66,7 @@ export function isObservationSessionForUrl(
 	session: Pick<ObservationSessionState, 'expectedUrl'>,
 	activeUrl: string,
 ): boolean {
-	return !session.expectedUrl || url.same(session.expectedUrl, activeUrl);
+	return !session.expectedUrl || url.sameDocument(session.expectedUrl, activeUrl);
 }
 
 /** Reason the background should refuse an observation refresh, if any. */

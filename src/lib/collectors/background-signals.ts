@@ -43,7 +43,7 @@ const BACKGROUND_FETCH_CONCURRENCY = 4;
 export async function collectBackgroundObservationBatch(
 	input: BackgroundObservationCollectorInput,
 ): Promise<ObservationBatch> {
-	const pageOrigin = url.origin(input.batch.target.url);
+	const pageOrigin = url.getOrigin(input.batch.target.url);
 	const timingContext: TimingContext = {
 		traceId: input.timingTraceId,
 		surface: 'collector',
@@ -295,14 +295,14 @@ async function fetchBoundedTextSignals(
 	}
 
 	const candidates = uniqueStrings(
-		urls.filter((url) => isFetchableSameOriginUrl(url, allowedOrigin)),
+		urls.filter((value) => isFetchableSameOriginUrl(value, allowedOrigin)),
 	).slice(0, maxItems);
 
 	const fetched: string[] = [];
 	for (let index = 0; index < candidates.length; index += BACKGROUND_FETCH_CONCURRENCY) {
 		const batch = candidates.slice(index, index + BACKGROUND_FETCH_CONCURRENCY);
 		const values = await Promise.all(
-			batch.map((url) => fetchBoundedText(url, maxChars)),
+			batch.map((value) => fetchBoundedText(value, maxChars)),
 		);
 
 		for (const value of values) {
@@ -319,11 +319,11 @@ async function fetchBoundedTextSignals(
 	return limitStringsByTotalChars(fetched, maxItems, maxTotalChars);
 }
 
-async function fetchBoundedText(url: string, maxChars: number): Promise<string> {
+async function fetchBoundedText(value: string, maxChars: number): Promise<string> {
 	let reader: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>> | null = null;
 
 	try {
-		const response = await fetchWithTimeout(url, {
+		const response = await fetchWithTimeout(value, {
 			cache: 'force-cache',
 			credentials: 'omit',
 		}, PASSIVE_FETCH_TIMEOUT_MS);
@@ -333,7 +333,7 @@ async function fetchBoundedText(url: string, maxChars: number): Promise<string> 
 		}
 
 		reader = response.body.getReader();
-		const decoder = new TextDecoder();
+		const decoder = new globalThis.TextDecoder();
 		let text = '';
 
 		while (text.length < maxChars) {
@@ -368,14 +368,14 @@ async function fetchBoundedText(url: string, maxChars: number): Promise<string> 
 }
 
 async function fetchWithTimeout(
-	url: string,
+	value: string,
 	init: RequestInit,
 	timeoutMs: number,
 ): Promise<Response> {
-	const controller = new AbortController();
+	const controller = new globalThis.AbortController();
 	const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
 	try {
-		return await fetch(url, {
+		return await globalThis.fetch(value, {
 			...init,
 			signal: controller.signal,
 		});
@@ -400,9 +400,9 @@ function headersToSignalRecord(headers: Headers): Record<string, string> {
 	return Object.fromEntries(entries);
 }
 
-function isFetchableSameOriginUrl(url: string, allowedOrigin: string): boolean {
+function isFetchableSameOriginUrl(value: string, allowedOrigin: string): boolean {
 	try {
-		const parsed = new URL(url);
+		const parsed = new globalThis.URL(value);
 		return parsed.origin === allowedOrigin && (parsed.protocol === 'http:' || parsed.protocol === 'https:');
 	} catch {
 		return false;

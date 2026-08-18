@@ -55,7 +55,7 @@ export const STORAGE_LIMITS = {
  * storage reads and writes use session and origin snapshot keys.
  */
 export function getAnalysisResponseKey(value: string): string {
-	return `${ANALYSIS_RESPONSE_PREFIX}${url.origin(value)}`;
+	return `${ANALYSIS_RESPONSE_PREFIX}${url.getOrigin(value)}`;
 }
 
 /**
@@ -65,12 +65,12 @@ export function getAnalysisResponseKey(value: string): string {
  * metadata without changing the `SiteAnalysis` response shape.
  */
 export function getReplayTraceCacheKey(value: string): string {
-	return `${REPLAY_TRACE_CACHE_PREFIX}${url.origin(value)}`;
+	return `${REPLAY_TRACE_CACHE_PREFIX}${url.getOrigin(value)}`;
 }
 
 /** Build the storage key for bounded replay history on one origin. */
 export function getReplayTraceHistoryCacheKey(value: string): string {
-	return `${REPLAY_TRACE_HISTORY_CACHE_PREFIX}${url.origin(value)}`;
+	return `${REPLAY_TRACE_HISTORY_CACHE_PREFIX}${url.getOrigin(value)}`;
 }
 
 /** Build the storage key for one matcher job lifecycle record. */

@@ -54,11 +54,16 @@ function isMatcherJobRecord(value: unknown): value is MatcherJobRecord {
 	);
 }
 
+/** Return whether a local-storage entry contains one durable matcher job. */
+function isMatcherJobRecordEntry(entry: [string, unknown]): entry is [string, MatcherJobRecord] {
+	return entry[0].startsWith(MATCHER_JOB_CACHE_PREFIX) && isMatcherJobRecord(entry[1]);
+}
+
 /** Read all durable matcher jobs, newest first. */
 export async function listMatcherJobRecords(): Promise<MatcherJobRecord[]> {
 	const all = await browser.storage.local.get(null);
 	return Object.entries(all)
-		.filter(([key, value]): value is MatcherJobRecord => key.startsWith(MATCHER_JOB_CACHE_PREFIX) && isMatcherJobRecord(value))
+		.filter(isMatcherJobRecordEntry)
 		.map(([, value]) => value)
 		.sort((left, right) => right.updatedAt - left.updatedAt);
 }
@@ -73,7 +78,7 @@ export function isMatcherJobActive(record: MatcherJobRecord): boolean {
 async function trimMatcherJobRecords(): Promise<void> {
 	const all = await browser.storage.local.get(null);
 	const entries = Object.entries(all)
-		.filter(([key, value]): value is MatcherJobRecord => key.startsWith(MATCHER_JOB_CACHE_PREFIX) && isMatcherJobRecord(value))
+		.filter(isMatcherJobRecordEntry)
 		.map(([key, value]) => ({ key, value }))
 		.sort((left, right) => right.value.updatedAt - left.value.updatedAt);
 	const active = entries.filter(({ value }) => isMatcherJobActive(value));

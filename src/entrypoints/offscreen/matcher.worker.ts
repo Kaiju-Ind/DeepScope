@@ -53,8 +53,8 @@ const workerScope = globalThis as Partial<MatcherWorkerGlobal>;
  */
 const registryProvider = createPackagedTechnologyRegistryProvider({
 	resolveUrl(path) {
-		const origin = workerScope.location?.origin ?? globalThis.location.origin;
-		return new URL(path, `${origin}/`).toString();
+		const workerOrigin = workerScope.location?.origin ?? globalThis.location.origin;
+		return new globalThis.URL(path, `${workerOrigin}/`).toString();
 	},
 });
 
@@ -83,18 +83,18 @@ if (typeof workerScope.addEventListener === 'function') {
 
 async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWorkerResponseMessage> {
 	const { task } = message;
-	const partitionStartedAt = performance.now();
+	const partitionStartedAt = globalThis.performance.now();
 	const observationIndexes = new Map(task.batch.observations.map((observation, index) => [
 		observation,
 		task.observationIndexes[index] ?? index,
 	]));
 	const slowestRuleEvaluations: SlowRuleEvaluationSummary[] = [];
 	const shardCacheHit = shardArtifactByKind.has(task.kind);
-	const shardLoadStartedAt = performance.now();
+	const shardLoadStartedAt = globalThis.performance.now();
 	const shardArtifact = await getShardArtifact(task.kind);
-	const shardReadyAt = performance.now();
+	const shardReadyAt = globalThis.performance.now();
 	const profileRules = matcherWorkerLogger.isEnabledFor('trace');
-	const matchStartedAt = performance.now();
+	const matchStartedAt = globalThis.performance.now();
 	const matched = matchIndexedObservationBatch({
 		registry: shardArtifact.technologies,
 		batch: task.batch,
@@ -120,7 +120,7 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 			}
 			: undefined,
 	});
-	const matchFinishedAt = performance.now();
+	const matchFinishedAt = globalThis.performance.now();
 	const matches: MatcherPartitionMatch[] = matched.matches.map((match, matchIndex) => ({
 		observationIndex: observationIndexes.get(match.observation) ?? matchIndex,
 		matchIndex,

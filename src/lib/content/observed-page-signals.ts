@@ -176,7 +176,7 @@ export function createObservedPageSignals(
 	/** Cancel the pending DOM mutation flush. */
 	function clearFlushTimer(): void {
 		if (throttleTimer !== undefined) {
-			clearTimeout(throttleTimer);
+			globalThis.clearTimeout(throttleTimer);
 			throttleTimer = undefined;
 		}
 	}
@@ -184,7 +184,7 @@ export function createObservedPageSignals(
 	/** Cancel the pending background dirty notification. */
 	function clearNoticeTimer(): void {
 		if (batchNoticeTimer !== undefined) {
-			clearTimeout(batchNoticeTimer);
+			globalThis.clearTimeout(batchNoticeTimer);
 			batchNoticeTimer = undefined;
 		}
 	}
@@ -211,14 +211,14 @@ export function createObservedPageSignals(
 
 	/** Stop before old-document evidence can cross into a newly loaded page. */
 	function stopIfNavigated(): void {
-		if (!activeSession || isObservationSessionForUrl(activeSession, location.href)) {
+		if (!activeSession || isObservationSessionForUrl(activeSession, globalThis.location.href)) {
 			return;
 		}
 
 		logObserverEvent('session-navigation', {
 			sessionId: activeSession.sessionId,
 			expectedUrl: activeSession.expectedUrl,
-			actualUrl: location.href,
+			actualUrl: globalThis.location.href,
 		});
 		stopSession('navigation');
 	}
@@ -251,10 +251,10 @@ export function createObservedPageSignals(
 	function startResources(): void {
 		stopResources();
 
-		if (typeof PerformanceObserver !== 'function') return;
+		if (typeof globalThis.PerformanceObserver !== 'function') return;
 
 		try {
-			resourceObserver = new PerformanceObserver((list) => {
+			resourceObserver = new globalThis.PerformanceObserver((list) => {
 				if (!activeSession) return;
 				rememberResources(collectResourceEntries(list.getEntries()), true);
 			});
@@ -361,7 +361,7 @@ export function createObservedPageSignals(
 
 		return {
 			url: activeSession.expectedUrl,
-			hostname: new URL(activeSession.expectedUrl).hostname,
+			hostname: new globalThis.URL(activeSession.expectedUrl).hostname,
 		};
 	}
 
@@ -383,7 +383,7 @@ export function createObservedPageSignals(
 
 	/** Scan only the changed subtree that can contain evidence-bearing page signals. */
 	async function scanNode(node: Node, content: ObservedPageSignalsSnapshotOptions): Promise<void> {
-		if (node instanceof HTMLScriptElement) {
+		if (node instanceof globalThis.HTMLScriptElement) {
 			rememberSnapshot({
 				...emptySnapshot(),
 				scripts: collectScriptSources([node]),
@@ -393,7 +393,7 @@ export function createObservedPageSignals(
 			return;
 		}
 
-		if (node instanceof HTMLImageElement) {
+		if (node instanceof globalThis.HTMLImageElement) {
 			rememberSnapshot({
 				...emptySnapshot(),
 				images: collectImageSources([node]),
@@ -402,7 +402,7 @@ export function createObservedPageSignals(
 			return;
 		}
 
-		if (node instanceof HTMLStyleElement) {
+		if (node instanceof globalThis.HTMLStyleElement) {
 			rememberSnapshot({
 				...emptySnapshot(),
 				stylesheetContents: content.includeStylesheetContent ? collectStylesheetContents([node]) : [],
@@ -411,7 +411,7 @@ export function createObservedPageSignals(
 			return;
 		}
 
-		if (node instanceof HTMLLinkElement) {
+		if (node instanceof globalThis.HTMLLinkElement) {
 			rememberSnapshot({
 				...emptySnapshot(),
 				stylesheets: collectStylesheetSources([node]),
@@ -421,7 +421,7 @@ export function createObservedPageSignals(
 			return;
 		}
 
-		if (node instanceof HTMLMetaElement) {
+		if (node instanceof globalThis.HTMLMetaElement) {
 			rememberSnapshot({
 				...emptySnapshot(),
 				meta: collectMetaTags([node]),
@@ -430,7 +430,7 @@ export function createObservedPageSignals(
 			return;
 		}
 
-		if (node instanceof Element || node instanceof DocumentFragment || node instanceof Document) {
+		if (node instanceof globalThis.Element || node instanceof globalThis.DocumentFragment || node instanceof globalThis.Document) {
 			rememberSnapshot({
 				...emptySnapshot(),
 				images: collectImageSources(node),
@@ -449,16 +449,16 @@ export function createObservedPageSignals(
 	async function scanDocument(content: ObservedPageSignalsSnapshotOptions): Promise<void> {
 		const resources = collectResourceTimings();
 		rememberSnapshot({
-			images: collectImageSources(document),
-			scripts: collectScriptSources(document),
-			stylesheets: collectStylesheetSources(document),
-			links: collectLinkTags(document),
+			images: collectImageSources(globalThis.document),
+			scripts: collectScriptSources(globalThis.document),
+			stylesheets: collectStylesheetSources(globalThis.document),
+			links: collectLinkTags(globalThis.document),
 			resources,
 			requests: resources.map((resource) => ({ url: resource.url, type: resource.initiatorType })),
-			scriptContents: content.includeScriptContent ? collectScriptContents(document) : [],
-			stylesheetContents: content.includeStylesheetContent ? collectStylesheetContents(document) : [],
-			meta: collectMetaTags(document),
-			dom: { selectors: await getSelectors(document) },
+			scriptContents: content.includeScriptContent ? collectScriptContents(globalThis.document) : [],
+			stylesheetContents: content.includeStylesheetContent ? collectStylesheetContents(globalThis.document) : [],
+			meta: collectMetaTags(globalThis.document),
+			dom: { selectors: await getSelectors(globalThis.document) },
 		});
 		lastScannedAt = Date.now();
 	}
@@ -526,7 +526,7 @@ export function createObservedPageSignals(
 	function scheduleNotice(): void {
 		if (batchNoticeTimer !== undefined || observationBatchController.stats().queuedCount === 0) return;
 
-		batchNoticeTimer = setTimeout(() => {
+		batchNoticeTimer = globalThis.setTimeout(() => {
 			batchNoticeTimer = undefined;
 			publishBatch();
 		}, options.throttleMs);
@@ -538,7 +538,7 @@ export function createObservedPageSignals(
 			return;
 		}
 
-		throttleTimer = setTimeout(() => {
+		throttleTimer = globalThis.setTimeout(() => {
 			void flushMutations();
 		}, options.throttleMs);
 	}
@@ -590,7 +590,7 @@ export function createObservedPageSignals(
 		};
 	}
 
-	const observer = new MutationObserver((mutations) => {
+	const observer = new globalThis.MutationObserver((mutations) => {
 		if (!activeSession) {
 			return;
 		}
@@ -674,7 +674,7 @@ export function createObservedPageSignals(
 		stopReason = undefined;
 		sessionStatus = 'observing';
 
-		observer.observe(document.documentElement ?? document, {
+		observer.observe(globalThis.document.documentElement ?? globalThis.document, {
 			subtree: true,
 			childList: true,
 			attributes: true,
@@ -774,16 +774,16 @@ function containsNode(parent: Node, child: Node): boolean {
 function canQueueNode(node: Node, plan?: DomSelectorPlan): boolean {
 	if (isSignalElement(node)) return true;
 
-	if (typeof Element !== 'undefined' && node instanceof Element) {
+	if (typeof globalThis.Element !== 'undefined' && node instanceof globalThis.Element) {
 		if (matchesPlan(node, plan)) return true;
 		return node.childElementCount > 0;
 	}
 
-	if (typeof DocumentFragment !== 'undefined' && node instanceof DocumentFragment) {
+	if (typeof globalThis.DocumentFragment !== 'undefined' && node instanceof globalThis.DocumentFragment) {
 		return node.childNodes.length > 0;
 	}
 
-	return typeof Document !== 'undefined' && node instanceof Document;
+	return typeof globalThis.Document !== 'undefined' && node instanceof globalThis.Document;
 }
 
 /** Check only direct tag, attribute, id, and class indexes without querying descendants. */
@@ -810,10 +810,10 @@ function isSignalElement(
 	node: Node,
 ): node is HTMLScriptElement | HTMLStyleElement | HTMLLinkElement | HTMLMetaElement | HTMLImageElement {
 	return (
-		(typeof HTMLScriptElement !== 'undefined' && node instanceof HTMLScriptElement) ||
-		(typeof HTMLStyleElement !== 'undefined' && node instanceof HTMLStyleElement) ||
-		(typeof HTMLLinkElement !== 'undefined' && node instanceof HTMLLinkElement) ||
-		(typeof HTMLMetaElement !== 'undefined' && node instanceof HTMLMetaElement) ||
-		(typeof HTMLImageElement !== 'undefined' && node instanceof HTMLImageElement)
+		(typeof globalThis.HTMLScriptElement !== 'undefined' && node instanceof globalThis.HTMLScriptElement) ||
+		(typeof globalThis.HTMLStyleElement !== 'undefined' && node instanceof globalThis.HTMLStyleElement) ||
+		(typeof globalThis.HTMLLinkElement !== 'undefined' && node instanceof globalThis.HTMLLinkElement) ||
+		(typeof globalThis.HTMLMetaElement !== 'undefined' && node instanceof globalThis.HTMLMetaElement) ||
+		(typeof globalThis.HTMLImageElement !== 'undefined' && node instanceof globalThis.HTMLImageElement)
 	);
 }

@@ -20,7 +20,7 @@ export function sort(results: readonly DetectionResult[]): DetectionResult[] {
 }
 
 /** Return the strongest current emitted technology without sorting the whole result set. */
-export function top(results: readonly DetectionResult[]): DetectionResult | undefined {
+export function best(results: readonly DetectionResult[]): DetectionResult | undefined {
 	let best: DetectionResult | undefined;
 	for (const result of results) {
 		if (!best || compare(result, best) < 0) best = result;
