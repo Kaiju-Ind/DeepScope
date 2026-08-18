@@ -10,7 +10,7 @@ when submitting the first public release.
 3. Click the Kaiju DeepScope toolbar button.
 4. Confirm the side panel opens on **Technologies**, follows the visible tab, and shows or continues the automatically started analysis.
 5. Open one technology result and confirm its evidence appears on the technology detail page.
-6. Open **Scans** and confirm scan state/replay history is separate from the primary technology list.
+6. Open **History** and confirm retained runs and same-page changes are separate from the live Summary and primary technology list.
 7. Open **Diagnostics**, press **Copy report**, and confirm a local report is copied without contacting a remote service.
 8. Use **Open full page** and confirm the independent extension Diagnostics page loads.
 9. Switch between two already-loaded HTTP/HTTPS tabs while the side panel is pinned and confirm the host and detections follow the active tab.

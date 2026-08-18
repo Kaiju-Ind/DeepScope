@@ -317,8 +317,8 @@ import * as clipboard from '@/utils/clipboard';
 
 session.open(...);
 history.query(...);
-rank.top(...);
-url.parts(...);
+rank.best(...);
+url.getParts(...);
 bytes.format(...);
 clipboard.copy(...);
 ```
@@ -331,6 +331,24 @@ TSDoc that explain their invariant or ownership.
 This pass does not claim that every older detector/runtime symbol in the entire
 repository has been renamed. That would be a separate large refactor with a
 wider consumer and persistence review.
+
+### Generated extension name safety
+
+Browser-global names are reserved in handwritten runtime code that can share a
+generated extension chunk. In particular, URL utilities intentionally use
+`withoutHash()`, `getOrigin()`, `sameDocument()`, and `getParts()` rather than
+exports named `document`, `origin`, `location`, or similar runtime globals. The
+side-panel and options roots also resolve the DOM through
+`globalThis.document.getElementById(...)`.
+
+The architecture test rejects dangerous top-level runtime-global declarations
+and local declarations that shadow imported bindings. The Chrome artifact
+validator then executes the generated content runtime and generated application
+model in Chromium. It also executes the generated startup prefix for the side
+panel and options entry modules so a generated root-binding error such as
+`getElementById is not a function` fails the release gate. The UI-root check is
+intentionally a startup/root-binding check, not a claim that every rendered UI
+flow has been exercised.
 
 ## Tests repaired or added
 
@@ -357,9 +375,11 @@ The implementation was checked with the tools available in this host:
 - TypeScript/TSX syntax parse over the full source tree;
 - repository-local `@/` import resolution;
 - AST check for direct self-shadowed function initializers;
-- namespace/parameter shadow check;
+- generated-name safety checks for browser-global declarations and imported-binding shadows;
 - focused runtime execution of pure session, URL, byte-format, revision-policy,
   and ranking modules;
+- a generated-artifact negative control proving the validator rejects the supplied
+  broken side-panel `getElementById` binding;
 - architecture source assertions for the changed UI/runtime contracts;
 - source scan for obsolete Kestrel runtime paths and manual `@font-face` ownership;
 - repository-shape check confirming there is no root `packages/` directory.
@@ -378,6 +398,7 @@ passed here:
 pnpm install
 pnpm compile
 pnpm test:run
+pnpm check:release
 pnpm build:chrome
 pnpm zip:chrome
 ```

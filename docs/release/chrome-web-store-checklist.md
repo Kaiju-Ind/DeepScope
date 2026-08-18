@@ -31,6 +31,17 @@ Use this checklist against the final zip, not only the source tree.
 
 ## Final artifact checks
 
+Create the release package through the validated scripts. Do not run `wxt zip` directly for a release candidate.
+
+```sh
+pnpm check:release
+pnpm release:zip
+```
+
+Both commands must complete successfully. The release path runs TypeScript, Vitest, the WXT Chrome build, and Chromium execution of the generated content and analysis-model paths plus the generated side-panel and options entry prefixes through their root guards. A source-only green check is not sufficient.
+
+Then inspect the final archive itself:
+
 ```sh
 unzip -q kaiju-deepscope-web-extension-0.1.0-chrome.zip -d /tmp/kaiju-cws
 cat /tmp/kaiju-cws/manifest.json
