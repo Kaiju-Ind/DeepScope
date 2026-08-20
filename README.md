@@ -103,7 +103,7 @@ mise run bench:rules
 mise run bench:rules:gate
 ```
 
-`bench:rules` profiles curated pass/fail samples plus generated miss cases across the registry. `bench:rules:gate` also enables generated structural pass cases, high-risk hydration miss scans, and failing budget checks through the rule-profile environment flags. Use `KAIJU_DEEPSCOPE_RULE_BENCH_PASS_BUDGET_MS`, `KAIJU_DEEPSCOPE_RULE_BENCH_MISS_BUDGET_MS`, and `KAIJU_DEEPSCOPE_RULE_BENCH_REPORT_LIMIT` when a local machine needs different diagnostic thresholds.
+`bench:rules` profiles curated pass/fail samples plus generated miss cases across the registry. `bench:rules:gate` also enables generated structural pass cases, high-risk hydration miss scans, and failing budget checks through the rule-profile environment flags. Rule gates use the median of five warmed samples and retain the maximum sample only as diagnostics, so an isolated scheduler or garbage-collection pause does not masquerade as sustained regex cost. Use `KAIJU_DEEPSCOPE_RULE_BENCH_PASS_BUDGET_MS`, `KAIJU_DEEPSCOPE_RULE_BENCH_MISS_BUDGET_MS`, and `KAIJU_DEEPSCOPE_RULE_BENCH_REPORT_LIMIT` when a local machine needs different diagnostic thresholds.
 
 You can also run package scripts directly with pnpm:
 
