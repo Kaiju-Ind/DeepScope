@@ -29,17 +29,85 @@ describe('collection planning', () => {
 			]),
 		]);
 
-		expect(plan.selectorProbeList).toEqual([
+		expect(plan.initial.domSelectorPlan.selectors).toEqual([
 			'script[src]',
 			'meta[name="generator"]',
 		]);
-		expect(plan.domSelectorPlan).toMatchObject({
+		expect(plan.initial.domSelectorPlan).toMatchObject({
 			selectors: ['script[src]', 'meta[name="generator"]'],
-			tags: ['script', 'meta'],
-			attributes: ['src', 'name'],
-			candidateSelector: 'script,meta,[src],[name]',
+			selectorsWithoutRoute: [],
 		});
-		expect(plan.domSelectorPlan.selectorsByAttribute.src).toEqual(['script[src]']);
+		expect(plan.initial.domSelectorPlan.selectorsByAttribute.src).toEqual(['script[src]']);
+		expect(plan.initial.domSelectorPlan.probes).toEqual([
+			expect.objectContaining({ selector: 'script[src]', tags: ['script'], attributes: ['src'], valid: true }),
+			expect.objectContaining({ selector: 'meta[name="generator"]', tags: ['meta'], attributes: ['name'], valid: true }),
+		]);
+	});
+
+	it('routes selectors by the element that owns the final match', () => {
+		const plan = buildCollectionPlan([
+			makeTechnology('selectors', [
+				{ kind: 'dom', selector: '.ancestor [data-child]' },
+				{ kind: 'dom', selector: 'html > :not(body)' },
+				{ kind: 'dom', selector: 'div:not(.disabled)' },
+			]),
+		]);
+		const dom = plan.initial.domSelectorPlan;
+
+		expect(dom.selectorsByClass.ancestor).toBeUndefined();
+		expect(dom.selectorsByAttribute['data-child']).toEqual(['.ancestor [data-child]']);
+		expect(dom.selectorsByTag.div).toEqual(['div:not(.disabled)']);
+		expect(dom.selectorsWithoutRoute).toEqual(['html > :not(body)']);
+		expect(dom.attributeFilter).toContain('data-child');
+	});
+
+	it('routes adjacent-sibling invalidation from the left compound', () => {
+		const plan = buildCollectionPlan([
+			makeTechnology('siblings', [
+				{ kind: 'dom', selector: 'gt-root + noscript' },
+				{ kind: 'dom', selector: "a[href*='xyzscripts.com/'] + a[href*='www.xyzscripts.com']" },
+			]),
+		]);
+
+		expect(plan.initial.domSelectorPlan.mutation.siblings).toEqual([
+			expect.objectContaining({
+				kind: 'adjacent',
+				deep: false,
+				left: expect.objectContaining({ tags: ['gt-root'] }),
+			}),
+			expect.objectContaining({
+				kind: 'adjacent',
+				deep: false,
+				left: expect.objectContaining({ tags: ['a'], attributes: ['href'] }),
+			}),
+		]);
+		expect(plan.initial.domSelectorPlan.mutation.siblingAttributes).toContain('href');
+	});
+
+
+	it('falls back to a time-sliced document scan for nested structural invalidation', () => {
+		const plan = buildCollectionPlan([
+			makeTechnology('complex-structure', [
+				{ kind: 'dom', selector: 'section:has(.ready) + aside' },
+			]),
+		]);
+		const mutation = plan.initial.domSelectorPlan.mutation;
+
+		expect(mutation.documentOnChildList).toBe(true);
+		expect(mutation.documentAttributes).toContain('class');
+	});
+
+	it('marks malformed selectors invalid instead of routing them through document-wide matching', () => {
+		const plan = buildCollectionPlan([
+			makeTechnology('invalid-selector', [
+				{ kind: 'dom', selector: 'div:not(' },
+			]),
+		]);
+		const dom = plan.initial.domSelectorPlan;
+
+		expect(dom.probes).toEqual([expect.objectContaining({ selector: 'div:not(', valid: false })]);
+		expect(dom.selectorsWithoutRoute).toEqual([]);
+		expect(dom.selectorsByTag.div).toBeUndefined();
 	});
 
 	it('serializes HTML probes with technology ids and rule indexes', () => {
@@ -67,8 +135,8 @@ describe('collection planning', () => {
 		}));
 		const plan = buildCollectionPlan([makeTechnology('globals', rules)]);
 
-		expect(plan.jsGlobalPropertyList).toHaveLength(SOURCE_LIMITS.jsGlobals);
-		expect(plan.jsGlobalPropertyList.at(0)).toBe('Global0');
+		expect(plan.initial.jsGlobalPropertyList).toHaveLength(SOURCE_LIMITS.jsGlobals);
+		expect(plan.initial.jsGlobalPropertyList.at(0)).toBe('Global0');
 	});
 
 
@@ -116,7 +184,7 @@ describe('collection planning', () => {
 		const passes = createIncrementalCollectionPasses(plan);
 
 		expect(passes.map((pass) => pass.id)).toEqual(['initial', 'html', 'headers', 'text', 'source-content']);
-		expect(passes[0]?.plan.selectorProbeList).toEqual(['[data-app]']);
+		expect(passes[0]?.plan.domSelectorPlan.selectors).toEqual(['[data-app]']);
 		expect(passes[1]?.plan.htmlProbeList).toHaveLength(1);
 		expect(passes[2]?.plan.needsHeaders).toBe(true);
 		expect(passes[3]?.plan.needsText).toBe(true);
@@ -138,7 +206,6 @@ describe('collection planning', () => {
 			includeScriptContent: false,
 			includeStylesheetContent: false,
 			includeStorageKeys: false,
-			selectorProbeList: ['script[src]'],
 			domSelectorPlan: plan.initial.domSelectorPlan,
 			htmlProbeList: [],
 		});

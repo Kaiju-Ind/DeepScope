@@ -22,10 +22,22 @@ export function parseSource(path: string): OxcSourceType {
 	const text = readFileSync(path, 'utf8');
 	const result = parseSync(path, text, { astType: 'ts' });
 	if (result.errors.length > 0) {
-		throw new Error(`${path}: Oxc parse failed:\n${result.errors.map((error) => String(error)).join('\n')}`);
+		throw new Error(`${path}: Oxc parse failed:\n${result.errors.map(formatError).join('\n')}`);
 	}
 
 	return { path, text, program: result.program };
+}
+
+
+/** Format one structured Oxc diagnostic without collapsing it to `[object Object]`. */
+function formatError(error: unknown): string {
+	if (error instanceof Error) return error.stack ?? error.message;
+	if (typeof error === 'string') return error;
+	try {
+		return JSON.stringify(error, null, 2);
+	} catch {
+		return String(error);
+	}
 }
 
 /** Return whether an unknown AST value is an Oxc node. */
@@ -35,12 +47,12 @@ export function isNode(value: unknown): value is OxcNodeType {
 
 /** Visit every descendant node while preserving the structural ancestor stack. */
 export function walk(
-	node: Program,
+	node: OxcNodeType,
 	visit: (node: OxcNodeType, ancestors: readonly OxcNodeType[]) => void,
 	ancestors: readonly OxcNodeType[] = [],
 ): void {
 	visit(node, ancestors);
-	const nextAncestors = [...ancestors, node];
+	const nextAncestors: readonly OxcNodeType[] = [...ancestors, node];
 	for (const [key, value] of Object.entries(node)) {
 		if (key === 'loc' || key === 'range' || key === 'comments' || key === 'tokens') continue;
 		if (isNode(value)) {

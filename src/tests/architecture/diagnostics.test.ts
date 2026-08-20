@@ -38,14 +38,14 @@ describe('crash-durable diagnostics architecture', () => {
 		expect(crash).toContain('options.captureGlobalError !== false');
 	});
 
-	it('preserves worker errors and structured-clone failures at the offscreen host', () => {
-		const offscreen = read('../../entrypoints/offscreen/main.ts');
+	it('preserves worker errors and structured-clone failures at the matcher pool', () => {
+		const pool = read('../../lib/matcher/offscreen/pool.ts');
 
-		expect(offscreen).toContain("addEventListener('error'");
-		expect(offscreen).toContain("addEventListener('messageerror'");
-		expect(offscreen).toContain('filename: event.filename');
-		expect(offscreen).toContain('line: event.lineno');
-		expect(offscreen).toContain('column: event.colno');
+		expect(pool).toContain("addEventListener('error'");
+		expect(pool).toContain("addEventListener('messageerror'");
+		expect(pool).toContain('filename: event.filename');
+		expect(pool).toContain('line: event.lineno');
+		expect(pool).toContain('column: event.colno');
 	});
 
 	it('forwards storage-less offscreen diagnostics to the background storage owner', () => {
@@ -67,7 +67,7 @@ describe('crash-durable diagnostics architecture', () => {
 
 		expect(reconcile).toContain("reason: 'context-interrupted'");
 		expect(reconcile).toContain('interruptedStatus: record.status');
-		expect(reconcile).toContain('cancelOffscreenMatcherJob(record.jobId)');
+		expect(reconcile).toContain('offscreen.cancel(record.jobId)');
 		expect(contracts).toContain("| 'context-interrupted';");
 	});
 	it('keeps the diagnostic composition root small and virtualizes the filtered timeline', () => {

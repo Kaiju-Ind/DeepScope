@@ -107,6 +107,7 @@ describe('side panel model', () => {
 			analysisRequestInFlight: false,
 			queuedVisibleAnalysis: false,
 			matcherProgress: {
+				phase: 'matching',
 				completedPartitionCount: 7,
 				partitionCount: 12,
 				latestPartitionKind: 'scriptContent',
@@ -177,6 +178,7 @@ describe('side panel model', () => {
 			matcherProgress: {
 				jobId: 'job-late',
 				mode: 'enrichment',
+				phase: 'matching',
 				completedPartitionCount: 2,
 				partitionCount: 8,
 				resultCount: 3,
@@ -185,6 +187,60 @@ describe('side panel model', () => {
 		});
 
 		expect(getMatcherStatusFromSnapshot(snapshot)).toBe('matching');
+	});
+
+	it('maps queue and recording snapshot receipts to their exact visible stages', () => {
+		const queued = makeDetectionSessionSnapshot({
+			source: 'background',
+			status: 'complete',
+			matcherProgress: {
+				jobId: 'job-queued',
+				mode: 'complete',
+				phase: 'queued',
+				queuePosition: 2,
+				queueDepth: 4,
+				completedPartitionCount: 0,
+				partitionCount: 0,
+				resultCount: 1,
+				updatedAt: 1_700_000_000_100,
+			},
+		});
+		const recording = makeDetectionSessionSnapshot({
+			source: 'background',
+			status: 'complete',
+			matcherProgress: {
+				jobId: 'job-recording',
+				mode: 'complete',
+				phase: 'recording',
+				completedPartitionCount: 8,
+				partitionCount: 8,
+				resultCount: 3,
+				updatedAt: 1_700_000_000_200,
+			},
+		});
+
+		expect(getMatcherStatusFromSnapshot(queued)).toBe('queued');
+		expect(getMatcherStatusFromSnapshot(recording)).toBe('recording');
+		expect(getAnalysisActivity({
+			matcherStatus: 'queued',
+			workflowBusy: false,
+			analysisRequestInFlight: false,
+			queuedVisibleAnalysis: false,
+			matcherProgress: queued.matcherProgress,
+		})).toMatchObject({
+			headline: 'Waiting for matcher capacity',
+			label: 'waiting for matcher 2/4',
+		});
+		expect(getAnalysisActivity({
+			matcherStatus: 'recording',
+			workflowBusy: false,
+			analysisRequestInFlight: false,
+			queuedVisibleAnalysis: false,
+			matcherProgress: recording.matcherProgress,
+		})).toMatchObject({
+			headline: 'Recording replay trace',
+			label: 'recording replay',
+		});
 	});
 
 	it('treats stored partial snapshot revisions as pending and blocks stale replay state', () => {

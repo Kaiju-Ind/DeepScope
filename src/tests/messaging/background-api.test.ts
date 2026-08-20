@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildCollectionPlan, type CollectionPlan } from '@/lib/collectors/planning';
-import type { PageSignalPollingState } from '@/lib/content/observed-page-signals';
-import type { DetectionSessionSnapshot } from '@/lib/storage/session';
+import type * as observe from '@/lib/content/observe';
+import {
+	DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION,
+	type DetectionSessionSnapshot,
+} from '@/lib/storage/session';
 import type { PageSignals, SiteAnalysis } from '@/lib/detection/types';
 import type { ContentApi } from '@/lib/messaging';
 import { CONTENT_SCRIPT_TIMEOUT_MS } from '@/lib/messaging/rpc';
@@ -63,6 +66,12 @@ type BackgroundApiHarnessOptions = {
 		jobId: string,
 		patch?: Partial<Omit<MatcherJobRecord, 'jobId' | 'tabId' | 'expectedUrl' | 'target' | 'createdAt'>>,
 	) => Promise<MatcherJobRecord | null>;
+	saveSnapshot?: (snapshot: DetectionSessionSnapshot) => Promise<{
+		readonly accepted: boolean;
+		readonly sessionStorageKey: string;
+		readonly originStorageKey: string;
+		readonly snapshot: DetectionSessionSnapshot;
+	}>;
 };
 
 const SOURCE_LIMITS_STUB = {
@@ -228,7 +237,7 @@ function makeDetectionSnapshotFromAnalysis(analysis: SiteAnalysis): DetectionSes
 			documentId: 'document-1',
 			originHash: VISIBLE_TAB_TARGET.originHash,
 		},
-		schemaVersion: 1,
+		schemaVersion: DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION,
 		revision: 1,
 		urlHash: VISIBLE_TAB_TARGET.urlHash,
 		hostname: analysis.hostname,
@@ -256,12 +265,12 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		SOURCE_LIMITS: SOURCE_LIMITS_STUB,
 	}));
 
-	const pollingState: PageSignalPollingState = {
+	const pollingState: observe.StateType = {
 		status: 'idle',
 		throttleMs: 1_500,
 		pendingMutationCount: 0,
 	};
-	const observingState: PageSignalPollingState = {
+	const observingState: observe.StateType = {
 		...pollingState,
 		sessionId: 'session-1',
 		expectedUrl: HTTP_TAB.url!,
@@ -269,7 +278,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		startedAt: 1_700_000_000_000,
 		expiresAt: 1_700_000_060_000,
 	};
-	const stoppedState: PageSignalPollingState = {
+	const stoppedState: observe.StateType = {
 		...pollingState,
 		status: 'stopped',
 	};
@@ -300,10 +309,11 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		if (tab.id !== tabId) throw new Error(`Tab ${tabId} is unavailable.`);
 		return { ...tab, active: tab.active ?? true };
 	});
+	const sendMessage = vi.fn(async () => ({ ok: false, message: 'offscreen unavailable in test' }));
 	vi.doMock('wxt/browser', () => ({
 		browser: {
 			runtime: {
-				sendMessage: vi.fn(async () => ({ ok: false, message: 'offscreen unavailable in test' })),
+				sendMessage,
 				getURL: vi.fn((path: string) => `chrome-extension://kaiju-deepscope${path}`),
 			},
 			offscreen: undefined,
@@ -354,19 +364,15 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		? makeDetectionSnapshotFromAnalysis(input.cachedAnalysis)
 		: null);
 	const getLatestDetectionSessionSnapshot = vi.fn(async () => null);
-	const saveDetectionSessionSnapshot = vi.fn(async (snapshot: DetectionSessionSnapshot) => ({
+	const saveDetectionSessionSnapshot = vi.fn(input.saveSnapshot ?? (async (snapshot: DetectionSessionSnapshot) => ({
 		accepted: true,
 		sessionStorageKey: getDetectionSessionSnapshotKey(snapshot.key),
 		originStorageKey: getDetectionOriginSnapshotKey(snapshot.key.originHash),
 		snapshot,
-	}));
+	})));
 
 	const { collectExtensionObservationBatch } = await import('@/lib/collectors/extension-page-collector');
-	const {
-		cancelOffscreenMatcherJob,
-		ensureOffscreenDocument,
-		runMatcherJobWithOffscreenFallback,
-	} = await import('@/lib/lifecycle/offscreen-matcher');
+	const matcher = await import('@/lib/matcher/offscreen');
 	const { createBackgroundRuntime } = await import('@/lib/background/runtime');
 	const runtime = createBackgroundRuntime({
 		getTab,
@@ -377,9 +383,8 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		collectObservationBatch: collectExtensionObservationBatch,
 		registryProvider: { getCompiledRegistry },
 		matcher: {
-			cancelJob: cancelOffscreenMatcherJob,
-			ensureOffscreenDocument: ensureOffscreenDocument,
-			runJob: runMatcherJobWithOffscreenFallback,
+			cancelJob: matcher.cancel,
+			runJob: matcher.run,
 		},
 		persistence: {
 			getBestVisibleSnapshot: getBestVisibleDetectionSessionSnapshot,
@@ -402,8 +407,10 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 
 	return {
 		api: runtime.api,
+		runtime,
 		contentApi,
 		mocks: {
+			sendMessage,
 			analyzeSite,
 			executeScript,
 			getCachedReplayTrace,
@@ -646,11 +653,46 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledWith(expect.objectContaining({
 			analysis: expect.objectContaining({ source: 'fresh' }),
 		})));
-		expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledOnce();
+		expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(2);
+		expect(harness.mocks.saveDetectionSessionSnapshot.mock.calls[0]?.[0]).toMatchObject({
+			matcherProgress: { phase: 'recording' },
+		});
+		expect(harness.mocks.saveDetectionSessionSnapshot.mock.calls[1]?.[0]).not.toHaveProperty('matcherProgress');
 		expect(harness.mocks.saveReplayTrace).toHaveBeenCalledWith(expect.objectContaining({
 			completedMode: 'event',
 		}));
 		expect(harness.contentApi.beginObservationSession).not.toHaveBeenCalled();
+	});
+
+	it('releases matcher-owned batch and registry state when recording persistence fails', async () => {
+		const updateMatcherJobRecord = vi.fn(async () => null);
+		const harness = await loadBackgroundApiHarness({
+			tab: HTTP_TAB,
+			updateMatcherJobRecord,
+			saveSnapshot: async (snapshot) => {
+				if (snapshot.matcherProgress?.phase === 'recording') throw new Error('recording write failed');
+				return {
+					accepted: true,
+					sessionStorageKey: getDetectionSessionSnapshotKey(snapshot.key),
+					originStorageKey: getDetectionOriginSnapshotKey(snapshot.key.originHash),
+					snapshot,
+				};
+			},
+		});
+
+		await expect(
+			harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'none' }),
+		).resolves.toMatchObject({ ok: true, value: { snapshot: { status: 'miss' } } });
+		await vi.waitFor(() => expect(updateMatcherJobRecord).toHaveBeenCalledWith(
+			expect.any(String),
+			expect.objectContaining({ status: 'failed', reason: 'persistence-failed' }),
+		));
+
+		harness.mocks.sendMessage.mockClear();
+		harness.runtime.onTabNavigation(HTTP_TAB.id!);
+		expect(harness.mocks.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+			type: 'matcher.cancel-job',
+		}));
 	});
 
 	it('collects enrichment after registration but waits to dispatch until initial matching completes', async () => {
@@ -724,16 +766,18 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 
 		await vi.waitFor(() => expect(collectObservationBatch).toHaveBeenCalledTimes(3));
 		await vi.waitFor(() => expect(harness.mocks.saveMatcherJobRecord).toHaveBeenCalledTimes(2));
-		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(2));
+		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(4));
 		expect(harness.mocks.saveReplayTrace).toHaveBeenCalledOnce();
 		const savedSnapshots = harness.mocks.saveDetectionSessionSnapshot.mock.calls.map(([snapshot]) =>
 			snapshot as DetectionSessionSnapshot
 		);
-		expect(savedSnapshots.map((snapshot) => snapshot.enrichment.status)).toEqual(['pending', 'complete']);
-		expect(savedSnapshots[0]?.replaySummary).toBeUndefined();
-		expect(savedSnapshots[1]?.replaySummary).toMatchObject({
-			resultCount: expect.any(Number),
-		});
+		expect(savedSnapshots.map((snapshot) => snapshot.enrichment.status)).toEqual([
+			'pending', 'pending', 'complete', 'complete',
+		]);
+		expect(savedSnapshots[0]?.matcherProgress?.phase).toBe('recording');
+		expect(savedSnapshots[1]?.replaySummary).toBeUndefined();
+		expect(savedSnapshots[2]?.matcherProgress?.phase).toBe('recording');
+		expect(savedSnapshots[3]?.replaySummary).toMatchObject({ resultCount: expect.any(Number) });
 		expect(collectObservationBatch.mock.calls.map(([input]) => (input as { tier?: string }).tier)).toEqual([
 			'initial',
 			'enrichment',
@@ -855,7 +899,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 
 		expect(harness.mocks.getBestVisibleDetectionSessionSnapshot).toHaveBeenCalledWith(VISIBLE_TAB_TARGET);
 		expect(harness.contentApi.collectObservationBatch).toHaveBeenCalledOnce();
-		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledOnce());
+		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(2));
 	});
 
 	it('routes fresh analysis through the event pipeline', async () => {
@@ -1037,7 +1081,7 @@ describe.sequential('background observation session baseline', () => {
 			harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'none' }),
 		).resolves.toMatchObject({ ok: true });
 
-		const dirtyState: PageSignalPollingState = {
+		const dirtyState: observe.StateType = {
 			status: 'dirty',
 			throttleMs: 1_500,
 			pendingMutationCount: 1,
@@ -1084,12 +1128,12 @@ describe.sequential('background observation session baseline', () => {
 		expect(harness.contentApi.flushObservationBatch).toHaveBeenCalledOnce();
 		expect(harness.contentApi.beginObservationSession).not.toHaveBeenCalled();
 		expect(harness.mocks.getCompiledRegistry).toHaveBeenCalledTimes(2);
-		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(2));
+		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(4));
 		expect(harness.mocks.analyzeSite).not.toHaveBeenCalled();
 	});
 
 	it('merges queued late observations after service-worker batch recovery', async () => {
-		const dirtyState: PageSignalPollingState = {
+		const dirtyState: observe.StateType = {
 			status: 'dirty',
 			throttleMs: 1_500,
 			pendingMutationCount: 1,
@@ -1139,7 +1183,7 @@ describe.sequential('background observation session baseline', () => {
 		expect(harness.contentApi.collectObservationBatch).toHaveBeenCalledOnce();
 		expect(harness.contentApi.flushObservationBatch).toHaveBeenCalledOnce();
 		expect(harness.contentApi.beginObservationSession).not.toHaveBeenCalled();
-		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledOnce());
+		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(2));
 	});
 
 	it('rejects observation refresh when the session belongs to a previous page path', async () => {

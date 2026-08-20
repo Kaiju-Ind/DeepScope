@@ -1,88 +1,226 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createObservedPageSignals } from '@/lib/content/observed-page-signals';
+import * as observe from '@/lib/content/observe';
 import { SOURCE_LIMITS } from '@/lib/detection/source-limits';
+import * as dom from '@/lib/dom';
 
-function makeScript(input: { src?: string; text?: string }): HTMLScriptElement {
-	return {
-		src: input.src ?? '',
-		textContent: input.text ?? '',
-		getAttribute(name: string) {
-			return name === 'src' ? input.src ?? null : null;
-		},
-	} as HTMLScriptElement;
+class FakeClassList extends Array<string> {
+	contains(value: string): boolean {
+		return this.includes(value);
+	}
 }
 
-function makeImage(src: string, currentSrc = ''): HTMLImageElement {
-	return {
-		src,
-		currentSrc,
-		getAttribute(name: string) {
-			return name === 'src' ? src : null;
-		},
-	} as HTMLImageElement;
+/** Small connected DOM fixture that preserves the relationships used by live matching. */
+class FakeElement {
+	readonly nodeType = 1;
+	readonly classList = new FakeClassList();
+	readonly children: FakeElement[] = [];
+	readonly childNodes: FakeElement[] = this.children;
+	readonly #attributes = new Map<string, string>();
+	queryCount = 0;
+	parentElement: FakeElement | null = null;
+	previousSibling: FakeElement | null = null;
+	nextSibling: FakeElement | null = null;
+	ownerDocument: FakeDocument | null = null;
+
+	constructor(readonly localName: string) {}
+
+	get id(): string {
+		return this.#attributes.get('id') ?? '';
+	}
+
+	get childElementCount(): number {
+		return this.children.length;
+	}
+
+	get nextElementSibling(): FakeElement | null {
+		return this.nextSibling;
+	}
+
+	setAttribute(name: string, value: string): void {
+		this.#attributes.set(name, value);
+		if (name === 'class') {
+			this.classList.splice(0, this.classList.length, ...value.split(/\s+/u).filter(Boolean));
+		}
+	}
+
+	getAttribute(name: string): string | null {
+		return this.#attributes.get(name) ?? null;
+	}
+
+	getAttributeNames(): string[] {
+		return [...this.#attributes.keys()];
+	}
+
+	hasAttribute(name: string): boolean {
+		return this.#attributes.has(name);
+	}
+
+	append(...children: FakeElement[]): void {
+		for (const child of children) {
+			const previous = this.children.at(-1) ?? null;
+			if (previous) previous.nextSibling = child;
+			child.previousSibling = previous;
+			child.nextSibling = null;
+			child.parentElement = this;
+			child.ownerDocument = this.ownerDocument;
+			this.children.push(child);
+		}
+	}
+
+	insertBefore(child: FakeElement, reference: FakeElement): void {
+		const index = this.children.indexOf(reference);
+		if (index < 0) throw new Error('Reference element is not a child.');
+		const previous = this.children[index - 1] ?? null;
+		if (previous) previous.nextSibling = child;
+		child.previousSibling = previous;
+		child.nextSibling = reference;
+		child.parentElement = this;
+		child.ownerDocument = this.ownerDocument;
+		reference.previousSibling = child;
+		this.children.splice(index, 0, child);
+	}
+
+	remove(child: FakeElement): void {
+		const index = this.children.indexOf(child);
+		if (index < 0) throw new Error('Removed element is not a child.');
+		const previous = this.children[index - 1] ?? null;
+		const next = this.children[index + 1] ?? null;
+		if (previous) previous.nextSibling = next;
+		if (next) next.previousSibling = previous;
+		child.previousSibling = null;
+		child.nextSibling = null;
+		child.parentElement = null;
+		this.children.splice(index, 1);
+	}
+
+	querySelectorAll(selector: string): FakeElement[] {
+		if (selector !== '*') return [];
+		this.queryCount += 1;
+		const result: FakeElement[] = [];
+		const visit = (element: FakeElement): void => {
+			result.push(element);
+			for (const child of element.children) visit(child);
+		};
+		for (const child of this.children) visit(child);
+		return result;
+	}
+
+	matches(selector: string): boolean {
+		if (selector === 'gt-root + noscript') {
+			return this.localName === 'noscript' && this.previousSibling?.localName === 'gt-root';
+		}
+		return false;
+	}
 }
 
-function makeStylesheetLink(href: string): HTMLLinkElement {
-	return {
-		href,
-		rel: 'stylesheet',
-		type: '',
-		as: '',
-		media: '',
-		hreflang: '',
-		crossOrigin: '',
-		relList: {
-			contains(value: string) {
-				return value === 'stylesheet';
-			},
-		},
-		getAttribute(name: string) {
-			if (name === 'href') return href;
-			if (name === 'rel') return 'stylesheet';
-			return null;
-		},
-	} as unknown as HTMLLinkElement;
+class FakeScriptElement extends FakeElement {
+	textContent: string;
+
+	constructor(src = '', text = '') {
+		super('script');
+		this.textContent = text;
+		if (src) this.setAttribute('src', src);
+	}
+
+	get src(): string {
+		return this.getAttribute('src') ?? '';
+	}
 }
 
-function makeMeta(name: string, content: string): HTMLMetaElement {
-	return {
-		getAttribute(attribute: string) {
-			if (attribute === 'name') return name;
-			if (attribute === 'content') return content;
-			return null;
-		},
-	} as HTMLMetaElement;
+class FakeImageElement extends FakeElement {
+	constructor(src: string, readonly currentSrc = '') {
+		super('img');
+		this.setAttribute('src', src);
+	}
+
+	get src(): string {
+		return this.getAttribute('src') ?? '';
+	}
 }
 
-function makeStyle(text: string): HTMLStyleElement {
-	return {
-		textContent: text,
-	} as HTMLStyleElement;
+class FakeLinkElement extends FakeElement {
+	readonly type = '';
+	readonly as = '';
+	readonly media = '';
+	readonly hreflang = '';
+	readonly crossOrigin = '';
+	readonly relList = { contains: (value: string) => this.rel.split(/\s+/u).includes(value) };
+
+	constructor(href: string, rel = 'stylesheet') {
+		super('link');
+		this.setAttribute('href', href);
+		this.setAttribute('rel', rel);
+	}
+
+	get href(): string {
+		return this.getAttribute('href') ?? '';
+	}
+
+	get rel(): string {
+		return this.getAttribute('rel') ?? '';
+	}
 }
 
-function makeDocument(): Document {
-	const images = [makeImage('/images/fallback.jpg', 'https://cdn.example.com/rendered.webp')];
-	const scripts = [
-		makeScript({ src: '/assets/app.js' }),
-		makeScript({ text: 'window.__HYDRATED__ = true' }),
-	];
-	const links = [makeStylesheetLink('/assets/app.css')];
-	const styles = [makeStyle('.button { display: inline-flex; }')];
-	const metas = [makeMeta('generator', 'Astro')];
+class FakeMetaElement extends FakeElement {
+	constructor(name: string, content: string) {
+		super('meta');
+		this.setAttribute('name', name);
+		this.setAttribute('content', content);
+	}
+}
 
-	return {
-		styleSheets: [],
-		querySelectorAll(selector: string) {
-			if (selector === 'img[src], img[srcset]') return images;
-			if (selector === 'script') return scripts;
-			if (selector === 'link[rel~="stylesheet"]') return links;
-			if (selector === 'link[href]') return links;
-			if (selector === 'style') return styles;
-			if (selector === 'meta') return metas;
-			return [];
-		},
-	} as unknown as Document;
+class FakeStyleElement extends FakeElement {
+	constructor(readonly textContent: string) {
+		super('style');
+	}
+}
+
+class FakeDocument {
+	readonly nodeType = 9;
+	readonly documentElement: FakeElement;
+	styleSheetReadCount = 0;
+
+	get styleSheets(): StyleSheetList {
+		this.styleSheetReadCount += 1;
+		return [] as unknown as StyleSheetList;
+	}
+
+	constructor(elements: readonly FakeElement[]) {
+		this.documentElement = new FakeElement('html');
+		this.documentElement.ownerDocument = this;
+		this.documentElement.append(...elements);
+		for (const element of [this.documentElement, ...this.documentElement.querySelectorAll('*')]) {
+			element.ownerDocument = this;
+		}
+	}
+
+	querySelectorAll(selector: string): FakeElement[] {
+		return selector === '*' ? [this.documentElement, ...this.documentElement.querySelectorAll('*')] : [];
+	}
+}
+
+function makeDocument(): FakeDocument {
+	return new FakeDocument([
+		new FakeImageElement('/images/fallback.jpg', 'https://cdn.example.com/rendered.webp'),
+		new FakeScriptElement('/assets/app.js'),
+		new FakeScriptElement('', 'window.__HYDRATED__ = true'),
+		new FakeLinkElement('/assets/app.css'),
+		new FakeStyleElement('.button { display: inline-flex; }'),
+		new FakeMetaElement('generator', 'Astro'),
+	]);
+}
+
+/** Install the DOM constructors that production code receives from Chromium. */
+function stubDom(document: FakeDocument): void {
+	vi.stubGlobal('Element', FakeElement);
+	vi.stubGlobal('Document', FakeDocument);
+	vi.stubGlobal('HTMLScriptElement', FakeScriptElement);
+	vi.stubGlobal('HTMLImageElement', FakeImageElement);
+	vi.stubGlobal('HTMLLinkElement', FakeLinkElement);
+	vi.stubGlobal('HTMLMetaElement', FakeMetaElement);
+	vi.stubGlobal('HTMLStyleElement', FakeStyleElement);
+	vi.stubGlobal('document', document);
 }
 
 const mutationObservers: FakeMutationObserver[] = [];
@@ -124,18 +262,6 @@ function makePerformanceEntry(name: string, initiatorType: string): PerformanceE
 	};
 }
 
-class FakeObservedScriptElement {
-	readonly textContent: string;
-
-	constructor(readonly src: string, text = '') {
-		this.textContent = text;
-	}
-
-	getAttribute(name: string): string | null {
-		return name === 'src' ? this.src : null;
-	}
-}
-
 afterEach(() => {
 	mutationObservers.length = 0;
 	performanceObservers.length = 0;
@@ -145,7 +271,7 @@ afterEach(() => {
 
 describe('observed page signals', () => {
 	it('starts and stops an observation session with the configured limits', () => {
-		vi.stubGlobal('document', makeDocument());
+		stubDom(makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', undefined);
@@ -153,7 +279,7 @@ describe('observed page signals', () => {
 			getEntriesByType: vi.fn(() => []),
 		});
 
-		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		const observedSignals = observe.create({ throttleMs: 25 });
 		const active = observedSignals.beginObservationSession({
 			sessionId: 'session-1',
 			expectedUrl: 'https://example.com/products',
@@ -178,7 +304,7 @@ describe('observed page signals', () => {
 
 
 	it('stops an active session when the document URL changes', () => {
-		vi.stubGlobal('document', makeDocument());
+		stubDom(makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', undefined);
@@ -186,7 +312,7 @@ describe('observed page signals', () => {
 			getEntriesByType: vi.fn(() => []),
 		});
 
-		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		const observedSignals = observe.create({ throttleMs: 25 });
 		observedSignals.beginObservationSession({
 			sessionId: 'session-1',
 			expectedUrl: 'https://example.com/products',
@@ -203,7 +329,7 @@ describe('observed page signals', () => {
 	});
 
 	it('returns a current document snapshot in the same shape used by collectPageSignals', async () => {
-		vi.stubGlobal('document', makeDocument());
+		stubDom(makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', undefined);
@@ -213,7 +339,7 @@ describe('observed page signals', () => {
 			]),
 		});
 
-		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		const observedSignals = observe.create({ throttleMs: 25 });
 		observedSignals.beginObservationSession({
 			sessionId: 'session-1',
 			expectedUrl: 'https://example.com/products',
@@ -245,7 +371,7 @@ describe('observed page signals', () => {
 	});
 
 	it('skips expensive source text when a snapshot tier does not request it', async () => {
-		vi.stubGlobal('document', makeDocument());
+		stubDom(makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', undefined);
@@ -253,7 +379,7 @@ describe('observed page signals', () => {
 			getEntriesByType: vi.fn(() => []),
 		});
 
-		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		const observedSignals = observe.create({ throttleMs: 25 });
 		const snapshot = await observedSignals.snapshot({
 			includeScriptContent: false,
 			includeStylesheetContent: false,
@@ -267,14 +393,13 @@ describe('observed page signals', () => {
 
 	it('collects late inline source only when the observation session requests it', async () => {
 		vi.useFakeTimers();
-		vi.stubGlobal('document', makeDocument());
+		stubDom(makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', undefined);
-		vi.stubGlobal('HTMLScriptElement', FakeObservedScriptElement);
-		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+				vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
 
-		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		const observedSignals = observe.create({ throttleMs: 25 });
 		observedSignals.beginObservationSession({
 			sessionId: 'session-1',
 			expectedUrl: 'https://example.com/products',
@@ -285,7 +410,7 @@ describe('observed page signals', () => {
 
 		mutationObservers[0]?.callback([{
 			type: 'childList',
-			addedNodes: [new FakeObservedScriptElement('', 'window.__LATE__ = true')] as unknown as NodeList,
+			addedNodes: [new FakeScriptElement('', 'window.__LATE__ = true')] as unknown as NodeList,
 			removedNodes: [] as unknown as NodeList,
 			target: document,
 		} as unknown as MutationRecord], mutationObservers[0] as unknown as MutationObserver);
@@ -306,7 +431,7 @@ describe('observed page signals', () => {
 
 		mutationObservers[0]?.callback([{
 			type: 'childList',
-			addedNodes: [new FakeObservedScriptElement('', 'window.__LATE__ = true')] as unknown as NodeList,
+			addedNodes: [new FakeScriptElement('', 'window.__LATE__ = true')] as unknown as NodeList,
 			removedNodes: [] as unknown as NodeList,
 			target: document,
 		} as unknown as MutationRecord], mutationObservers[0] as unknown as MutationObserver);
@@ -320,14 +445,13 @@ describe('observed page signals', () => {
 
 	it('releases session-only evidence after observation stops', async () => {
 		vi.useFakeTimers();
-		vi.stubGlobal('document', makeDocument());
+		stubDom(makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', undefined);
-		vi.stubGlobal('HTMLScriptElement', FakeObservedScriptElement);
-		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+				vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
 
-		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		const observedSignals = observe.create({ throttleMs: 25 });
 		observedSignals.beginObservationSession({
 			sessionId: 'session-memory',
 			expectedUrl: 'https://example.com/products',
@@ -338,7 +462,7 @@ describe('observed page signals', () => {
 
 		mutationObservers[0]?.callback([{
 			type: 'childList',
-			addedNodes: [new FakeObservedScriptElement('https://example.com/late-session-only.js')] as unknown as NodeList,
+			addedNodes: [new FakeScriptElement('https://example.com/late-session-only.js')] as unknown as NodeList,
 			removedNodes: [] as unknown as NodeList,
 			target: document,
 		} as unknown as MutationRecord], mutationObservers[0] as unknown as MutationObserver);
@@ -362,14 +486,13 @@ describe('observed page signals', () => {
 
 	it('bounds retained script sources while a long-lived observation is active', async () => {
 		vi.useFakeTimers();
-		vi.stubGlobal('document', makeDocument());
+		stubDom(makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', undefined);
-		vi.stubGlobal('HTMLScriptElement', FakeObservedScriptElement);
-		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+				vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
 
-		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		const observedSignals = observe.create({ throttleMs: 25 });
 		observedSignals.beginObservationSession({
 			sessionId: 'session-bounded-sources',
 			expectedUrl: 'https://example.com/products',
@@ -380,7 +503,7 @@ describe('observed page signals', () => {
 
 		const mutations = Array.from({ length: SOURCE_LIMITS.scriptSrc + 50 }, (_item, index) => ({
 			type: 'childList',
-			addedNodes: [new FakeObservedScriptElement(`https://example.com/late-${index}.js`)] as unknown as NodeList,
+			addedNodes: [new FakeScriptElement(`https://example.com/late-${index}.js`)] as unknown as NodeList,
 			removedNodes: [] as unknown as NodeList,
 			target: document,
 		} as unknown as MutationRecord));
@@ -396,7 +519,7 @@ describe('observed page signals', () => {
 	});
 
 	it('flushes normalized observations from the current observer snapshot', async () => {
-		vi.stubGlobal('document', makeDocument());
+		stubDom(makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', undefined);
@@ -406,7 +529,7 @@ describe('observed page signals', () => {
 			]),
 		});
 
-		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		const observedSignals = observe.create({ throttleMs: 25 });
 		observedSignals.beginObservationSession({
 			sessionId: 'session-1',
 			expectedUrl: 'https://example.com/products',
@@ -433,16 +556,15 @@ describe('observed page signals', () => {
 	 */
 	it('notifies when throttled mutation scans queue late observations', async () => {
 		vi.useFakeTimers();
-		vi.stubGlobal('document', makeDocument());
+		stubDom(makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', undefined);
-		vi.stubGlobal('HTMLScriptElement', FakeObservedScriptElement);
-		vi.stubGlobal('performance', {
+				vi.stubGlobal('performance', {
 			getEntriesByType: vi.fn(() => []),
 		});
 		const queued = vi.fn();
-		const observedSignals = createObservedPageSignals({
+		const observedSignals = observe.create({
 			throttleMs: 25,
 			onObservationBatchQueued: queued,
 		});
@@ -457,7 +579,7 @@ describe('observed page signals', () => {
 		mutationObservers[0]?.callback([
 			{
 				type: 'childList',
-				addedNodes: [new FakeObservedScriptElement('https://example.com/late.js')] as unknown as NodeList,
+				addedNodes: [new FakeScriptElement('https://example.com/late.js')] as unknown as NodeList,
 				removedNodes: [] as unknown as NodeList,
 				target: document,
 			} as unknown as MutationRecord,
@@ -474,9 +596,158 @@ describe('observed page signals', () => {
 		expect(queued.mock.calls[0]?.[0].stats.acceptedCount).toBeGreaterThan(0);
 	});
 
+
+	it('rechecks an existing right sibling when a new left sibling activates a registry selector', async () => {
+		vi.useFakeTimers();
+		const parent = new FakeElement('main');
+		const right = new FakeElement('noscript');
+		parent.append(right);
+		const document = new FakeDocument([parent]);
+		stubDom(document);
+		vi.stubGlobal('location', { href: 'https://example.com/products' });
+		vi.stubGlobal('MutationObserver', FakeMutationObserver);
+		vi.stubGlobal('PerformanceObserver', undefined);
+		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+
+		const observedSignals = observe.create({ throttleMs: 25 });
+		observedSignals.beginObservationSession({
+			sessionId: 'session-sibling',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: 10,
+			maxMutations: 100,
+			domSelectorPlan: dom.create(['gt-root + noscript']),
+		});
+
+		const left = new FakeElement('gt-root');
+		parent.insertBefore(left, right);
+		mutationObservers[0]?.callback([{
+			type: 'childList',
+			addedNodes: [left] as unknown as NodeList,
+			removedNodes: [] as unknown as NodeList,
+			previousSibling: null,
+			nextSibling: right,
+			target: parent,
+		} as unknown as MutationRecord], mutationObservers[0] as unknown as MutationObserver);
+		await vi.advanceTimersByTimeAsync(25);
+
+		const flush = await observedSignals.flushObservationBatch();
+		expect(flush.batch?.observations).toEqual(expect.arrayContaining([
+			expect.objectContaining({ kind: 'dom', key: 'gt-root + noscript', value: true }),
+		]));
+	});
+
+	it('rechecks the surviving right sibling when removal creates a new adjacency', async () => {
+		vi.useFakeTimers();
+		const left = new FakeElement('gt-root');
+		const middle = new FakeElement('div');
+		const right = new FakeElement('noscript');
+		const parent = new FakeElement('main');
+		parent.append(left, middle, right);
+		const document = new FakeDocument([parent]);
+		stubDom(document);
+		vi.stubGlobal('location', { href: 'https://example.com/products' });
+		vi.stubGlobal('MutationObserver', FakeMutationObserver);
+		vi.stubGlobal('PerformanceObserver', undefined);
+		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+
+		const observedSignals = observe.create({ throttleMs: 25 });
+		observedSignals.beginObservationSession({
+			sessionId: 'session-removal',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: 10,
+			maxMutations: 100,
+			domSelectorPlan: dom.create(['gt-root + noscript']),
+		});
+
+		parent.remove(middle);
+		mutationObservers[0]?.callback([{
+			type: 'childList',
+			addedNodes: [] as unknown as NodeList,
+			removedNodes: [middle] as unknown as NodeList,
+			previousSibling: left,
+			nextSibling: right,
+			target: parent,
+		} as unknown as MutationRecord], mutationObservers[0] as unknown as MutationObserver);
+		await vi.advanceTimersByTimeAsync(25);
+
+		const flush = await observedSignals.flushObservationBatch();
+		expect(flush.batch?.observations).toEqual(expect.arrayContaining([
+			expect.objectContaining({ kind: 'dom', key: 'gt-root + noscript', value: true }),
+		]));
+	});
+
+	it('shares one subtree traversal across resource evidence and selector matching', async () => {
+		vi.useFakeTimers();
+		const root = new FakeElement('section');
+		root.append(new FakeScriptElement('/late.js'), new FakeImageElement('/late.png'));
+		const document = new FakeDocument([root]);
+		stubDom(document);
+		vi.stubGlobal('location', { href: 'https://example.com/products' });
+		vi.stubGlobal('MutationObserver', FakeMutationObserver);
+		vi.stubGlobal('PerformanceObserver', undefined);
+		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+
+		const observedSignals = observe.create({ throttleMs: 25 });
+		observedSignals.beginObservationSession({
+			sessionId: 'session-traversal',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: 10,
+			maxMutations: 100,
+			domSelectorPlan: dom.create(['script[src]']),
+		});
+
+		mutationObservers[0]?.callback([{
+			type: 'childList',
+			addedNodes: [root] as unknown as NodeList,
+			removedNodes: [] as unknown as NodeList,
+			target: document.documentElement,
+		} as unknown as MutationRecord], mutationObservers[0] as unknown as MutationObserver);
+		await observedSignals.flushObservationBatch();
+
+		expect(root.queryCount).toBe(1);
+	});
+
+	it('does not reread the full CSSOM for a subtree mutation', async () => {
+		vi.useFakeTimers();
+		const document = makeDocument();
+		stubDom(document);
+		vi.stubGlobal('location', { href: 'https://example.com/products' });
+		vi.stubGlobal('MutationObserver', FakeMutationObserver);
+		vi.stubGlobal('PerformanceObserver', undefined);
+		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+
+		const style = new FakeStyleElement('.late { display: block; }');
+		document.documentElement.append(style);
+		const observedSignals = observe.create({ throttleMs: 25 });
+		observedSignals.beginObservationSession({
+			sessionId: 'session-cssom',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: 10,
+			maxMutations: 100,
+			includeStylesheetContent: true,
+		});
+
+		mutationObservers[0]?.callback([{
+			type: 'childList',
+			addedNodes: [style] as unknown as NodeList,
+			removedNodes: [] as unknown as NodeList,
+			target: document.documentElement,
+		} as unknown as MutationRecord], mutationObservers[0] as unknown as MutationObserver);
+		const flush = await observedSignals.flushObservationBatch();
+
+		expect(document.styleSheetReadCount).toBe(0);
+		expect(flush.batch?.observations).toEqual(expect.arrayContaining([
+			expect.objectContaining({ kind: 'stylesheetContent', value: '.late { display: block; }' }),
+		]));
+	});
+
 	it('keeps MutationObserver callbacks free of descendant selector scans', () => {
 		vi.useFakeTimers();
-		vi.stubGlobal('document', makeDocument());
+		stubDom(makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', undefined);
@@ -496,7 +767,7 @@ describe('observed page signals', () => {
 		}
 		vi.stubGlobal('Element', FakeContainerElement);
 
-		const observedSignals = createObservedPageSignals({ throttleMs: 25 });
+		const observedSignals = observe.create({ throttleMs: 25 });
 		observedSignals.beginObservationSession({
 			sessionId: 'session-1',
 			expectedUrl: 'https://example.com/products',
@@ -518,7 +789,7 @@ describe('observed page signals', () => {
 
 	it('uses PerformanceObserver entries without rescanning the full resource timeline', async () => {
 		vi.useFakeTimers();
-		vi.stubGlobal('document', makeDocument());
+		stubDom(makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', FakePerformanceObserver);
@@ -528,7 +799,7 @@ describe('observed page signals', () => {
 		vi.stubGlobal('performance', { getEntriesByType });
 
 		const queued = vi.fn();
-		const observedSignals = createObservedPageSignals({ throttleMs: 25, onObservationBatchQueued: queued });
+		const observedSignals = observe.create({ throttleMs: 25, onObservationBatchQueued: queued });
 		observedSignals.beginObservationSession({
 			sessionId: 'session-1',
 			expectedUrl: 'https://example.com/products',
@@ -551,15 +822,54 @@ describe('observed page signals', () => {
 		]));
 	});
 
+	it('rejects late resource callbacks from a superseded observation session', async () => {
+		vi.useFakeTimers();
+		stubDom(makeDocument());
+		vi.stubGlobal('location', { href: 'https://example.com/products' });
+		vi.stubGlobal('MutationObserver', FakeMutationObserver);
+		vi.stubGlobal('PerformanceObserver', FakePerformanceObserver);
+		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
+
+		const observedSignals = observe.create({ throttleMs: 25 });
+		observedSignals.beginObservationSession({
+			sessionId: 'session-1',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: 10,
+			maxMutations: 100,
+		});
+		const staleObserver = performanceObservers[0]!;
+
+		observedSignals.beginObservationSession({
+			sessionId: 'session-2',
+			expectedUrl: 'https://example.com/products',
+			durationMs: 1_000,
+			maxPendingNodes: 10,
+			maxMutations: 100,
+		});
+		const currentObserver = performanceObservers[1]!;
+
+		staleObserver.emit([makePerformanceEntry('https://example.com/stale.js', 'script')]);
+		currentObserver.emit([makePerformanceEntry('https://example.com/current.js', 'script')]);
+		await vi.advanceTimersByTimeAsync(25);
+
+		const flush = await observedSignals.flushObservationBatch();
+		const resourceUrls = flush.batch?.observations
+			.filter((observation) => observation.kind === 'resourceUrl')
+			.map((observation) => observation.value) ?? [];
+		expect(resourceUrls).toContain('https://example.com/current.js');
+		expect(resourceUrls).not.toContain('https://example.com/stale.js');
+	});
+
 	it('coalesces resource-only dirty notifications to the observer throttle', async () => {
 		vi.useFakeTimers();
-		vi.stubGlobal('document', makeDocument());
+		stubDom(makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', FakePerformanceObserver);
 		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
 		const queued = vi.fn();
-		const observedSignals = createObservedPageSignals({ throttleMs: 25, onObservationBatchQueued: queued });
+		const observedSignals = observe.create({ throttleMs: 25, onObservationBatchQueued: queued });
 		observedSignals.beginObservationSession({
 			sessionId: 'session-1',
 			expectedUrl: 'https://example.com/products',
@@ -578,13 +888,13 @@ describe('observed page signals', () => {
 
 	it('does not publish another dirty notification for an explicit background flush', async () => {
 		vi.useFakeTimers();
-		vi.stubGlobal('document', makeDocument());
+		stubDom(makeDocument());
 		vi.stubGlobal('location', { href: 'https://example.com/products' });
 		vi.stubGlobal('MutationObserver', FakeMutationObserver);
 		vi.stubGlobal('PerformanceObserver', FakePerformanceObserver);
 		vi.stubGlobal('performance', { getEntriesByType: vi.fn(() => []) });
 		const queued = vi.fn();
-		const observedSignals = createObservedPageSignals({ throttleMs: 25, onObservationBatchQueued: queued });
+		const observedSignals = observe.create({ throttleMs: 25, onObservationBatchQueued: queued });
 		observedSignals.beginObservationSession({
 			sessionId: 'session-1',
 			expectedUrl: 'https://example.com/products',

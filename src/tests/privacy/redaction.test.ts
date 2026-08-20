@@ -39,4 +39,9 @@ describe('evidence redaction', () => {
 		);
 	});
 
+	it('keeps phone-shaped runtime identifiers visible in diagnostics', () => {
+		expect(redactDiagnosticValue('tabId=1504265247')).toBe('tabId=1504265247');
+		expect(redactDiagnosticValue('matcher:1504265096:1787213934208')).toBe('matcher:1504265096:1787213934208');
+	});
+
 });

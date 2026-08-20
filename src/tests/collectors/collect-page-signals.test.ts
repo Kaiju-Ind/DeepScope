@@ -9,7 +9,6 @@ import {
 	collectScriptSources,
 	collectStylesheetContents,
 	collectStylesheetSources,
-	mergeObservedDomSelectorMatches,
 } from '@/lib/content/collect-page-signals';
 
 function makeScript(input: { src?: string; text?: string }): HTMLScriptElement {
@@ -106,23 +105,6 @@ describe('content page signal collectors', () => {
 	});
 
 
-	it('keeps previously observed DOM selector matches sticky across later scans', () => {
-		const observed = {
-			'[data-nextjs-router]': true,
-			'[data-transient-widget]': true,
-		};
-		const current = {
-			'[data-nextjs-router]': false,
-			'[data-current-widget]': true,
-		};
-
-		expect(mergeObservedDomSelectorMatches(observed, current)).toEqual({
-			'[data-nextjs-router]': true,
-			'[data-transient-widget]': true,
-			'[data-current-widget]': true,
-		});
-	});
-
 	it('collects inline source text without external script bodies', () => {
 		expect(collectScriptContents([
 			makeScript({ src: '/app.js', text: 'console.log("external")' }),
@@ -185,7 +167,6 @@ describe('content page signal limits', () => {
 		};
 
 		const signals = await collectPageSignals({
-			selectorProbeList: [],
 			includeScriptContent: true,
 			includeStylesheetContent: true,
 			includeStorageKeys: false,
@@ -209,7 +190,6 @@ describe('content page signal limits', () => {
 
 		const { collectPageSignals } = await import('@/lib/content/collect-page-signals');
 		const signals = await collectPageSignals({
-			selectorProbeList: [],
 			includeScriptContent: false,
 			includeStylesheetContent: false,
 			includeStorageKeys: false,

@@ -54,7 +54,9 @@ describe('registry compiler', () => {
 			{ kind: 'implies', sourceId: 'example-framework', targetId: 'example-runtime' },
 		]);
 		expect(artifact.collectionPlan).toMatchObject({
-			selectorProbeList: ['[data-example-framework]'],
+			initial: {
+				domSelectorPlan: { selectors: ['[data-example-framework]'] },
+			},
 		});
 		expect(artifact.diagnostics).toEqual([]);
 	});

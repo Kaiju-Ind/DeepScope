@@ -1,6 +1,9 @@
-import type { ObservationSessionState } from '@/lib/content/observed-page-signals';
+import type * as observe from '@/lib/content/observe';
 import type { AnalyzeVisibleTabOutput } from '@/lib/messaging/analysis';
-import type { DetectionSessionSnapshot } from '@/lib/storage/session';
+import {
+	DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION,
+	type DetectionSessionSnapshot,
+} from '@/lib/storage/session';
 import type {
 	CategoryId,
 	ConfidenceScore,
@@ -68,7 +71,7 @@ export function makeDetectionSessionSnapshot(
 
 	return {
 		key,
-		schemaVersion: overrides.schemaVersion ?? 1,
+		schemaVersion: overrides.schemaVersion ?? DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION,
 		revision: overrides.revision ?? 1,
 		urlHash: overrides.urlHash ?? 'url-example-products',
 		hostname: overrides.hostname ?? analysis.hostname,
@@ -189,9 +192,9 @@ export function makePageSignals(overrides: Partial<PageSignals> = {}): PageSigna
  * Create an observation-session fixture for lifecycle, side panel, and background tests.
  */
 export function makeObservationSession(
-	status: ObservationSessionState['status'] = 'idle',
-	overrides: Partial<ObservationSessionState> = {},
-): ObservationSessionState {
+	status: observe.StateType['status'] = 'idle',
+	overrides: Partial<observe.StateType> = {},
+): observe.StateType {
 	return {
 		sessionId: overrides.sessionId ?? 'session-1',
 		expectedUrl: overrides.expectedUrl ?? 'https://example.com/products',

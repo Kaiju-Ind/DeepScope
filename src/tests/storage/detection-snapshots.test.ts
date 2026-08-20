@@ -33,6 +33,13 @@ afterEach(() => {
 });
 
 describe.sequential('detection session snapshots', () => {
+	it('rejects superseded version 1 snapshot records', async () => {
+		const storage = await loadStorageHarness();
+		const obsoleteSnapshot = { ...makeDetectionSessionSnapshot(), schemaVersion: 1 };
+
+		expect(storage.isDetectionSessionSnapshot(obsoleteSnapshot)).toBe(false);
+	});
+
 	it('writes a first snapshot with revision 1', async () => {
 		const storage = await loadStorageHarness();
 		const snapshot = makeDetectionSessionSnapshot({ revision: 1 });
@@ -128,6 +135,7 @@ describe.sequential('detection session snapshots', () => {
 			matcherProgress: {
 				jobId: 'job-preview',
 				mode: 'initial',
+				phase: 'matching',
 				completedPartitionCount: 3,
 				partitionCount: 10,
 				latestPartitionKind: 'resourceUrl',
@@ -506,7 +514,7 @@ describe.sequential('detection session snapshots', () => {
 
 	/**
 	 * Matcher executor metadata records whether a revision came from the normal
-	 * offscreen worker pool or a slower fallback. Persisting it with the snapshot
+	 * offscreen worker pool or the explicit development executor. Persisting it with the snapshot
 	 * keeps performance diagnostics tied to the visible detector state without
 	 * exposing the executor in the side panel.
 	 */
