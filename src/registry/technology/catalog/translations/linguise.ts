@@ -28,12 +28,6 @@ export const linguiseTechnologyDefinition: TechnologyDefinition = {
 			property: 'linguise_configs',
 			description: 'Page-owned global matches a known technology marker.',
 		},
-		{
-			id: 'linguise:dom:3',
-			kind: 'dom',
-			selector: "script[type='linguise/json]",
-			description: 'DOM selector matches a known technology marker.',
-		},
 	],
 	metadata: {
 		saas: true,

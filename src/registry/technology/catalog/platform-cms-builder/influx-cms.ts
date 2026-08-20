@@ -32,12 +32,6 @@ export const influxCmsTechnologyDefinition: TechnologyDefinition = {
 			valuePattern: new RegExp('^influx cms$', 'i'),
 			description: 'Meta tag matches a known technology marker.',
 		},
-		{
-			id: 'influx-cms:dom:3',
-			kind: 'dom',
-			selector: "a[href*='www.influxmarketing.com'] > svg[class*='influx-footer-logo'",
-			description: 'DOM selector matches a known technology marker.',
-		},
 	],
 	metadata: {
 		saas: true,
