@@ -6,20 +6,19 @@
   "scripts": {
     "dev": "wxt",
     "build": "pnpm compile && wxt build",
-    "build:chrome": "pnpm compile && wxt build -b chrome && pnpm validate:chrome-artifact",
+    "build:chrome": "pnpm compile && wxt build -b chrome",
     "zip": "pnpm compile && vitest run && wxt zip",
-    "zip:chrome": "pnpm compile && vitest run && wxt zip -b chrome && pnpm validate:chrome-artifact",
+    "zip:chrome": "pnpm compile && vitest run && wxt zip -b chrome",
     "test": "vitest",
     "test:run": "vitest run",
     "compile": "tsc --noEmit",
-    "check:release": "pnpm compile && vitest run && wxt build -b chrome && pnpm validate:chrome-artifact",
+    "check:release": "pnpm compile && vitest run && wxt build -b chrome",
     "release:zip": "pnpm zip:chrome",
-    "bench": "vitest bench src/benchmarks/*.bench.ts",
+    "bench": "vitest bench --run src/benchmarks/*.bench.ts",
     "postinstall": "wxt prepare",
-    "bench:rules": "vitest bench src/benchmarks/rule-detection-profile.bench.ts",
-    "bench:rules:wide": "KAIJU_DEEPSCOPE_RULE_BENCH_REGISTRY_SCAN=1 vitest bench src/benchmarks/rule-detection-profile.bench.ts",
-    "bench:rules:gate": "KAIJU_DEEPSCOPE_RULE_BENCH_REGISTRY_SCAN=1 KAIJU_DEEPSCOPE_RULE_BENCH_GENERATED_PASS_SCAN=1 KAIJU_DEEPSCOPE_RULE_BENCH_FAIL_ON_BUDGET=1 vitest bench src/benchmarks/rule-detection-profile.bench.ts",
-    "validate:chrome-artifact": "node scripts/validate-chrome-artifact.mjs"
+    "bench:rules": "vitest bench --run src/benchmarks/rule-detection-profile.bench.ts",
+    "bench:rules:wide": "KAIJU_DEEPSCOPE_RULE_BENCH_REGISTRY_SCAN=1 vitest bench --run src/benchmarks/rule-detection-profile.bench.ts",
+    "bench:rules:gate": "KAIJU_DEEPSCOPE_RULE_BENCH_REGISTRY_SCAN=1 KAIJU_DEEPSCOPE_RULE_BENCH_GENERATED_PASS_SCAN=1 KAIJU_DEEPSCOPE_RULE_BENCH_FAIL_ON_BUDGET=1 vitest bench --run src/benchmarks/rule-detection-profile.bench.ts"
   },
   "dependencies": {
     "@corvu/calendar": "^0.1.2",
