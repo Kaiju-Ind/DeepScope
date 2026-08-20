@@ -6,7 +6,7 @@ import {
 } from '@/lib/collectors/planning';
 import type { ExtensionPageCollectorInput } from '@/lib/collectors/extension-page-collector';
 import { DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION } from '@/lib/storage/session';
-import type { ObservationSessionState } from '@/lib/content/observed-page-signals';
+import type * as observe from '@/lib/content/observe';
 import type { ContentPageSessionSnapshotTarget } from '@/lib/messaging/analysis';
 import type {
 	DetectionEnrichmentState,
@@ -60,10 +60,12 @@ import {
 import { errorResponse, extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
 import {
 	MATCHER_OFFSCREEN_CHANNEL,
+	MatcherError,
 	createMatcherPipelineResult,
 	type MatcherJobMode,
 	type MatcherJobRecord,
 	type MatcherJobRunResult,
+	type MatcherJobStateMessage,
 	type MatcherPartitionProgressMessage,
 	type MatcherPartitionResult,
 	type RunMatcherJobRequest,
@@ -102,7 +104,6 @@ export interface BackgroundRuntimeDependencies {
 	readonly registryProvider: Pick<TechnologyRegistryProvider, 'getCompiledRegistry'>;
 	readonly matcher: {
 		readonly cancelJob: (jobId: string) => Promise<void>;
-		readonly ensureOffscreenDocument: () => Promise<boolean>;
 		readonly runJob: (request: RunMatcherJobRequest) => Promise<MatcherJobRunResult>;
 	};
 	readonly persistence: BackgroundDetectionPersistence;
@@ -269,7 +270,7 @@ export function createBackgroundRuntime(
 		/** Cache status attached to partial side-panel outputs. */
 		readonly snapshotStatus: AnalyzeVisibleTabOutput['snapshot']['status'];
 		/** Active observation session, when the side panel asked for live updates. */
-		readonly session?: ObservationSessionState;
+		readonly session?: observe.StateType;
 		/** Matcher executor path known for partial snapshot revisions. */
 		matcherExecutor: DetectionSessionSnapshot['matcherExecutor'];
 		/** Evidence completeness attached to partial and final snapshot writes. */
@@ -294,7 +295,7 @@ export function createBackgroundRuntime(
 	function retainObservationRefreshBaseline(
 		tab: InspectableTab,
 		batch: ObservationBatch,
-		session?: ObservationSessionState,
+		session?: observe.StateType,
 	): void {
 		const tabId = tab.id;
 		if (!session?.sessionId || !canRefreshObservationSession(session)) {
@@ -323,7 +324,7 @@ export function createBackgroundRuntime(
 	/** Return the retained batch only when the requesting content session still owns it. */
 	function getObservationRefreshBaseline(
 		tabId: number,
-		session?: ObservationSessionState,
+		session?: observe.StateType,
 	): ObservationBatch | undefined {
 		if (!session?.sessionId || !canRefreshObservationSession(session)) {
 			return undefined;
@@ -695,7 +696,7 @@ export function createBackgroundRuntime(
 		return snapshot;
 	}
 
-	function summarizeSession(session: ObservationSessionState): Record<string, unknown> {
+	function summarizeSession(session: observe.StateType): Record<string, unknown> {
 		return {
 			sessionId: session.sessionId,
 			status: session.status,
@@ -712,7 +713,7 @@ export function createBackgroundRuntime(
 			technologyCount: artifact.technologies.length,
 			ruleCount,
 			diagnosticCount: artifact.diagnostics.length,
-			initialSelectorProbeCount: artifact.collectionPlan.initial.selectorProbeList.length,
+			initialDomSelectorCount: artifact.collectionPlan.initial.domSelectorPlan.selectors.length,
 			initialJsGlobalProbeCount: artifact.collectionPlan.initial.jsGlobalPropertyList.length,
 			enrichmentHtmlProbeCount: artifact.collectionPlan.enrichment.htmlProbeList.length,
 		};
@@ -893,7 +894,7 @@ export function createBackgroundRuntime(
 	function createAnalysisOutput(
 		analysis: SiteAnalysis,
 		snapshotStatus: AnalyzeVisibleTabOutput['snapshot']['status'],
-		session?: ObservationSessionState,
+		session?: observe.StateType,
 		replayTrace?: AnalyzeVisibleTabOutput['replayTrace'],
 		replayHistory?: AnalyzeVisibleTabOutput['replayHistory'],
 		sessionTarget?: ObservationSessionTarget,
@@ -918,7 +919,7 @@ export function createBackgroundRuntime(
 
 	function createObservationSessionTarget(
 		tab: InspectableTab,
-		session?: ObservationSessionState,
+		session?: observe.StateType,
 	): ObservationSessionTarget | undefined {
 		if (!session?.sessionId || !session.expectedUrl) {
 			return undefined;
@@ -963,7 +964,7 @@ export function createBackgroundRuntime(
 	 * Snapshots are the durable channel that lets an open side panel update without a
 	 * polling loop and lets a reopened side panel recover state after background shutdown.
 	 */
-	async function saveDetectionSnapshotForPanel(
+	async function savePanelSnapshot(
 		tab: InspectableTab,
 		output: AnalyzeVisibleTabOutput,
 		source: DetectionSessionSnapshotSource,
@@ -976,7 +977,7 @@ export function createBackgroundRuntime(
 		}
 
 		const key = createDetectionSessionKeyForOutput(tab, output);
-		await enqueueSnapshotWrite(key, async () => {
+		await queueSnapshotWrite(key, async () => {
 			const existing = await getLatestDetectionSessionSnapshot(key);
 			const replaySummary = shouldAttachReplaySummaryToSnapshot(output)
 				? createReplaySummary(output.replayTrace)
@@ -1016,16 +1017,16 @@ export function createBackgroundRuntime(
 	}
 
 	/** Build a stable key for ordered writes to one exact visible page session. */
-	function createSnapshotWriteQueueKey(key: DetectionSessionKey): string {
+	function getSnapshotQueueKey(key: DetectionSessionKey): string {
 		return `${key.tabId}:${key.frameId}:${key.originHash}:${key.documentId}`;
 	}
 
 	/** Serialize revision assignment and storage writes for one exact session. */
-	function enqueueSnapshotWrite(
+	function queueSnapshotWrite(
 		key: DetectionSessionKey,
 		operation: () => Promise<void>,
 	): Promise<void> {
-		const queueKey = createSnapshotWriteQueueKey(key);
+		const queueKey = getSnapshotQueueKey(key);
 		const previous = snapshotWriteQueueBySession.get(queueKey) ?? Promise.resolve();
 		const next = previous
 			.catch(() => undefined)
@@ -1166,7 +1167,7 @@ export function createBackgroundRuntime(
 	}
 
 	function validateObservationSessionTarget(
-		actual: ObservationSessionState,
+		actual: observe.StateType,
 		expected: ObservationSessionTarget,
 	): ExtensionResult<void> {
 		if (actual.sessionId !== expected.sessionId) {
@@ -1188,7 +1189,7 @@ export function createBackgroundRuntime(
 
 	async function getObservationSessionStateForTab(
 		tabId: number,
-	): Promise<ExtensionResult<ObservationSessionState>> {
+	): Promise<ExtensionResult<observe.StateType>> {
 		const contentApi = createContentApiClient(tabId, 0);
 
 		try {
@@ -1292,7 +1293,7 @@ export function createBackgroundRuntime(
 			endTimingSpan(totalSpan, { ok: false, failedAt: 'recover-or-merge' });
 			return batchResponse;
 		}
-		if (!await canPersistMatcherResult(tab, batchResponse.value.target.url)) {
+		if (!await canSaveMatcher(tab, batchResponse.value.target.url)) {
 			await stopFailedFreshObservation(tab, flush.session, 'refresh-tab-deactivated');
 			endTimingSpan(totalSpan, { ok: false, failedAt: 'refresh-tab-deactivated' });
 			return errorResponse('VALIDATION_ERROR', 'The visible tab changed before refresh matcher work could start.');
@@ -1315,7 +1316,7 @@ export function createBackgroundRuntime(
 				complete: remainingEvidencePasses.length === 0,
 				reason: 'late-observation-refresh',
 			});
-		const refreshMatcher = enqueueAnalysisPersistence({
+		const refreshMatcher = queueAnalysis({
 			tab,
 			batch: batchResponse.value,
 			compiledRegistryArtifact,
@@ -1386,7 +1387,7 @@ export function createBackgroundRuntime(
 	async function beginObservationSessionForTab(
 		tab: InspectableTab,
 		compiledRegistryArtifact: CompiledRegistry,
-	): Promise<ExtensionResult<ObservationSessionState>> {
+	): Promise<ExtensionResult<observe.StateType>> {
 		const sessionId = crypto.randomUUID();
 		logBackgroundEvent('observation-start-requested', {
 			...summarizeTab(tab),
@@ -1432,7 +1433,7 @@ export function createBackgroundRuntime(
 	async function stopObservationSessionForTab(
 		tabId: number,
 		target: Pick<ObservationSessionTarget, 'sessionId' | 'expectedUrl'>,
-	): Promise<ExtensionResult<ObservationSessionState>> {
+	): Promise<ExtensionResult<observe.StateType>> {
 		logBackgroundEvent('observation-stop-requested', { tabId, sessionId: target.sessionId });
 		const contentApi = createContentApiClient(tabId, 0);
 
@@ -1459,7 +1460,7 @@ export function createBackgroundRuntime(
 	/** Stop an observer that started for a fresh analysis which cannot return an owner target. */
 	async function stopFailedFreshObservation(
 		tab: InspectableTab,
-		session: ObservationSessionState | undefined,
+		session: observe.StateType | undefined,
 		failedAt: string,
 	): Promise<void> {
 		const target = createObservationSessionTarget(tab, session);
@@ -1525,7 +1526,7 @@ export function createBackgroundRuntime(
 			return errorResponse('VALIDATION_ERROR', 'No collection pass was available for the active registry.');
 		}
 
-		let session: ObservationSessionState | undefined;
+		let session: observe.StateType | undefined;
 		if (shouldStartObservationForAnalysis(input)) {
 			const sessionResponse = await timeAsyncSpan(
 				'background.observation-session.begin',
@@ -1565,7 +1566,7 @@ export function createBackgroundRuntime(
 			endTimingSpan(totalSpan, { ok: false, failedAt: 'collect-initial' });
 			return batchResponse;
 		}
-		if (!await canPersistMatcherResult(tab, batchResponse.value.target.url)) {
+		if (!await canSaveMatcher(tab, batchResponse.value.target.url)) {
 			activeFreshAnalysisByTab.delete(tab.id);
 			await stopFailedFreshObservation(tab, session, 'tab-deactivated-after-collection');
 			endTimingSpan(totalSpan, { ok: false, failedAt: 'tab-deactivated-after-collection' });
@@ -1573,7 +1574,7 @@ export function createBackgroundRuntime(
 		}
 
 		retainObservationRefreshBaseline(tab, batchResponse.value, session);
-		const initialMatcher = enqueueAnalysisPersistence({
+		const initialMatcher = queueAnalysis({
 			tab,
 			batch: batchResponse.value,
 			compiledRegistryArtifact,
@@ -1643,7 +1644,7 @@ export function createBackgroundRuntime(
 		/** Snapshot reuse state attached to the visible analysis response. */
 		readonly snapshotStatus: AnalyzeVisibleTabOutput['snapshot']['status'];
 		/** Observation session that remains active while enrichment gathers later evidence. */
-		readonly session?: ObservationSessionState;
+		readonly session?: observe.StateType;
 		/** Timing trace shared with the initial side-panel command. */
 		readonly timingTraceId: string;
 		/** Matcher completion that enrichment matching must not overlap. */
@@ -1664,7 +1665,7 @@ export function createBackgroundRuntime(
 		let currentBatch = getObservationRefreshBaseline(input.tab.id, input.session) ?? input.baseBatch;
 		const completedPassIds: CollectionEvidencePass['id'][] = [];
 		for (const pass of input.passes) {
-			if (!await canPersistMatcherResult(input.tab, currentBatch.target.url)) {
+			if (!await canSaveMatcher(input.tab, currentBatch.target.url)) {
 				logBackgroundEvent('evidence-passes-stopped-after-navigation', {
 					...summarizeTab(input.tab),
 					passId: pass.id,
@@ -1689,7 +1690,7 @@ export function createBackgroundRuntime(
 				});
 				continue;
 			}
-			if (!await canPersistMatcherResult(input.tab, passBatch.value.target.url)) {
+			if (!await canSaveMatcher(input.tab, passBatch.value.target.url)) {
 				await stopFailedFreshObservation(input.tab, input.session, 'evidence-pass-tab-deactivated');
 				logBackgroundEvent('evidence-passes-stopped-after-navigation', {
 					...summarizeTab(input.tab),
@@ -1720,7 +1721,7 @@ export function createBackgroundRuntime(
 			timingTraceId: input.timingTraceId,
 		});
 		await input.waitForPreviousMatcherCompletion;
-		if (!await canPersistMatcherResult(input.tab, currentBatch.target.url)) {
+		if (!await canSaveMatcher(input.tab, currentBatch.target.url)) {
 			await stopFailedFreshObservation(input.tab, input.session, 'evidence-pass-tab-deactivated-before-matcher');
 			return;
 		}
@@ -1731,7 +1732,7 @@ export function createBackgroundRuntime(
 			timingTraceId: input.timingTraceId,
 		});
 
-		void enqueueAnalysisPersistence({
+		void queueAnalysis({
 			tab: input.tab,
 			batch: currentBatch,
 			compiledRegistryArtifact: input.compiledRegistryArtifact,
@@ -1779,7 +1780,7 @@ export function createBackgroundRuntime(
 		tab: InspectableTab,
 		batch: ObservationBatch,
 		mode: MatcherJobMode,
-		session?: ObservationSessionState,
+		session?: observe.StateType,
 	): MatcherJobRecord {
 		const now = Date.now();
 		const jobId = `matcher:${tab.id}:${now}:${Math.random().toString(36).slice(2)}`;
@@ -1800,17 +1801,17 @@ export function createBackgroundRuntime(
 		};
 	}
 
-	function createVisibleSessionIdForMatcherJob(
+	function getVisibleSessionId(
 		tab: InspectableTab,
 		batch: ObservationBatch,
-		session?: ObservationSessionState,
+		session?: observe.StateType,
 	): VisibleSessionId {
 		const documentId = session?.sessionId ?? createDetectionStorageHash(batch.target.url);
 		const urlHash = createDetectionStorageHash(batch.target.url);
 		return `${tab.id}:0:${documentId}:${urlHash}`;
 	}
 
-	function getMatcherJobMode(value: unknown, _session?: ObservationSessionState): MatcherJobMode {
+	function getMatcherMode(value: unknown, _session?: observe.StateType): MatcherJobMode {
 		if (value === 'complete' || value === 'evidence-pass') {
 			return value;
 		}
@@ -1826,7 +1827,7 @@ export function createBackgroundRuntime(
 	 * should not appear as separate top-level replay runs because the user did not
 	 * start a new scan and the side panel would show duplicate histories for one action.
 	 */
-	function shouldStoreReplayHistoryForMatcherJob(details: Record<string, unknown>): boolean {
+	function shouldStoreReplay(details: Record<string, unknown>): boolean {
 		const refreshKind = details.refreshKind;
 		if (refreshKind === 'queued-continuous-initial' && details.hasFollowUpEnrichment === true) {
 			return false;
@@ -1842,7 +1843,7 @@ export function createBackgroundRuntime(
 		);
 	}
 
-	async function canPersistMatcherResult(tab: InspectableTab, expectedUrl: string): Promise<boolean> {
+	async function canSaveMatcher(tab: InspectableTab, expectedUrl: string): Promise<boolean> {
 		const activeTabId = activeTabByWindow.get(tab.windowId);
 		if (activeTabId !== undefined && activeTabId !== tab.id) {
 			return false;
@@ -1863,58 +1864,47 @@ export function createBackgroundRuntime(
 	}
 
 
-	async function analyzeAndPersistObservationBatch(
+	/**
+	 * Match one observation batch and persist the exact result that remains current.
+	 *
+	 * The active progress map deliberately owns the full batch and compiled registry
+	 * only while this function can still publish progress. Its `finally` block is the
+	 * memory-lifetime invariant: matcher, replay, storage, or badge failures must never
+	 * leave those registry-scale objects reachable from the background runtime.
+	 */
+	async function analyzeBatch(
 		tab: InspectableTab,
 		batch: ObservationBatch,
 		compiledRegistryArtifact: CompiledRegistry,
 		snapshotStatus: AnalyzeVisibleTabOutput['snapshot']['status'],
-		session?: ObservationSessionState,
+		session?: observe.StateType,
 		details: Record<string, unknown> = {},
 		enrichment?: AnalysisEnrichmentState,
 		evidence?: DetectionEvidenceState,
 		timingTraceId?: string,
 		onRegistered?: () => void,
 	): Promise<ExtensionResult<AnalyzeVisibleTabOutput>> {
-		const matcherMode = getMatcherJobMode(details.matcherMode, session);
-		const supersedesVisibleSession = matcherMode === 'complete';
-		const timingContext: TimingContext = {
-			traceId: timingTraceId,
-			surface: 'pipeline',
-			details: {
-				...summarizeTab(tab),
-				snapshotStatus,
-				observationCount: batch.observations.length,
-				refreshKind: details.refreshKind,
-				matcherMode,
-			},
-		};
-		if (!await canPersistMatcherResult(tab, batch.target.url)) {
+		const matcherMode = getMatcherMode(details.matcherMode, session);
+		const timingContext = createMatcherTiming(tab, batch, snapshotStatus, matcherMode, details, timingTraceId);
+		if (!await canSaveMatcher(tab, batch.target.url)) {
 			onRegistered?.();
 			return errorResponse('VALIDATION_ERROR', 'Matcher work was skipped because the tab is no longer active.');
 		}
 
 		const matcherJob = createMatcherJobRecord(tab, batch, matcherMode, session);
-		const visibleSessionId = createVisibleSessionIdForMatcherJob(tab, batch, session);
-		const visibleSessionOwnerJobId = supersedesVisibleSession
+		const visibleSessionId = getVisibleSessionId(tab, batch, session);
+		const supersedesVisibleSession = matcherMode === 'complete';
+		const ownerJobId = supersedesVisibleSession
 			? matcherJob.jobId
 			: latestMatcherJobByVisibleSession.get(visibleSessionId) ?? matcherJob.jobId;
-		if (supersedesVisibleSession) {
-			for (const [activeJobId, context] of activeMatcherProgressByJob) {
-				if (context.visibleSessionId === visibleSessionId && activeJobId !== matcherJob.jobId) {
-					activeMatcherProgressByJob.delete(activeJobId);
-					void cancelMatcherJob(activeJobId, 'newer-job');
-				}
-			}
-		}
+		if (supersedesVisibleSession) cancelSuperseded(visibleSessionId, matcherJob.jobId);
 
 		await saveMatcherJobRecord(matcherJob);
 		latestMatcherJobByTab.set(tab.id, matcherJob.jobId);
-		if (supersedesVisibleSession) {
-			latestMatcherJobByVisibleSession.set(visibleSessionId, matcherJob.jobId);
-		}
+		if (supersedesVisibleSession) latestMatcherJobByVisibleSession.set(visibleSessionId, matcherJob.jobId);
 		activeMatcherProgressByJob.set(matcherJob.jobId, {
 			visibleSessionId,
-			visibleSessionOwnerJobId,
+			visibleSessionOwnerJobId: ownerJobId,
 			tab,
 			batch,
 			compiledRegistryArtifact,
@@ -1927,160 +1917,313 @@ export function createBackgroundRuntime(
 			lastVisibleRevisionAt: 0,
 			lastVisibleResultCount: 0,
 		});
-		await updateMatcherJobRecord(matcherJob.jobId, { status: 'dispatching' });
-		const newestVisibleSessionOwnerJobId = latestMatcherJobByVisibleSession.get(visibleSessionId);
-		if (
-			!activeMatcherProgressByJob.has(matcherJob.jobId) ||
-			(
-				newestVisibleSessionOwnerJobId !== undefined &&
-				newestVisibleSessionOwnerJobId !== visibleSessionOwnerJobId
-			)
-		) {
-			return errorResponse('VALIDATION_ERROR', 'Matcher job was canceled before dispatch started.');
+
+		try {
+			await updateMatcherJobRecord(matcherJob.jobId, { status: 'dispatching' });
+			if (!isMatcherCurrent(matcherJob.jobId, visibleSessionId, ownerJobId)) {
+				return errorResponse('VALIDATION_ERROR', 'Matcher job was canceled before dispatch started.');
+			}
+
+			onRegistered?.();
+			const matcherResult = await runMatcher({
+				tab,
+				job: matcherJob,
+				mode: matcherMode,
+				batch,
+				registry: compiledRegistryArtifact,
+				details,
+				timingContext,
+				timingTraceId,
+			});
+			const progressContext = activeMatcherProgressByJob.get(matcherJob.jobId);
+			if (progressContext) progressContext.matcherExecutor = matcherResult.executor;
+
+			if (!isMatcherCurrent(matcherJob.jobId, visibleSessionId, ownerJobId)) {
+				await cancelMatcherJob(matcherJob.jobId, 'newer-job');
+				return errorResponse('VALIDATION_ERROR', 'Matcher result was superseded by a newer analysis job.');
+			}
+			if (!await canSaveMatcher(tab, batch.target.url)) {
+				await updateMatcherJobRecord(matcherJob.jobId, { status: 'stale', reason: 'navigation' });
+				return errorResponse('VALIDATION_ERROR', 'Matcher result belongs to a document that is no longer active.');
+			}
+
+			const output = await saveMatcher({
+				tab,
+				job: matcherJob,
+				mode: matcherMode,
+				result: matcherResult,
+				observationCount: batch.observations.length,
+				snapshotStatus,
+				session,
+				details,
+				enrichment,
+				evidence,
+				timingContext,
+				timingTraceId,
+			});
+			return extensionSuccess(output);
+		} finally {
+			// This context owns the full observation batch and compiled registry. Every
+			// success, stale-result, cancellation, and persistence failure path must release
+			// it so a failed storage write cannot become a long-lived background retainer.
+			activeMatcherProgressByJob.delete(matcherJob.jobId);
 		}
-		onRegistered?.();
-		let matcherResult: MatcherJobRunResult;
+	}
+
+	type MatcherRunType = {
+		readonly tab: InspectableTab;
+		readonly job: MatcherJobRecord;
+		readonly mode: MatcherJobMode;
+		readonly batch: ObservationBatch;
+		readonly registry: CompiledRegistry;
+		readonly details: Record<string, unknown>;
+		readonly timingContext: TimingContext;
+		readonly timingTraceId?: string;
+	};
+
+	/** Run the isolated matcher and mark worker/runtime failures before they escape. */
+	async function runMatcher(input: MatcherRunType): Promise<MatcherJobRunResult> {
 		logBackgroundEvent('matcher-job-dispatch', {
-			...summarizeTab(tab),
-			jobId: matcherJob.jobId,
-			mode: matcherMode,
-			refreshKind: details.refreshKind,
-			observationCount: batch.observations.length,
-			timingTraceId,
+			...summarizeTab(input.tab),
+			jobId: input.job.jobId,
+			mode: input.mode,
+			refreshKind: input.details.refreshKind,
+			observationCount: input.batch.observations.length,
+			timingTraceId: input.timingTraceId,
 		});
 		try {
-			matcherResult = await timeAsyncSpan(
+			const result = await timeAsyncSpan(
 				'pipeline.run-partitioned-matcher-job',
-				timingContext,
+				input.timingContext,
 				() => dependencies.matcher.runJob({
-					job: matcherJob,
-					mode: matcherMode,
-					batch,
-					registry: compiledRegistryArtifact.technologies,
-					index: compiledRegistryArtifact.matcherIndex,
-					relationshipGraph: compiledRegistryArtifact.relationshipGraph,
+					job: input.job,
+					mode: input.mode,
+					batch: input.batch,
+					registry: input.registry.technologies,
+					index: input.registry.matcherIndex,
+					relationshipGraph: input.registry.relationshipGraph,
 					source: 'fresh',
 				}),
-				(result) => ({
-					resultCount: result.result.analysis.results.length,
-					eventCount: result.result.events.length,
-					partitionCount: result.partitions.length,
-					executor: result.executor,
+				(value) => ({
+					resultCount: value.result.analysis.results.length,
+					eventCount: value.result.events.length,
+					partitionCount: value.partitions.length,
+					executor: value.executor,
 				}),
 			);
+			logBackgroundEvent('matcher-job-matched', {
+				...summarizeTab(input.tab),
+				jobId: input.job.jobId,
+				mode: input.mode,
+				refreshKind: input.details.refreshKind,
+				executor: result.executor,
+				partitionCount: result.partitions.length,
+				resultCount: result.result.analysis.results.length,
+				timingTraceId: input.timingTraceId,
+			});
+			return result;
 		} catch (error) {
-			activeMatcherProgressByJob.delete(matcherJob.jobId);
+			if (error instanceof MatcherError && error.reason === 'canceled') throw error;
+			await updateMatcherJobRecord(input.job.jobId, {
+				status: 'failed',
+				reason: getMatcherFailureReason(error),
+				errorMessage: error instanceof Error ? error.message : String(error),
+			});
 			throw error;
 		}
-		const progressContext = activeMatcherProgressByJob.get(matcherJob.jobId);
-		if (progressContext) {
-			progressContext.matcherExecutor = matcherResult.executor;
-		}
-
-		logBackgroundEvent('matcher-job-complete', {
-			...summarizeTab(tab),
-			jobId: matcherJob.jobId,
-			mode: matcherMode,
-			refreshKind: details.refreshKind,
-			executor: matcherResult.executor,
-			partitionCount: matcherResult.partitions.length,
-			resultCount: matcherResult.result.analysis.results.length,
-			timingTraceId,
-		});
-		if (matcherResult.executor === 'background-fallback') {
-			logBackgroundEvent('matcher-background-fallback', {
-				...summarizeTab(tab),
-				jobId: matcherJob.jobId,
-				partitionCount: matcherResult.partitions.length,
-			});
-		}
-
-		const newestJobId = latestMatcherJobByVisibleSession.get(visibleSessionId);
-		if (newestJobId && newestJobId !== visibleSessionOwnerJobId) {
-			activeMatcherProgressByJob.delete(matcherJob.jobId);
-			await cancelMatcherJob(matcherJob.jobId, 'newer-job');
-			return errorResponse('VALIDATION_ERROR', 'Matcher result was superseded by a newer analysis job.');
-		}
-
-		const cacheable = await canPersistMatcherResult(tab, batch.target.url);
-		if (!cacheable) {
-			activeMatcherProgressByJob.delete(matcherJob.jobId);
-			await updateMatcherJobRecord(matcherJob.jobId, { status: 'stale', reason: 'navigation' });
-			return errorResponse('VALIDATION_ERROR', 'Matcher result belongs to a document that is no longer active.');
-		}
-		await updateMatcherJobRecord(matcherJob.jobId, {
-			status: 'completed',
-			reason: 'completed',
-			partitionCount: matcherResult.partitions.length,
-			completedPartitionCount: matcherResult.partitions.length,
-		});
-		const pipelineResult = matcherResult.result;
-		const replayTrace = timeSyncSpan(
-			'pipeline.create-replay-trace',
-			timingContext,
-			() => createDetectionReplayTrace({ result: pipelineResult, runId: matcherJob.jobId }),
-			(trace) => ({ eventCount: trace.events.length }),
-		);
-		const savedAnalysis = timeSyncSpan(
-			'analysis.normalize-fresh-output',
-			timingContext,
-			() => Object.assign({}, pipelineResult.analysis, { source: 'fresh' as const }),
-			(analysis) => ({ resultCount: analysis.results.length, incognito: tab.incognito }),
-		);
-		const shouldStoreReplayTrace = shouldStoreReplayHistoryForMatcherJob(details);
-		const savedReplayTrace = shouldStoreReplayTrace
-			? await timeAsyncSpan(
-				'storage.save-replay-trace',
-				timingContext,
-				async () => tab.incognito ? replayTrace : await saveReplayTrace(replayTrace),
-				() => ({ incognito: tab.incognito, stored: true }),
-			)
-			: replayTrace;
-		const replayHistory = await timeAsyncSpan(
-			'storage.get-replay-history',
-			timingContext,
-			async () => tab.incognito ? [] : await getCachedReplayTraceHistory(tab.url),
-			(history) => ({
-				replayHistoryCount: history.length,
-				incognito: tab.incognito,
-				storedCurrentRun: shouldStoreReplayTrace,
-			}),
-		);
-		const sessionTarget = createObservationSessionTarget(tab, session);
-
-		logAnalysisSummary(savedAnalysis);
-		void dependencies.setBadge(tab.id, savedAnalysis.results.length, getFinding(savedAnalysis)).catch((error) => {
-			logBackgroundEvent('toolbar-badge-update-failed', {
-				tabId: tab.id,
-				message: error instanceof Error ? error.message : String(error),
-			});
-		});
-		logBackgroundEvent('analysis-event-complete', {
-			...summarizeTab(tab),
-			snapshotStatus,
-			resultCount: savedAnalysis.results.length,
-			observationCount: batch.observations.length,
-			eventCount: pipelineResult.events.length,
-			sessionStatus: session?.status ?? 'none',
-			timingTraceId,
-			...details,
-		});
-
-		const output = createAnalysisOutput(
-			savedAnalysis,
-			snapshotStatus,
-			session,
-			getReplayTraceForAnalysis(savedReplayTrace, savedAnalysis),
-			getReplayHistoryForAnalysis(replayHistory, savedAnalysis),
-			sessionTarget,
-			enrichment,
-			evidence,
-		);
-		await saveDetectionSnapshotForPanel(tab, output, 'background', matcherResult.executor, undefined, evidence);
-		activeMatcherProgressByJob.delete(matcherJob.jobId);
-
-		return extensionSuccess(output);
 	}
+
+	/** Map runtime matcher failures to durable lifecycle reasons without parsing error messages. */
+	function getMatcherFailureReason(error: unknown): MatcherJobRecord['reason'] {
+		if (!(error instanceof MatcherError)) return 'worker-failed';
+		switch (error.reason) {
+			case 'offscreen-unavailable': return 'offscreen-unavailable';
+			case 'queue-full': return 'queue-full';
+			case 'queue-timeout': return 'queue-timeout';
+			case 'run-timeout': return 'matcher-timeout';
+			default: return 'worker-failed';
+		}
+	}
+
+	type MatcherSaveType = {
+		readonly tab: InspectableTab;
+		readonly job: MatcherJobRecord;
+		readonly mode: MatcherJobMode;
+		readonly result: MatcherJobRunResult;
+		readonly observationCount: number;
+		readonly snapshotStatus: AnalyzeVisibleTabOutput['snapshot']['status'];
+		readonly session?: observe.StateType;
+		readonly details: Record<string, unknown>;
+		readonly enrichment?: AnalysisEnrichmentState;
+		readonly evidence?: DetectionEvidenceState;
+		readonly timingContext: TimingContext;
+		readonly timingTraceId?: string;
+	};
+
+	/** Persist replay and final side-panel state after matcher computation has completed. */
+	async function saveMatcher(input: MatcherSaveType): Promise<AnalyzeVisibleTabOutput> {
+		const pipelineResult = input.result.result;
+		const analysis = timeSyncSpan(
+			'analysis.normalize-fresh-output',
+			input.timingContext,
+			() => Object.assign({}, pipelineResult.analysis, { source: 'fresh' as const }),
+			(value) => ({ resultCount: value.results.length, incognito: input.tab.incognito }),
+		);
+		const sessionTarget = createObservationSessionTarget(input.tab, input.session);
+
+		try {
+			await saveRecording(input, analysis, sessionTarget);
+			const replayTrace = timeSyncSpan(
+				'pipeline.create-replay-trace',
+				input.timingContext,
+				() => createDetectionReplayTrace({ result: pipelineResult, runId: input.job.jobId }),
+				(trace) => ({ eventCount: trace.events.length }),
+			);
+			const shouldStoreReplayTrace = shouldStoreReplay(input.details);
+			const savedReplayTrace = shouldStoreReplayTrace
+				? await timeAsyncSpan(
+					'storage.save-replay-trace',
+					input.timingContext,
+					async () => input.tab.incognito ? replayTrace : await saveReplayTrace(replayTrace),
+					() => ({ incognito: input.tab.incognito, stored: true }),
+				)
+				: replayTrace;
+			const replayHistory = await timeAsyncSpan(
+				'storage.get-replay-history',
+				input.timingContext,
+				async () => input.tab.incognito ? [] : await getCachedReplayTraceHistory(input.tab.url),
+				(history) => ({
+					replayHistoryCount: history.length,
+					incognito: input.tab.incognito,
+					storedCurrentRun: shouldStoreReplayTrace,
+				}),
+			);
+
+			logAnalysisSummary(analysis);
+			void dependencies.setBadge(input.tab.id, analysis.results.length, getFinding(analysis)).catch((error) => {
+				logBackgroundEvent('toolbar-badge-update-failed', {
+					tabId: input.tab.id,
+					message: error instanceof Error ? error.message : String(error),
+				});
+			});
+			logBackgroundEvent('analysis-event-complete', {
+				...summarizeTab(input.tab),
+				snapshotStatus: input.snapshotStatus,
+				resultCount: analysis.results.length,
+				observationCount: input.observationCount,
+				eventCount: pipelineResult.events.length,
+				sessionStatus: input.session?.status ?? 'none',
+				timingTraceId: input.timingTraceId,
+				...input.details,
+			});
+
+			const output = createAnalysisOutput(
+				analysis,
+				input.snapshotStatus,
+				input.session,
+				getReplayTraceForAnalysis(savedReplayTrace, analysis),
+				getReplayHistoryForAnalysis(replayHistory, analysis),
+				sessionTarget,
+				input.enrichment,
+				input.evidence,
+			);
+			await savePanelSnapshot(input.tab, output, 'background', input.result.executor, undefined, input.evidence);
+			await updateMatcherJobRecord(input.job.jobId, {
+				status: 'completed',
+				reason: 'completed',
+				partitionCount: input.result.partitions.length,
+				completedPartitionCount: input.result.partitions.length,
+			});
+			logBackgroundEvent('matcher-job-complete', {
+				...summarizeTab(input.tab),
+				jobId: input.job.jobId,
+				mode: input.mode,
+				executor: input.result.executor,
+				partitionCount: input.result.partitions.length,
+				resultCount: analysis.results.length,
+				timingTraceId: input.timingTraceId,
+			});
+			return output;
+		} catch (error) {
+			await updateMatcherJobRecord(input.job.jobId, {
+				status: 'failed',
+				reason: 'persistence-failed',
+				errorMessage: error instanceof Error ? error.message : String(error),
+			});
+			throw error;
+		}
+	}
+
+	/** Publish the final matcher output as a visible recording stage before storage work. */
+	async function saveRecording(
+		input: MatcherSaveType,
+		analysis: SiteAnalysis,
+		sessionTarget: ObservationSessionTarget | undefined,
+	): Promise<void> {
+		await updateMatcherJobRecord(input.job.jobId, {
+			status: 'recording',
+			partitionCount: input.result.partitions.length,
+			completedPartitionCount: input.result.partitions.length,
+		});
+		const output = createAnalysisOutput(
+			analysis,
+			input.snapshotStatus,
+			input.session,
+			undefined,
+			undefined,
+			sessionTarget,
+			input.enrichment,
+			input.evidence,
+		);
+		await savePanelSnapshot(input.tab, output, 'background', input.result.executor, {
+			jobId: input.job.jobId,
+			mode: input.mode,
+			phase: 'recording',
+			completedPartitionCount: input.result.partitions.length,
+			partitionCount: input.result.partitions.length,
+			resultCount: analysis.results.length,
+			updatedAt: Date.now(),
+		}, input.evidence);
+	}
+
+	/** Return whether one matcher still owns the newest visible-session generation. */
+	function isMatcherCurrent(jobId: string, visibleSessionId: VisibleSessionId, ownerJobId: string): boolean {
+		if (!activeMatcherProgressByJob.has(jobId)) return false;
+		const newestJobId = latestMatcherJobByVisibleSession.get(visibleSessionId);
+		return newestJobId === undefined || newestJobId === ownerJobId;
+	}
+
+	/** Cancel older complete matcher jobs before they can publish into the same page session. */
+	function cancelSuperseded(visibleSessionId: VisibleSessionId, jobId: string): void {
+		for (const [activeJobId, context] of activeMatcherProgressByJob) {
+			if (context.visibleSessionId !== visibleSessionId || activeJobId === jobId) continue;
+			activeMatcherProgressByJob.delete(activeJobId);
+			void cancelMatcherJob(activeJobId, 'newer-job');
+		}
+	}
+
+	/** Build timing metadata once so matcher spans share the same stable context. */
+	function createMatcherTiming(
+		tab: InspectableTab,
+		batch: ObservationBatch,
+		snapshotStatus: AnalyzeVisibleTabOutput['snapshot']['status'],
+		matcherMode: MatcherJobMode,
+		details: Record<string, unknown>,
+		timingTraceId?: string,
+	): TimingContext {
+		return {
+			traceId: timingTraceId,
+			surface: 'pipeline',
+			details: {
+				...summarizeTab(tab),
+				snapshotStatus,
+				observationCount: batch.observations.length,
+				refreshKind: details.refreshKind,
+				matcherMode,
+			},
+		};
+	}
+
 
 	/**
 	 * Append late observations to the baseline batch and remove duplicate facts.
@@ -2131,7 +2274,7 @@ export function createBackgroundRuntime(
 
 	async function refreshObservationSessionTarget(
 		target: ObservationSessionTarget,
-		knownSession?: ObservationSessionState,
+		knownSession?: observe.StateType,
 	): Promise<ExtensionResult<AnalyzeVisibleTabOutput>> {
 		const tabResponse = await getInspectableTabForObservationSessionTarget(target);
 		if (!tabResponse.ok) {
@@ -2139,7 +2282,7 @@ export function createBackgroundRuntime(
 		}
 
 		const tab = tabResponse.value;
-		if (!await canPersistMatcherResult(tab, target.expectedUrl)) {
+		if (!await canSaveMatcher(tab, target.expectedUrl)) {
 			return errorResponse(
 				'OBSERVATION_SESSION_UNAVAILABLE',
 				'The observed tab is no longer the active document in its browser window.',
@@ -2219,7 +2362,7 @@ export function createBackgroundRuntime(
 
 	async function stopObservationSessionTarget(
 		target: ObservationSessionTarget,
-	): Promise<ExtensionResult<ObservationSessionState>> {
+	): Promise<ExtensionResult<observe.StateType>> {
 		const tabResponse = await getInspectableTabForObservationSessionTarget(target);
 		if (!tabResponse.ok) {
 			return tabResponse;
@@ -2235,7 +2378,7 @@ export function createBackgroundRuntime(
 
 	async function getObservationSessionStateForTarget(
 		target: ObservationSessionTarget,
-	): Promise<ExtensionResult<ObservationSessionState>> {
+	): Promise<ExtensionResult<observe.StateType>> {
 		const tabResponse = await getInspectableTabForObservationSessionTarget(target);
 		if (!tabResponse.ok) {
 			return tabResponse;
@@ -2323,7 +2466,7 @@ export function createBackgroundRuntime(
 	async function createQueuedAnalysisOutput(
 		tab: InspectableTab,
 		snapshotStatus: AnalyzeVisibleTabOutput['snapshot']['status'],
-		session?: ObservationSessionState,
+		session?: observe.StateType,
 		timingTraceId?: string,
 	): Promise<AnalyzeVisibleTabOutput> {
 		const timingContext: TimingContext = {
@@ -2370,12 +2513,12 @@ export function createBackgroundRuntime(
 	}
 
 	/** Run matcher persistence after the side-panel command has been released. */
-	function enqueueAnalysisPersistence(input: {
+	function queueAnalysis(input: {
 		readonly tab: InspectableTab;
 		readonly batch: ObservationBatch;
 		readonly compiledRegistryArtifact: CompiledRegistry;
 		readonly snapshotStatus: AnalyzeVisibleTabOutput['snapshot']['status'];
-		readonly session?: ObservationSessionState;
+		readonly session?: observe.StateType;
 		readonly details?: Record<string, unknown>;
 		readonly enrichment?: AnalysisEnrichmentState;
 		readonly evidence?: DetectionEvidenceState;
@@ -2386,7 +2529,7 @@ export function createBackgroundRuntime(
 		const registered = new Promise<void>((resolve) => {
 			resolveRegistered = resolve;
 		});
-		const completion = analyzeAndPersistObservationBatch(
+		const completion = analyzeBatch(
 			input.tab,
 			input.batch,
 			input.compiledRegistryArtifact,
@@ -2551,7 +2694,91 @@ export function createBackgroundRuntime(
 	}
 
 
-	function isMatcherPartitionProgressMessage(message: unknown): message is MatcherPartitionProgressMessage {
+	/** Return whether an offscreen queue/execution message belongs to the matcher protocol. */
+	function isMatcherState(message: unknown): message is MatcherJobStateMessage {
+		return Boolean(
+			message &&
+			typeof message === 'object' &&
+			'channel' in message &&
+			message.channel === MATCHER_OFFSCREEN_CHANNEL &&
+			'type' in message &&
+			message.type === 'matcher.job-state',
+		);
+	}
+
+	/** Persist real queue or running state before the first worker partition completes. */
+	function onMatcherState(message: unknown): void {
+		if (!isMatcherState(message)) return;
+		void updateMatcherState(message);
+	}
+
+	/**
+	 * Project offscreen scheduler state into one lightweight side-panel revision.
+	 *
+	 * Queue messages intentionally preserve the newest detector analysis already
+	 * stored for the page instead of replacing it with an empty analysis. The new
+	 * revision changes only matcher progress, so a user can keep reading previous
+	 * detections while the next evidence job waits for capacity.
+	 */
+	async function updateMatcherState(message: MatcherJobStateMessage): Promise<void> {
+		const context = activeMatcherProgressByJob.get(message.jobId);
+		if (!context || context.tab.incognito) return;
+		const newestJobId = latestMatcherJobByVisibleSession.get(context.visibleSessionId);
+		if (newestJobId && newestJobId !== context.visibleSessionOwnerJobId) return;
+
+		context.matcherExecutor = 'offscreen-worker-pool';
+		await updateMatcherJobRecord(message.jobId, {
+			status: message.phase === 'queued' ? 'queued' : 'running',
+			...(message.partitionCount === undefined ? {} : { partitionCount: message.partitionCount }),
+			completedPartitionCount: 0,
+		});
+		logBackgroundEvent(`matcher-job-${message.phase}`, {
+			...summarizeTab(context.tab),
+			jobId: message.jobId,
+			mode: context.matcherMode,
+			queuePosition: message.queuePosition,
+			queueDepth: message.queueDepth,
+			partitionCount: message.partitionCount,
+			queuedAt: message.queuedAt,
+			startedAt: message.startedAt,
+			...(message.startedAt === undefined ? {} : { queueWaitMs: Math.max(0, message.startedAt - message.queuedAt) }),
+		});
+
+		const pending = createAnalysisOutput(
+			createPendingSiteAnalysis(context.tab),
+			context.snapshotStatus,
+			context.session,
+			undefined,
+			undefined,
+			createObservationSessionTarget(context.tab, context.session),
+		);
+		const key = createDetectionSessionKeyForOutput(context.tab, pending);
+		const existing = await getLatestDetectionSessionSnapshot(key);
+		const analysis = existing?.analysis ?? pending.analysis;
+		const output = createAnalysisOutput(
+			analysis,
+			context.snapshotStatus,
+			context.session,
+			undefined,
+			undefined,
+			createObservationSessionTarget(context.tab, context.session),
+		);
+		await savePanelSnapshot(context.tab, output, 'background', context.matcherExecutor, {
+			jobId: message.jobId,
+			mode: context.matcherMode,
+			phase: message.phase === 'queued' ? 'queued' : 'matching',
+			queuedAt: message.queuedAt,
+			...(message.startedAt === undefined ? {} : { startedAt: message.startedAt }),
+			...(message.queuePosition === undefined ? {} : { queuePosition: message.queuePosition }),
+			queueDepth: message.queueDepth,
+			completedPartitionCount: 0,
+			partitionCount: message.partitionCount ?? 0,
+			resultCount: analysis.results.length,
+			updatedAt: Date.now(),
+		}, context.evidence);
+	}
+
+	function isPartitionProgress(message: unknown): message is MatcherPartitionProgressMessage {
 		return Boolean(
 			message &&
 			typeof message === 'object' &&
@@ -2562,15 +2789,15 @@ export function createBackgroundRuntime(
 		);
 	}
 
-	function handleMatcherPartitionProgress(message: unknown): void {
-		if (!isMatcherPartitionProgressMessage(message)) {
+	function onPartitionProgress(message: unknown): void {
+		if (!isPartitionProgress(message)) {
 			return;
 		}
 
-		void handleMatcherPartitionProgressUpdate(message);
+		void updatePartitionProgress(message);
 	}
 
-	async function handleMatcherPartitionProgressUpdate(
+	async function updatePartitionProgress(
 		message: MatcherPartitionProgressMessage,
 	): Promise<void> {
 		const jobId = message.partition.job.jobId;
@@ -2644,9 +2871,10 @@ export function createBackgroundRuntime(
 			undefined,
 			createObservationSessionTarget(context.tab, context.session),
 		);
-		await saveDetectionSnapshotForPanel(context.tab, output, 'background', context.matcherExecutor ?? 'unknown', {
+		await savePanelSnapshot(context.tab, output, 'background', context.matcherExecutor ?? 'unknown', {
 			jobId,
 			mode: context.matcherMode,
+			phase: 'matching',
 			completedPartitionCount: message.completedPartitionCount,
 			partitionCount: message.partitionCount,
 			latestPartitionKind: message.partition.kind,
@@ -2666,7 +2894,8 @@ export function createBackgroundRuntime(
 	return {
 		api,
 		handleRuntimeMessage(message, sender) {
-			handleMatcherPartitionProgress(message);
+			onMatcherState(message);
+			onPartitionProgress(message);
 
 			if (!isObservationDirtyNotification(message) || typeof sender.tab?.id !== 'number') {
 				return;

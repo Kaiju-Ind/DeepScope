@@ -3,7 +3,7 @@ import type {
 	AnalyzeVisibleTabInput,
 	BeginObservationSessionInput,
 } from '../messaging/analysis';
-import type { ObservationSessionState } from '../content/observed-page-signals';
+import type * as observe from '../content/observe';
 import * as url from '@/utils/url';
 
 /**
@@ -42,8 +42,8 @@ export function shouldStartObservationForAnalysis(
 
 /** Return whether the session status can be refreshed into a new analysis. */
 export function canRefreshObservationSession(
-	session: Pick<ObservationSessionState, 'status'>,
-): session is ObservationSessionState & { status: RefreshableObservationSessionStatus } {
+	session: Pick<observe.StateType, 'status'>,
+): session is observe.StateType & { status: RefreshableObservationSessionStatus } {
 	return REFRESHABLE_OBSERVATION_STATUSES.includes(
 		session.status as RefreshableObservationSessionStatus,
 	);
@@ -57,7 +57,7 @@ export function canRefreshObservationSession(
  * the side panel is now looking at a different page than the session was created for.
  */
 export function isObservationSessionForUrl(
-	session: Pick<ObservationSessionState, 'expectedUrl'>,
+	session: Pick<observe.StateType, 'expectedUrl'>,
 	activeUrl: string,
 ): boolean {
 	return !session.expectedUrl || url.sameDocument(session.expectedUrl, activeUrl);
@@ -74,7 +74,7 @@ export type ObservationRefreshBlockReason = 'unavailable' | 'navigation';
  * mix old observation state with the visible tab's current URL.
  */
 export function getObservationRefreshBlockReason(
-	session: ObservationSessionState,
+	session: observe.StateType,
 	activeUrl: string,
 ): ObservationRefreshBlockReason | null {
 	if (!canRefreshObservationSession(session)) {

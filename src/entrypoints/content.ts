@@ -3,11 +3,7 @@ import { browser } from "wxt/browser";
 
 import * as artifact from "@/lib/content/artifact";
 import { collectPageSignals } from "@/lib/content/collect-page-signals";
-import {
-  createObservedPageSignals,
-  type ObservedPageSignals,
-  type ObservedPageSignalsQueuedBatchEvent,
-} from "@/lib/content/observed-page-signals";
+import * as observe from "@/lib/content/observe";
 import { writeContentPageSessionSnapshot } from "@/lib/content/page-session-snapshots";
 import { validatePageSignals } from "@/lib/detection/validate";
 import { getDiagnosticBuildId } from "@/lib/diagnostics/build";
@@ -54,7 +50,7 @@ export type ContentRuntime = {
   /** Stop timers and observers for content-runtime shutdown. */
   dispose(reason: ObservationStopReason): void;
   /** Notify background after the observer queues new facts for detector refresh. */
-  publishObservedBatchQueued(event: ObservedPageSignalsQueuedBatchEvent): void;
+  publishObservedBatchQueued(event: observe.QueuedBatchEventType): void;
 };
 
 function getRuntimeState(): ContentRuntimeState | undefined {
@@ -165,7 +161,7 @@ function summarizeObservationBatch(batch: ObservationBatch | undefined): Record<
   };
 }
 
-function notifyBackgroundObservationDirty(event: ObservedPageSignalsQueuedBatchEvent): void {
+function notifyBackgroundObservationDirty(event: observe.QueuedBatchEventType): void {
   const message = createObservationDirtyNotification(event.session, event.observedAt);
   if (!message) {
     return;
@@ -211,7 +207,7 @@ function summarizeSignals(signals: Awaited<ReturnType<typeof collectPageSignals>
  */
 async function collectSignals(
   input: CollectPageSignalsInput,
-  observedSignals: ObservedPageSignals,
+  observedSignals: observe.SignalsType,
 ) {
   try {
     const timingContext: TimingContext = {
@@ -228,8 +224,8 @@ async function collectSignals(
       includeText: Boolean(input.includeText),
       includeScriptContent: Boolean(input.includeScriptContent),
       includeStylesheetContent: Boolean(input.includeStylesheetContent),
-      selectorProbeCount: input.selectorProbeList.length,
-      domCandidateSelectorCount: input.domSelectorPlan?.candidateSelector ? 1 : 0,
+      domSelectorCount: input.domSelectorPlan?.selectors.length ?? 0,
+      domUnroutedSelectorCount: input.domSelectorPlan?.selectorsWithoutRoute.length ?? 0,
       htmlProbeCount: input.htmlProbeList?.length ?? 0,
       timingTraceId: input.timingTraceId,
     });
@@ -240,6 +236,7 @@ async function collectSignals(
       () => observedSignals.snapshot({
         includeScriptContent: input.includeScriptContent,
         includeStylesheetContent: input.includeStylesheetContent,
+        domSelectorPlan: input.domSelectorPlan,
       }),
       (value) => ({
         scriptCount: value.scripts?.length ?? 0,
@@ -285,13 +282,13 @@ async function collectSignals(
 /**
  * Collect the current document and return the event-pipeline input shape.
  *
- * The content script still uses the bounded DOM collector internally because it
- * owns safe access to the document. The RPC contract no longer exposes the
- * snapshot when the background asks for event-mode analysis.
+ * The content script owns live document access, including bounded selector
+ * matching. The RPC contract returns normalized observations rather than DOM
+ * handles or a serialized document copy.
  */
 async function collectInitialObservationBatch(
   input: CollectPageSignalsInput,
-  observedSignals: ObservedPageSignals,
+  observedSignals: observe.SignalsType,
 ) {
   const timingContext: TimingContext = {
     traceId: input.timingTraceId,
@@ -339,7 +336,7 @@ async function collectInitialObservationBatch(
  * a browser lifecycle event, not a manual stop, so the returned `dispose` method
  * records the real stop reason on the observed-signal store.
  */
-export function createContentRuntime(observedSignals: ObservedPageSignals): ContentRuntime {
+export function createContentRuntime(observedSignals: observe.SignalsType): ContentRuntime {
   let observationExpiryTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
   let activeSnapshotTarget: ContentPageSessionSnapshotTarget | undefined;
   /** Serialize lifecycle writes so start and stop cannot settle out of order. */
@@ -525,7 +522,7 @@ export function createContentRuntime(observedSignals: ObservedPageSignals): Cont
 /**
  * Build only the RPC API for callers that do not need runtime disposal control.
  */
-export function createContentApi(observedSignals: ObservedPageSignals): ContentApi {
+export function createContentApi(observedSignals: observe.SignalsType): ContentApi {
   return createContentRuntime(observedSignals).contentApi;
 }
 
@@ -574,7 +571,7 @@ export default defineContentScript({
     });
 
     let runtime: ContentRuntime | undefined;
-    const observedSignals = createObservedPageSignals({
+    const observedSignals = observe.create({
       throttleMs: DOM_MUTATION_THROTTLE_MS,
       onObservationBatchQueued(event) {
         runtime?.publishObservedBatchQueued(event);

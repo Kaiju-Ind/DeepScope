@@ -1,4 +1,4 @@
-import type { ObservationSessionState } from '../content/observed-page-signals';
+import type * as observe from '../content/observe';
 
 /** Message type used by content scripts to wake the background after page facts change. */
 export const OBSERVATION_DIRTY_NOTIFICATION_TYPE = 'kaiju-deepscope.observation-dirty.v1';
@@ -25,7 +25,7 @@ export type ObservationDirtyNotification = {
 
 /** Build a background wake-up message only when the session can be targeted later. */
 export function createObservationDirtyNotification(
-	session: ObservationSessionState,
+	session: observe.StateType,
 	observedAt: number = session.lastObservedAt ?? Date.now(),
 ): ObservationDirtyNotification | null {
 	if (!session.sessionId || !session.expectedUrl) {

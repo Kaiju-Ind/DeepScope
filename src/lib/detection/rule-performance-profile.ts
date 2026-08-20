@@ -70,8 +70,12 @@ export interface RuleTimingRecord {
 	readonly expected: RuleProfileExpectedOutcome;
 	/** Actual semantic outcome from the matcher. */
 	readonly matched: boolean;
-	/** Milliseconds spent inside the semantic one-rule matcher. */
+	/** Median matcher duration used for stable budget decisions. */
 	readonly durationMs: number;
+	/** Slowest warmed sample retained for diagnostics only. */
+	readonly maxDurationMs: number;
+	/** Number of warmed matcher samples summarized by this record. */
+	readonly sampleCount: number;
 }
 
 /** Runtime budgets used to decide which rule timings deserve attention. */
@@ -291,16 +295,43 @@ export function createPayloadScanCases(input: {
 	return cases;
 }
 
-/** Run and time one profile case through the production semantic rule matcher. */
-export function profileRuleCase(input: RuleProfileCase): RuleTimingRecord {
-	const startedAt = performance.now();
-	const match = matchObservationRule({
-		technology: input.target.technology,
-		rule: input.target.rule,
-		ruleIndex: input.target.ruleIndex,
-		observation: input.observation,
-	});
-	const durationMs = performance.now() - startedAt;
+/** Options for one stable rule timing sample group. */
+export type RuleProfileSampleOptions = {
+	/** Number of measured samples reduced to one median. */
+	readonly samples?: number;
+	/** Untimed matcher runs used to warm parser and regex state. */
+	readonly warmup?: number;
+};
+
+/**
+ * Run one profile case through the production semantic matcher.
+ *
+ * Budget checks use the median of a small warmed sample group instead of one
+ * wall-clock observation. This prevents an unrelated scheduler or GC pause from
+ * masquerading as sustained matcher cost while `maxDurationMs` still preserves
+ * the outlier for diagnostics.
+ */
+export function profileRuleCase(
+	input: RuleProfileCase,
+	options: RuleProfileSampleOptions = {},
+): RuleTimingRecord {
+	const sampleCount = normalizeSampleCount(options.samples ?? 1);
+	const warmupCount = normalizeSampleCount(options.warmup ?? 0, true);
+	let matched = false;
+
+	for (let index = 0; index < warmupCount; index += 1) {
+		matched = Boolean(matchProfileCase(input));
+	}
+
+	const durations: number[] = [];
+	for (let index = 0; index < sampleCount; index += 1) {
+		const startedAt = performance.now();
+		matched = Boolean(matchProfileCase(input));
+		durations.push(performance.now() - startedAt);
+	}
+	durations.sort((left, right) => left - right);
+	const durationMs = durations[Math.floor(durations.length / 2)] ?? 0;
+	const maxDurationMs = durations[durations.length - 1] ?? durationMs;
 
 	return {
 		key: `${input.scenario}:${input.target.technology.id}:${input.target.ruleId}`,
@@ -310,9 +341,28 @@ export function profileRuleCase(input: RuleProfileCase): RuleTimingRecord {
 		ruleId: input.target.ruleId,
 		kind: input.target.rule.kind,
 		expected: input.expected,
-		matched: Boolean(match),
+		matched,
 		durationMs,
+		maxDurationMs,
+		sampleCount,
 	};
+}
+
+/** Execute one matcher case without adding profiler timing policy. */
+function matchProfileCase(input: RuleProfileCase) {
+	return matchObservationRule({
+		technology: input.target.technology,
+		rule: input.target.rule,
+		ruleIndex: input.target.ruleIndex,
+		observation: input.observation,
+	});
+}
+
+/** Normalize benchmark sample counts while permitting zero warmup runs. */
+function normalizeSampleCount(value: number, allowZero = false): number {
+	if (!Number.isFinite(value)) return allowZero ? 0 : 1;
+	const normalized = Math.floor(value);
+	return Math.max(allowZero ? 0 : 1, normalized);
 }
 
 /** Keep the slowest timing seen for each scenario and rule pair. */
@@ -346,7 +396,9 @@ export function findRuleProfileExpectationMismatches(
 /** Format a timing record as a single grep-friendly diagnostics row. */
 export function formatRuleTimingRecord(record: RuleTimingRecord): string {
 	return [
-		`durationMs=${record.durationMs.toFixed(1)}`,
+		`durationMs=${formatDurationMs(record.durationMs)}`,
+		`maxDurationMs=${formatDurationMs(record.maxDurationMs)}`,
+		`samples=${record.sampleCount}`,
 		`scenario=${quoteReportValue(record.scenario)}`,
 		`origin=${record.origin}`,
 		`expected=${record.expected}`,
@@ -355,6 +407,13 @@ export function formatRuleTimingRecord(record: RuleTimingRecord): string {
 		`ruleId=${record.ruleId}`,
 		`kind=${record.kind}`,
 	].join(' ');
+}
+
+/** Keep sub-millisecond matcher costs visible without noisy long decimals. */
+function formatDurationMs(value: number): string {
+	if (value < 0.01) return value.toFixed(4);
+	if (value < 1) return value.toFixed(3);
+	return value.toFixed(1);
 }
 
 /** Get benchmark budgets from environment variables with safe defaults. */

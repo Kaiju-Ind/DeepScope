@@ -1,9 +1,14 @@
+export { MatcherError } from './error';
+export type { MatcherFailureType } from './error';
 export type {
 	CancelMatcherJobMessage,
+	MatcherHostFailure,
+	MatcherHostPhase,
 	MatcherJobIdentity,
 	MatcherJobMode,
 	MatcherJobRecord,
 	MatcherJobRunResult,
+	MatcherJobStateMessage,
 	MatcherJobStatus,
 	MatcherJobTerminalReason,
 	MatcherOffscreenRequestMessage,

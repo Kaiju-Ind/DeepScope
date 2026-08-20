@@ -201,7 +201,7 @@ function formatValue(value: DiagnosticValue): string {
 }
 
 function isActiveMatcherStatus(status: string): boolean {
-	return status === 'queued' || status === 'dispatching' || status === 'running' || status === 'streaming';
+	return status === 'queued' || status === 'dispatching' || status === 'running' || status === 'streaming' || status === 'recording';
 }
 
 function formatPlatform(platform: DiagnosticSnapshot['platform'] | undefined): string {

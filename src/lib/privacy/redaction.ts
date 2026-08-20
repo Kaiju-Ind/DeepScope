@@ -9,31 +9,33 @@ const PHONE_PATTERN = /\b(?:\+?1[\s.-]?)?(?:\([0-9]{3}\)|[0-9]{3})[\s.-]?[0-9]{3
 export function redactEvidenceValue(value: string, maxVisibleChars = 160): string {
 	const trimmed = value.trim();
 	if (!trimmed) return '';
-	return truncate(redactSensitiveFragments(trimmed).replace(QUERY_VALUE_PATTERN, '$1[redacted]'), maxVisibleChars);
+	return truncate(redactSensitiveFragments(trimmed, true).replace(QUERY_VALUE_PATTERN, '$1[redacted]'), maxVisibleChars);
 }
 
 /**
  * Redact diagnostics without hiding ordinary URL query values needed to debug routing.
  *
  * Diagnostic records keep non-secret query parameters such as locale, page, and
- * feature flags. Secret-like query keys, credentials, JWTs, email addresses, and
- * phone numbers remain redacted before the journal writes to extension storage.
+ * feature flags. Secret-like query keys, credentials, JWTs, and email addresses remain redacted
+ * before the journal writes to extension storage. Phone-like digit sequences stay
+ * visible because extension tab/job identifiers can legitimately have that shape.
  */
 export function redactDiagnosticValue(value: string, maxVisibleChars = 400): string {
 	const trimmed = value.trim();
 	if (!trimmed) return '';
-	return truncate(redactSensitiveFragments(trimmed).replace(SENSITIVE_QUERY_VALUE_PATTERN, '$1[redacted]'), maxVisibleChars);
+	return truncate(redactSensitiveFragments(trimmed, false).replace(SENSITIVE_QUERY_VALUE_PATTERN, '$1[redacted]'), maxVisibleChars);
 }
 
 /** Return true when an evidence scalar would not keep its original contents. */
 export function hasSensitiveEvidenceFragment(value: string): boolean {
-	return redactSensitiveFragments(value).replace(QUERY_VALUE_PATTERN, '$1[redacted]') !== value;
+	return redactSensitiveFragments(value, true).replace(QUERY_VALUE_PATTERN, '$1[redacted]') !== value;
 }
 
 /** Redact sensitive fragments shared by evidence and diagnostics policies. */
-function redactSensitiveFragments(value: string): string {
+function redactSensitiveFragments(value: string, redactPhone: boolean): string {
 	const withoutSecretAssignments = value.replace(SECRET_ASSIGNMENT_PATTERN, (_match, prefix: string, quote: string) => `${prefix}${quote}[redacted]`);
-	return withoutSecretAssignments.replace(JWT_PATTERN, '[redacted-jwt]').replace(EMAIL_PATTERN, '[redacted-email]').replace(PHONE_PATTERN, '[redacted-phone]');
+	const redacted = withoutSecretAssignments.replace(JWT_PATTERN, '[redacted-jwt]').replace(EMAIL_PATTERN, '[redacted-email]');
+	return redactPhone ? redacted.replace(PHONE_PATTERN, '[redacted-phone]') : redacted;
 }
 
 /** Apply a caller-owned display/storage length after redaction. */

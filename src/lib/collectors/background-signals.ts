@@ -320,7 +320,7 @@ async function fetchBoundedTextSignals(
 }
 
 async function fetchBoundedText(value: string, maxChars: number): Promise<string> {
-	let reader: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>> | null = null;
+	let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
 	try {
 		const response = await fetchWithTimeout(value, {

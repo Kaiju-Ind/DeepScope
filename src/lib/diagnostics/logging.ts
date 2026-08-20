@@ -66,7 +66,7 @@ export function get(...suffix: readonly string[]): ReturnType<typeof getLogger> 
  * rate control cannot discard diagnostic history.
  */
 function createConsoleSink(): Sink {
-	const sink = getConsoleSink();
+	const sink = getConsoleSink({ formatter: formatConsoleRecord });
 	const accept = getThrottlingFilter({
 		limit: BURST_LIMIT,
 		windowMs: BURST_WINDOW_MS,
@@ -80,6 +80,27 @@ function createConsoleSink(): Sink {
 	return ((record: LogRecord) => {
 		if (isImportant(record.level) || accept(record)) sink(record);
 	}) as Sink;
+}
+
+/** Render one compact plain-text console record without browser `%c` style tokens. */
+function formatConsoleRecord(record: LogRecord): readonly unknown[] {
+	const time = new Date(record.timestamp).toISOString().slice(11, 23);
+	const level = record.level.toUpperCase().padEnd(5);
+	const logger = record.category.join('.');
+	const message = record.message.map((part) => formatConsolePart(part)).join('');
+	const properties = Object.keys(record.properties).length > 0 ? ` ${formatConsolePart(record.properties)}` : '';
+	return [`${time} ${level} ${logger} ${message}${properties}`];
+}
+
+/** Render one structured console value without adding styling directives. */
+function formatConsolePart(value: unknown): string {
+	if (typeof value === 'string') return value;
+	if (value instanceof Error) return `${value.name}: ${value.message}`;
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return String(value);
+	}
 }
 
 /** Return whether a level must bypass console throttling. */

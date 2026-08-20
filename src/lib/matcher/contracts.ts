@@ -24,6 +24,7 @@ export type MatcherJobStatus =
 	| 'dispatching'
 	| 'running'
 	| 'streaming'
+	| 'recording'
 	| 'completed'
 	| 'stale'
 	| 'canceled'
@@ -40,6 +41,10 @@ export type MatcherJobTerminalReason =
 	| 'newer-job'
 	| 'offscreen-unavailable'
 	| 'worker-failed'
+	| 'queue-full'
+	| 'queue-timeout'
+	| 'matcher-timeout'
+	| 'persistence-failed'
 	| 'context-interrupted';
 
 /** Scheduler mode for one matcher job. */
@@ -71,7 +76,7 @@ export interface MatcherJobRecord extends MatcherJobIdentity {
 	readonly createdAt: number;
 	/** Timestamp when the job record last changed. */
 	readonly updatedAt: number;
-	/** Number of observations sent to offscreen or fallback matching. */
+	/** Number of observations assigned to this matcher job. */
 	readonly observationCount: number;
 	/** Number of matcher partitions derived from the observation batch. */
 	readonly partitionCount: number;
@@ -143,11 +148,11 @@ export interface RunMatcherJobRequest {
 	readonly mode: MatcherJobMode;
 	/** Full or filtered observation batch to partition. */
 	readonly batch: ObservationBatch;
-	/** Full technology registry retained by background for partition finalization and fallback matching. */
+	/** Full technology registry retained by background for partition finalization and development matching. */
 	readonly registry: readonly TechnologyDefinition[];
-	/** Prebuilt matcher index retained by background for emergency in-process fallback. */
+	/** Prebuilt matcher index retained by background for the development-only in-process matcher. */
 	readonly index: ObservationMatcherIndex;
-	/** Relationship graph retained by background for partition finalization and fallback matching. */
+	/** Relationship graph retained by background for partition finalization and development matching. */
 	readonly relationshipGraph: CompiledDetectionRegistry;
 	/** Optional detector compatibility flags. */
 	readonly options?: DetectionRunOptions;
@@ -160,7 +165,7 @@ export interface RunMatcherJobRequest {
 }
 
 /** Executor path that produced a matcher job result. */
-export type MatcherJobExecutor = 'offscreen-worker-pool' | 'background-fallback' | 'dev-fallback';
+export type MatcherJobExecutor = 'offscreen-worker-pool' | 'development-background';
 
 /** Completed matcher job returned to the background. */
 export interface MatcherJobRunResult {
@@ -172,7 +177,7 @@ export interface MatcherJobRunResult {
 	readonly result: DetectionPipelineRuntimeResult;
 	/** Ordered partitions completed by the selected matcher executor. */
 	readonly partitions: readonly MatcherPartitionResult[];
-	/** Whether the offscreen worker path or background fallback produced the result. */
+	/** Runtime that produced the result. Production builds use the offscreen pool. */
 	readonly executor: MatcherJobExecutor;
 	/** Timestamp when the executor completed the final merge. */
 	readonly completedAt: number;
@@ -203,7 +208,7 @@ export interface OffscreenMatcherJobResult {
 }
 
 /** Offscreen-host message channel used by background and the hidden page. */
-export const MATCHER_OFFSCREEN_CHANNEL = 'kaiju-deepscope.matcher-offscreen.v1';
+export const MATCHER_OFFSCREEN_CHANNEL = 'kaiju-deepscope.matcher-offscreen.v2';
 
 /** Message asking the offscreen host to run a matcher job. */
 export interface RunMatcherJobMessage {
@@ -239,12 +244,41 @@ export type MatcherOffscreenRequestMessage =
 	| CancelMatcherJobMessage
 	| PingMatcherHostMessage;
 
-/** Successful response from the offscreen matcher host. */
+/** Machine-readable offscreen host rejection reason. */
+export type MatcherHostFailure = 'queue-full' | 'canceled' | 'failed';
+
+/** Successful or failed response from the offscreen matcher host. */
 export type MatcherOffscreenResponse =
 	| { readonly ok: true; readonly ready: true }
 	| { readonly ok: true; readonly canceled: true; readonly jobId: string }
 	| { readonly ok: true; readonly value: OffscreenMatcherJobResult }
-	| { readonly ok: false; readonly message: string };
+	| { readonly ok: false; readonly reason: MatcherHostFailure; readonly message: string };
+
+
+/** Offscreen-host state visible before the first matcher partition completes. */
+export type MatcherHostPhase = 'queued' | 'running';
+
+/** Queue and execution state emitted by the offscreen matcher host. */
+export type MatcherJobStateMessage = {
+	/** Private channel discriminator so background can ignore unrelated messages. */
+	readonly channel: typeof MATCHER_OFFSCREEN_CHANNEL;
+	/** Progress event name emitted before partition-complete events. */
+	readonly type: 'matcher.job-state';
+	/** Matcher job whose waiting or execution state changed. */
+	readonly jobId: string;
+	/** Whether the job is waiting for the worker pool or actively matching. */
+	readonly phase: MatcherHostPhase;
+	/** Timestamp when the offscreen host accepted the job into its bounded queue. */
+	readonly queuedAt: number;
+	/** Timestamp when the job acquired matcher capacity. */
+	readonly startedAt?: number;
+	/** One-based queue position while waiting. */
+	readonly queuePosition?: number;
+	/** Jobs still waiting behind or ahead of the active job. */
+	readonly queueDepth: number;
+	/** Partition count known once execution starts. */
+	readonly partitionCount?: number;
+};
 
 /** Message emitted by offscreen when a partition completes before the full job. */
 export interface MatcherPartitionProgressMessage {

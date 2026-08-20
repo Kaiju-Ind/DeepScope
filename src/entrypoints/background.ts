@@ -15,11 +15,7 @@ import {
 	persistTransportedDiagnosticMessage,
 } from '@/lib/diagnostics/journal';
 import type { SiteAnalysis } from '@/lib/detection/types';
-import {
-	cancelOffscreenMatcherJob,
-	ensureOffscreenDocument,
-	runMatcherJobWithOffscreenFallback,
-} from '@/lib/lifecycle/offscreen-matcher';
+import * as offscreen from '@/lib/matcher/offscreen';
 import {
 	BACKGROUND_RPC_NAMESPACE,
 	CONTENT_RPC_NAMESPACE,
@@ -206,9 +202,8 @@ export default defineBackground(() => {
 		collectObservationBatch: collectExtensionObservationBatch,
 		registryProvider: bundledTechnologyRegistryProvider,
 		matcher: {
-			cancelJob: cancelOffscreenMatcherJob,
-			ensureOffscreenDocument,
-			runJob: runMatcherJobWithOffscreenFallback,
+			cancelJob: offscreen.cancel,
+			runJob: offscreen.run,
 		},
 		persistence: browserDetectionPersistence,
 		logEvent: logBackgroundEvent,
@@ -227,11 +222,13 @@ export default defineBackground(() => {
 		transfer: false,
 	});
 
-	void reconcileInterruptedMatcherJobs(logBackgroundEvent).catch((error) => {
-		logBackgroundEvent('matcher-job-reconciliation-failed', {
-			message: error instanceof Error ? error.message : String(error),
-		});
-	});
+	void reconcileInterruptedMatcherJobs(logBackgroundEvent)
+		.catch((error) => {
+			logBackgroundEvent('matcher-job-reconciliation-failed', {
+				message: error instanceof Error ? error.message : String(error),
+			});
+		})
+		.finally(() => offscreen.close());
 	browser.action.onClicked.addListener((tab) => {
 		if (typeof tab.id !== 'number') {
 			logBackgroundEvent('side-panel-open-skipped', { reason: 'missing-tab-id' });

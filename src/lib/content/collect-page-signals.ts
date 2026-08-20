@@ -1,5 +1,3 @@
-import { browser } from 'wxt/browser';
-
 import { limitStringsByTotalChars, mergeStringsByTotalChars, normalizeMetaMap, truncate, uniqueStrings } from '../detection/normalizers';
 import { SOURCE_LIMITS } from '../detection/source-limits';
 import { timeAsyncSpan, timeSyncSpan, type TimingContext } from '../diagnostics/timing';
@@ -11,26 +9,8 @@ import type {
 	ResourceSignal,
 	StorageSignals,
 } from '../detection/types';
-import type { HtmlProbe } from '../messaging';
-import type { DomSelectorPlan } from '../collectors/planning';
-import {
-	DOM_SELECTOR_OFFSCREEN_CHANNEL,
-	type DomSelectorOffscreenResponse,
-	type MatchDomSelectorsOffscreenMessage,
-} from '../dom-selector/offscreen-contracts';
-
-export type CollectPageSignalsInput = {
-	tier?: 'initial' | 'enrichment';
-	selectorProbeList: string[];
-	domSelectorPlan?: DomSelectorPlan;
-	htmlProbeList?: HtmlProbe[];
-	includeHtml?: boolean;
-	includeText?: boolean;
-	includeScriptContent?: boolean;
-	includeStylesheetContent?: boolean;
-	includeStorageKeys?: boolean;
-	timingTraceId?: string;
-};
+import type { CollectPageSignalsInput, HtmlProbe } from '../messaging';
+import * as dom from '../dom';
 
 /**
  * Collects only bounded, rule-oriented page signals. The content script may read
@@ -79,12 +59,7 @@ export async function collectPageSignals(
 			tier: input.tier ?? 'initial',
 		},
 	};
-	const selectorProbeList = timeSyncSpan(
-		'content.collect-page-signals.dedupe-selector-probes',
-		timingContext,
-		() => uniqueStrings(input.selectorProbeList),
-		(values) => ({ selectorProbeCount: values.length }),
-	);
+	const selectorCount = input.domSelectorPlan?.selectors.length ?? 0;
 	const fullHtml = timeSyncSpan(
 		'content.collect-page-signals.read-html',
 		timingContext,
@@ -168,14 +143,11 @@ export async function collectPageSignals(
 	const domSelectors = await timeAsyncSpan(
 		'content.collect-page-signals.selector-probes',
 		timingContext,
-		async () => mergeObservedDomSelectorMatches(
-			runtime.dom?.selectors,
-			await collectDomSelectorMatches(input.domSelectorPlan, selectorProbeList, globalThis.document),
-		),
+		async () => runtime.dom?.selectors ?? dom.match(input.domSelectorPlan, globalThis.document),
 		(values) => ({
-			selectorProbeCount: selectorProbeList.length,
+			selectorCount,
 			selectorMatchCount: Object.values(values).filter(Boolean).length,
-			stickySelectorMatchCount: Object.values(runtime.dom?.selectors ?? {}).filter(Boolean).length,
+			runtimeSelectorMatchCount: Object.values(runtime.dom?.selectors ?? {}).filter(Boolean).length,
 		}),
 	);
 	const storage = timeSyncSpan(
@@ -234,25 +206,6 @@ export async function collectPageSignals(
 	};
 }
 
-
-export function mergeObservedDomSelectorMatches(
-	observed: Record<string, boolean> | undefined,
-	current: Record<string, boolean>,
-): Record<string, boolean> {
-	if (!observed || Object.keys(observed).length === 0) {
-		return current;
-	}
-
-	const merged: Record<string, boolean> = { ...current };
-	for (const [selector, matched] of Object.entries(observed)) {
-		if (matched) {
-			merged[selector] = true;
-		} else if (merged[selector] === undefined) {
-			merged[selector] = false;
-		}
-	}
-	return merged;
-}
 
 function boundedHtml(html: string, htmlProbeList: HtmlProbe[]): string {
 	if (html.length <= SOURCE_LIMITS.htmlChars) {
@@ -437,7 +390,7 @@ export function collectStylesheetContents(input: StylesheetContentInput = global
 		.map((style) => truncate(style.textContent ?? '', SOURCE_LIMITS.stylesheetContentChars))
 		.filter(Boolean);
 
-	const cssomStyles = isParentNode(input) ? collectAccessibleCssRules() : [];
+	const cssomStyles = input === globalThis.document ? collectStylesheetRules() : [];
 	return limitStringsByTotalChars(
 		[...inlineStyles, ...cssomStyles],
 		SOURCE_LIMITS.stylesheetContentItems,
@@ -521,7 +474,8 @@ function collectVisibleText(): string {
 	return truncate(text, SOURCE_LIMITS.textChars);
 }
 
-function collectAccessibleCssRules(): string[] {
+/** Collect bounded CSSOM rules from stylesheets Chromium allows this page to inspect. */
+export function collectStylesheetRules(): string[] {
 	const values: string[] = [];
 	for (const sheet of Array.from(globalThis.document.styleSheets)) {
 		if (values.length >= SOURCE_LIMITS.stylesheetContentItems) {
@@ -571,50 +525,6 @@ function resourceToRequestSignal(resource: ResourceSignal) {
 		url: resource.url,
 		type: resource.initiatorType,
 	};
-}
-
-export async function collectDomSelectorMatches(
-	plan: DomSelectorPlan | undefined,
-	selectorProbeList: readonly string[],
-	root: ParentNode,
-): Promise<Record<string, boolean>> {
-	if (!plan?.candidateSelector) {
-		return Promise.resolve({});
-	}
-
-	try {
-		const message: MatchDomSelectorsOffscreenMessage = {
-			channel: DOM_SELECTOR_OFFSCREEN_CHANNEL,
-			type: 'dom-selector.match',
-			request: {
-				html: serializeDomRoot(root),
-				plan,
-				selectorProbeList,
-			},
-		};
-		const response = await browser.runtime.sendMessage(message) as DomSelectorOffscreenResponse;
-		if (response.ok) {
-			return response.selectors;
-		}
-		return {};
-	} catch {
-		return {};
-	}
-}
-
-function serializeDomRoot(root: ParentNode): string {
-	if (root instanceof globalThis.Document) {
-		return root.documentElement?.outerHTML ?? '';
-	}
-	if (root instanceof globalThis.Element) {
-		return root.outerHTML;
-	}
-	if (root instanceof globalThis.DocumentFragment) {
-		const container = globalThis.document.createElement('template');
-		container.content.append(root.cloneNode(true));
-		return container.innerHTML;
-	}
-	return '';
 }
 
 function safeDecode(value: string): string {

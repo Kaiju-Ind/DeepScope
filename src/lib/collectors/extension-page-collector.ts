@@ -13,7 +13,6 @@ import {
 	contentScriptFailure,
 	withTimeout,
 } from '../messaging/rpc';
-import { ensureOffscreenDocument } from '../lifecycle/offscreen-matcher';
 import { timeAsyncSpan, type TimingContext } from '../diagnostics/timing';
 import { errorResponse, extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
 import * as url from '@/utils/url';
@@ -68,7 +67,7 @@ export async function collectExtensionObservationBatch(
 	input.log?.('collection-plan-selected', {
 		tabId: input.tabId,
 		tier,
-		selectorProbeCount: collectionPlan.selectorProbeList.length,
+		domSelectorCount: collectionPlan.domSelectorPlan.selectors.length,
 		htmlProbeCount: collectionPlan.htmlProbeList.length,
 		jsGlobalProbeCount: collectionPlan.jsGlobalPropertyList.length,
 		needsHeaders: collectionPlan.needsHeaders,
@@ -79,9 +78,6 @@ export async function collectExtensionObservationBatch(
 	});
 
 	try {
-		if (collectionPlan.domSelectorPlan.candidateSelector) {
-			await ensureOffscreenDocument();
-		}
 		const response = await timeAsyncSpan(
 			'collector.content-rpc.collect-observation-batch',
 			timingContext,

@@ -1,18 +1,19 @@
 import { categories } from '@/registry/categories.ts';
-import type { ObservationSessionState } from '@/lib/content/observed-page-signals.ts';
+import type * as observe from '@/lib/content/observe';
 import type {
 	AnalysisEnrichmentState,
 	AnalyzeVisibleTabOutput,
 	ObservationSessionTarget,
 	SnapshotReuseStatus,
 } from '@/lib/messaging/analysis';
-import type {
-	DetectionReplaySummary,
-	DetectionEvidenceState,
-	DetectionMatcherProgressSummary,
-	DetectionSessionSnapshotSource,
-	DetectionSessionStatus,
-	DetectionSessionSnapshot,
+import {
+	DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION,
+	type DetectionReplaySummary,
+	type DetectionEvidenceState,
+	type MatcherProgressType,
+	type DetectionSessionSnapshotSource,
+	type DetectionSessionStatus,
+	type DetectionSessionSnapshot,
 } from '@/lib/storage/session';
 import type { CategoryId, ConfidenceScore, DetectionResult, SiteAnalysis } from '@/lib/detection/types';
 import {
@@ -46,12 +47,12 @@ export type ObservationMode = typeof OBSERVATION_MODES[number];
 export type AnalysisRequestSource = 'initial' | 'manual' | 'auto';
 
 /** Detector work lane shown by the side panel. */
-export type MatcherStatus = 'idle' | 'collecting' | 'matching' | 'recording';
+export type MatcherStatus = 'idle' | 'collecting' | 'queued' | 'matching' | 'recording';
 
 /** Matcher progress counters safe for side panel display. */
 export type MatcherProgress = Pick<
-	DetectionMatcherProgressSummary,
-	'completedPartitionCount' | 'partitionCount' | 'latestPartitionKind' | 'resultCount'
+	MatcherProgressType,
+	'phase' | 'queuePosition' | 'queueDepth' | 'completedPartitionCount' | 'partitionCount' | 'latestPartitionKind' | 'resultCount'
 >;
 
 /** Visual progress that can be rendered without interpreting matcher internals. */
@@ -117,7 +118,7 @@ export type VisibleRevision = {
 	/** Durable snapshot writer when this revision was derived from storage. */
 	readonly sessionSnapshotSource?: DetectionSessionSnapshotSource;
 	/** Live observation state when this revision owns a content session. */
-	readonly session?: ObservationSessionState;
+	readonly session?: observe.StateType;
 	/** Stable session handle for refresh, stop, and cleanup. */
 	readonly sessionTarget?: ObservationSessionTarget;
 	/** Latest full replay trace, when hydrated. */
@@ -127,7 +128,7 @@ export type VisibleRevision = {
 	/** Compact replay summary stored on detector snapshots. */
 	readonly replaySummary?: DetectionReplaySummary;
 	/** Compact matcher progress stored on partial snapshot revisions. */
-	readonly matcherProgress?: DetectionMatcherProgressSummary;
+	readonly matcherProgress?: MatcherProgressType;
 	/** Deeper evidence lifecycle state attached to the revision. */
 	readonly enrichment?: AnalysisEnrichmentState;
 	/** Evidence completeness represented by this detector revision. */
@@ -248,12 +249,16 @@ export type AnalysisUpdate = {
 
 /** Whether matcher work is active enough to deserve visible progress UI. */
 export function isMatcherBusy(status: MatcherStatus): boolean {
-	return status === 'collecting' || status === 'matching' || status === 'recording';
+	return status === 'collecting' || status === 'queued' || status === 'matching' || status === 'recording';
 }
 
 /** Returns the compact matcher label for side panel metrics. */
 export function getMatcherStatusLabel(status: MatcherStatus, progress?: MatcherProgress): string {
 	if (status === 'collecting') return 'collecting page signals';
+	if (status === 'queued') {
+		if (progress?.queuePosition && progress.queueDepth) return `waiting for matcher ${progress.queuePosition}/${progress.queueDepth}`;
+		return 'waiting for matcher';
+	}
 	if (status === 'matching') {
 		if (progress && progress.partitionCount > 0) {
 			const completed = Math.min(progress.completedPartitionCount, progress.partitionCount);
@@ -268,6 +273,7 @@ export function getMatcherStatusLabel(status: MatcherStatus, progress?: MatcherP
 /** User-facing headline for the current matcher lane. */
 export function getMatcherActivityHeadline(status: MatcherStatus): string {
 	if (status === 'collecting') return 'Collecting page signals';
+	if (status === 'queued') return 'Waiting for matcher capacity';
 	if (status === 'matching') return 'Matching evidence batches';
 	if (status === 'recording') return 'Recording replay trace';
 	return 'Analysis complete';
@@ -277,6 +283,13 @@ export function getMatcherActivityHeadline(status: MatcherStatus): string {
 export function getMatcherActivityDescription(status: MatcherStatus, progress?: MatcherProgress): string {
 	if (status === 'collecting') {
 		return 'Reading DOM, resource, metadata, and page-surface signals before worker matching starts.';
+	}
+
+	if (status === 'queued') {
+		if (progress?.queuePosition && progress.queueDepth) {
+			return `This analysis is ${progress.queuePosition} of ${progress.queueDepth} waiting jobs. Existing detections stay visible while capacity frees up.`;
+		}
+		return 'This analysis is waiting for the offscreen matcher. Existing detections stay visible while capacity frees up.';
 	}
 
 	if (status === 'matching') {
@@ -387,14 +400,14 @@ export function getAnalysisActivity(input: {
 export function getMatcherStatusFromSnapshot(
 	snapshot: DetectionSessionSnapshot,
 ): MatcherStatus | null {
-	if (snapshot.enrichment.status === 'pending') {
-		return 'matching';
-	}
-
 	if (
 		snapshot.matcherProgress &&
 		(!snapshot.replaySummary || snapshot.matcherProgress.updatedAt >= snapshot.replaySummary.analyzedAt)
 	) {
+		return snapshot.matcherProgress.phase;
+	}
+
+	if (snapshot.enrichment.status === 'pending') {
 		return 'matching';
 	}
 
@@ -430,7 +443,7 @@ export function isVisibleRevisionPending(revision: VisibleRevision): boolean {
 	if (revision.sessionSnapshotStatus) {
 		return getMatcherStatusFromSnapshot({
 			key: { tabId: 0, frameId: 0, documentId: 'revision', originHash: 'revision' },
-			schemaVersion: 1,
+			schemaVersion: DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION,
 			revision: 0,
 			urlHash: 'revision',
 			hostname: revision.analysis.hostname,
@@ -560,7 +573,7 @@ export function createReplaySummaryFromTrace(trace: DetectionReplayTrace): Detec
  */
 export type ShouldRefreshObservedChangeInput = {
 	/** Latest content-script observation state reported by the background. */
-	session: ObservationSessionState;
+	session: observe.StateType;
 	/** Current rendered analysis, if the side panel has one. */
 	analysis: SiteAnalysis | null;
 };
@@ -622,7 +635,7 @@ export function getObservationLabel(mode: ObservationMode): string {
  * Converts content-session state into the smaller side panel state model.
  */
 export function getObservationModeFromSession(
-	session: Pick<ObservationSessionState, 'status'>,
+	session: Pick<observe.StateType, 'status'>,
 ): ObservationMode {
 	if (session.status === 'observing' || session.status === 'dirty') {
 		return 'active';

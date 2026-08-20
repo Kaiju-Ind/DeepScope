@@ -1,4 +1,4 @@
-import type { ObservedPageSignalsSnapshot } from '../content/observed-page-signals';
+import type * as observe from '../content/observe';
 import type { LinkSignal, RequestSignal } from '../detection/types';
 import type {
 	NormalizedObservation,
@@ -38,7 +38,7 @@ export interface ObservedPageSignalsObservationOptions {
  * headers, cookies, storage keys, or page globals were re-collected.
  */
 export function normalizeObservedPageSignalsSnapshot(
-	snapshot: ObservedPageSignalsSnapshot,
+	snapshot: observe.SnapshotType,
 	options: ObservedPageSignalsObservationOptions,
 ): ObservationBatch {
 	const observations: NormalizedObservation[] = [];

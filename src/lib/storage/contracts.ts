@@ -24,7 +24,7 @@ export const DETECTION_STORAGE_STATUS_KEY = 'rd:status';
 /** Prefix used for durable matcher job lifecycle records. */
 export const MATCHER_JOB_CACHE_PREFIX = 'matcher-job:';
 
-/** Prefix used for legacy origin-level analysis response keys. */
+/** Prefix used for stable origin-level analysis response identity in UI and diagnostics. */
 export const ANALYSIS_RESPONSE_PREFIX = 'analysis:';
 
 /** Prefix used for every origin-level replay trace record. */

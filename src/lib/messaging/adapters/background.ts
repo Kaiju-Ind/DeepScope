@@ -66,16 +66,20 @@ export function createBackgroundServerAdapter(): Adapter<BackgroundRpcMeta> {
     const tabId = message.meta.tab_id;
     const frameId = message.meta.frame_id;
 
-    if (typeof tabId === 'number') {
-      await browser.tabs.sendMessage(
-        tabId,
-        message,
-        typeof frameId === 'number' ? { frameId } : undefined,
-      );
-      return;
-    }
+    try {
+      if (typeof tabId === 'number') {
+        await browser.tabs.sendMessage(
+          tabId,
+          message,
+          typeof frameId === 'number' ? { frameId } : undefined,
+        );
+        return;
+      }
 
-    await browser.runtime.sendMessage(message);
+      await browser.runtime.sendMessage(message);
+    } catch (error) {
+      if (!isMissingReceiver(error)) throw error;
+    }
   };
 
   const onMessage: OnMessage<BackgroundRpcMeta> = (callback) => {
@@ -106,4 +110,10 @@ export function createBackgroundServerAdapter(): Adapter<BackgroundRpcMeta> {
   };
 
   return { sendMessage, onMessage };
+}
+
+/** Return whether an RPC response lost the extension context that requested it. */
+function isMissingReceiver(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('Receiving end does not exist') || message.includes('Could not establish connection');
 }

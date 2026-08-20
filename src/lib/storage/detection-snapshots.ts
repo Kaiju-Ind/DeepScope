@@ -1,7 +1,7 @@
 import type {
 	DetectionEnrichmentState,
 	DetectionEvidenceState,
-	DetectionMatcherProgressSummary,
+	MatcherProgressType,
 	DetectionOriginSummary,
 	DetectionReplaySummary,
 	DetectionSessionKey,
@@ -24,6 +24,7 @@ import { browser } from 'wxt/browser';
 import {
 	DETECTION_ENRICHMENT_STATUSES,
 	DETECTION_EVIDENCE_COMPLETENESS_LEVELS,
+	MATCHER_PHASES,
 	DETECTION_ORIGIN_SUMMARY_SCHEMA_VERSION,
 	DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION,
 	DETECTION_SESSION_STATUSES,
@@ -456,7 +457,7 @@ function mergeLowerCompletenessSnapshot(
 		updatedAt: candidate.updatedAt,
 		enrichment: cloneDetectionEnrichmentState(candidate.enrichment),
 		...(candidate.matcherExecutor ? { matcherExecutor: candidate.matcherExecutor } : {}),
-		...(candidate.matcherProgress ? { matcherProgress: cloneDetectionMatcherProgressSummary(candidate.matcherProgress) } : {}),
+		...(candidate.matcherProgress ? { matcherProgress: cloneMatcherProgress(candidate.matcherProgress) } : {}),
 	});
 }
 
@@ -561,7 +562,7 @@ export function isDetectionSessionSnapshot(value: unknown): value is DetectionSe
 		isDetectionEnrichmentState(candidate.enrichment) &&
 		(candidate.evidence === undefined || isDetectionEvidenceState(candidate.evidence)) &&
 		(candidate.matcherExecutor === undefined || isDetectionMatcherExecutor(candidate.matcherExecutor)) &&
-		(candidate.matcherProgress === undefined || isDetectionMatcherProgressSummary(candidate.matcherProgress)) &&
+		(candidate.matcherProgress === undefined || isMatcherProgress(candidate.matcherProgress)) &&
 		(candidate.replaySummary === undefined || isDetectionReplaySummary(candidate.replaySummary))
 	);
 }
@@ -674,27 +675,32 @@ function isDetectionSessionSnapshotSource(value: unknown): value is DetectionSes
 	return value === 'cache' || value === 'content' || value === 'background';
 }
 
-/** Guard matcher executor diagnostics while accepting older snapshots without the field. */
+/** Guard matcher executor diagnostics emitted by the current snapshot contract. */
 function isDetectionMatcherExecutor(value: unknown): value is DetectionMatcherExecutor {
 	return (
 		value === 'offscreen-worker-pool' ||
-		value === 'background-fallback' ||
-		value === 'dev-fallback' ||
+		value === 'development-background' ||
 		value === 'unknown'
 	);
 }
 
-/** Guard matcher progress while accepting older snapshots without the field. */
-function isDetectionMatcherProgressSummary(value: unknown): value is DetectionMatcherProgressSummary {
+/** Guard optional matcher progress carried only by in-flight snapshot revisions. */
+function isMatcherProgress(value: unknown): value is MatcherProgressType {
 	if (typeof value !== 'object' || value === null) {
 		return false;
 	}
 
-	const candidate = value as Partial<DetectionMatcherProgressSummary>;
+	const candidate = value as Partial<MatcherProgressType>;
 
 	return (
 		typeof candidate.jobId === 'string' &&
 		typeof candidate.mode === 'string' &&
+		typeof candidate.phase === 'string' &&
+		MATCHER_PHASES.includes(candidate.phase as MatcherProgressType['phase']) &&
+		isOptionalNumber(candidate.queuedAt) &&
+		isOptionalNumber(candidate.startedAt) &&
+		isOptionalNumber(candidate.queuePosition) &&
+		isOptionalNumber(candidate.queueDepth) &&
 		typeof candidate.completedPartitionCount === 'number' &&
 		typeof candidate.partitionCount === 'number' &&
 		(candidate.latestPartitionKind === undefined || typeof candidate.latestPartitionKind === 'string') &&
@@ -705,7 +711,7 @@ function isDetectionMatcherProgressSummary(value: unknown): value is DetectionMa
 	);
 }
 
-/** Guard enrichment state while accepting older records with only the required status. */
+/** Guard the enrichment state carried by every current session snapshot. */
 function isDetectionEnrichmentState(value: unknown): value is DetectionEnrichmentState {
 	if (typeof value !== 'object' || value === null) {
 		return false;
@@ -724,7 +730,7 @@ function isDetectionEnrichmentState(value: unknown): value is DetectionEnrichmen
 }
 
 
-/** Guard evidence completeness state while accepting older records without it. */
+/** Guard optional evidence completeness metadata when a collection pass has reported it. */
 function isDetectionEvidenceState(value: unknown): value is DetectionEvidenceState {
 	if (typeof value !== 'object' || value === null) {
 		return false;
@@ -809,7 +815,7 @@ function cloneDetectionSessionSnapshot(snapshot: DetectionSessionSnapshot): Dete
 		analysis: cloneSiteAnalysis(snapshot.analysis),
 		enrichment: cloneDetectionEnrichmentState(snapshot.enrichment),
 		...(snapshot.matcherExecutor ? { matcherExecutor: snapshot.matcherExecutor } : {}),
-		...(snapshot.matcherProgress ? { matcherProgress: cloneDetectionMatcherProgressSummary(snapshot.matcherProgress) } : {}),
+		...(snapshot.matcherProgress ? { matcherProgress: cloneMatcherProgress(snapshot.matcherProgress) } : {}),
 		...(snapshot.replaySummary ? { replaySummary: cloneDetectionReplaySummary(snapshot.replaySummary) } : {}),
 	};
 }
@@ -899,12 +905,17 @@ function cloneDetectionEnrichmentState(state: DetectionEnrichmentState): Detecti
 }
 
 /** Clone matcher progress counters so storage mock reads cannot mutate the saved value. */
-function cloneDetectionMatcherProgressSummary(
-	progress: DetectionMatcherProgressSummary,
-): DetectionMatcherProgressSummary {
+function cloneMatcherProgress(
+	progress: MatcherProgressType,
+): MatcherProgressType {
 	return {
 		jobId: progress.jobId,
 		mode: progress.mode,
+		phase: progress.phase,
+		...(progress.queuedAt !== undefined ? { queuedAt: progress.queuedAt } : {}),
+		...(progress.startedAt !== undefined ? { startedAt: progress.startedAt } : {}),
+		...(progress.queuePosition !== undefined ? { queuePosition: progress.queuePosition } : {}),
+		...(progress.queueDepth !== undefined ? { queueDepth: progress.queueDepth } : {}),
 		completedPartitionCount: progress.completedPartitionCount,
 		partitionCount: progress.partitionCount,
 		...(progress.latestPartitionKind ? { latestPartitionKind: progress.latestPartitionKind } : {}),

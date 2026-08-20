@@ -1,11 +1,8 @@
-import type {
-	ObservationStopReason as ContentObservationStopReason,
-	PageSignalPollingState as ObservationSessionState,
-} from '../content/observed-page-signals';
+import type * as observe from '../content/observe';
 import type { DetectionEvidenceState, DetectionSessionKey } from '../storage/session';
 import type { AnalysisStatus, SiteAnalysis } from '../detection/types';
 import type { DetectionReplayTrace } from '../pipeline';
-import type { DomSelectorPlan } from '../collectors/planning';
+import type { DomPlanType } from '../dom';
 import type { ObservationBatch, ObservationBatchControllerStats } from '../observations';
 import type { ExtensionResult } from './result';
 
@@ -144,7 +141,7 @@ export type AnalyzeVisibleTabOutput = {
 		expiresAt?: number;
 	};
 	/** Live observation state when the fresh analysis started page watching. */
-	session?: ObservationSessionState;
+	session?: observe.StateType;
 	/** Stable session handle the side panel should use for refresh, stop, and cleanup. */
 	sessionTarget?: ObservationSessionTarget;
 	/**
@@ -164,7 +161,7 @@ export type AnalyzeVisibleTabOutput = {
 };
 
 /** Reason a content-script observation session stopped. */
-export type ObservationStopReason = ContentObservationStopReason;
+export type ObservationStopReason = observe.StopReasonType;
 
 /**
  * Storage target a content script can use after the background identifies the tab.
@@ -213,7 +210,7 @@ export type BeginObservationSessionInput = {
 	/** Keep newly observed inline/exposed stylesheet content when the registry needs it. */
 	includeStylesheetContent?: boolean;
 	/** Parsed DOM selector metadata used to filter live DOM observation. */
-	domSelectorPlan?: DomSelectorPlan;
+	domSelectorPlan?: DomPlanType;
 };
 
 /** Content-script response for collecting the active document as observations. */
@@ -229,7 +226,7 @@ export type FlushObservationBatchOutput = {
 	/** Queue and drop counters from the content-side batch controller. */
 	stats: ObservationBatchControllerStats;
 	/** Observation session state after pending DOM mutation scans are flushed. */
-	session: ObservationSessionState;
+	session: observe.StateType;
 };
 
 /** Serializable HTML pattern probe sent to the content script. */
@@ -247,9 +244,10 @@ export type HtmlProbe = {
 /**
  * Request sent from the background to the content script for event observation capture.
  *
- * The content collector still uses the older DOM snapshot reader internally
- * because that is the safest way to read document facts in one synchronous pass.
- * The RPC response is early normalized observations.
+ * The content runtime reads the live Chromium document directly. DOM selector
+ * matching is time-sliced and mutation-driven, and no DOM tree or serialized DOM
+ * copy crosses the extension runtime channel. The RPC response is normalized
+ * observations.
  */
 export type CollectPageSignalsInput = {
 	/** Collection tier represented by this request. */
@@ -264,10 +262,8 @@ export type CollectPageSignalsInput = {
 	includeStylesheetContent?: boolean;
 	/** Whether localStorage and sessionStorage keys should be collected. */
 	includeStorageKeys?: boolean;
-	/** DOM selectors the content script should check for detector rules. */
-	selectorProbeList: string[];
-	/** Parsed DOM selector metadata used to preselect candidate elements. */
-	domSelectorPlan?: DomSelectorPlan;
+	/** Parsed DOM selector metadata used to route live element checks. */
+	domSelectorPlan?: DomPlanType;
 	/** HTML regex probes serialized for the content script. */
 	htmlProbeList?: HtmlProbe[];
 	/** Optional debug id used only to correlate summary timing logs. */
@@ -285,9 +281,9 @@ export interface BackgroundApi {
 	/** Re-analyze a known observation session when its queued page facts are dirty. */
 	refreshObservationSession(input: ObservationSessionTargetInput): Promise<ExtensionResult<AnalyzeVisibleTabOutput>>;
 	/** Stop a known content-script observation session. */
-	stopObservationSession(input: ObservationSessionTargetInput): Promise<ExtensionResult<ObservationSessionState>>;
+	stopObservationSession(input: ObservationSessionTargetInput): Promise<ExtensionResult<observe.StateType>>;
 	/** Read a known content-script observation session state. */
-	getObservationSessionState(input: ObservationSessionTargetInput): Promise<ExtensionResult<ObservationSessionState>>;
+	getObservationSessionState(input: ObservationSessionTargetInput): Promise<ExtensionResult<observe.StateType>>;
 	/** Return bounded replay history for the analysis URL already visible in the side panel. */
 	getReplayTraceHistory(input: ReplayTraceHistoryInput): Promise<ExtensionResult<readonly DetectionReplayTrace[]>>;
 }
@@ -297,11 +293,11 @@ export interface ContentApi {
 	/** Collect the current content script document as normalized observations. */
 	collectObservationBatch(input: CollectPageSignalsInput): Promise<ExtensionResult<CollectObservationBatchOutput>>;
 	/** Start watching late-added scripts, links, styles, and metadata. */
-	beginObservationSession(input: BeginObservationSessionInput): Promise<ExtensionResult<ObservationSessionState>>;
+	beginObservationSession(input: BeginObservationSessionInput): Promise<ExtensionResult<observe.StateType>>;
 	/** Stop the exact observation session only if it still owns this content runtime. */
-	stopObservationSession(input: ContentObservationSessionTarget): Promise<ExtensionResult<ObservationSessionState>>;
+	stopObservationSession(input: ContentObservationSessionTarget): Promise<ExtensionResult<observe.StateType>>;
 	/** Flush late normalized observations queued by DOM and resource observers. */
 	flushObservationBatch(): Promise<ExtensionResult<FlushObservationBatchOutput>>;
 	/** Return the current observation session state. */
-	getObservationSessionState(): Promise<ExtensionResult<ObservationSessionState>>;
+	getObservationSessionState(): Promise<ExtensionResult<observe.StateType>>;
 }

@@ -1,5 +1,5 @@
 import type { MatcherJobRecord } from '@/lib/matcher';
-import { cancelOffscreenMatcherJob } from '@/lib/lifecycle/offscreen-matcher';
+import * as offscreen from '@/lib/matcher/offscreen';
 import { isMatcherJobActive, listMatcherJobRecords, updateMatcherJobRecord } from '@/lib/storage/matcher-jobs';
 
 /**
@@ -20,7 +20,7 @@ export async function reconcileInterruptedMatcherJobs(
 	const reconciled: MatcherJobRecord[] = [];
 	for (const record of active) {
 		try {
-			await cancelOffscreenMatcherJob(record.jobId);
+			await offscreen.cancel(record.jobId);
 		} catch (error) {
 			log?.('matcher-job-interruption-cancel-failed', {
 				jobId: record.jobId,

@@ -2,7 +2,7 @@ import type { SiteAnalysis } from '../detection/types';
 import type { DetectionPipelineStage } from '../pipeline';
 
 /** Schema marker for storage-backed detection session snapshots. */
-export const DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION = 1 as const;
+export const DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION = 3 as const;
 
 /** Version marker carried by every stored detection session snapshot. */
 export type DetectionSessionSnapshotSchemaVersion = typeof DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION;
@@ -45,7 +45,7 @@ export interface DetectionEvidenceState {
 }
 
 /** Schema marker for origin-level detector summaries. */
-export const DETECTION_ORIGIN_SUMMARY_SCHEMA_VERSION = 1 as const;
+export const DETECTION_ORIGIN_SUMMARY_SCHEMA_VERSION = 3 as const;
 
 /** Version marker carried by every stored origin summary. */
 export type DetectionOriginSummarySchemaVersion = typeof DETECTION_ORIGIN_SUMMARY_SCHEMA_VERSION;
@@ -163,14 +163,13 @@ export type DetectionSessionSnapshotSource = 'cache' | 'content' | 'background';
 /**
  * Executor that produced detector output for a snapshot revision.
  *
- * The side panel can show this in diagnostics so worker crashes, development-mode
- * fallbacks, and service-worker-bound matching are visible instead of being
+ * The side panel can show this in diagnostics so worker crashes, the explicit
+ * development executor, and offscreen matching are visible instead of being
  * misread as page collection or replay latency.
  */
 export type DetectionMatcherExecutor =
 	| 'offscreen-worker-pool'
-	| 'background-fallback'
-	| 'dev-fallback'
+	| 'development-background'
 	| 'unknown';
 
 /**
@@ -180,11 +179,27 @@ export type DetectionMatcherExecutor =
  * still moving. Keeping only partition counters gives users a trustworthy
  * progress cue even when a partial write preserves an older, richer result list.
  */
-export interface DetectionMatcherProgressSummary {
+export const MATCHER_PHASES = ['queued', 'matching', 'recording'] as const;
+
+/** User-visible matcher phase represented by one partial snapshot revision. */
+export type MatcherPhaseType = typeof MATCHER_PHASES[number];
+
+/** Public-safe matcher progress embedded in a partial snapshot revision. */
+export type MatcherProgressType = {
 	/** Matcher job that produced the latest progress receipt. */
 	readonly jobId: string;
-	/** Matcher lane that owns the job, such as initial or enrichment. */
+	/** Matcher lane that owns the job, such as complete or evidence-pass. */
 	readonly mode: string;
+	/** Current visible stage from capacity wait through durable result recording. */
+	readonly phase: MatcherPhaseType;
+	/** Timestamp when the offscreen host accepted the job. */
+	readonly queuedAt?: number;
+	/** Timestamp when the job acquired the worker pool. */
+	readonly startedAt?: number;
+	/** One-based position while the job is waiting for matcher capacity. */
+	readonly queuePosition?: number;
+	/** Number of jobs waiting in the offscreen host queue. */
+	readonly queueDepth?: number;
 	/** Number of worker partitions that have completed for the job. */
 	readonly completedPartitionCount: number;
 	/** Total worker partitions scheduled for the job. */
@@ -199,7 +214,7 @@ export interface DetectionMatcherProgressSummary {
 	readonly resultCount: number;
 	/** Millisecond timestamp when this progress receipt was written. */
 	readonly updatedAt: number;
-}
+};
 
 /**
  * Durable side panel-facing result for one inspected document.
@@ -237,7 +252,7 @@ export interface DetectionSessionSnapshot {
 	/** Matcher executor path that produced this revision, when known. */
 	readonly matcherExecutor?: DetectionMatcherExecutor;
 	/** Optional public-safe matcher progress for in-flight partial revisions. */
-	readonly matcherProgress?: DetectionMatcherProgressSummary;
+	readonly matcherProgress?: MatcherProgressType;
 	/** Optional public-safe replay progress summary. */
 	readonly replaySummary?: DetectionReplaySummary;
 }

@@ -70,7 +70,7 @@ export async function listMatcherJobRecords(): Promise<MatcherJobRecord[]> {
 
 /** Return whether a durable job still represents unfinished matcher work. */
 export function isMatcherJobActive(record: MatcherJobRecord): boolean {
-	return record.status === 'queued' || record.status === 'dispatching' || record.status === 'running' || record.status === 'streaming';
+	return record.status === 'queued' || record.status === 'dispatching' || record.status === 'running' || record.status === 'streaming' || record.status === 'recording';
 }
 
 
