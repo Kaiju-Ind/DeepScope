@@ -363,7 +363,7 @@ export function create(options: observe.OptionsType): observe.SignalsType {
 		content: observe.SnapshotOptionsType,
 		signal?: AbortSignal,
 	): Promise<observe.SnapshotType> {
-		return await scan.document({
+		return await scan.page({
 			content,
 			plan: activeSession?.domSelectorPlan ?? content.domSelectorPlan,
 			matched: domSelectorEntries,

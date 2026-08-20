@@ -1,18 +1,25 @@
 import { browser } from 'wxt/browser';
 
 import { compileValidatedTechnologyRegistry, type CompiledTechnologyRegistryArtifact } from './compiler-core';
+import { compileMatcherRegistry, type CompiledMatcherRegistryArtifact } from './matcher-artifact';
 import {
 	PACKAGED_REGISTRY_ASSET_PATHS,
 	getPackagedRegistryShardAssetPath,
 	hydratePackagedTechnologyRegistry,
+	hydratePackagedTechnologyRegistryShard,
+	isPackagedRuntimeTechnologyRegistryAsset,
 	isPackagedTechnologyRegistryAsset,
 	isPackagedTechnologyRegistryShardAsset,
 	normalizePackagedRegistryObservationKind,
 	type PackagedRegistryObservationKind,
 	type PackagedTechnologyRegistryAsset,
 } from './packaged-artifacts';
+import {
+	createRuntimeTechnologyRegistryFromData,
+	type RuntimeTechnologyRegistryArtifact,
+} from './runtime-artifact';
 import type { TechnologyRegistryProvider } from '../detection/registry-provider';
-import type { TechnologyDefinition } from '../detection/types';
+import type { MatcherTechnologyType, TechnologyDefinition } from '../detection/types';
 import type { NormalizedObservationKind } from '../observations';
 
 /** Fetch implementation used by tests and non-browser harnesses. */
@@ -28,24 +35,29 @@ export interface PackagedTechnologyRegistryProviderInput {
 	readonly maxObservationKindShards?: number;
 }
 
-/** Registry asset tier that contains executable technology definitions. */
+/** Registry asset tier that still contains complete technology definitions. */
 type PackagedExecutableRegistryKind = PackagedTechnologyRegistryAsset['kind'];
 
-/** Cached runtime state for one packaged registry tier. */
+/** Cached runtime state for one complete registry tier. */
 interface PackagedRegistryTierCache {
-	/** Ordered technology definitions hydrated from JSON. */
+	readonly kind: PackagedExecutableRegistryKind;
 	registryPromise?: Promise<readonly TechnologyDefinition[]>;
-	/** Compiled matcher, graph, and collection-plan artifact for the hydrated registry. */
 	artifactPromise?: Promise<CompiledTechnologyRegistryArtifact>;
+}
+
+/** Cached worker-local state for one minimal matcher shard. */
+interface PackagedMatcherShardCache {
+	registryPromise?: Promise<readonly MatcherTechnologyType[]>;
+	artifactPromise?: Promise<CompiledMatcherRegistryArtifact>;
 }
 
 /**
  * Create a registry provider backed by generated JSON assets.
  *
- * The full payload is fetched for collection planning, graph refinement, and
- * final emission. Dedicated matcher workers fetch observation-kind shards on
- * demand, so a `scriptSrc` partition does not clone DOM, HTML, header, and text
- * rules through the worker message channel before it can begin matching.
+ * The background service worker reads the rule-free `runtime` product. Complete
+ * enrichment definitions remain available for development and compatibility
+ * tools, while dedicated matcher workers fetch minimal observation-kind shards
+ * and compile only their matcher indexes.
  */
 export function createPackagedTechnologyRegistryProvider(
 	input: PackagedTechnologyRegistryProviderInput = {},
@@ -54,18 +66,19 @@ export function createPackagedTechnologyRegistryProvider(
 		path as Parameters<typeof browser.runtime.getURL>[0],
 	));
 	const fetchAsset = input.fetchAsset ?? fetchRegistryAsset;
-	const bootstrap = createRegistryTierCache();
-	const enrichment = createRegistryTierCache();
-	const shards = new Map<PackagedRegistryObservationKind, PackagedRegistryTierCache>();
+	const bootstrap = createRegistryTierCache('bootstrap');
+	const enrichment = createRegistryTierCache('enrichment');
+	const shards = new Map<PackagedRegistryObservationKind, PackagedMatcherShardCache>();
 	const maxObservationKindShards = normalizeShardCacheLimit(input.maxObservationKindShards);
+	let runtimePromise: Promise<RuntimeTechnologyRegistryArtifact> | undefined;
 
-	const loadRegistry = (kind: PackagedExecutableRegistryKind, cache: PackagedRegistryTierCache) => {
-		cache.registryPromise ??= loadPackagedRegistry({ kind, resolveUrl, fetchAsset });
+	const loadRegistry = (cache: PackagedRegistryTierCache) => {
+		cache.registryPromise ??= loadPackagedRegistry({ kind: cache.kind, resolveUrl, fetchAsset });
 		return cache.registryPromise;
 	};
-	const compileRegistry = (kind: PackagedExecutableRegistryKind, cache: PackagedRegistryTierCache) => {
+	const compileRegistry = (cache: PackagedRegistryTierCache) => {
 		cache.artifactPromise ??= (async () => compileValidatedTechnologyRegistry({
-			technologies: await loadRegistry(kind, cache),
+			technologies: await loadRegistry(cache),
 			sourceKind: 'typescript-definition',
 		}))();
 		return cache.artifactPromise;
@@ -74,13 +87,12 @@ export function createPackagedTechnologyRegistryProvider(
 		const observationKind = normalizePackagedRegistryObservationKind(kind);
 		const existing = shards.get(observationKind);
 		if (existing) {
-			// Refresh insertion order so the first Map entry remains the least recently used shard.
 			shards.delete(observationKind);
 			shards.set(observationKind, existing);
 			return existing;
 		}
 
-		const cache = createRegistryTierCache();
+		const cache: PackagedMatcherShardCache = {};
 		shards.set(observationKind, cache);
 		while (shards.size > maxObservationKindShards) {
 			const leastRecentlyUsedKind = shards.keys().next().value as PackagedRegistryObservationKind | undefined;
@@ -91,18 +103,19 @@ export function createPackagedTechnologyRegistryProvider(
 	};
 
 	return {
-		listTechnologies: () => loadRegistry('enrichment', enrichment),
-		listBootstrapTechnologies: () => loadRegistry('bootstrap', bootstrap),
-		getCompiledRegistry: () => compileRegistry('enrichment', enrichment),
-		getCompiledBootstrapRegistry: () => compileRegistry('bootstrap', bootstrap),
+		listTechnologies: () => loadRegistry(enrichment),
+		listBootstrapTechnologies: () => loadRegistry(bootstrap),
+		getCompiledRegistry: () => compileRegistry(enrichment),
+		getRuntimeRegistry() {
+			runtimePromise ??= loadPackagedRuntimeRegistry({ resolveUrl, fetchAsset });
+			return runtimePromise;
+		},
+		getCompiledBootstrapRegistry: () => compileRegistry(bootstrap),
 		getCompiledObservationKindRegistry(kind) {
 			const observationKind = normalizePackagedRegistryObservationKind(kind);
 			const cache = getShardCache(kind);
 			cache.registryPromise ??= loadPackagedRegistryShard({ observationKind, resolveUrl, fetchAsset });
-			cache.artifactPromise ??= (async () => compileValidatedTechnologyRegistry({
-				technologies: await cache.registryPromise!,
-				sourceKind: 'typescript-definition',
-			}))();
+			cache.artifactPromise ??= (async () => compileMatcherRegistry(await cache.registryPromise!))();
 			return cache.artifactPromise;
 		},
 	};
@@ -115,19 +128,11 @@ function normalizeShardCacheLimit(value: number | undefined): number {
 	return Math.max(1, Math.floor(value));
 }
 
-function createRegistryTierCache(): PackagedRegistryTierCache {
-	return {};
+function createRegistryTierCache(kind: PackagedExecutableRegistryKind): PackagedRegistryTierCache {
+	return { kind };
 }
 
-/**
- * Fetch packaged registry data without detaching the native worker fetch method.
- *
- * Chrome's worker `fetch` expects the worker global as its receiver. Passing the
- * native method through an object and later invoking it as `input.fetchAsset(...)`
- * can bind `this` to that object, which raises `Illegal invocation` before the
- * registry URL is even requested. Wrapping the call preserves the correct
- * browser receiver while keeping tests free to inject a fake fetcher.
- */
+/** Preserve the native worker fetch receiver while allowing deterministic tests to inject a fake fetcher. */
 async function fetchRegistryAsset(url: string): Promise<{ readonly ok: boolean; json(): Promise<unknown> }> {
 	return globalThis.fetch(url);
 }
@@ -139,34 +144,43 @@ async function loadPackagedRegistry(input: {
 }): Promise<readonly TechnologyDefinition[]> {
 	const url = input.resolveUrl(PACKAGED_REGISTRY_ASSET_PATHS[input.kind]);
 	const response = await input.fetchAsset(url);
-	if (!response.ok) {
-		throw new Error(`Unable to load packaged ${input.kind} registry asset from ${url}.`);
-	}
+	if (!response.ok) throw new Error(`Unable to load packaged ${input.kind} registry asset from ${url}.`);
 
 	const parsed = await response.json();
 	if (!isPackagedTechnologyRegistryAsset(parsed, input.kind)) {
 		throw new Error(`Packaged ${input.kind} registry asset did not match the expected schema.`);
 	}
-
 	return hydratePackagedTechnologyRegistry(parsed);
+}
+
+async function loadPackagedRuntimeRegistry(input: {
+	readonly resolveUrl: (path: string) => string;
+	readonly fetchAsset: RegistryAssetFetch;
+}): Promise<RuntimeTechnologyRegistryArtifact> {
+	const url = input.resolveUrl(PACKAGED_REGISTRY_ASSET_PATHS.runtime);
+	const response = await input.fetchAsset(url);
+	if (!response.ok) throw new Error(`Unable to load packaged runtime registry asset from ${url}.`);
+
+	const parsed = await response.json();
+	if (!isPackagedRuntimeTechnologyRegistryAsset(parsed)) {
+		throw new Error('Packaged runtime registry asset did not match the expected schema.');
+	}
+	return createRuntimeTechnologyRegistryFromData(parsed);
 }
 
 async function loadPackagedRegistryShard(input: {
 	readonly observationKind: PackagedRegistryObservationKind;
 	readonly resolveUrl: (path: string) => string;
 	readonly fetchAsset: RegistryAssetFetch;
-}): Promise<readonly TechnologyDefinition[]> {
+}): Promise<readonly MatcherTechnologyType[]> {
 	const path = getPackagedRegistryShardAssetPath(input.observationKind);
 	const url = input.resolveUrl(path);
 	const response = await input.fetchAsset(url);
-	if (!response.ok) {
-		throw new Error(`Unable to load packaged ${input.observationKind} matcher shard from ${url}.`);
-	}
+	if (!response.ok) throw new Error(`Unable to load packaged ${input.observationKind} matcher shard from ${url}.`);
 
 	const parsed = await response.json();
 	if (!isPackagedTechnologyRegistryShardAsset(parsed, input.observationKind)) {
 		throw new Error(`Packaged ${input.observationKind} matcher shard did not match the expected schema.`);
 	}
-
-	return hydratePackagedTechnologyRegistry(parsed);
+	return hydratePackagedTechnologyRegistryShard(parsed);
 }

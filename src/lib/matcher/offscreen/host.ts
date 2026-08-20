@@ -3,6 +3,7 @@ import { browser } from 'wxt/browser';
 import * as logging from '../../diagnostics/logging';
 import {
 	MATCHER_OFFSCREEN_CHANNEL,
+	type MatcherHostIdleMessage,
 	type MatcherJobStateMessage,
 	type MatcherOffscreenRequestMessage,
 	type MatcherOffscreenResponse,
@@ -23,8 +24,8 @@ const DEFAULT_WORKER_COUNT = 2;
 /** Retention safety limit for full observation batches waiting in the offscreen host. */
 const MAX_QUEUED_JOBS = 8;
 
-/** Release dedicated-worker heaps after nearby matcher jobs stop arriving. */
-const WORKER_IDLE_MS = 30000_000;
+/** One grace period before both worker heaps and the hidden host document are released. */
+const HOST_IDLE_MS = 30_000;
 
 /**
  * Offscreen matcher host state.
@@ -135,9 +136,9 @@ class Host {
 			partitionCount: tasks.length,
 		});
 
-		const partitions = await this.#getPool(request).run(tasks);
+		const partitionCount = await this.#getPool(request).run(tasks);
 		if (this.#canceled.has(request.job.jobId)) throw new Error('Matcher job was canceled before completion.');
-		return { job: request.job, mode: request.mode, partitions, completedAt: Date.now() };
+		return { job: request.job, mode: request.mode, partitionCount, completedAt: Date.now() };
 	}
 
 	/** Reuse hot workers across nearby jobs while keeping their lifetime explicit. */
@@ -147,9 +148,8 @@ class Host {
 		const workerCount = request.maxWorkerCount ?? DEFAULT_WORKER_COUNT;
 		this.#pool = new Pool(workerCount, {
 			isCanceled: (jobId) => this.#canceled.has(jobId),
-			onPartition: (partition, completedPartitionCount, partitionCount) => {
-				this.#emitPartition(partition, completedPartitionCount, partitionCount);
-			},
+			onPartition: (partition, completedPartitionCount, partitionCount) =>
+				this.#emitPartition(partition, completedPartitionCount, partitionCount),
 		});
 		logger.debug('Created matcher worker pool.', {
 			event: 'matcher-worker-pool-created',
@@ -175,22 +175,43 @@ class Host {
 		});
 	}
 
-	/** Keep hot shards briefly, then release every dedicated-worker heap. */
+	/**
+	 * Release the complete matcher host after one idle grace period.
+	 *
+	 * The offscreen document owns this timer because a Manifest V3 background timer
+	 * can disappear when Chrome suspends the service worker. Expiry first terminates
+	 * every dedicated worker, then asks the background to close the document through
+	 * the privileged Offscreen API. A new queued job cancels the same timer.
+	 */
 	#scheduleIdle(): void {
 		this.#clearIdle();
-		if (!this.#pool) return;
 		this.#idleTimer = globalThis.setTimeout(() => {
 			this.#idleTimer = undefined;
 			if (this.#running || this.#queue.size > 0) return;
-			this.#dispose(`Matcher worker pool reached the ${WORKER_IDLE_MS}ms idle limit.`);
-		}, WORKER_IDLE_MS);
+			this.#dispose(`Matcher host reached the ${HOST_IDLE_MS}ms idle limit.`);
+			this.#emitIdle();
+		}, HOST_IDLE_MS);
 	}
 
-	/** Cancel worker-pool idle disposal while work is active or newly queued. */
+	/** Cancel host-idle disposal while work is active or newly queued. */
 	#clearIdle(): void {
 		if (this.#idleTimer === undefined) return;
 		globalThis.clearTimeout(this.#idleTimer);
 		this.#idleTimer = undefined;
+	}
+
+	/** Wake the background so it can close this offscreen document immediately. */
+	#emitIdle(): void {
+		logger.debug('Matcher host reached its idle grace period.', {
+			event: 'matcher-host-idle',
+			idleMs: HOST_IDLE_MS,
+		});
+		const message: MatcherHostIdleMessage = {
+			channel: MATCHER_OFFSCREEN_CHANNEL,
+			type: 'matcher.host-idle',
+			idleAt: Date.now(),
+		};
+		void browser.runtime.sendMessage(message).catch(() => undefined);
 	}
 
 	/** Publish queue/execution state without making delivery authoritative to matching. */
@@ -203,7 +224,7 @@ class Host {
 		partition: MatcherPartitionResult,
 		completedPartitionCount: number,
 		partitionCount: number,
-	): void {
+	): Promise<void> {
 		const message: MatcherPartitionProgressMessage = {
 			channel: MATCHER_OFFSCREEN_CHANNEL,
 			type: 'matcher.partition-complete',
@@ -211,7 +232,7 @@ class Host {
 			completedPartitionCount,
 			partitionCount,
 		};
-		void browser.runtime.sendMessage(message).catch(() => undefined);
+		return browser.runtime.sendMessage(message).then(() => undefined);
 	}
 }
 

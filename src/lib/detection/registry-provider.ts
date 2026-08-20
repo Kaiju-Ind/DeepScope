@@ -1,4 +1,7 @@
 import { compileValidatedTechnologyRegistry, type CompiledTechnologyRegistryArtifact } from '../registry/compiler-core';
+import { compileMatcherRegistry, type CompiledMatcherRegistryArtifact } from '../registry/matcher-artifact';
+import { createObservationKindTechnologyRegistry } from '../registry/packaged-artifacts';
+import { createRuntimeTechnologyRegistryArtifact, type RuntimeTechnologyRegistryArtifact } from '../registry/runtime-artifact';
 import { createPackagedTechnologyRegistryProvider } from '../registry/packaged-provider';
 import type { TechnologyDefinition } from './types';
 import type { NormalizedObservationKind } from '../observations';
@@ -22,10 +25,12 @@ export interface TechnologyRegistryProvider {
 	 * and collection plans during every visible-tab analysis.
 	 */
 	getCompiledRegistry(): Promise<CompiledTechnologyRegistryArtifact>;
+	/** Return the rule-free product used by background collection and finalization. */
+	getRuntimeRegistry(): Promise<RuntimeTechnologyRegistryArtifact>;
 	/** Return the compiled bootstrap artifact kept for compatibility and benchmark baselines. */
 	getCompiledBootstrapRegistry(): Promise<CompiledTechnologyRegistryArtifact>;
 	/** Return a compiled matcher shard for one normalized observation kind. */
-	getCompiledObservationKindRegistry(kind: NormalizedObservationKind): Promise<CompiledTechnologyRegistryArtifact>;
+	getCompiledObservationKindRegistry(kind: NormalizedObservationKind): Promise<CompiledMatcherRegistryArtifact>;
 }
 
 /**
@@ -38,6 +43,7 @@ export function createStaticTechnologyRegistryProvider(
 	registry: readonly TechnologyDefinition[],
 ): TechnologyRegistryProvider {
 	let compiledRegistry: CompiledTechnologyRegistryArtifact | undefined;
+	let runtimeRegistry: RuntimeTechnologyRegistryArtifact | undefined;
 
 	return {
 		async listTechnologies() {
@@ -56,6 +62,15 @@ export function createStaticTechnologyRegistryProvider(
 			return compiledRegistry;
 		},
 
+		async getRuntimeRegistry() {
+			compiledRegistry ??= compileValidatedTechnologyRegistry({
+				technologies: registry,
+				sourceKind: 'typescript-definition',
+			});
+			runtimeRegistry ??= createRuntimeTechnologyRegistryArtifact(compiledRegistry);
+			return runtimeRegistry;
+		},
+
 		async getCompiledBootstrapRegistry() {
 			compiledRegistry ??= compileValidatedTechnologyRegistry({
 				technologies: registry,
@@ -64,12 +79,8 @@ export function createStaticTechnologyRegistryProvider(
 			return compiledRegistry;
 		},
 
-		async getCompiledObservationKindRegistry(_kind) {
-			compiledRegistry ??= compileValidatedTechnologyRegistry({
-				technologies: registry,
-				sourceKind: 'typescript-definition',
-			});
-			return compiledRegistry;
+		async getCompiledObservationKindRegistry(kind) {
+			return compileMatcherRegistry(createObservationKindTechnologyRegistry(registry, kind));
 		},
 	};
 }

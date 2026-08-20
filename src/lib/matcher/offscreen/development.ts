@@ -1,16 +1,18 @@
 import { matchIndexedObservationBatch } from '../../detection/observation-matcher-index';
+import { bundledTechnologyRegistryProvider } from '../../detection/registry-provider';
 import type { MatcherJobRunResult, RunMatcherJobRequest } from '../contracts';
 import { createMatcherPartitionTasks, createMatcherPipelineResult } from '../partition';
 
 /**
  * Run matcher work in the background only for WXT development builds.
  *
- * Vite can serve worker modules differently during extension development. This
- * path keeps hot-reload useful, but it must never become a production fallback:
- * repeating a failed offscreen job in the service worker duplicates the largest
- * CPU and memory cost exactly when the primary runtime is already unhealthy.
+ * Development intentionally pays for the complete compiled registry because the
+ * Vite worker path can be unstable during hot reload. Production never calls this
+ * function and therefore never loads executable matcher rules into the background
+ * service worker.
  */
 export async function run(request: RunMatcherJobRequest): Promise<MatcherJobRunResult> {
+	const compiled = await bundledTechnologyRegistryProvider.getCompiledRegistry();
 	const partitions = createMatcherPartitionTasks({
 		job: request.job,
 		batch: request.batch,
@@ -21,9 +23,9 @@ export async function run(request: RunMatcherJobRequest): Promise<MatcherJobRunR
 			task.observationIndexes[index] ?? index,
 		]));
 		const matched = matchIndexedObservationBatch({
-			registry: request.registry,
+			registry: compiled.technologies,
 			batch: task.batch,
-			index: request.index,
+			index: compiled.matcherIndex,
 			options: task.options,
 		});
 		return {
@@ -44,7 +46,7 @@ export async function run(request: RunMatcherJobRequest): Promise<MatcherJobRunR
 	const result = createMatcherPipelineResult({
 		batch: request.batch,
 		registry: request.registry,
-		compiledRegistryArtifact: { relationshipGraph: request.relationshipGraph },
+		relationshipGraph: request.relationshipGraph,
 		partitions,
 		analyzedAt: request.analyzedAt,
 		source: request.source,

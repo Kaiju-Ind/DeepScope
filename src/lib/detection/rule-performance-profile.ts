@@ -1,6 +1,7 @@
 import { matchObservationRule } from './observation-matcher';
 import type { DetectionRule, TechnologyDefinition } from './types';
 import type { NormalizedObservation, NormalizedObservationKind } from '../observations';
+import { isDetectionPattern } from './pattern';
 
 /** Target document reused by generated rule-profile observations. */
 export const RULE_PROFILE_TARGET = {
@@ -607,7 +608,7 @@ function isPayloadScanKind(kind: NormalizedObservationKind): boolean {
 }
 
 function hasPatternLikeMatcher(rule: DetectionRule): boolean {
-	return 'pattern' in rule && rule.pattern instanceof RegExp;
+	return 'pattern' in rule && isDetectionPattern(rule.pattern);
 }
 
 function getRecordBudgetMs(record: RuleTimingRecord, budgets: RuleProfileBudgets): number {

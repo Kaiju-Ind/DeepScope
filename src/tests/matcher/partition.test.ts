@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { matchIndexedObservationBatch } from '@/lib/detection/observation-matcher-index';
 import { createObservationMatcherIndex } from '@/lib/detection/observation-matcher-index';
-import { createCompiledDetectionRegistry } from '@/lib/detection/registry-graph';
+import { createCompiledDetectionGraph, createCompiledDetectionRegistry } from '@/lib/detection/registry-graph';
 import type { TechnologyDefinition } from '@/lib/detection/types';
 import { createMatcherPartitionTasks, createMatcherPipelineResult } from '@/lib/matcher';
 import type { MatcherPartitionResult } from '@/lib/matcher';
@@ -15,6 +15,19 @@ const job = {
 	tabId: 7,
 	expectedUrl: 'https://example.com/products',
 } as const;
+
+function createRuleFreeRelationshipGraph(registry: readonly TechnologyDefinition[]) {
+	const relationshipEdges = createCompiledDetectionRegistry(registry).relationshipEdges;
+	const profiles = registry.map(({ id, name, website, description, icon, categories }) => ({
+		id,
+		name,
+		website,
+		...(description ? { description } : {}),
+		...(icon ? { icon } : {}),
+		categories,
+	}));
+	return createCompiledDetectionGraph(profiles, relationshipEdges);
+}
 
 describe('matcher partitions', () => {
 	/**
@@ -141,7 +154,7 @@ describe('matcher partitions', () => {
 			scripts: ['https://cdn.example/runtime.js'],
 			resources: [{ url: 'https://cdn.example/resource-tool.js', initiatorType: 'script' }],
 		}));
-		const relationshipGraph = createCompiledDetectionRegistry(registry);
+		const relationshipGraph = createRuleFreeRelationshipGraph(registry);
 		const partitions: MatcherPartitionResult[] = createMatcherPartitionTasks({ job, batch }).map((task) => {
 			const shardRegistry = createObservationKindTechnologyRegistry(registry, task.kind);
 			const shardIndex = createObservationMatcherIndex(shardRegistry);
@@ -169,7 +182,7 @@ describe('matcher partitions', () => {
 		const result = createMatcherPipelineResult({
 			batch,
 			registry,
-			compiledRegistryArtifact: { relationshipGraph },
+			relationshipGraph,
 			partitions,
 		});
 
@@ -208,8 +221,8 @@ describe('matcher partitions', () => {
 		const batch = normalizePageSignals(makePageSignals({
 			meta: { generator: ['Source Runtime'] },
 		}));
-		const relationshipGraph = createCompiledDetectionRegistry(registry);
-		const serializedRelationshipGraph = JSON.parse(JSON.stringify(relationshipGraph)) as unknown as ReturnType<typeof createCompiledDetectionRegistry>;
+		const relationshipGraph = createRuleFreeRelationshipGraph(registry);
+		const serializedRelationshipGraph = JSON.parse(JSON.stringify(relationshipGraph)) as unknown as typeof relationshipGraph;
 		const partitions: MatcherPartitionResult[] = createMatcherPartitionTasks({ job, batch }).map((task) => {
 			const shardRegistry = createObservationKindTechnologyRegistry(registry, task.kind);
 			const shardIndex = createObservationMatcherIndex(shardRegistry);
@@ -233,7 +246,7 @@ describe('matcher partitions', () => {
 		const result = createMatcherPipelineResult({
 			batch,
 			registry,
-			compiledRegistryArtifact: { relationshipGraph: serializedRelationshipGraph },
+			relationshipGraph: serializedRelationshipGraph,
 			partitions,
 		});
 

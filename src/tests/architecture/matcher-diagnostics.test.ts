@@ -67,11 +67,13 @@ describe('matcher worker diagnostics', () => {
 	it('releases idle dedicated-worker heaps', () => {
 		const host = read(OFFSCREEN_HOST);
 
-		expect(host).toContain('WORKER_IDLE_MS = 30_000');
+		expect(host).toContain('HOST_IDLE_MS = 30_000');
 		expect(host).toContain('pool.dispose(reason)');
 		expect(host).toContain("event: 'matcher-worker-pool-created'");
 		expect(host).toContain("event: 'matcher-worker-pool-disposed'");
-		expect(host).toContain('WORKER_IDLE_MS}ms idle limit');
+		expect(host).toContain('HOST_IDLE_MS}ms idle limit');
+		expect(host).toContain('this.#emitIdle()');
+		expect(host).toContain("event: 'matcher-host-idle'");
 	});
 
 	it('keeps registry-scale matcher state out of cross-context requests and the offscreen host', () => {
@@ -83,13 +85,38 @@ describe('matcher worker diagnostics', () => {
 		expect(contracts).toContain("'job' | 'mode' | 'batch' | 'options' | 'maxWorkerCount'");
 		expect(client).toContain('request: compact(request)');
 		expect(client).toContain('registry: request.registry');
-		expect(client).toContain('compiledRegistryArtifact: { relationshipGraph: request.relationshipGraph }');
+		expect(client).toContain('relationshipGraph: request.relationshipGraph');
 		expect(host).not.toContain('createPackagedTechnologyRegistryProvider');
 		expect(host).not.toContain('createCompiledDetectionRegistry');
 		expect(host).not.toContain('createMatcherPipelineResult');
 		expect(host).not.toContain('request.registry');
 		expect(host).not.toContain('request.relationshipGraph');
 		expect(host).not.toContain('request.index');
+	});
+
+	it('keeps matcher rules and matcher indexes out of the production background registry', () => {
+		const runtime = read(BACKGROUND_RUNTIME);
+		const worker = read(MATCHER_WORKER);
+
+		expect(runtime).toContain("Pick<TechnologyRegistryProvider, 'getRuntimeRegistry'>");
+		expect(runtime).toContain('dependencies.registryProvider.getRuntimeRegistry()');
+		expect(runtime).not.toContain('dependencies.registryProvider.getCompiledRegistry()');
+		expect(runtime).not.toContain('.matcherIndex');
+		expect(worker).toContain('CompiledMatcherRegistryArtifact');
+		expect(worker).not.toContain('compileValidatedTechnologyRegistry');
+	});
+
+	it('streams each partition once instead of retaining a second offscreen result set', () => {
+		const client = read(OFFSCREEN_CLIENT);
+		const host = read(OFFSCREEN_HOST);
+		const pool = read(OFFSCREEN_POOL);
+
+		expect(pool).toContain('assignByKind(tasks, this.#workers.length)');
+		expect(pool).toContain('await this.#options.onPartition(result, completedPartitionCount, tasks.length)');
+		expect(pool).not.toContain('const results: MatcherPartitionResult[]');
+		expect(host).toContain('const partitionCount = await this.#getPool(request).run(tasks);');
+		expect(client).toContain('value.value.partitionCount !== partitions.length');
+		expect(client).toContain("message.type === 'matcher.partition-complete'");
 	});
 
 	it('terminates active matcher workers on cancellation or failure', () => {
@@ -106,10 +133,10 @@ describe('matcher worker diagnostics', () => {
 	it('uses separate queue and execution deadlines', () => {
 		const client = read(OFFSCREEN_CLIENT);
 
-		expect(client).toContain('QUEUE_TIMEOUT_MS = 120_000');
-		expect(client).toContain('RUN_TIMEOUT_MS = 120_000');
+		expect(client).toContain('QUEUE_DEADLINE_MS = 120_000');
+		expect(client).toContain('RUN_DEADLINE_MS = 120_000');
 		expect(client).toContain("message.phase !== 'running'");
-		expect(client).toContain('arm(RUN_TIMEOUT_MS)');
+		expect(client).toContain('arm(RUN_DEADLINE_MS)');
 		expect(client).toContain('browser.runtime.onMessage.addListener(onMessage)');
 		expect(client.indexOf('browser.runtime.onMessage.addListener(onMessage)')).toBeLessThan(client.indexOf('response = send()'));
 	});
@@ -123,10 +150,15 @@ describe('matcher worker diagnostics', () => {
 		expect(`${client}\n${host}\n${entry}`).not.toContain('parseFromString');
 		expect(client).toContain('reasons: [offscreen.Reason.WORKERS]');
 		expect(client).not.toContain('offscreen.Reason.DOM_PARSER');
-		expect(client).toContain('IDLE_MS = 30_000');
+		expect(host).toContain('HOST_IDLE_MS = 30_000');
+		expect(host).toContain("type: 'matcher.host-idle'");
+		expect(client).not.toContain('const IDLE_MS');
+		expect(client).not.toContain('idleTimer');
+		expect(client).not.toContain('scheduleClose');
 		expect(client).toContain('await offscreen.closeDocument()');
 		expect(client).toContain("event: 'matcher-offscreen-document-closed'");
-		expect(read(BACKGROUND_ENTRYPOINT)).toContain('offscreen.close');
+		expect(read(BACKGROUND_ENTRYPOINT)).toContain('offscreen.start()');
+		expect(read(BACKGROUND_ENTRYPOINT)).not.toContain('offscreen.close(');
 	});
 
 	it('keeps the background matcher implementation development-only', () => {

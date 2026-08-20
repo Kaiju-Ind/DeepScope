@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { TechnologyDefinition } from '@/lib/detection/types';
+import { testDetectionPattern } from '@/lib/detection/pattern';
+import type { DetectionPatternType, TechnologyDefinition } from '@/lib/detection/types';
 import { compileTechnologyRegistry } from '@/lib/registry';
 import {
 	PACKAGED_REGISTRY_ASSET_PATHS,
@@ -9,6 +10,7 @@ import {
 	createObservationKindTechnologyRegistry,
 	getPackagedRegistryShardAssetPath,
 	hydratePackagedTechnologyRegistry,
+	isPackagedRuntimeTechnologyRegistryAsset,
 	isPackagedTechnologyRegistryAsset,
 	isPackagedTechnologyRegistryShardAsset,
 	renderPackagedRegistryJson,
@@ -66,6 +68,22 @@ function makeShardAsset(registry: readonly TechnologyDefinition[], observationKi
 	};
 }
 
+function makeRuntimeAsset(registry: readonly TechnologyDefinition[]) {
+	const artifact = compileTechnologyRegistry({ technologies: registry });
+	return {
+		schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
+		kind: 'runtime' as const,
+		technologies: artifact.technologies.map(({ id, name, website, description, icon, categories }) => ({
+			id, name, website, ...(description ? { description } : {}), ...(icon ? { icon } : {}), categories,
+		})),
+		patternTables: artifact.patternTables,
+		relationshipEdges: artifact.relationshipGraph.relationshipEdges,
+		collectionPlan: artifact.collectionPlan,
+		diagnosticCount: artifact.diagnostics.length,
+		generatedAt: 1,
+	};
+}
+
 describe('packaged registry artifacts', () => {
 	it('round-trips regular expression rules through JSON assets', () => {
 		const rendered = renderPackagedRegistryJson(makeRegistryAsset(makeRegistry()));
@@ -76,8 +94,10 @@ describe('packaged registry artifacts', () => {
 
 		expect(hydrated.map((technology) => technology.id)).toEqual(['bootstrap-visible', 'enrichment-only']);
 		expect(hydrated[0]?.rules[0]).toMatchObject({ kind: 'meta', key: 'generator' });
-		expect((hydrated[0]?.rules[0] as { valuePattern?: RegExp }).valuePattern).toBeInstanceOf(RegExp);
-		expect((hydrated[0]?.rules[0] as { valuePattern: RegExp }).valuePattern.test('Bootstrap Visible')).toBe(true);
+		const valuePattern = (hydrated[0]?.rules[0] as { valuePattern: DetectionPatternType }).valuePattern;
+		expect(valuePattern).not.toBeInstanceOf(RegExp);
+		expect(valuePattern).toEqual({ source: 'Bootstrap Visible', flags: '' });
+		expect(testDetectionPattern(valuePattern, 'Bootstrap Visible')).toBe(true);
 	});
 
 	it('keeps bootstrap registry rules limited to cheap page-local surfaces', () => {
@@ -94,6 +114,9 @@ describe('packaged registry artifacts', () => {
 		const headerShard = createObservationKindTechnologyRegistry(registry, 'header');
 
 		expect(scriptShard.map((technology) => technology.id)).toEqual(['bootstrap-visible']);
+		expect(Object.keys(scriptShard[0] ?? {}).sort()).toEqual(['id', 'name', 'rules']);
+		expect(scriptShard[0]).not.toHaveProperty('website');
+		expect(scriptShard[0]).not.toHaveProperty('categories');
 		expect(scriptShard[0]?.rules.map((rule) => rule.kind)).toEqual(['scriptSrc']);
 		expect(scriptShard[0]?.rules[0]?.sourceRuleIndex).toBe(1);
 		expect(htmlProbeShard.map((technology) => technology.id)).toEqual(['enrichment-only']);
@@ -120,6 +143,7 @@ describe('packaged registry artifacts', () => {
 
 	it('keeps packaged registry paths relative to the extension root', () => {
 		expect(PACKAGED_REGISTRY_ASSET_PATHS.enrichment).toBe('kaiju-deepscope-registry/registry.enrichment.json');
+		expect(PACKAGED_REGISTRY_ASSET_PATHS.runtime).toBe('kaiju-deepscope-registry/registry.runtime.json');
 		expect(PACKAGED_REGISTRY_ASSET_PATHS.enrichment.startsWith('/')).toBe(false);
 		expect(getPackagedRegistryShardAssetPath('imageSrc')).toBe('kaiju-deepscope-registry/registry.kind.imageSrc.json');
 		expect(getPackagedRegistryShardAssetPath('scriptSrc')).toBe('kaiju-deepscope-registry/registry.kind.scriptSrc.json');
@@ -177,6 +201,33 @@ describe('packaged registry artifacts', () => {
 		expect(enrichment.technologies.map((technology) => technology.id)).toEqual(['bootstrap-visible', 'enrichment-only']);
 	});
 
+	it('loads the rule-free runtime registry without fetching enrichment rules', async () => {
+		const registry = makeRegistry();
+		const runtimeAsset = makeRuntimeAsset(registry);
+		expect(isPackagedRuntimeTechnologyRegistryAsset(runtimeAsset)).toBe(true);
+		const fetchAsset = vi.fn(async (url: string) => {
+			expect(url).toContain('registry.runtime.json');
+			return {
+				ok: true,
+				async json() {
+					return JSON.parse(renderPackagedRegistryJson(runtimeAsset));
+				},
+			};
+		});
+		const provider = createPackagedTechnologyRegistryProvider({
+			resolveUrl: (path) => `extension://${path}`,
+			fetchAsset,
+		});
+
+		const artifact = await provider.getRuntimeRegistry();
+
+		expect(fetchAsset).toHaveBeenCalledOnce();
+		expect(artifact.technologies.map((technology) => technology.id)).toEqual(['bootstrap-visible', 'enrichment-only']);
+		expect(artifact.technologies.every((technology) => !('rules' in technology))).toBe(true);
+		expect(artifact.relationshipGraph.definitionsById.get('bootstrap-visible')).not.toHaveProperty('rules');
+		expect(artifact.collectionPlan).toEqual(runtimeAsset.collectionPlan);
+	});
+
 	it('loads observation-kind shard JSON once and compiles a narrowed matcher index', async () => {
 		const registry = makeRegistry();
 		const fetchAsset = vi.fn(async (url: string) => ({
@@ -200,6 +251,9 @@ describe('packaged registry artifacts', () => {
 		expect(first).toBe(second);
 		expect(first.technologies.map((technology) => technology.id)).toEqual(['bootstrap-visible']);
 		expect(first.matcherIndex.ruleCount).toBe(1);
+		expect(first).not.toHaveProperty('relationshipGraph');
+		expect(first).not.toHaveProperty('collectionPlan');
+		expect(first).not.toHaveProperty('sourceMap');
 	});
 
 	it('evicts least-recently-used observation-kind shards when a provider cache budget is configured', async () => {

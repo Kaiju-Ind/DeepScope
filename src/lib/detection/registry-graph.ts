@@ -1,4 +1,4 @@
-import type { DetectionRelationship, TechnologyDefinition } from './types';
+import type { DetectionRelationship, TechnologyDefinition, TechnologyProfileType } from './types';
 
 /** Relationship kinds that affect detector graph reasoning. */
 export type RegistryRelationshipKind = DetectionRelationship['kind'];
@@ -37,6 +37,35 @@ export type CompiledDetectionRegistry = {
 	/** Shorthand and explicit relationship declarations converted into one edge list. */
 	relationshipEdges: RegistryRelationshipEdge[];
 };
+
+
+
+/**
+ * Lightweight relationship graph used after rule matching.
+ *
+ * It deliberately retains no executable rules. Background candidate refinement
+ * needs display metadata, stable registry order, and normalized edges only.
+ */
+export type CompiledDetectionGraph = {
+	readonly technologies: readonly TechnologyProfileType[];
+	readonly definitionsById: ReadonlyMap<string, TechnologyProfileType>;
+	readonly registryOrderById: ReadonlyMap<string, number>;
+	readonly relationshipEdges: readonly RegistryRelationshipEdge[];
+};
+
+/** Build a rule-free relationship graph from packaged runtime metadata. */
+export function createCompiledDetectionGraph(
+	technologies: readonly TechnologyProfileType[],
+	relationshipEdges: readonly RegistryRelationshipEdge[],
+): CompiledDetectionGraph {
+	const profiles = [...technologies];
+	return {
+		technologies: profiles,
+		definitionsById: new Map(profiles.map((technology) => [technology.id, technology])),
+		registryOrderById: new Map(profiles.map((technology, index) => [technology.id, index])),
+		relationshipEdges: [...relationshipEdges],
+	};
+}
 
 /**
  * Compile loaded technology definitions into the registry graph shape used by detection.

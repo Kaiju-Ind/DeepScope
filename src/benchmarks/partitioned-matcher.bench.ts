@@ -3,7 +3,7 @@ import { bench, describe } from 'vitest';
 import { createEvidenceCandidateBatch, refineEvidenceCandidateBatch } from '@/lib/candidates';
 import { matchIndexedObservationBatch } from '@/lib/detection/observation-matcher-index';
 import { createCompiledDetectionRegistry } from '@/lib/detection/registry-graph';
-import type { DetectionRule, TechnologyDefinition } from '@/lib/detection/types';
+import type { DetectionRule, MatcherTechnologyType, TechnologyDefinition } from '@/lib/detection/types';
 import { createMatcherPartitionTasks, createMatcherPipelineResult } from '@/lib/matcher';
 import { createObservationKindTechnologyRegistry } from '@/lib/registry';
 import { normalizePageSignals, type NormalizedObservationKind, type ObservationBatch } from '@/lib/observations';
@@ -66,7 +66,7 @@ function createBenchmarkBatch(): ObservationBatch {
 
 const registry = createBenchmarkRegistry();
 const matcherIndex = createObservationMatcherIndex(registry);
-const shardArtifactByKind = new Map<NormalizedObservationKind, { readonly registry: readonly TechnologyDefinition[]; readonly index: ReturnType<typeof createObservationMatcherIndex> }>();
+const shardArtifactByKind = new Map<NormalizedObservationKind, { readonly registry: readonly MatcherTechnologyType[]; readonly index: ReturnType<typeof createObservationMatcherIndex> }>();
 const relationshipGraph = createCompiledDetectionRegistry(registry);
 const batch = createBenchmarkBatch();
 const job = {
@@ -125,7 +125,7 @@ function runPartitionedMatcherMerge(): number {
 	const result = createMatcherPipelineResult({
 		batch,
 		registry,
-		compiledRegistryArtifact: { relationshipGraph },
+		relationshipGraph,
 		partitions,
 	});
 	return result.analysis.results.length;
@@ -159,7 +159,7 @@ function runKindShardedPartitionedMatcher(): number {
 	const result = createMatcherPipelineResult({
 		batch,
 		registry,
-		compiledRegistryArtifact: { relationshipGraph },
+		relationshipGraph,
 		partitions,
 	});
 	return result.analysis.results.length;

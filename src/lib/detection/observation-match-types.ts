@@ -2,7 +2,7 @@ import type {
 	DetectionKind,
 	DetectionRunOptions,
 	DetectionRule,
-	TechnologyDefinition,
+	MatcherTechnologyType,
 } from './types';
 import type {
 	EvidenceBatch,
@@ -57,7 +57,7 @@ export interface ObservationPatternMatchBatch {
 /** Input for matching one observation against one registry rule. */
 export interface MatchObservationRuleInput {
 	/** Technology that owns the rule. */
-	technology: TechnologyDefinition;
+	technology: MatcherTechnologyType;
 	/** Rule to evaluate against the observation. */
 	rule: DetectionRule;
 	/** Rule index inside the owning technology definition. */
@@ -71,7 +71,7 @@ export interface MatchObservationRuleInput {
 /** Input for matching a full observation batch against a registry. */
 export interface MatchObservationBatchInput {
 	/** Technologies whose rules should receive observations. */
-	registry: readonly TechnologyDefinition[];
+	registry: readonly MatcherTechnologyType[];
 	/** Ordered observations from one collector snapshot or replay segment. */
 	batch: ObservationBatch;
 	/** Optional detector compatibility flags, such as disabled kinds or rule ids. */

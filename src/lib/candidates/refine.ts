@@ -1,4 +1,4 @@
-import type { CategoryId, ConfidenceScore, TechnologyDefinition } from '../detection/types';
+import type { CategoryId, ConfidenceScore, TechnologyProfileType } from '../detection/types';
 import type { EvidenceEntry } from '../evidence';
 import type { ObservationAttributes, ObservationTarget } from '../observations';
 import type { EvidenceCandidate, EvidenceCandidateBatch, EvidenceCandidateTechnology } from './types';
@@ -78,8 +78,8 @@ export function refineEvidenceCandidateBatch(
 interface ResolveRelationshipsInput {
 	accepted: Map<string, CandidateNode>;
 	batch: EvidenceCandidateBatch;
-	definitionsById: Map<string, TechnologyDefinition>;
-	registryOrderById: Map<string, number>;
+	definitionsById: ReadonlyMap<string, TechnologyProfileType>;
+	registryOrderById: ReadonlyMap<string, number>;
 	relationships: RelationshipIndex;
 	policy: EvidenceCandidateRefinementPolicy;
 	recorder: RejectionRecorder;
@@ -526,7 +526,7 @@ function getExclusionRejectionWinner(
 
 function createInitialCandidateNodes(
 	batch: EvidenceCandidateBatch,
-	registryOrderById: Map<string, number>,
+	registryOrderById: ReadonlyMap<string, number>,
 ): Map<string, CandidateNode> {
 	const accepted = new Map<string, CandidateNode>();
 	for (const candidate of batch.candidates) {
@@ -542,7 +542,7 @@ function createInitialCandidateNodes(
 
 function buildRelationshipIndex(
 	edges: RefineEvidenceCandidateBatchInput['compiledRegistry']['relationshipEdges'],
-	registryOrderById: Map<string, number>,
+	registryOrderById: ReadonlyMap<string, number>,
 ): RelationshipIndex {
 	const impliesBySource = new Map<string, string[]>();
 	const requiresBySource = new Map<string, string[]>();
@@ -585,7 +585,7 @@ function pushRelationship(map: Map<string, string[]>, key: string, value: string
 	map.set(key, values);
 }
 
-function sortRelationshipIndex(map: Map<string, string[]>, registryOrderById: Map<string, number>): void {
+function sortRelationshipIndex(map: Map<string, string[]>, registryOrderById: ReadonlyMap<string, number>): void {
 	for (const [key, values] of map.entries()) {
 		map.set(key, values.sort((left, right) => compareRegistryOrder(registryOrderById, left, right)));
 	}
@@ -636,7 +636,7 @@ function chooseConflictLoser(
 
 function createImpliedCandidate(input: {
 	batch: EvidenceCandidateBatch;
-	definition: TechnologyDefinition;
+	definition: TechnologyProfileType;
 	sourceCandidate: EvidenceCandidate;
 	policy: EvidenceCandidateRefinementPolicy;
 }): EvidenceCandidate {
@@ -731,7 +731,7 @@ function createRelationshipEvidenceId(targetUrl: string, sourceTechnologyId: str
 
 function createCandidateTechnology(
 	technologyId: string,
-	definition?: TechnologyDefinition,
+	definition?: TechnologyProfileType,
 ): EvidenceCandidateTechnology {
 	return {
 		id: technologyId,
@@ -751,7 +751,7 @@ function createRefinementPolicy(
 
 function sortAcceptedCandidates(
 	accepted: Map<string, CandidateNode>,
-	registryOrderById: Map<string, number>,
+	registryOrderById: ReadonlyMap<string, number>,
 ): EvidenceCandidate[] {
 	return Array.from(accepted.values())
 		.sort((left, right) => compareCandidateNodes(left, right, registryOrderById))
@@ -761,7 +761,7 @@ function sortAcceptedCandidates(
 function compareCandidateNodes(
 	left: CandidateNode,
 	right: CandidateNode,
-	registryOrderById: Map<string, number>,
+	registryOrderById: ReadonlyMap<string, number>,
 ): number {
 	return (
 		compareRegistryOrder(registryOrderById, left.candidate.technology.id, right.candidate.technology.id) ||
@@ -769,7 +769,7 @@ function compareCandidateNodes(
 	);
 }
 
-function compareRegistryOrder(registryOrderById: Map<string, number>, left: string, right: string): number {
+function compareRegistryOrder(registryOrderById: ReadonlyMap<string, number>, left: string, right: string): number {
 	return (
 		(registryOrderById.get(left) ?? Number.MAX_SAFE_INTEGER) -
 		(registryOrderById.get(right) ?? Number.MAX_SAFE_INTEGER)

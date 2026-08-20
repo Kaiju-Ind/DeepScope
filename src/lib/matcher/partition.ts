@@ -1,10 +1,9 @@
 import type { DetectionPipelineEventDetails, DetectionPipelineRuntimeEvent } from '../pipeline';
 import type { ObservationPatternMatchBatch } from '../detection/observation-match-types';
-import type { DetectionRunOptions, SiteAnalysis, TechnologyDefinition } from '../detection/types';
+import type { DetectionRunOptions, SiteAnalysis, TechnologyProfileType } from '../detection/types';
 import { createEvidenceCandidateBatch, refineEvidenceCandidateBatch } from '../candidates';
-import { createCompiledDetectionRegistry, type CompiledDetectionRegistry } from '../detection/registry-graph';
+import { createCompiledDetectionGraph, type CompiledDetectionGraph } from '../detection/registry-graph';
 import { emitSiteAnalysisFromRefinedCandidates } from '../emission';
-import type { CompiledTechnologyRegistryArtifact } from '../registry';
 import type {
 	NormalizedObservation,
 	NormalizedObservationKind,
@@ -86,9 +85,9 @@ export interface CreateMatcherPipelineResultInput {
 	/** Original batch used for target, timestamp, and event metadata. */
 	readonly batch: ObservationBatch;
 	/** Ordered registry used by downstream candidate and graph stages. */
-	readonly registry: readonly TechnologyDefinition[];
+	readonly registry: readonly TechnologyProfileType[];
 	/** Optional compiled relationship graph reused after partitioned matching. */
-	readonly compiledRegistryArtifact?: Pick<CompiledTechnologyRegistryArtifact, 'relationshipGraph'>;
+	readonly relationshipGraph?: CompiledDetectionGraph;
 	/** Partition results emitted by workers. */
 	readonly partitions: readonly MatcherPartitionResult[];
 	/** Optional analysis timestamp. Defaults deterministically to `batch.observedAt`. */
@@ -231,27 +230,26 @@ export function createMatcherPipelineResult(
 /**
  * Return a relationship graph with live lookup maps for candidate refinement.
  *
- * Browser runtime messages serialize plain JSON rather than preserving every
- * JavaScript object shape. When the background sends a compiled graph to the
- * offscreen document, its `Map` fields can arrive as ordinary objects. Graph
- * refinement depends on `.get(...)` lookups, so serialized graphs are rebuilt
- * from the registry before detections are emitted.
+ * Persisted or transported JSON does not preserve `Map` instances. Candidate
+ * refinement depends on `.get(...)` lookups, so a JSON-shaped graph is rebuilt
+ * from the rule-free registry profiles before detections are emitted.
  */
 function resolvePartitionRelationshipGraph(
 	input: CreateMatcherPipelineResultInput,
-): CompiledDetectionRegistry {
-	const graph = input.compiledRegistryArtifact?.relationshipGraph;
+): CompiledDetectionGraph {
+	const graph = input.relationshipGraph;
+	const relationshipEdges = graph?.relationshipEdges ?? [];
 	if (isUsableRelationshipGraph(graph)) {
 		return graph;
 	}
 
-	return createCompiledDetectionRegistry(input.registry);
+	return createCompiledDetectionGraph(input.registry, relationshipEdges);
 }
 
 /** Relationship graphs are usable only when their lookup tables survived intact. */
 function isUsableRelationshipGraph(
-	graph: CompiledDetectionRegistry | undefined,
-): graph is CompiledDetectionRegistry {
+	graph: CompiledDetectionGraph | undefined,
+): graph is CompiledDetectionGraph {
 	return Boolean(
 		graph &&
 		Array.isArray(graph.technologies) &&

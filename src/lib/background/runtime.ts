@@ -71,7 +71,7 @@ import {
 	type RunMatcherJobRequest,
 } from '@/lib/matcher';
 import type { BackgroundDetectionPersistence } from '@/lib/persistence/ports';
-import type { CompiledTechnologyRegistryArtifact } from '@/lib/registry/compiler-core';
+import type { RuntimeTechnologyRegistryArtifact } from '@/lib/registry/runtime-artifact';
 import * as revision from '@/lib/background/revision';
 import * as rank from '@/lib/detection/rank';
 import * as url from '@/utils/url';
@@ -101,7 +101,7 @@ export interface BackgroundRuntimeDependencies {
 	readonly executeContentScript: (tabId: number) => Promise<void>;
 	readonly createContentApiClient: (tabId: number, frameId?: number) => ContentApi;
 	readonly collectObservationBatch: (input: ExtensionPageCollectorInput) => Promise<ExtensionResult<ObservationBatch>>;
-	readonly registryProvider: Pick<TechnologyRegistryProvider, 'getCompiledRegistry'>;
+	readonly registryProvider: Pick<TechnologyRegistryProvider, 'getRuntimeRegistry'>;
 	readonly matcher: {
 		readonly cancelJob: (jobId: string) => Promise<void>;
 		readonly runJob: (request: RunMatcherJobRequest) => Promise<MatcherJobRunResult>;
@@ -130,7 +130,7 @@ type InspectableTab = {
 	readonly incognito: boolean;
 };
 
-type CompiledRegistry = CompiledTechnologyRegistryArtifact;
+type CompiledRegistry = RuntimeTechnologyRegistryArtifact;
 
 /** Keep browser/internal pages out of content-script orchestration. */
 function canInspectTab(tab: { readonly url?: string }): boolean {
@@ -265,7 +265,7 @@ export function createBackgroundRuntime(
 		readonly tab: InspectableTab;
 		/** Full observation batch for deterministic partial candidate refinement. */
 		readonly batch: ObservationBatch;
-		/** Full compiled registry used by the coordinator after worker shards emit matches. */
+		/** Rule-free runtime registry used by the coordinator after worker shards emit matches. */
 		readonly compiledRegistryArtifact: CompiledRegistry;
 		/** Cache status attached to partial side-panel outputs. */
 		readonly snapshotStatus: AnalyzeVisibleTabOutput['snapshot']['status'];
@@ -712,7 +712,7 @@ export function createBackgroundRuntime(
 		return {
 			technologyCount: artifact.technologies.length,
 			ruleCount,
-			diagnosticCount: artifact.diagnostics.length,
+			diagnosticCount: artifact.diagnosticCount,
 			initialDomSelectorCount: artifact.collectionPlan.initial.domSelectorPlan.selectors.length,
 			initialJsGlobalProbeCount: artifact.collectionPlan.initial.jsGlobalPropertyList.length,
 			enrichmentHtmlProbeCount: artifact.collectionPlan.enrichment.htmlProbeList.length,
@@ -1275,7 +1275,7 @@ export function createBackgroundRuntime(
 		const compiledRegistryArtifact = await timeAsyncSpan(
 			'background.registry.get-refresh-compiled',
 			timingContext,
-			() => dependencies.registryProvider.getCompiledRegistry(),
+			() => dependencies.registryProvider.getRuntimeRegistry(),
 			summarizeCompiledRegistryArtifact,
 		);
 		const collectionPasses = createIncrementalCollectionPasses(compiledRegistryArtifact.collectionPlan);
@@ -1513,7 +1513,7 @@ export function createBackgroundRuntime(
 		const compiledRegistryArtifact = await timeAsyncSpan(
 			'background.registry.get-complete-compiled',
 			timingContext,
-			() => dependencies.registryProvider.getCompiledRegistry(),
+			() => dependencies.registryProvider.getRuntimeRegistry(),
 			summarizeCompiledRegistryArtifact,
 		);
 		const collectionPasses = createIncrementalCollectionPasses(compiledRegistryArtifact.collectionPlan);
@@ -1867,7 +1867,7 @@ export function createBackgroundRuntime(
 	/**
 	 * Match one observation batch and persist the exact result that remains current.
 	 *
-	 * The active progress map deliberately owns the full batch and compiled registry
+	 * The active progress map deliberately owns the full batch and rule-free runtime registry
 	 * only while this function can still publish progress. Its `finally` block is the
 	 * memory-lifetime invariant: matcher, replay, storage, or badge failures must never
 	 * leave those registry-scale objects reachable from the background runtime.
@@ -1963,7 +1963,7 @@ export function createBackgroundRuntime(
 			});
 			return extensionSuccess(output);
 		} finally {
-			// This context owns the full observation batch and compiled registry. Every
+			// This context owns the full observation batch and rule-free runtime registry. Every
 			// success, stale-result, cancellation, and persistence failure path must release
 			// it so a failed storage write cannot become a long-lived background retainer.
 			activeMatcherProgressByJob.delete(matcherJob.jobId);
@@ -2000,7 +2000,6 @@ export function createBackgroundRuntime(
 					mode: input.mode,
 					batch: input.batch,
 					registry: input.registry.technologies,
-					index: input.registry.matcherIndex,
 					relationshipGraph: input.registry.relationshipGraph,
 					source: 'fresh',
 				}),
@@ -2843,7 +2842,7 @@ export function createBackgroundRuntime(
 		const partial = createMatcherPipelineResult({
 			batch: context.batch,
 			registry: context.compiledRegistryArtifact.technologies,
-			compiledRegistryArtifact: { relationshipGraph: context.compiledRegistryArtifact.relationshipGraph },
+			relationshipGraph: context.compiledRegistryArtifact.relationshipGraph,
 			partitions: context.partitions,
 			analyzedAt: Date.now(),
 			source: 'fresh',

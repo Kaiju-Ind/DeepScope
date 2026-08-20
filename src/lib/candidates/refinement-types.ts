@@ -1,4 +1,4 @@
-import type { CompiledDetectionRegistry } from '../detection/registry-graph';
+import type { CompiledDetectionGraph } from '../detection/registry-graph';
 import type { EvidenceEntry } from '../evidence';
 import type { EvidenceCandidate, EvidenceCandidateBatch } from './types';
 
@@ -64,7 +64,7 @@ export interface RefineEvidenceCandidateBatchInput {
 	/** Candidate batch produced from accumulated evidence. */
 	readonly batch: EvidenceCandidateBatch;
 	/** Compiled registry graph that provides relationship edges and registry order. */
-	readonly compiledRegistry: CompiledDetectionRegistry;
+	readonly compiledRegistry: CompiledDetectionGraph;
 	/** Optional policy override for deterministic compatibility experiments. */
 	readonly policy?: Partial<EvidenceCandidateRefinementPolicy>;
 }

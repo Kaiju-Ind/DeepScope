@@ -193,6 +193,7 @@ async function setBadge(tabId: number, count: number, finding?: string): Promise
 export default defineBackground(() => {
 	logging.configure('background');
 	installDiagnosticCrashHooks('background');
+	offscreen.start();
 	const { logBackgroundEvent, logAnalysisSummary } = createBackgroundLoggers();
 
 	const backgroundRuntime = createBackgroundRuntime({
@@ -227,8 +228,7 @@ export default defineBackground(() => {
 			logBackgroundEvent('matcher-job-reconciliation-failed', {
 				message: error instanceof Error ? error.message : String(error),
 			});
-		})
-		.finally(() => offscreen.close());
+		});
 	browser.action.onClicked.addListener((tab) => {
 		if (typeof tab.id !== 'number') {
 			logBackgroundEvent('side-panel-open-skipped', { reason: 'missing-tab-id' });

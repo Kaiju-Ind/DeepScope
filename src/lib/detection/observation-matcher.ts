@@ -1,4 +1,5 @@
 import type {
+	DetectionPatternType,
 	DetectionRunOptions,
 	DetectionRule,
 	HeaderDetectionRule,
@@ -18,6 +19,7 @@ import type {
 } from './observation-match-types';
 import { createEvidenceEntryFromObservation } from '../evidence';
 import { redactEvidenceValue } from '../privacy/redaction';
+import { execDetectionPattern, testDetectionPattern } from './pattern';
 import { extractVersion } from './version';
 
 const EVIDENCE_VALUE_CHAR_LIMIT = 160;
@@ -190,7 +192,7 @@ function matchCookieRule(
 	if (rule.key && observation.key !== rule.key) {
 		return null;
 	}
-	if (rule.keyPattern && !testPattern(rule.keyPattern, observation.key)) {
+	if (rule.keyPattern && !testDetectionPattern(rule.keyPattern, observation.key)) {
 		return null;
 	}
 	if (!rule.key && !rule.keyPattern) {
@@ -258,19 +260,19 @@ function matchLinkRule(
 	if (rule.rel && !link.rel.toLowerCase().split(/\s+/).includes(rule.rel.toLowerCase())) {
 		return null;
 	}
-	if (rule.hrefPattern && !testPattern(rule.hrefPattern, link.href)) {
+	if (rule.hrefPattern && !testDetectionPattern(rule.hrefPattern, link.href)) {
 		return null;
 	}
-	if (rule.typePattern && !testPattern(rule.typePattern, link.type ?? '')) {
+	if (rule.typePattern && !testDetectionPattern(rule.typePattern, link.type ?? '')) {
 		return null;
 	}
 	if (rule.as && link.as !== rule.as) {
 		return null;
 	}
-	if (rule.hreflangPattern && !testPattern(rule.hreflangPattern, link.hreflang ?? '')) {
+	if (rule.hreflangPattern && !testDetectionPattern(rule.hreflangPattern, link.hreflang ?? '')) {
 		return null;
 	}
-	if (rule.mediaPattern && !testPattern(rule.mediaPattern, link.media ?? '')) {
+	if (rule.mediaPattern && !testDetectionPattern(rule.mediaPattern, link.media ?? '')) {
 		return null;
 	}
 
@@ -294,7 +296,7 @@ function matchStorageRule(
 	if (rule.area && observation.attributes?.area !== rule.area) {
 		return null;
 	}
-	if ((rule.key && observation.key === rule.key) || (rule.keyPattern && testPattern(rule.keyPattern, observation.key))) {
+	if ((rule.key && observation.key === rule.key) || (rule.keyPattern && testDetectionPattern(rule.keyPattern, observation.key))) {
 		return { matchedValue: safeMatchedValue(`${observation.attributes?.area ?? 'storage'}:${observation.key}`) };
 	}
 
@@ -326,7 +328,7 @@ function matchHtmlRule(input: MatchRuleObservationInput): MatchedObservationValu
 }
 
 function matchPatternRule(
-	rule: Extract<DetectionRule, { pattern?: RegExp; version?: VersionExtraction }>,
+	rule: Extract<DetectionRule, { pattern?: DetectionPatternType; version?: VersionExtraction }>,
 	observation: NormalizedObservation,
 ): MatchedObservationValue | null {
 	if (observation.kind !== rule.kind) {
@@ -337,7 +339,7 @@ function matchPatternRule(
 }
 
 function matchPatternValue(
-	pattern: RegExp | undefined,
+	pattern: DetectionPatternType | undefined,
 	value: string,
 	version?: VersionExtraction,
 ): MatchedObservationValue | null {
@@ -345,7 +347,7 @@ function matchPatternValue(
 		return null;
 	}
 
-	const match = execPattern(pattern, value);
+	const match = execDetectionPattern(pattern, value) as RegExpMatchArray | null;
 	if (!match) {
 		return null;
 	}
@@ -397,22 +399,4 @@ function htmlProbeKey(technologyId: string, ruleIndex: number): string {
 
 function safeMatchedValue(value: string): string {
 	return redactEvidenceValue(value, EVIDENCE_VALUE_CHAR_LIMIT);
-}
-
-/**
- * Execute regexes without leaking `lastIndex` across observations.
- *
- * Registry rules occasionally use global or sticky flags. Resetting around each
- * match keeps replay deterministic when the same compiled `RegExp` instance is
- * reused for many observations.
- */
-function execPattern(pattern: RegExp, value: string): RegExpMatchArray | null {
-	pattern.lastIndex = 0;
-	const match = pattern.exec(value) as RegExpMatchArray | null;
-	pattern.lastIndex = 0;
-	return match;
-}
-
-function testPattern(pattern: RegExp, value: string): boolean {
-	return Boolean(execPattern(pattern, value));
 }

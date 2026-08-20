@@ -21,7 +21,7 @@ export type PoolOptionsType = {
 		partition: MatcherPartitionResult,
 		completedPartitionCount: number,
 		partitionCount: number,
-	) => void;
+	) => Promise<void>;
 };
 
 /** Shared dedicated-worker pool that executes matcher partitions in parallel. */
@@ -36,29 +36,62 @@ export class Pool {
 		this.#options = options;
 	}
 
-	/** Run one job's independent partitions across the owned worker slots. */
-	async run(tasks: readonly MatcherPartitionTask[]): Promise<readonly MatcherPartitionResult[]> {
-		const results: MatcherPartitionResult[] = [];
-		let nextTaskIndex = 0;
+	/**
+	 * Run one job while keeping every observation kind on one worker heap.
+	 *
+	 * Heavy kinds such as `scriptSrc` and `jsGlobal` dominate matcher residency.
+	 * Assigning adjacent partitions to arbitrary workers can load the same large
+	 * shard into multiple isolates. Kind affinity keeps one shard owner per job,
+	 * while independent kinds can still use separate workers concurrently.
+	 */
+	async run(tasks: readonly MatcherPartitionTask[]): Promise<number> {
+		const assignments = assignByKind(tasks, this.#workers.length);
+		let completedPartitionCount = 0;
 
-		await Promise.all(this.#workers.map(async (worker) => {
-			while (nextTaskIndex < tasks.length) {
-				const task = tasks[nextTaskIndex++]!;
+		await Promise.all(this.#workers.map(async (worker, workerIndex) => {
+			for (const task of assignments[workerIndex] ?? []) {
 				if (this.#options.isCanceled(task.job.jobId)) continue;
 				const result = await worker.run(task);
 				if (this.#options.isCanceled(task.job.jobId)) continue;
-				results.push(result);
-				this.#options.onPartition(result, results.length, tasks.length);
+				completedPartitionCount += 1;
+				await this.#options.onPartition(result, completedPartitionCount, tasks.length);
 			}
 		}));
 
-		return results.sort(compare);
+		return completedPartitionCount;
 	}
 
 	/** Terminate every worker and reject any partition still owned by a slot. */
 	dispose(reason = 'Matcher worker pool was disposed.'): void {
 		for (const worker of this.#workers) worker.dispose(reason);
 	}
+}
+
+/** Assign all partitions of one kind to the least-loaded worker. */
+function assignByKind(
+	tasks: readonly MatcherPartitionTask[],
+	workerCount: number,
+): readonly MatcherPartitionTask[][] {
+	const assignments = Array.from({ length: workerCount }, () => [] as MatcherPartitionTask[]);
+	const load = Array.from({ length: workerCount }, () => 0);
+	const groups = new Map<MatcherPartitionTask['kind'], MatcherPartitionTask[]>();
+
+	for (const task of tasks) {
+		const group = groups.get(task.kind) ?? [];
+		group.push(task);
+		groups.set(task.kind, group);
+	}
+
+	for (const group of groups.values()) {
+		let workerIndex = 0;
+		for (let index = 1; index < load.length; index += 1) {
+			if (load[index]! < load[workerIndex]!) workerIndex = index;
+		}
+		assignments[workerIndex]!.push(...group);
+		load[workerIndex] = load[workerIndex]! + group.reduce((total, task) => total + task.batch.observations.length, 0);
+	}
+
+	return assignments;
 }
 
 /** Dedicated worker slot that owns at most one in-flight partition Promise. */
@@ -154,10 +187,4 @@ class Slot {
 /** Relay worker diagnostics through the offscreen runtime while the host is alive. */
 function forwardDiagnostic(message: DiagnosticTransportMessage): void {
 	void browser.runtime.sendMessage(message).catch(() => undefined);
-}
-
-/** Restore deterministic partition order after concurrent workers finish out of order. */
-function compare(left: MatcherPartitionResult, right: MatcherPartitionResult): number {
-	const priority = left.priority - right.priority;
-	return priority === 0 ? left.kind.localeCompare(right.kind) : priority;
 }

@@ -4,7 +4,8 @@ import {
 } from '@/lib/detection/observation-matcher-index';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import * as logging from '@/lib/diagnostics/logging';
-import type { CompiledTechnologyRegistryArtifact } from '@/lib/registry/compiler-core';
+import type { DetectionPatternType } from '@/lib/detection/types';
+import type { CompiledMatcherRegistryArtifact } from '@/lib/registry/matcher-artifact';
 import { createPackagedTechnologyRegistryProvider } from '@/lib/registry/packaged-provider';
 import type {
 	MatcherPartitionMatch,
@@ -187,7 +188,7 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 	};
 }
 
-function getShardArtifact(kind: NormalizedObservationKind): Promise<CompiledTechnologyRegistryArtifact> {
+function getShardArtifact(kind: NormalizedObservationKind): Promise<CompiledMatcherRegistryArtifact> {
 	if (recentShardKinds.has(kind)) recentShardKinds.delete(kind);
 	recentShardKinds.set(kind, true);
 	while (recentShardKinds.size > MAX_CACHED_OBSERVATION_KIND_SHARDS) {
@@ -356,7 +357,7 @@ function describeRule(rule: ObservationRuleEvaluationEvent['rule']): Record<stri
 	return withoutUndefined(details);
 }
 
-function describePattern(pattern: RegExp | undefined): Record<string, string> | undefined {
+function describePattern(pattern: DetectionPatternType | undefined): Record<string, string> | undefined {
 	if (!pattern) return undefined;
 	return {
 		source: truncateForLog(pattern.source),

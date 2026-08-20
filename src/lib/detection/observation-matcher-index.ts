@@ -1,5 +1,5 @@
 import type { MatchObservationBatchInput, ObservationPatternMatch, ObservationPatternMatchBatch } from './observation-match-types';
-import type { DetectionRule, DetectionRunOptions, TechnologyDefinition } from './types';
+import type { DetectionPatternType, DetectionRule, DetectionRunOptions, MatcherTechnologyType, PatternDetectionRule } from './types';
 import type { NormalizedObservation, NormalizedObservationKind } from '../observations';
 import { matchObservationRule } from './observation-matcher';
 
@@ -13,7 +13,7 @@ import { matchObservationRule } from './observation-matcher';
  */
 export interface IndexedObservationRule {
 	/** Technology that owns the indexed rule. */
-	readonly technology: TechnologyDefinition;
+	readonly technology: MatcherTechnologyType;
 	/** Rule evaluated when a compatible observation arrives. */
 	readonly rule: DetectionRule;
 	/** Rule index inside the owning technology definition. */
@@ -108,7 +108,7 @@ export interface MatchIndexedObservationBatchInput extends MatchObservationBatch
 /** Per-rule matcher timing emitted only when callers opt into worker diagnostics. */
 export interface ObservationRuleEvaluationEvent {
 	/** Technology that owns the evaluated rule. */
-	readonly technology: TechnologyDefinition;
+	readonly technology: MatcherTechnologyType;
 	/** Rule evaluated against the observation. */
 	readonly rule: DetectionRule;
 	/** Rule index inside the owning technology definition. */
@@ -175,7 +175,7 @@ type DisabledKindLookup = Readonly<Partial<Record<string, true>>>;
  * several batches from the same compiled registry.
  */
 export function createObservationMatcherIndex(
-	registry: readonly TechnologyDefinition[],
+	registry: readonly MatcherTechnologyType[],
 ): ObservationMatcherIndex {
 	const fallbackRules: MutableRuleBuckets = Object.create(null) as MutableRuleBuckets;
 	const keyedRules: MutableKeyBuckets = Object.create(null) as MutableKeyBuckets;
@@ -410,6 +410,8 @@ function getRuleRoutes(
 			return [{ kind: 'storage', key: rule.key }];
 		case 'link':
 			return [createLinkRoute(rule)];
+		case 'dns':
+			return [{ kind: 'dns' }];
 		case 'html':
 			return [
 				createPatternRoute(rule),
@@ -439,9 +441,7 @@ function createLinkRoute(rule: Extract<DetectionRule, { kind: 'link' }>): Observ
 		: { kind: 'link' };
 }
 
-function createPatternRoute(
-	rule: Extract<DetectionRule, { kind: NormalizedObservationKind; pattern?: RegExp }>,
-): ObservationRuleRoute {
+function createPatternRoute(rule: PatternDetectionRule): ObservationRuleRoute {
 	const requiredLiteral = isLiteralPrefilterSupported(rule.kind)
 		? extractTopLevelRegexLiteral(rule.pattern)
 		: undefined;
@@ -487,7 +487,7 @@ function isLiteralPrefilterSupported(kind: NormalizedObservationKind): boolean {
  * escapes are never interpreted as source text. Unclear cases remain fallback
  * rules, so this prefilter cannot turn a true regex match into a false negative.
  */
-function extractTopLevelRegexLiteral(pattern: RegExp | undefined): string | undefined {
+function extractTopLevelRegexLiteral(pattern: DetectionPatternType | undefined): string | undefined {
     if (!pattern || pattern.source.includes('|')) {
         return undefined;
     }

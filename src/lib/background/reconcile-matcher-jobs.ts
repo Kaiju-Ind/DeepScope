@@ -9,7 +9,8 @@ import { isMatcherJobActive, listMatcherJobRecords, updateMatcherJobRecord } fro
  * of work dispatched by the previous context. Any non-terminal durable record is
  * therefore interrupted work, even when Chrome suspended the old context rather
  * than crashing it. The offscreen host is asked to stop the orphan before the
- * record is marked failed for diagnostics and later recovery policy.
+ * record is marked failed. Cancellation terminates active matcher workers; the
+ * host's single idle lifecycle later closes the now-idle offscreen document.
  */
 export async function reconcileInterruptedMatcherJobs(
 	log?: (event: string, details?: Record<string, unknown>) => void,

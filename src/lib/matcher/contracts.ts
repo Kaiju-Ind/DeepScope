@@ -1,7 +1,7 @@
-import type { DetectionRunOptions, SiteAnalysis, TechnologyDefinition } from '../detection/types';
+import type { DetectionRunOptions, SiteAnalysis, TechnologyProfileType } from '../detection/types';
 import type { ObservationPatternMatch } from '../detection/observation-match-types';
-import type { ObservationMatcherDiagnostics, ObservationMatcherIndex } from '../detection/observation-matcher-index';
-import type { CompiledDetectionRegistry } from '../detection/registry-graph';
+import type { ObservationMatcherDiagnostics } from '../detection/observation-matcher-index';
+import type { CompiledDetectionGraph } from '../detection/registry-graph';
 import type { DetectionPipelineRuntimeResult } from '../pipeline';
 import type {
 	NormalizedObservationKind,
@@ -148,12 +148,10 @@ export interface RunMatcherJobRequest {
 	readonly mode: MatcherJobMode;
 	/** Full or filtered observation batch to partition. */
 	readonly batch: ObservationBatch;
-	/** Full technology registry retained by background for partition finalization and development matching. */
-	readonly registry: readonly TechnologyDefinition[];
-	/** Prebuilt matcher index retained by background for the development-only in-process matcher. */
-	readonly index: ObservationMatcherIndex;
-	/** Relationship graph retained by background for partition finalization and development matching. */
-	readonly relationshipGraph: CompiledDetectionRegistry;
+	/** Rule-free technology profiles retained by background for partition finalization. */
+	readonly registry: readonly TechnologyProfileType[];
+	/** Rule-free relationship graph retained by background for partition finalization. */
+	readonly relationshipGraph: CompiledDetectionGraph;
 	/** Optional detector compatibility flags. */
 	readonly options?: DetectionRunOptions;
 	/** Optional analysis timestamp; matcher merge falls back to the observation batch timestamp. */
@@ -186,9 +184,9 @@ export interface MatcherJobRunResult {
 /**
  * Matcher payload sent across the extension runtime channel.
  *
- * The background keeps the full registry, matcher index, and relationship graph. The
- * offscreen host receives only page observations and scheduler metadata, then returns
- * partition matches for background-owned finalization.
+ * The background keeps only rule-free profiles and relationships. The offscreen host
+ * receives page observations and scheduler metadata, while dedicated matcher workers
+ * load observation-kind rule shards directly from packaged assets.
  */
 export type OffscreenMatcherJobRequest = Pick<
 	RunMatcherJobRequest,
@@ -201,8 +199,8 @@ export interface OffscreenMatcherJobResult {
 	readonly job: MatcherJobIdentity;
 	/** Job mode that produced these partitions. */
 	readonly mode: MatcherJobMode;
-	/** Ordered partition results produced by the dedicated worker pool. */
-	readonly partitions: readonly MatcherPartitionResult[];
+	/** Number of partition results already streamed to the background. */
+	readonly partitionCount: number;
 	/** Timestamp when offscreen partition matching completed. */
 	readonly completedAt: number;
 }
@@ -279,6 +277,17 @@ export type MatcherJobStateMessage = {
 	/** Partition count known once execution starts. */
 	readonly partitionCount?: number;
 };
+
+
+/** Message emitted when the offscreen host has been idle long enough to release its document. */
+export interface MatcherHostIdleMessage {
+	/** Private channel discriminator so background can ignore unrelated messages. */
+	readonly channel: typeof MATCHER_OFFSCREEN_CHANNEL;
+	/** Lifecycle event emitted by the offscreen host after its one idle grace period. */
+	readonly type: 'matcher.host-idle';
+	/** Timestamp when the host decided that no queued or running work remained. */
+	readonly idleAt: number;
+}
 
 /** Message emitted by offscreen when a partition completes before the full job. */
 export interface MatcherPartitionProgressMessage {

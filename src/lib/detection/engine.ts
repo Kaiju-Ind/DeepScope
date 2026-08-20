@@ -3,6 +3,7 @@ import { Graph } from '@dagrejs/graphlib';
 import type {
 	ConfidenceScore,
 	DetectionKind,
+	DetectionPatternType,
 	DetectionResult,
 	DetectionRunOptions,
 	DetectionRule,
@@ -30,6 +31,7 @@ import {
 	createCompiledDetectionRegistry,
 	type CompiledDetectionRegistry,
 } from './registry-graph';
+import { execDetectionPattern, testDetectionPattern } from './pattern';
 import { extractVersion } from './version';
 
 const DISPLAY_CONFIDENCE_THRESHOLD = 50;
@@ -334,7 +336,7 @@ type EvidenceMatchMetadata = Pick<Evidence, 'direct' | 'attributes'>;
 
 type PatternMatchRule = {
 	kind: DetectionKind;
-	pattern?: RegExp;
+	pattern?: DetectionPatternType;
 	version?: VersionExtraction;
 	description?: string;
 };
@@ -390,7 +392,7 @@ function matchCookieRule(
 			};
 		}
 
-		if (rule.keyPattern?.test(cookieName)) {
+		if (rule.keyPattern ? testDetectionPattern(rule.keyPattern, cookieName) : false) {
 			return {
 				kind: 'cookie',
 				matchedValue: safeMatchedValue(cookieName),
@@ -527,11 +529,11 @@ function matchLinkRule(
 			continue;
 		}
 
-		if (rule.hrefPattern && !rule.hrefPattern.test(link.href)) {
+		if (rule.hrefPattern && !testDetectionPattern(rule.hrefPattern, link.href)) {
 			continue;
 		}
 
-		if (rule.typePattern && !rule.typePattern.test(link.type ?? '')) {
+		if (rule.typePattern && !testDetectionPattern(rule.typePattern, link.type ?? '')) {
 			continue;
 		}
 
@@ -539,11 +541,11 @@ function matchLinkRule(
 			continue;
 		}
 
-		if (rule.hreflangPattern && !rule.hreflangPattern.test(link.hreflang ?? '')) {
+		if (rule.hreflangPattern && !testDetectionPattern(rule.hreflangPattern, link.hreflang ?? '')) {
 			continue;
 		}
 
-		if (rule.mediaPattern && !rule.mediaPattern.test(link.media ?? '')) {
+		if (rule.mediaPattern && !testDetectionPattern(rule.mediaPattern, link.media ?? '')) {
 			continue;
 		}
 
@@ -583,7 +585,7 @@ function matchStorageRule(
 
 	for (const area of areas) {
 		for (const key of Object.keys(storage[area])) {
-			if ((rule.key && key === rule.key) || rule.keyPattern?.test(key)) {
+			if ((rule.key && key === rule.key) || (rule.keyPattern ? testDetectionPattern(rule.keyPattern, key) : false)) {
 				return {
 					kind: 'storage',
 					matchedValue: safeMatchedValue(`${area}:${key}`),
@@ -608,7 +610,7 @@ function matchDnsRule(
 ): Evidence | null {
 	const values = dnsRecords[rule.recordType] ?? [];
 	for (const value of values) {
-		const match = value.match(rule.valuePattern);
+		const match = execDetectionPattern(rule.valuePattern, value) as RegExpMatchArray | null;
 		if (!match) {
 			continue;
 		}
@@ -635,7 +637,7 @@ function matchPattern(
 		return null;
 	}
 
-	const match = value.match(rule.pattern);
+	const match = execDetectionPattern(rule.pattern, value) as RegExpMatchArray | null;
 	if (!match) {
 		return null;
 	}

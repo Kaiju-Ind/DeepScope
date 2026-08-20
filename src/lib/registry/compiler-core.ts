@@ -5,7 +5,7 @@ import {
 	type CompiledDetectionRegistry,
 	type RegistryRelationshipEdge,
 } from '../detection/registry-graph';
-import type { DetectionRelationshipKind, DetectionRule, TechnologyDefinition } from '../detection/types';
+import type { CategoryId, DetectionPatternType, DetectionRelationshipKind, DetectionRule, TechnologyDefinition, TechnologyProfileType } from '../detection/types';
 import { REGISTRY_SOURCE_SCHEMA_VERSION, type RegistrySourceSchemaVersion } from './source-schema-version';
 import type { RegistryDiagnostic } from './diagnostics';
 import { createRegistryDiagnostic } from './diagnostics';
@@ -55,13 +55,11 @@ export interface RegistrySourceMapEntry {
 export type RegistrySourceMap = Readonly<Record<string, RegistrySourceMapEntry>>;
 
 /** Lightweight technology metadata extracted for tools and diagnostics. */
-export interface CompiledRegistryTechnologyMetadata {
+export interface CompiledRegistryTechnologyMetadata extends TechnologyProfileType {
 	/** Technology id used by rules, relationships, and final detections. */
 	readonly id: string;
 	/** Display name from the source definition. */
 	readonly name: string;
-	/** Category ids in detector order. */
-	readonly categories: readonly string[];
 	/** Number of detection rules owned by this technology. */
 	readonly ruleCount: number;
 	/** Registry order preserved for result sorting and tie-break compatibility. */
@@ -177,7 +175,10 @@ function createTechnologyMetadata(
 	return technologies.map((technology, order) => ({
 		id: technology.id,
 		name: technology.name,
-		categories: technology.categories,
+		website: technology.website,
+		...(technology.description ? { description: technology.description } : {}),
+		...(technology.icon ? { icon: technology.icon } : {}),
+		categories: technology.categories as readonly CategoryId[],
 		ruleCount: technology.rules.length,
 		order,
 	}));
@@ -355,7 +356,7 @@ function unknownRelationshipDiagnostic(
 	});
 }
 
-function looksCatastrophic(pattern: RegExp): boolean {
+function looksCatastrophic(pattern: DetectionPatternType): boolean {
 	return /\([^)]*[+*][^)]*\)[+*]/.test(pattern.source);
 }
 

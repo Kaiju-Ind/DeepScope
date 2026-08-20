@@ -128,14 +128,16 @@ function mergeTechnologyDefinitions(definitions: readonly TechnologyDefinition[]
 			continue;
 		}
 
-		existing.categories = uniqueValues([...existing.categories, ...definition.categories]);
-		existing.rules = mergeRules(existing.rules, definition.rules);
-		existing.implies = mergeOptionalStrings(existing.implies, definition.implies);
-		existing.requires = mergeOptionalStrings(existing.requires, definition.requires);
-		existing.excludes = mergeOptionalStrings(existing.excludes, definition.excludes);
-		existing.relationships = definition.relationships
-			? [...(existing.relationships ?? []), ...definition.relationships]
-			: existing.relationships;
+		Object.assign(existing, {
+			categories: uniqueValues([...existing.categories, ...definition.categories]),
+			rules: mergeRules(existing.rules, definition.rules),
+			implies: mergeOptionalStrings(existing.implies, definition.implies),
+			requires: mergeOptionalStrings(existing.requires, definition.requires),
+			excludes: mergeOptionalStrings(existing.excludes, definition.excludes),
+			relationships: definition.relationships
+				? [...(existing.relationships ?? []), ...definition.relationships]
+				: existing.relationships,
+		});
 	}
 
 	return Array.from(merged.values());

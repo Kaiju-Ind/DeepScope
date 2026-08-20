@@ -162,6 +162,30 @@ export type EvidenceScope = {
 	origin?: string;
 };
 
+
+/**
+ * Runtime regular-expression representation.
+ *
+ * TypeScript-authored registry rules use native `RegExp` values. Packaged matcher
+ * shards keep source and flags as plain data so loading a shard does not eagerly
+ * allocate thousands of native regular-expression objects before routing proves
+ * that a rule can evaluate the current observation.
+ */
+export type DetectionPatternType = RegExp | {
+	readonly source: string;
+	readonly flags: string;
+};
+
+/** Metadata needed after matching without retaining executable detection rules. */
+export type TechnologyProfileType = {
+	readonly id: string;
+	readonly name: string;
+	readonly website: string;
+	readonly description?: string;
+	readonly icon?: string;
+	readonly categories: readonly CategoryId[];
+};
+
 export type VersionExtraction =
 	| {
 		source: 'match';
@@ -171,7 +195,7 @@ export type VersionExtraction =
 	}
 	| {
 		source: 'matchedValue';
-		pattern: RegExp;
+		pattern: DetectionPatternType;
 		group?: number | string;
 		template?: string;
 		confidence?: number;
@@ -206,7 +230,7 @@ export type PatternDetectionRule = DetectionRuleBase & {
 		| 'robots'
 		| 'certIssuer'
 		| 'probe';
-	pattern?: RegExp;
+	pattern?: DetectionPatternType;
 	selector?: never;
 	property?: never;
 	key?: never;
@@ -217,7 +241,7 @@ export type DomDetectionRule = DetectionRuleBase & {
 	kind: 'dom';
 	selector: string;
 	attribute?: string;
-	valuePattern?: RegExp;
+	valuePattern?: DetectionPatternType;
 	pattern?: never;
 	property?: never;
 	key?: never;
@@ -230,7 +254,7 @@ export type DomDetectionRule = DetectionRuleBase & {
 export type CookieDetectionRule = DetectionRuleBase & {
 	kind: 'cookie';
 	key?: string;
-	keyPattern?: RegExp;
+	keyPattern?: DetectionPatternType;
 	pattern?: never;
 	selector?: never;
 	property?: never;
@@ -240,7 +264,7 @@ export type CookieDetectionRule = DetectionRuleBase & {
 export type HeaderDetectionRule = DetectionRuleBase & {
 	kind: 'header' | 'responseHeader' | 'requestHeader';
 	key: string;
-	valuePattern?: RegExp;
+	valuePattern?: DetectionPatternType;
 	pattern?: never;
 	selector?: never;
 	property?: never;
@@ -249,8 +273,8 @@ export type HeaderDetectionRule = DetectionRuleBase & {
 export type MetaDetectionRule = DetectionRuleBase & {
 	kind: 'meta';
 	key: string;
-	pattern?: RegExp;
-	valuePattern?: RegExp;
+	pattern?: DetectionPatternType;
+	valuePattern?: DetectionPatternType;
 	selector?: never;
 	property?: never;
 };
@@ -258,7 +282,7 @@ export type MetaDetectionRule = DetectionRuleBase & {
 export type JsGlobalDetectionRule = DetectionRuleBase & {
 	kind: 'jsGlobal';
 	property: string;
-	valuePattern?: RegExp;
+	valuePattern?: DetectionPatternType;
 	pattern?: never;
 	selector?: never;
 	key?: never;
@@ -267,12 +291,12 @@ export type JsGlobalDetectionRule = DetectionRuleBase & {
 export type LinkDetectionRule = DetectionRuleBase & {
 	kind: 'link';
 	rel?: string;
-	hrefPattern?: RegExp;
-	typePattern?: RegExp;
+	hrefPattern?: DetectionPatternType;
+	typePattern?: DetectionPatternType;
 	as?: string;
-	hreflangPattern?: RegExp;
-	mediaPattern?: RegExp;
-	valuePattern?: RegExp;
+	hreflangPattern?: DetectionPatternType;
+	mediaPattern?: DetectionPatternType;
+	valuePattern?: DetectionPatternType;
 	pattern?: never;
 	selector?: never;
 	property?: never;
@@ -283,7 +307,7 @@ export type StorageDetectionRule = DetectionRuleBase & {
 	kind: 'storage';
 	area?: 'localStorage' | 'sessionStorage';
 	key?: string;
-	keyPattern?: RegExp;
+	keyPattern?: DetectionPatternType;
 	valuePattern?: never;
 	pattern?: never;
 	selector?: never;
@@ -293,7 +317,7 @@ export type StorageDetectionRule = DetectionRuleBase & {
 export type DnsDetectionRule = DetectionRuleBase & {
 	kind: 'dns';
 	recordType: 'A' | 'AAAA' | 'CNAME' | 'MX' | 'NS' | 'SOA' | 'TXT';
-	valuePattern: RegExp;
+	valuePattern: DetectionPatternType;
 	pattern?: never;
 	selector?: never;
 	property?: never;
@@ -324,13 +348,7 @@ export type DetectionRunOptions = {
 	disabledRuleIds?: readonly string[];
 };
 
-export type TechnologyDefinition = {
-	id: string;
-	name: string;
-	website: string;
-	description?: string;
-	icon?: string;
-	categories: CategoryId[];
+export type TechnologyDefinition = TechnologyProfileType & {
 	rules: DetectionRule[];
 	implies?: string[];
 	requires?: string[];
@@ -346,6 +364,9 @@ export type TechnologyDefinition = {
 		cpe?: string;
 	};
 };
+
+/** Minimal executable technology shape carried by one matcher shard. */
+export type MatcherTechnologyType = Pick<TechnologyDefinition, 'id' | 'name' | 'rules'>;
 
 export type Evidence = {
 	kind: DetectionKind;

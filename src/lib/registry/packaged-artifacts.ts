@@ -1,4 +1,5 @@
-import type { DetectionRule, RuntimeDetectionKind, TechnologyDefinition } from '../detection/types';
+import type { DetectionRule, MatcherTechnologyType, RuntimeDetectionKind, TechnologyDefinition } from '../detection/types';
+import type { PackagedRuntimeTechnologyRegistryData } from './runtime-artifact';
 import type { NormalizedObservationKind } from '../observations';
 
 /** Current JSON registry asset schema version. */
@@ -39,7 +40,7 @@ export const PACKAGED_REGISTRY_OBSERVATION_KINDS = [
 export type PackagedRegistryObservationKind = typeof PACKAGED_REGISTRY_OBSERVATION_KINDS[number];
 
 /** Registry asset kinds copied into the extension output by the WXT module. */
-export const PACKAGED_REGISTRY_ASSET_KINDS = ['bootstrap', 'enrichment', 'metadata', 'relationships', 'manifest', 'kind-shard'] as const;
+export const PACKAGED_REGISTRY_ASSET_KINDS = ['bootstrap', 'enrichment', 'runtime', 'metadata', 'relationships', 'manifest', 'kind-shard'] as const;
 
 /** Registry asset kind recorded in every generated JSON payload. */
 export type PackagedRegistryAssetKind = typeof PACKAGED_REGISTRY_ASSET_KINDS[number];
@@ -48,6 +49,7 @@ export type PackagedRegistryAssetKind = typeof PACKAGED_REGISTRY_ASSET_KINDS[num
 export const PACKAGED_REGISTRY_ASSET_PATHS = Object.freeze({
 	bootstrap: 'kaiju-deepscope-registry/registry.bootstrap.json',
 	enrichment: 'kaiju-deepscope-registry/registry.enrichment.json',
+	runtime: 'kaiju-deepscope-registry/registry.runtime.json',
 	metadata: 'kaiju-deepscope-registry/registry.metadata.json',
 	relationships: 'kaiju-deepscope-registry/registry.relationships.json',
 	manifest: 'kaiju-deepscope-registry/registry.manifest.json',
@@ -119,6 +121,16 @@ export interface PackagedRegistryShardManifestAsset {
 	readonly kind: Extract<PackagedRegistryAssetKind, 'manifest'>;
 	/** Shard descriptors keyed by observation kind. */
 	readonly shards: Readonly<Record<PackagedRegistryObservationKind, PackagedRegistryShardManifestEntry>>;
+	/** Millisecond timestamp from the build that generated the asset. */
+	readonly generatedAt: number;
+}
+
+/** Rule-free runtime asset loaded by the background service worker. */
+export interface PackagedRuntimeTechnologyRegistryAsset extends PackagedRuntimeTechnologyRegistryData {
+	/** Asset schema version checked before consumers trust the payload. */
+	readonly schemaVersion: PackagedRegistryAssetSchemaVersion;
+	/** Runtime coordination asset kind. */
+	readonly kind: Extract<PackagedRegistryAssetKind, 'runtime'>;
 	/** Millisecond timestamp from the build that generated the asset. */
 	readonly generatedAt: number;
 }
@@ -219,11 +231,12 @@ export function normalizePackagedRegistryObservationKind(kind: NormalizedObserva
 export function createObservationKindTechnologyRegistry(
 	technologies: readonly TechnologyDefinition[],
 	observationKind: NormalizedObservationKind,
-): readonly TechnologyDefinition[] {
+): readonly MatcherTechnologyType[] {
 	const normalizedObservationKind = normalizePackagedRegistryObservationKind(observationKind);
 	return technologies
 		.map((technology) => ({
-			...technology,
+			id: technology.id,
+			name: technology.name,
 			rules: technology.rules
 				.map((rule, ruleIndex) => ({ rule, ruleIndex }))
 				.filter(({ rule }) => canRuleReceiveObservationKind(rule, normalizedObservationKind))
@@ -239,7 +252,7 @@ function preserveSourceRuleIndex(rule: DetectionRule, sourceRuleIndex: number): 
 }
 
 /** Count rules without walking encoded JSON after asset creation. */
-export function countTechnologyRules(technologies: readonly TechnologyDefinition[]): number {
+export function countTechnologyRules(technologies: readonly { readonly rules: readonly DetectionRule[] }[]): number {
 	let count = 0;
 	for (const technology of technologies) {
 		count += technology.rules.length;
@@ -274,28 +287,18 @@ export function encodeRegistryJsonValue(value: unknown): unknown {
 	return value;
 }
 
-/** Decode regular expression records after a packaged registry asset is parsed. */
+/**
+ * Preserve parsed JSON values as runtime data.
+ *
+ * Encoded regex records already implement the source/flags detection-pattern
+ * contract. Keeping them as data avoids eagerly constructing native `RegExp`
+ * objects for every rule while a matcher shard is loading.
+ */
 export function decodeRegistryJsonValue(value: unknown): unknown {
-	if (isPackagedRegistryRegExpRecord(value)) {
-		return new RegExp(value.source, value.flags);
-	}
-
-	if (Array.isArray(value)) {
-		return value.map((entry) => decodeRegistryJsonValue(entry));
-	}
-
-	if (value && typeof value === 'object') {
-		const decoded: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
-		for (const [key, entry] of Object.entries(value)) {
-			decoded[key] = decodeRegistryJsonValue(entry);
-		}
-		return decoded;
-	}
-
 	return value;
 }
 
-/** Guard the encoded regular expression record before constructing a runtime `RegExp`. */
+/** Guard the encoded regular expression record used as a lazy runtime pattern descriptor. */
 export function isPackagedRegistryRegExpRecord(value: unknown): value is PackagedRegistryRegExpRecord {
 	if (typeof value !== 'object' || value === null) {
 		return false;
@@ -350,11 +353,36 @@ export function isPackagedTechnologyRegistryShardAsset(
 	);
 }
 
-/** Convert a parsed JSON asset into ordered technology definitions. */
+/** Convert a parsed full JSON asset into ordered technology definitions with lazy pattern descriptors. */
 export function hydratePackagedTechnologyRegistry(
-	asset: PackagedTechnologyRegistryAsset | PackagedTechnologyRegistryShardAsset,
+	asset: PackagedTechnologyRegistryAsset,
 ): readonly TechnologyDefinition[] {
-	return decodeRegistryJsonValue(asset.technologies) as readonly TechnologyDefinition[];
+	return asset.technologies as readonly TechnologyDefinition[];
+}
+
+/** Convert a parsed matcher shard into its minimal executable technology records. */
+export function hydratePackagedTechnologyRegistryShard(
+	asset: PackagedTechnologyRegistryShardAsset,
+): readonly MatcherTechnologyType[] {
+	return asset.technologies as readonly MatcherTechnologyType[];
+}
+
+/** Guard the rule-free background runtime payload before maps are rebuilt. */
+export function isPackagedRuntimeTechnologyRegistryAsset(
+	value: unknown,
+): value is PackagedRuntimeTechnologyRegistryAsset {
+	if (typeof value !== 'object' || value === null) return false;
+	const candidate = value as Partial<PackagedRuntimeTechnologyRegistryAsset>;
+	return (
+		candidate.schemaVersion === PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION &&
+		candidate.kind === 'runtime' &&
+		Array.isArray(candidate.technologies) &&
+		typeof candidate.patternTables === 'object' && candidate.patternTables !== null &&
+		Array.isArray(candidate.relationshipEdges) &&
+		typeof candidate.collectionPlan === 'object' && candidate.collectionPlan !== null &&
+		typeof candidate.diagnosticCount === 'number' &&
+		typeof candidate.generatedAt === 'number'
+	);
 }
 
 /** Render JSON with stable indentation for reviewable generated artifacts. */

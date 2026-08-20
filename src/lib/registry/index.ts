@@ -22,6 +22,7 @@ export type {
 	PackagedRegistryAssetSchemaVersion,
 	PackagedRegistryMetadataAsset,
 	PackagedRegistryObservationKind,
+	PackagedRuntimeTechnologyRegistryAsset,
 	PackagedRegistryShardManifestAsset,
 	PackagedRegistryShardManifestEntry,
 	PackagedRegistryRegExpRecord,
@@ -54,6 +55,8 @@ export {
 	getPackagedRegistryShardAssetPath,
 	getPackagedRegistryShardPriority,
 	hydratePackagedTechnologyRegistry,
+	hydratePackagedTechnologyRegistryShard,
+	isPackagedRuntimeTechnologyRegistryAsset,
 	isPackagedRegistryRegExpRecord,
 	isPackagedTechnologyRegistryAsset,
 	isPackagedTechnologyRegistryShardAsset,
@@ -62,3 +65,8 @@ export {
 } from './packaged-artifacts';
 export { createPackagedTechnologyRegistryProvider } from './packaged-provider';
 export { createPrecompiledTechnologyRegistryProvider } from './precompiled-artifact';
+
+export type { CompiledMatcherRegistryArtifact } from './matcher-artifact';
+export { compileMatcherRegistry } from './matcher-artifact';
+export type { PackagedRuntimeTechnologyRegistryData, RuntimeTechnologyRegistryArtifact } from './runtime-artifact';
+export { createRuntimeTechnologyRegistryArtifact, createRuntimeTechnologyRegistryFromData } from './runtime-artifact';

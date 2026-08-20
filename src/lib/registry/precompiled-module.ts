@@ -1,6 +1,6 @@
 import type { CompiledTechnologyRegistryArtifact } from './compiler';
 import type { IndexedObservationLiteralBuckets, IndexedObservationRuleBuckets, IndexedObservationKeyBuckets } from '../detection/observation-matcher-index';
-import type { TechnologyDefinition } from '../detection/types';
+import type { MatcherTechnologyType } from '../detection/types';
 
 /** Input needed to render a checked-in generated registry module. */
 export interface RenderPrecompiledRegistryModuleInput {
@@ -130,7 +130,7 @@ function renderLiteralBuckets(
 }
 
 function renderLiteralIndexedRuleArray(
-	rules: readonly { readonly technology: TechnologyDefinition; readonly ruleIndex: number; readonly sequence: number; readonly requiredLiteral: string }[],
+	rules: readonly { readonly technology: MatcherTechnologyType; readonly ruleIndex: number; readonly sequence: number; readonly requiredLiteral: string }[],
 	technologyIndexById: ReadonlyMap<string, number>,
 	indentLevel: number,
 ): string {
@@ -156,7 +156,7 @@ function renderLiteralIndexedRuleArray(
 }
 
 function renderIndexedRuleArray(
-	rules: readonly { readonly technology: TechnologyDefinition; readonly ruleIndex: number; readonly sequence: number }[],
+	rules: readonly { readonly technology: MatcherTechnologyType; readonly ruleIndex: number; readonly sequence: number }[],
 	technologyIndexById: ReadonlyMap<string, number>,
 	indentLevel: number,
 ): string {

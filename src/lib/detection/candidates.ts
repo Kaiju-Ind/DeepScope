@@ -82,7 +82,7 @@ export function detectionCandidateToResult(candidate: DetectionCandidate): Detec
 		website: candidate.definition.website,
 		description: candidate.definition.description,
 		icon: candidate.definition.icon,
-		categories: candidate.definition.categories,
+		categories: [...candidate.definition.categories],
 		confidence: candidate.confidence,
 		version: candidate.version,
 		evidence: candidate.evidence,

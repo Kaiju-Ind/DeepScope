@@ -47,10 +47,12 @@ export function isNode(value: unknown): value is OxcNodeType {
 
 /** Visit every descendant node while preserving the structural ancestor stack. */
 export function walk(
-	node: OxcNodeType,
+	value: unknown,
 	visit: (node: OxcNodeType, ancestors: readonly OxcNodeType[]) => void,
 	ancestors: readonly OxcNodeType[] = [],
 ): void {
+	if (!isNode(value)) return;
+	const node = value;
 	visit(node, ancestors);
 	const nextAncestors: readonly OxcNodeType[] = [...ancestors, node];
 	for (const [key, value] of Object.entries(node)) {

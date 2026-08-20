@@ -17,7 +17,7 @@ import {
 import type { ObservationBatch } from '@/lib/observations';
 import type { MatcherJobRecord } from '@/lib/matcher';
 import type { DetectionReplayTrace } from '@/lib/pipeline';
-import type { CompiledTechnologyRegistryArtifact } from '@/lib/registry/compiler-core';
+import type { RuntimeTechnologyRegistryArtifact } from '@/lib/registry/runtime-artifact';
 import { extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
 import { makeDetectionReplayTrace } from '../support/factories';
 
@@ -276,7 +276,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		expectedUrl: HTTP_TAB.url!,
 		status: 'observing',
 		startedAt: 1_700_000_000_000,
-		expiresAt: 1_700_000_060_000,
+		expiresAt: Number.MAX_SAFE_INTEGER,
 	};
 	const stoppedState: observe.StateType = {
 		...pollingState,
@@ -332,25 +332,15 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	}));
 
 	const { buildCollectionPlan: buildPlan } = await import('@/lib/collectors/planning');
-	const { createObservationMatcherIndex } = await import('@/lib/detection/observation-matcher-index');
-	const { createCompiledDetectionRegistry } = await import('@/lib/detection/registry-graph');
-	const compiledRegistryArtifact: CompiledTechnologyRegistryArtifact = {
-		artifactVersion: 1,
-		sourceSchemaVersion: 1,
+	const { createCompiledDetectionGraph } = await import('@/lib/detection/registry-graph');
+	const runtimeRegistryArtifact: RuntimeTechnologyRegistryArtifact = {
 		technologies: [],
-		technologyMetadata: [],
 		patternTables: {},
-		relationshipGraph: createCompiledDetectionRegistry([]),
-		matcherIndex: createObservationMatcherIndex([]),
+		relationshipGraph: createCompiledDetectionGraph([], []),
 		collectionPlan: input.collectionPlan ?? buildPlan([]),
-		sourceMap: {},
-		diagnostics: [],
+		diagnosticCount: 0,
 	};
-	const listTechnologies = vi.fn(async () => compiledRegistryArtifact.technologies);
-	const listBootstrapTechnologies = vi.fn(async () => compiledRegistryArtifact.technologies);
-	const getCompiledRegistry = vi.fn(async () => compiledRegistryArtifact);
-	const getCompiledBootstrapRegistry = vi.fn(async () => compiledRegistryArtifact);
-	const getCompiledObservationKindRegistry = vi.fn(async () => compiledRegistryArtifact);
+	const getRuntimeRegistry = vi.fn(async () => runtimeRegistryArtifact);
 
 	const getCachedReplayTrace = vi.fn(async () => input.cachedReplayTrace ?? null);
 	const getCachedReplayTraceHistory = vi.fn(async () =>
@@ -381,7 +371,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		},
 		createContentApiClient: () => contentApi,
 		collectObservationBatch: collectExtensionObservationBatch,
-		registryProvider: { getCompiledRegistry },
+		registryProvider: { getRuntimeRegistry },
 		matcher: {
 			cancelJob: matcher.cancel,
 			runJob: matcher.run,
@@ -417,11 +407,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 			getCachedReplayTraceHistory,
 			getBestVisibleDetectionSessionSnapshot,
 			getStatus,
-			getCompiledRegistry,
-			getCompiledBootstrapRegistry,
-			getCompiledObservationKindRegistry,
-			listTechnologies,
-			listBootstrapTechnologies,
+			getRuntimeRegistry,
 			saveDetectionSessionSnapshot,
 			saveMatcherJobRecord,
 			saveReplayTrace,
@@ -459,8 +445,7 @@ describe.sequential('background visible-tab identity', () => {
 			},
 		});
 		expect(collectObservationBatch).not.toHaveBeenCalled();
-		expect(harness.mocks.getCompiledRegistry).not.toHaveBeenCalled();
-		expect(harness.mocks.getCompiledBootstrapRegistry).not.toHaveBeenCalled();
+		expect(harness.mocks.getRuntimeRegistry).not.toHaveBeenCalled();
 	});
 
 	it('rejects an explicit tab id after that tab becomes inactive', async () => {
@@ -597,7 +582,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 		});
 
 		expect(collectObservationBatch).not.toHaveBeenCalled();
-		expect(harness.mocks.getCompiledRegistry).not.toHaveBeenCalled();
+		expect(harness.mocks.getRuntimeRegistry).not.toHaveBeenCalled();
 		expect(harness.mocks.saveMatcherJobRecord).not.toHaveBeenCalled();
 		expect(harness.mocks.saveDetectionSessionSnapshot).not.toHaveBeenCalled();
 		expect(harness.contentApi.getObservationSessionState).not.toHaveBeenCalled();
@@ -647,8 +632,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 
 		expect(harness.mocks.getBestVisibleDetectionSessionSnapshot).toHaveBeenCalledWith(VISIBLE_TAB_TARGET);
 		expect(harness.contentApi.collectObservationBatch).toHaveBeenCalledOnce();
-		expect(harness.mocks.getCompiledBootstrapRegistry).not.toHaveBeenCalled();
-		expect(harness.mocks.getCompiledRegistry).toHaveBeenCalledOnce();
+		expect(harness.mocks.getRuntimeRegistry).toHaveBeenCalledOnce();
 		expect(harness.mocks.analyzeSite).not.toHaveBeenCalled();
 		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledWith(expect.objectContaining({
 			analysis: expect.objectContaining({ source: 'fresh' }),
@@ -984,8 +968,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 			},
 		});
 
-		expect(harness.mocks.getCompiledRegistry).toHaveBeenCalledOnce();
-		expect(harness.mocks.getCompiledBootstrapRegistry).not.toHaveBeenCalled();
+		expect(harness.mocks.getRuntimeRegistry).toHaveBeenCalledOnce();
 	});
 
 	it('returns replay history for the requested visible analysis URL', async () => {
@@ -1078,7 +1061,7 @@ describe.sequential('background observation session baseline', () => {
 		const harness = await loadBackgroundApiHarness({ tab: HTTP_TAB });
 
 		await expect(
-			harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'none' }),
+			harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-panel-open' }),
 		).resolves.toMatchObject({ ok: true });
 
 		const dirtyState: observe.StateType = {
@@ -1126,8 +1109,8 @@ describe.sequential('background observation session baseline', () => {
 
 		expect(harness.contentApi.collectObservationBatch).toHaveBeenCalledOnce();
 		expect(harness.contentApi.flushObservationBatch).toHaveBeenCalledOnce();
-		expect(harness.contentApi.beginObservationSession).not.toHaveBeenCalled();
-		expect(harness.mocks.getCompiledRegistry).toHaveBeenCalledTimes(2);
+		expect(harness.contentApi.beginObservationSession).toHaveBeenCalledOnce();
+		expect(harness.mocks.getRuntimeRegistry).toHaveBeenCalledTimes(2);
 		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(4));
 		expect(harness.mocks.analyzeSite).not.toHaveBeenCalled();
 	});
@@ -1274,9 +1257,6 @@ describe.sequential('background observation session baseline', () => {
 		});
 
 		expect(harness.contentApi.stopObservationSession).toHaveBeenCalledOnce();
-		expect(harness.contentApi.stopObservationSession).toHaveBeenCalledWith({
-			sessionId: OBSERVATION_TARGET.sessionId,
-			expectedUrl: OBSERVATION_TARGET.expectedUrl,
-		});
+		expect(harness.contentApi.stopObservationSession).toHaveBeenCalledWith(OBSERVATION_TARGET);
 	});
 });

@@ -1,1 +1,1 @@
-export { cancel, close, run } from './client';
+export { cancel, run, start } from './client';

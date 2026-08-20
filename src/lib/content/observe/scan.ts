@@ -78,7 +78,7 @@ export async function node(input: ScanType): Promise<SnapshotType> {
  * deliberately avoid both operations so a busy SPA does not repeatedly reread
  * global browser state for one changed subtree.
  */
-export async function document(input: Omit<ScanType, 'root' | 'deep'>): Promise<SnapshotType> {
+export async function page(input: Omit<ScanType, 'root' | 'deep'>): Promise<SnapshotType> {
 	const snapshot = await node({ ...input, root: globalThis.document, deep: true });
 	const resources = collectResourceTimings();
 	snapshot.resources = resources;

@@ -1,3 +1,4 @@
+import { execDetectionPattern } from './pattern';
 import type { VersionExtraction } from './types';
 
 export function extractVersion(
@@ -15,7 +16,7 @@ export function extractVersion(
 
 	const sourceMatch =
 		extraction.source === 'matchedValue'
-			? matchedValue.match(extraction.pattern)
+			? execDetectionPattern(extraction.pattern, matchedValue)
 			: match;
 
 	if (!sourceMatch) {

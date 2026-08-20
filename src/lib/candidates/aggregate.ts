@@ -2,7 +2,7 @@ import type {
 	CategoryId,
 	ConfidenceScore,
 	DetectionKind,
-	TechnologyDefinition,
+	TechnologyProfileType,
 } from '../detection/types';
 import type { EvidenceBatch, EvidenceEntry } from '../evidence';
 import type { ObservationAttributes, ObservationTarget } from '../observations';
@@ -33,7 +33,7 @@ const UNKNOWN_CATEGORIES: readonly CategoryId[] = ['unknown'];
 /** Input for aggregating evidence entries into candidate detections. */
 export interface CreateEvidenceCandidateBatchInput {
 	/** Registry used to attach names, websites, descriptions, icons, and categories. */
-	readonly registry: readonly TechnologyDefinition[];
+	readonly registry: readonly TechnologyProfileType[];
 	/** Evidence entries or a full evidence batch to aggregate. */
 	readonly evidence: EvidenceBatch | readonly EvidenceEntry[];
 	/** Optional target override when aggregating a raw entry list. */
@@ -85,7 +85,7 @@ interface CreateEvidenceCandidateInput {
 	technologyId: string;
 	entries: readonly EvidenceEntry[];
 	target: ObservationTarget;
-	definition?: TechnologyDefinition;
+	definition?: TechnologyProfileType;
 	policy: EvidenceCandidateAggregationPolicy;
 }
 
@@ -115,7 +115,7 @@ function createEvidenceCandidate(input: CreateEvidenceCandidateInput): EvidenceC
 
 function createCandidateTechnology(
 	technologyId: string,
-	definition?: TechnologyDefinition,
+	definition?: TechnologyProfileType,
 ): EvidenceCandidateTechnology {
 	return {
 		id: technologyId,
@@ -157,11 +157,11 @@ function isEvidenceBatch(evidence: EvidenceBatch | readonly EvidenceEntry[]): ev
 	return !Array.isArray(evidence);
 }
 
-function buildDefinitionsById(registry: readonly TechnologyDefinition[]): Map<string, TechnologyDefinition> {
+function buildDefinitionsById(registry: readonly TechnologyProfileType[]): Map<string, TechnologyProfileType> {
 	return new Map(registry.map((definition) => [definition.id, definition]));
 }
 
-function buildRegistryOrder(registry: readonly TechnologyDefinition[]): Map<string, number> {
+function buildRegistryOrder(registry: readonly TechnologyProfileType[]): Map<string, number> {
 	return new Map(registry.map((definition, index) => [definition.id, index]));
 }
 
