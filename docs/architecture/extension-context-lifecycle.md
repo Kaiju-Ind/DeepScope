@@ -42,7 +42,7 @@ Content owns page-local observation for one document only while an explicit obse
 
 ### Offscreen matcher and workers
 
-The matcher owns CPU-heavy rule evaluation. Matcher output must carry enough session identity and revision information for storage to reject obsolete results. The background sends only a compact job plus the page observation batch to the offscreen host. Registry-scale matcher indexes and relationship data are not cloned into each runtime message, and the offscreen host never loads the full technology registry. Dedicated workers load only the observation-kind shards required by their current partitions. The host returns partition matches, then background finalizes those partitions with the registry and relationship graph it already owns. The offscreen document can remain available for DOM parsing, but dedicated matcher workers are not permanent. Their worker pool is terminated after 30 seconds without matcher work, and each worker retains at most four compiled observation-kind shards while it is alive. Cancellation or worker failure also disposes those worker heaps immediately.
+The matcher owns CPU-heavy rule evaluation. Matcher output must carry enough session identity and revision information for storage to reject obsolete results. The background sends only a compact job plus the page observation batch to the offscreen host. Registry-scale matcher indexes and relationship data are not cloned into each runtime message, and the offscreen host never loads the full technology registry. Dedicated workers load only the observation-kind shards required by their current partitions. The host returns partition matches, then background finalizes those partitions with the registry and relationship graph it already owns. The offscreen document does not own DOM parsing or selector matching. Content matches DOM rules against the live document. The dedicated worker pool is terminated after 30 seconds without matcher work, and the background closes the offscreen document after 30 seconds without an owning matcher request. Cancellation or worker failure also disposes worker heaps immediately. Production offscreen failure is surfaced instead of repeating the same full matcher job inside the background service worker.
 
 ### Durable storage
 
@@ -197,6 +197,6 @@ Visibility recovery re-resolves the active tab. Durable storage is authoritative
 8. Durable results outlive side-panel mount state.
 9. Kobalte group labels are always inside their matching group provider.
 10. Diagnostic Timeline virtualization uses fixed-height rows and does not call `measureElement()`.
-11. Idle matcher workers are terminated so their compiled shard caches can be reclaimed.
+11. Idle matcher workers and the idle offscreen matcher document are released so their heaps and compiled shard caches can be reclaimed.
 12. Generated content and side-panel bundles execute in Chromium as part of the release gate.
 13. Generated HTML does not preload extension chunks or fonts that are not guaranteed to be consumed immediately.

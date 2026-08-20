@@ -79,7 +79,7 @@ worker slot ErrorEvent / messageerror / partition-failed
   -> offscreen also records host-side failure metadata
 ```
 
-This makes offscreen and matcher-worker LogTape records visible in the same Diagnostics Timeline and copied support report as background and content records. The same success-only journal compaction still applies before high-volume debug records are transported. Host-side worker error handling remains a second source of failure metadata when a worker cannot complete its own diagnostic message. An active worker failure also disposes the shared matcher pool, which rejects the in-flight partition and prevents a broken worker heap from remaining resident after the job has already fallen back or failed.
+This makes offscreen and matcher-worker LogTape records visible in the same Diagnostics Timeline and copied support report as background and content records. The same success-only journal compaction still applies before high-volume debug records are transported. Host-side worker error handling remains a second source of failure metadata when a worker cannot complete its own diagnostic message. An active worker failure also disposes the shared matcher pool, which rejects the in-flight partition and prevents a broken worker heap from remaining resident after the job has already failed or been canceled.
 
 LogTape sends records to two sinks. The console sink rate-limits ordinary trace/debug/info bursts. Warning, error, and fatal records bypass console throttling. The durable journal is not behind that console throttle. It applies its own success-only compaction after the detailed sample limit, while warning, error, and fatal records are always persisted.
 

@@ -7,7 +7,7 @@ The current implementation has one user-visible contract:
 ```text
 visible tab identity
   -> exact session snapshot renders first when available
-  -> origin snapshot is a compatibility fallback
+  -> origin snapshot is a same-origin recovery fallback
   -> background/content publish newer snapshot revisions
   -> side panel applies only revisions that still match the visible tab target
 ```
@@ -21,7 +21,7 @@ This status note is intentionally short. Detailed architecture lives in the runt
 | Side-panel state | Snapshot-owned live revision workflow | The side panel renders stored snapshots, subscribes to storage revisions, and ignores stale target responses. |
 | Background orchestration | Visible-tab coordinator | Background validates visible tab targets, queues initial matcher work, records matcher diagnostics, and writes snapshot revisions. |
 | Content observation | Page-session snapshot lifecycle | Content writes observation lifecycle revisions instead of feeding an tab cache command path. |
-| Matcher runtime | Partitioned matcher executor | Build mode can use the offscreen worker pool, while development mode can use a dev-safe fallback without crashing the extension. |
+| Matcher runtime | Partitioned matcher executor | Packaged builds use the offscreen worker pool. Development mode can use the explicit `development-background` executor when WXT worker transforms do not represent packaged Chrome. |
 | Replay | Target-owned history reads and snapshot summaries | Replay data is attached to explicit visible analysis targets rather than whichever tab is active when hydration completes. |
 | Storage | Exact session snapshots plus origin summaries | `DetectionSessionSnapshot` is exact page/session state. `DetectionOriginSummary` and the compact status record drive origin counts and warm startup metadata without pretending to be visible-tab state. |
 
@@ -39,4 +39,4 @@ Use these checks when reviewing new patches:
 
 ## Remaining work
 
-Background still contains compatibility adapter code around the live revision contracts while the runtime modules continue to settle. New work should keep that plumbing isolated behind exact session snapshots, side-panel revisions, session-keyed matcher jobs, and explicit visible-tab commands instead of reviving targetless command-era paths.
+Background still contains transitional adapter code around the live revision contracts while the runtime modules continue to settle. New work should keep that plumbing isolated behind exact session snapshots, side-panel revisions, session-keyed matcher jobs, and explicit visible-tab commands instead of reviving targetless command-era paths.
