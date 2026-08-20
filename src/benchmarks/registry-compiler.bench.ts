@@ -54,7 +54,7 @@ function buildSeparateArtifacts(registry: readonly TechnologyDefinition[]): numb
 	const relationshipGraph = createCompiledDetectionRegistry(registry);
 	const collectionPlan = buildCollectionPlan(registry);
 
-	return matcherIndex.ruleCount + relationshipGraph.relationshipEdges.length + collectionPlan.selectorProbeList.length;
+	return matcherIndex.ruleCount + relationshipGraph.relationshipEdges.length + collectionPlan.initial.domSelectorPlan.selectors.length;
 }
 
 /** Compiler work that builds validation, diagnostics, source maps, and runtime artifacts. */
@@ -63,7 +63,7 @@ function buildCompiledArtifact(registry: readonly TechnologyDefinition[]): numbe
 
 	return artifact.matcherIndex.ruleCount +
 		artifact.relationshipGraph.relationshipEdges.length +
-		artifact.collectionPlan.selectorProbeList.length +
+		artifact.collectionPlan.initial.domSelectorPlan.selectors.length +
 		Object.keys(artifact.sourceMap).length +
 		artifact.diagnostics.length;
 }

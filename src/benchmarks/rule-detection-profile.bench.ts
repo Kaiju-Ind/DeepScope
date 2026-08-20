@@ -150,7 +150,7 @@ afterAll(() => {
 function consumeProfiledCases(cases: readonly RuleProfileCase[]): void {
 	let matchCount = 0;
 	for (const profileCase of cases) {
-		const record = profileRuleCase(profileCase);
+		const record = profileRuleCase(profileCase, { samples: 5, warmup: 1 });
 		recordSlowRule(slowestByKey, record);
 		if (record.matched) {
 			matchCount += 1;
@@ -160,7 +160,7 @@ function consumeProfiledCases(cases: readonly RuleProfileCase[]): void {
 }
 
 function consumeProfiledCase(profileCase: RuleProfileCase): void {
-	const record = profileRuleCase(profileCase);
+	const record = profileRuleCase(profileCase, { samples: 5, warmup: 1 });
 	recordSlowRule(slowestByKey, record);
 	consumeMatchState(record.matched ? 1 : 0);
 }
