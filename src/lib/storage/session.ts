@@ -163,14 +163,10 @@ export type DetectionSessionSnapshotSource = 'cache' | 'content' | 'background';
 /**
  * Executor that produced detector output for a snapshot revision.
  *
- * The side panel can show this in diagnostics so worker crashes, the explicit
- * development executor, and offscreen matching are visible instead of being
- * misread as page collection or replay latency.
+ * The side panel can show this in diagnostics so matcher work is not misread as
+ * page collection or replay latency. `unknown` covers legacy or partial records.
  */
-export type DetectionMatcherExecutor =
-	| 'offscreen-worker-pool'
-	| 'development-background'
-	| 'unknown';
+export type DetectionMatcherExecutor = 'offscreen-worker-pool' | 'unknown';
 
 /**
  * Public-safe matcher progress embedded in a partial snapshot revision.

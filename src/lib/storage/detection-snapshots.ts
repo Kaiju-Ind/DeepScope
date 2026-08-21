@@ -679,7 +679,6 @@ function isDetectionSessionSnapshotSource(value: unknown): value is DetectionSes
 function isDetectionMatcherExecutor(value: unknown): value is DetectionMatcherExecutor {
 	return (
 		value === 'offscreen-worker-pool' ||
-		value === 'development-background' ||
 		value === 'unknown'
 	);
 }

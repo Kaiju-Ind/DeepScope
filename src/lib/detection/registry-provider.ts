@@ -2,7 +2,7 @@ import { compileValidatedTechnologyRegistry, type CompiledTechnologyRegistryArti
 import { compileMatcherRegistry, type CompiledMatcherRegistryArtifact } from '../registry/matcher-artifact';
 import { createObservationKindTechnologyRegistry } from '../registry/packaged-artifacts';
 import { createRuntimeTechnologyRegistryArtifact, type RuntimeTechnologyRegistryArtifact } from '../registry/runtime-artifact';
-import { createPackagedTechnologyRegistryProvider } from '../registry/packaged-provider';
+import { createPackagedRuntimeTechnologyRegistryProvider } from '../registry/packaged-provider';
 import type { TechnologyDefinition } from './types';
 import type { NormalizedObservationKind } from '../observations';
 
@@ -85,5 +85,5 @@ export function createStaticTechnologyRegistryProvider(
 	};
 }
 
-/** Provider backed by WXT-generated registry JSON assets. */
-export const bundledTechnologyRegistryProvider = createPackagedTechnologyRegistryProvider();
+/** Rule-free packaged provider owned by the background service worker. */
+export const bundledRuntimeTechnologyRegistryProvider = createPackagedRuntimeTechnologyRegistryProvider();

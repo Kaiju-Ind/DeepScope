@@ -25,7 +25,6 @@ export type {
 	PackagedRuntimeTechnologyRegistryAsset,
 	PackagedRegistryShardManifestAsset,
 	PackagedRegistryShardManifestEntry,
-	PackagedRegistryRegExpRecord,
 	PackagedRegistryRelationshipsAsset,
 	PackagedTechnologyRegistryAsset,
 	PackagedTechnologyRegistryShardAsset,
@@ -57,13 +56,16 @@ export {
 	hydratePackagedTechnologyRegistry,
 	hydratePackagedTechnologyRegistryShard,
 	isPackagedRuntimeTechnologyRegistryAsset,
-	isPackagedRegistryRegExpRecord,
 	isPackagedTechnologyRegistryAsset,
 	isPackagedTechnologyRegistryShardAsset,
 	normalizePackagedRegistryObservationKind,
 	renderPackagedRegistryJson,
 } from './packaged-artifacts';
-export { createPackagedTechnologyRegistryProvider } from './packaged-provider';
+export {
+	createPackagedMatcherTechnologyRegistryProvider,
+	createPackagedRuntimeTechnologyRegistryProvider,
+	createPackagedTechnologyRegistryProvider,
+} from './packaged-provider';
 export { createPrecompiledTechnologyRegistryProvider } from './precompiled-artifact';
 
 export type { CompiledMatcherRegistryArtifact } from './matcher-artifact';

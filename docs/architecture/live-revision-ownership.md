@@ -73,7 +73,7 @@ That prevents deeper collection from owning first paint. The user can see initia
 
 ## Development matcher diagnostics
 
-WXT development mode can be hostile to extension worker pools because dev-time worker transforms and hot module machinery do not always behave like packaged extension runtime. The development executor therefore avoids constructing the offscreen worker pool and records a `development-background` executor on snapshots. Production builds can still use the offscreen worker pool, and backend diagnostics can show which executor produced a revision without making that an end-user side-panel label.
+Development and packaged builds use the same offscreen document and dedicated matcher-worker topology. This keeps lifecycle, memory, cancellation, and failure behavior comparable across both modes. Unit tests inject a matcher capability directly when they are testing background orchestration rather than extension runtime messaging. Backend diagnostics can still record `offscreen-worker-pool` without making the executor an end-user side-panel label.
 
 ## Review checklist
 

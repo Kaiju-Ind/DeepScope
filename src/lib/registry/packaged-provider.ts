@@ -51,13 +51,60 @@ interface PackagedMatcherShardCache {
 	artifactPromise?: Promise<CompiledMatcherRegistryArtifact>;
 }
 
+/** Create the rule-free packaged provider used by the background service worker. */
+export function createPackagedRuntimeTechnologyRegistryProvider(
+	input: Pick<PackagedTechnologyRegistryProviderInput, 'resolveUrl' | 'fetchAsset'> = {},
+): Pick<TechnologyRegistryProvider, 'getRuntimeRegistry'> {
+	const resolveUrl = input.resolveUrl ?? ((path) => browser.runtime.getURL(
+		path as Parameters<typeof browser.runtime.getURL>[0],
+	));
+	const fetchAsset = input.fetchAsset ?? fetchRegistryAsset;
+	let runtimePromise: Promise<RuntimeTechnologyRegistryArtifact> | undefined;
+
+	return {
+		getRuntimeRegistry() {
+			runtimePromise ??= loadPackagedRuntimeRegistry({ resolveUrl, fetchAsset });
+			return runtimePromise;
+		},
+	};
+}
+
+/** Create the shard-only packaged provider used by one dedicated matcher worker. */
+export function createPackagedMatcherTechnologyRegistryProvider(
+	input: PackagedTechnologyRegistryProviderInput = {},
+): Pick<TechnologyRegistryProvider, 'getCompiledObservationKindRegistry'> {
+	const resolveUrl = input.resolveUrl ?? ((path) => browser.runtime.getURL(
+		path as Parameters<typeof browser.runtime.getURL>[0],
+	));
+	const fetchAsset = input.fetchAsset ?? fetchRegistryAsset;
+	const shards = new Map<PackagedRegistryObservationKind, PackagedMatcherShardCache>();
+	const maxObservationKindShards = normalizeShardCacheLimit(input.maxObservationKindShards);
+
+	return {
+		getCompiledObservationKindRegistry(kind) {
+			const observationKind = normalizePackagedRegistryObservationKind(kind);
+			const existing = shards.get(observationKind);
+			const cache = existing ?? {};
+			if (existing) shards.delete(observationKind);
+			shards.set(observationKind, cache);
+			while (shards.size > maxObservationKindShards) {
+				const leastRecentlyUsedKind = shards.keys().next().value as PackagedRegistryObservationKind | undefined;
+				if (leastRecentlyUsedKind === undefined) break;
+				shards.delete(leastRecentlyUsedKind);
+			}
+
+			cache.registryPromise ??= loadPackagedRegistryShard({ observationKind, resolveUrl, fetchAsset });
+			cache.artifactPromise ??= (async () => compileMatcherRegistry(await cache.registryPromise!))();
+			return cache.artifactPromise;
+		},
+	};
+}
+
 /**
- * Create a registry provider backed by generated JSON assets.
+ * Create a complete packaged provider for build tooling, compatibility tests, and benchmarks.
  *
- * The background service worker reads the rule-free `runtime` product. Complete
- * enrichment definitions remain available for development and compatibility
- * tools, while dedicated matcher workers fetch minimal observation-kind shards
- * and compile only their matcher indexes.
+ * Production background and matcher-worker entrypoints use the focused factories
+ * above so they cannot accidentally acquire unrelated registry products.
  */
 export function createPackagedTechnologyRegistryProvider(
 	input: PackagedTechnologyRegistryProviderInput = {},
@@ -68,9 +115,14 @@ export function createPackagedTechnologyRegistryProvider(
 	const fetchAsset = input.fetchAsset ?? fetchRegistryAsset;
 	const bootstrap = createRegistryTierCache('bootstrap');
 	const enrichment = createRegistryTierCache('enrichment');
-	const shards = new Map<PackagedRegistryObservationKind, PackagedMatcherShardCache>();
-	const maxObservationKindShards = normalizeShardCacheLimit(input.maxObservationKindShards);
-	let runtimePromise: Promise<RuntimeTechnologyRegistryArtifact> | undefined;
+	const runtime = createPackagedRuntimeTechnologyRegistryProvider({ resolveUrl, fetchAsset });
+	const matcher = createPackagedMatcherTechnologyRegistryProvider({
+		resolveUrl,
+		fetchAsset,
+		...(input.maxObservationKindShards !== undefined
+			? { maxObservationKindShards: input.maxObservationKindShards }
+			: {}),
+	});
 
 	const loadRegistry = (cache: PackagedRegistryTierCache) => {
 		cache.registryPromise ??= loadPackagedRegistry({ kind: cache.kind, resolveUrl, fetchAsset });
@@ -83,41 +135,14 @@ export function createPackagedTechnologyRegistryProvider(
 		}))();
 		return cache.artifactPromise;
 	};
-	const getShardCache = (kind: NormalizedObservationKind) => {
-		const observationKind = normalizePackagedRegistryObservationKind(kind);
-		const existing = shards.get(observationKind);
-		if (existing) {
-			shards.delete(observationKind);
-			shards.set(observationKind, existing);
-			return existing;
-		}
-
-		const cache: PackagedMatcherShardCache = {};
-		shards.set(observationKind, cache);
-		while (shards.size > maxObservationKindShards) {
-			const leastRecentlyUsedKind = shards.keys().next().value as PackagedRegistryObservationKind | undefined;
-			if (leastRecentlyUsedKind === undefined) break;
-			shards.delete(leastRecentlyUsedKind);
-		}
-		return cache;
-	};
 
 	return {
 		listTechnologies: () => loadRegistry(enrichment),
 		listBootstrapTechnologies: () => loadRegistry(bootstrap),
 		getCompiledRegistry: () => compileRegistry(enrichment),
-		getRuntimeRegistry() {
-			runtimePromise ??= loadPackagedRuntimeRegistry({ resolveUrl, fetchAsset });
-			return runtimePromise;
-		},
+		getRuntimeRegistry: runtime.getRuntimeRegistry,
 		getCompiledBootstrapRegistry: () => compileRegistry(bootstrap),
-		getCompiledObservationKindRegistry(kind) {
-			const observationKind = normalizePackagedRegistryObservationKind(kind);
-			const cache = getShardCache(kind);
-			cache.registryPromise ??= loadPackagedRegistryShard({ observationKind, resolveUrl, fetchAsset });
-			cache.artifactPromise ??= (async () => compileMatcherRegistry(await cache.registryPromise!))();
-			return cache.artifactPromise;
-		},
+		getCompiledObservationKindRegistry: matcher.getCompiledObservationKindRegistry,
 	};
 }
 

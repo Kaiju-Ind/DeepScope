@@ -51,7 +51,7 @@ export function createRuntimeTechnologyRegistryArtifact(
 export function createRuntimeTechnologyRegistryFromData(
 	data: PackagedRuntimeTechnologyRegistryData,
 ): RuntimeTechnologyRegistryArtifact {
-	const technologies = data.technologies.map(createTechnologyProfile);
+	const technologies = data.technologies;
 
 	return {
 		technologies,

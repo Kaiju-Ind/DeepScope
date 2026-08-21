@@ -1,12 +1,13 @@
 import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 
 import { addPublicAssets, defineWxtModule } from 'wxt/modules';
 import type { Wxt } from 'wxt';
 
 import {
 	PACKAGED_REGISTRY_ASSET_PATHS,
+	PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
 	PACKAGED_REGISTRY_OBSERVATION_KINDS,
 	countTechnologyRules,
 	createBootstrapTechnologyRegistry,
@@ -17,6 +18,7 @@ import {
 	type PackagedRegistryObservationKind,
 } from '../src/lib/registry/packaged-artifacts';
 import type { CompiledTechnologyRegistryArtifact } from '../src/lib/registry/index';
+import { createRuntimeTechnologyRegistryArtifact } from '../src/lib/registry/runtime-artifact';
 import type { TechnologyDefinition } from '../src/lib/detection/types';
 
 const REGISTRY_CACHE_DIR = 'kaiju-deepscope-registry';
@@ -41,7 +43,7 @@ interface RegistryShardSummary {
  * Technology definitions stay authored as TypeScript, but the extension package
  * receives JSON artifacts. Runtime matching now uses observation-kind shards so
  * workers can fetch only the rules that can match the partition they own, while
- * the full registry remains available for collection planning and graph emission.
+ * the background reads a rule-free runtime artifact for collection planning and graph emission.
  */
 export default defineWxtModule({
 	setup(wxt) {
@@ -86,11 +88,15 @@ async function generateRegistryJsonAssets(
 	});
 
 	await Promise.all([
+		resetRegistryDir(cacheRegistryDir),
+		resetRegistryDir(publicRegistryDir),
+	]);
+	await Promise.all([
 		writeRegistryAssets(cacheRegistryDir, assets),
-		writeRegistryAssets(publicRegistryDir, assets),
+		writeRegistryAssets(publicRegistryDir, assets.filter(isPublicRegistryAsset)),
 	]);
 	wxt.logger.info(
-		`Generated registry JSON assets with ${fullArtifact.technologies.length} technologies, ${fullArtifact.matcherIndex.ruleCount} full rules, ${assets.filter((asset) => asset.path.includes('/registry.kind.')).length} matcher shards, and ${countTechnologyRules(bootstrapTechnologies)} compatibility bootstrap rules`,
+		`Generated registry build cache with ${fullArtifact.technologies.length} technologies and ${fullArtifact.matcherIndex.ruleCount} rules; packaged runtime contains one rule-free background artifact and ${assets.filter((asset) => asset.path.includes('/registry.kind.')).length} matcher shards.`,
 	);
 }
 
@@ -102,12 +108,13 @@ function createRegistryAssets(input: {
 }): readonly RegistryAssetPayload[] {
 	const shardAssets = createRegistryShardAssets(input.technologies, input.generatedAt);
 	const shardSummaries = shardAssets.map((asset) => asset.summary);
+	const runtime = createRuntimeTechnologyRegistryArtifact(input.fullArtifact);
 
 	return [
 		{
 			path: PACKAGED_REGISTRY_ASSET_PATHS.bootstrap,
 			contents: renderPackagedRegistryJson({
-				schemaVersion: 1,
+				schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
 				kind: 'bootstrap',
 				technologies: input.bootstrapTechnologies,
 				ruleCount: countTechnologyRules(input.bootstrapTechnologies),
@@ -117,7 +124,7 @@ function createRegistryAssets(input: {
 		{
 			path: PACKAGED_REGISTRY_ASSET_PATHS.enrichment,
 			contents: renderPackagedRegistryJson({
-				schemaVersion: 1,
+				schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
 				kind: 'enrichment',
 				technologies: input.fullArtifact.technologies,
 				ruleCount: input.fullArtifact.matcherIndex.ruleCount,
@@ -125,9 +132,22 @@ function createRegistryAssets(input: {
 			}),
 		},
 		{
+			path: PACKAGED_REGISTRY_ASSET_PATHS.runtime,
+			contents: renderPackagedRegistryJson({
+				schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
+				kind: 'runtime',
+				technologies: runtime.technologies,
+				patternTables: runtime.patternTables,
+				relationshipEdges: runtime.relationshipGraph.relationshipEdges,
+				collectionPlan: runtime.collectionPlan,
+				diagnosticCount: runtime.diagnosticCount,
+				generatedAt: input.generatedAt,
+			}),
+		},
+		{
 			path: PACKAGED_REGISTRY_ASSET_PATHS.manifest,
 			contents: renderPackagedRegistryJson({
-				schemaVersion: 1,
+				schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
 				kind: 'manifest',
 				shards: Object.fromEntries(shardSummaries.map((summary) => [summary.observationKind, summary])),
 				generatedAt: input.generatedAt,
@@ -137,7 +157,7 @@ function createRegistryAssets(input: {
 		{
 			path: PACKAGED_REGISTRY_ASSET_PATHS.metadata,
 			contents: renderPackagedRegistryJson({
-				schemaVersion: 1,
+				schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
 				kind: 'metadata',
 				technologyMetadata: input.fullArtifact.technologyMetadata,
 				patternTables: input.fullArtifact.patternTables,
@@ -147,7 +167,7 @@ function createRegistryAssets(input: {
 		{
 			path: PACKAGED_REGISTRY_ASSET_PATHS.relationships,
 			contents: renderPackagedRegistryJson({
-				schemaVersion: 1,
+				schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
 				kind: 'relationships',
 				relationshipEdges: input.fullArtifact.relationshipGraph.relationshipEdges,
 				generatedAt: input.generatedAt,
@@ -176,7 +196,7 @@ function createRegistryShardAssets(
 			path,
 			summary,
 			contents: renderPackagedRegistryJson({
-				schemaVersion: 1,
+				schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
 				kind: 'kind-shard',
 				observationKind,
 				technologies: shardTechnologies,
@@ -187,6 +207,18 @@ function createRegistryShardAssets(
 			}),
 		};
 	});
+}
+
+
+/** Return true for the only registry products needed by the packaged extension runtime. */
+function isPublicRegistryAsset(asset: RegistryAssetPayload): boolean {
+	return asset.path === PACKAGED_REGISTRY_ASSET_PATHS.runtime || asset.path.includes('/registry.kind.');
+}
+
+/** Remove stale generated products before writing the current schema generation. */
+async function resetRegistryDir(registryDir: string): Promise<void> {
+	await rm(registryDir, { force: true, recursive: true });
+	await mkdir(registryDir, { recursive: true });
 }
 
 async function writeRegistryAssets(

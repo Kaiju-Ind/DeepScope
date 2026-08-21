@@ -16,7 +16,11 @@ import {
 	renderPackagedRegistryJson,
 	type PackagedRegistryObservationKind,
 } from '@/lib/registry/packaged-artifacts';
-import { createPackagedTechnologyRegistryProvider } from '@/lib/registry/packaged-provider';
+import {
+	createPackagedMatcherTechnologyRegistryProvider,
+	createPackagedRuntimeTechnologyRegistryProvider,
+	createPackagedTechnologyRegistryProvider,
+} from '@/lib/registry/packaged-provider';
 
 function makeRegistry(): readonly TechnologyDefinition[] {
 	return [
@@ -87,6 +91,7 @@ function makeRuntimeAsset(registry: readonly TechnologyDefinition[]) {
 describe('packaged registry artifacts', () => {
 	it('round-trips regular expression rules through JSON assets', () => {
 		const rendered = renderPackagedRegistryJson(makeRegistryAsset(makeRegistry()));
+		expect(rendered).not.toContain('$kaijuDeepScopeRegExp');
 		const parsed = JSON.parse(rendered);
 
 		expect(isPackagedTechnologyRegistryAsset(parsed, 'enrichment')).toBe(true);
@@ -214,7 +219,7 @@ describe('packaged registry artifacts', () => {
 				},
 			};
 		});
-		const provider = createPackagedTechnologyRegistryProvider({
+		const provider = createPackagedRuntimeTechnologyRegistryProvider({
 			resolveUrl: (path) => `extension://${path}`,
 			fetchAsset,
 		});
@@ -239,7 +244,7 @@ describe('packaged registry artifacts', () => {
 				return JSON.parse(renderPackagedRegistryJson(makeRegistryAsset(registry, 'enrichment')));
 			},
 		}));
-		const provider = createPackagedTechnologyRegistryProvider({
+		const provider = createPackagedMatcherTechnologyRegistryProvider({
 			resolveUrl: (path) => `extension://${path}`,
 			fetchAsset,
 		});
@@ -267,7 +272,7 @@ describe('packaged registry artifacts', () => {
 				return JSON.parse(renderPackagedRegistryJson(makeShardAsset(registry, observationKind)));
 			},
 		}));
-		const provider = createPackagedTechnologyRegistryProvider({
+		const provider = createPackagedMatcherTechnologyRegistryProvider({
 			resolveUrl: (path) => `extension://${path}`,
 			fetchAsset,
 			maxObservationKindShards: 1,

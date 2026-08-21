@@ -6,19 +6,20 @@ CPU-heavy technology matching must not monopolize the Manifest V3 background ser
 background service worker
   -> collect normalized observations
   -> create durable matcher job
-  -> retain registry + relationship graph
+  -> retain rule-free runtime profiles + relationship graph
   -> send compact matcher request
 
 matcher offscreen document
   -> split observations into kind partitions
   -> run partitions through a small worker pool
   -> stream partition results back to background
-  -> return ordered partition results
+  -> return a terminal partition count
 
 matcher dedicated workers
   -> load only required observation-kind registry shards
   -> match one partition at a time
-  -> keep a bounded shard cache
+  -> keep a bounded matcher-only shard cache
+  -> compile packaged regular expressions only after routing admits a rule
 
 background service worker
   -> merge partition results with retained registry knowledge
@@ -30,7 +31,7 @@ background service worker
 
 The background remains the authority for browser tab state, current-document identity, matcher job lifecycle, durable storage, and final detector output. The offscreen host does not read tabs, write detector storage, resolve visible-session ownership, or load the complete technology registry.
 
-The runtime message intentionally omits registry-scale fields. It carries the matcher job identity, mode, observation batch, and small execution options. This prevents each offscreen message from cloning the complete registry, matcher index, and relationship graph into the hidden document.
+The runtime message intentionally omits registry-scale fields. It carries the matcher job identity, mode, observation batch, and small execution options. This prevents each offscreen message from cloning the registry, matcher index, and relationship graph into the hidden document. The background itself loads a rule-free runtime registry product, while matcher workers load matcher-only kind shards.
 
 ## Scheduling
 
@@ -68,13 +69,13 @@ DeepScope does not serialize `document.documentElement.outerHTML` merely to send
 
 ## Lifecycle
 
-The dedicated worker pool is deliberately small. Two workers are the default until representative Chrome benchmarks justify another value. Each worker keeps at most four compiled observation-kind shards. The worker pool is disposed after 30 seconds without matcher work.
+The dedicated worker pool is deliberately small. Two workers are the default until representative Chrome benchmarks justify another value. Each worker keeps at most four matcher-only observation-kind shards. Partitions of one observation kind stay on one worker for a job so a large shard is not duplicated across worker heaps without a measured reason.
 
-The hidden offscreen host also closes after 30 seconds without a background matcher request that owns it. Background startup reconciles durable interrupted jobs and then closes an orphaned matcher host left by an older service-worker context. Later matcher work creates a fresh host.
+There is one idle grace period for both worker and offscreen-document cleanup. The offscreen host owns the 30-second timer because a Manifest V3 background service-worker timer can disappear when Chrome suspends that service worker. When the host remains idle for the complete grace period, it terminates the worker pool and emits `matcher.host-idle`. That event wakes the background, which calls the privileged `offscreen.closeDocument()` API. The background does not maintain a second idle timer. Interrupted-job reconciliation cancels orphaned work and then lets this same host-idle lifecycle release the document.
 
-Cancellation and worker failure dispose the active worker pool. A background queue or execution timeout sends an explicit cancel request because ending the caller's Promise does not stop JavaScript already running in the offscreen document.
+Cancellation and worker failure dispose the active worker pool. Queue wait and matcher execution have separate 120-second operation deadlines. They are safety deadlines for stuck work, not idle-retention policy. When either deadline expires, the background sends an explicit cancel request because ending the caller's Promise does not stop JavaScript already running in the offscreen document.
 
-The background progress map temporarily retains the complete observation batch and compiled registry while partial matcher revisions can still be produced. The complete matcher lifecycle is wrapped in `finally`, so success, cancellation, navigation, worker failure, replay failure, and snapshot persistence failure all release those registry-scale references. Matcher completion is recorded only after the replay and final detector snapshot have been persisted. The side panel therefore exposes distinct `queued`, `matching`, and `recording` stages instead of treating worker completion as durable completion.
+The background progress map temporarily retains the complete observation batch and rule-free runtime registry while partial matcher revisions can still be produced. The complete matcher lifecycle is wrapped in `finally`, so success, cancellation, navigation, worker failure, replay failure, and snapshot persistence failure all release those registry-scale references. Matcher completion is recorded only after the replay and final detector snapshot have been persisted. The side panel therefore exposes distinct `queued`, `matching`, and `recording` stages instead of treating worker completion as durable completion.
 
 ## Failure policy
 
@@ -93,7 +94,7 @@ offscreen timeout or failure
   -> caller decides whether a later new job is appropriate
 ```
 
-WXT development mode is different. Its worker transformation and hot-reload environment do not represent the packaged extension runtime, so development can use the explicit `development-background` executor.
+WXT development and packaged builds use the same offscreen matcher topology. Tests that target background orchestration inject a deterministic matcher capability instead of starting extension runtime workers, so test isolation does not create a second production implementation.
 
 ## Verification
 

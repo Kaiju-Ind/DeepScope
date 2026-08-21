@@ -9,7 +9,7 @@ function createQueue(limit = 3, onPosition?: queue.QueuePositionType<RequestType
 		limit,
 		getId: (request) => request.id,
 		getPriority: (request) => request.priority,
-		onPosition,
+		...(onPosition ? { onPosition } : {}),
 	});
 }
 
@@ -55,13 +55,14 @@ describe('offscreen matcher queue', () => {
 		await expect(retained).resolves.toBe('retained-result');
 	});
 
-	it('releases queued work immediately when its job is canceled', async () => {
+	it('releases queued work immediately and preserves its cancellation reason', async () => {
 		const jobs = createQueue();
 		const pending = jobs.add({ id: 'cancel-me', priority: 1 });
+		const reason = new Error('specific cancellation');
 
-		expect(jobs.cancel('cancel-me')).toBe(true);
+		expect(jobs.cancel('cancel-me', reason)).toBe(true);
 		expect(jobs.size).toBe(0);
-		await expect(pending).rejects.toThrow('canceled before dispatch');
+		await expect(pending).rejects.toBe(reason);
 	});
 
 	it('publishes queue positions after additions and claims', async () => {

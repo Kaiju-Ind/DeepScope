@@ -12,6 +12,7 @@ import {
 	type OffscreenMatcherJobRequest,
 	type OffscreenMatcherJobResult,
 } from '../contracts';
+import { MatcherError } from '../error';
 import { createMatcherPartitionTasks } from '../partition';
 import { Pool } from './pool';
 import * as queue from './queue';
@@ -82,9 +83,10 @@ class Host {
 	/** Cancel queued work or terminate the pool that currently owns this job. */
 	#cancel(jobId: string): MatcherOffscreenResponse {
 		this.#canceled.add(jobId);
-		this.#queue.cancel(jobId);
+		const error = new MatcherError('canceled', 'Matcher job was canceled.');
+		this.#queue.cancel(jobId, error);
 		if (this.#activeJobId === jobId) {
-			this.#dispose('Matcher job was canceled.');
+			this.#dispose(error);
 		} else {
 			// Queued work is removed synchronously. Late cancellation has no active
 			// executor either, so both paths must release the temporary job marker.
@@ -106,7 +108,7 @@ class Host {
 		this.#activeJobId = next.request.job.jobId;
 		void this.#run(next.request, next.queuedAt)
 			.then(next.resolve, (error) => {
-				this.#dispose(error instanceof Error ? error.message : 'Matcher job failed.');
+				this.#dispose(error instanceof Error ? error : new Error('Matcher job failed.'));
 				next.reject(error);
 			})
 			.finally(() => {
@@ -122,7 +124,7 @@ class Host {
 		const tasks = createMatcherPartitionTasks({
 			job: request.job,
 			batch: request.batch,
-			options: request.options,
+			...(request.options ? { options: request.options } : {}),
 		});
 		const startedAt = Date.now();
 		this.#emitState({
@@ -136,32 +138,33 @@ class Host {
 			partitionCount: tasks.length,
 		});
 
-		const partitionCount = await this.#getPool(request).run(tasks);
-		if (this.#canceled.has(request.job.jobId)) throw new Error('Matcher job was canceled before completion.');
+		const partitionCount = await this.#getPool().run(tasks);
+		if (this.#canceled.has(request.job.jobId)) {
+			throw new MatcherError('canceled', 'Matcher job was canceled before completion.');
+		}
 		return { job: request.job, mode: request.mode, partitionCount, completedAt: Date.now() };
 	}
 
 	/** Reuse hot workers across nearby jobs while keeping their lifetime explicit. */
-	#getPool(request: OffscreenMatcherJobRequest): Pool {
+	#getPool(): Pool {
 		this.#clearIdle();
 		if (this.#pool) return this.#pool;
-		const workerCount = request.maxWorkerCount ?? DEFAULT_WORKER_COUNT;
-		this.#pool = new Pool(workerCount, {
+		this.#pool = new Pool(DEFAULT_WORKER_COUNT, {
 			isCanceled: (jobId) => this.#canceled.has(jobId),
 			onPartition: (partition, completedPartitionCount, partitionCount) =>
 				this.#emitPartition(partition, completedPartitionCount, partitionCount),
 		});
 		logger.debug('Created matcher worker pool.', {
 			event: 'matcher-worker-pool-created',
-			workerCount,
-			jobId: request.job.jobId,
+			workerCount: DEFAULT_WORKER_COUNT,
+			activeJobId: this.#activeJobId,
 			queuedJobCount: this.#queue.size,
 		});
 		return this.#pool;
 	}
 
 	/** Terminate the worker pool after cancellation, failure, or idle expiry. */
-	#dispose(reason: string): void {
+	#dispose(reason: Error | string): void {
 		this.#clearIdle();
 		const pool = this.#pool;
 		if (!pool) return;
@@ -169,7 +172,7 @@ class Host {
 		this.#pool = undefined;
 		logger.debug('Disposed matcher worker pool.', {
 			event: 'matcher-worker-pool-disposed',
-			reason,
+			reason: reason instanceof Error ? reason.message : reason,
 			activeJobId: this.#activeJobId,
 			queuedJobCount: this.#queue.size,
 		});
@@ -239,7 +242,7 @@ class Host {
 /** Classify host failures without forcing the background to parse human error text. */
 function hostFailure(error: unknown): 'queue-full' | 'canceled' | 'failed' {
 	if (error instanceof queue.QueueFullError) return 'queue-full';
-	if (error instanceof Error && error.message.toLowerCase().includes('canceled')) return 'canceled';
+	if (error instanceof MatcherError && error.reason === 'canceled') return 'canceled';
 	return 'failed';
 }
 

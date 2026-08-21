@@ -30,6 +30,8 @@ export class Pool {
 	readonly #workers: Slot[];
 	/** Host callbacks used for cancellation and progressive partition publication. */
 	readonly #options: PoolOptionsType;
+	/** Stable shard owner retained while this hot pool exists. */
+	readonly #workerIndexByKind = new Map<MatcherPartitionTask['kind'], number>();
 
 	constructor(workerCount: number, options: PoolOptionsType) {
 		this.#workers = Array.from({ length: Math.max(1, workerCount) }, (_item, index) => new Slot(index));
@@ -45,7 +47,7 @@ export class Pool {
 	 * while independent kinds can still use separate workers concurrently.
 	 */
 	async run(tasks: readonly MatcherPartitionTask[]): Promise<number> {
-		const assignments = assignByKind(tasks, this.#workers.length);
+		const assignments = assignByKind(tasks, this.#workers.length, this.#workerIndexByKind);
 		let completedPartitionCount = 0;
 
 		await Promise.all(this.#workers.map(async (worker, workerIndex) => {
@@ -62,7 +64,8 @@ export class Pool {
 	}
 
 	/** Terminate every worker and reject any partition still owned by a slot. */
-	dispose(reason = 'Matcher worker pool was disposed.'): void {
+	dispose(reason: Error | string = 'Matcher worker pool was disposed.'): void {
+		this.#workerIndexByKind.clear();
 		for (const worker of this.#workers) worker.dispose(reason);
 	}
 }
@@ -71,6 +74,7 @@ export class Pool {
 function assignByKind(
 	tasks: readonly MatcherPartitionTask[],
 	workerCount: number,
+	workerIndexByKind: Map<MatcherPartitionTask['kind'], number>,
 ): readonly MatcherPartitionTask[][] {
 	const assignments = Array.from({ length: workerCount }, () => [] as MatcherPartitionTask[]);
 	const load = Array.from({ length: workerCount }, () => 0);
@@ -82,11 +86,16 @@ function assignByKind(
 		groups.set(task.kind, group);
 	}
 
-	for (const group of groups.values()) {
-		let workerIndex = 0;
-		for (let index = 1; index < load.length; index += 1) {
-			if (load[index]! < load[workerIndex]!) workerIndex = index;
+	for (const [kind, group] of groups) {
+		let workerIndex = workerIndexByKind.get(kind);
+		if (workerIndex === undefined || workerIndex >= workerCount) {
+			workerIndex = 0;
+			for (let index = 1; index < load.length; index += 1) {
+				if (load[index]! < load[workerIndex]!) workerIndex = index;
+			}
+			workerIndexByKind.set(kind, workerIndex);
 		}
+
 		assignments[workerIndex]!.push(...group);
 		load[workerIndex] = load[workerIndex]! + group.reduce((total, task) => total + task.batch.observations.length, 0);
 	}
@@ -176,8 +185,8 @@ class Slot {
 	}
 
 	/** End this worker's heap and reject the partition that still owns the slot. */
-	dispose(reason = 'Matcher worker was disposed.'): void {
-		this.#activeReject?.(new Error(reason));
+	dispose(reason: Error | string = 'Matcher worker was disposed.'): void {
+		this.#activeReject?.(reason instanceof Error ? reason : new Error(reason));
 		this.#activeReject = undefined;
 		this.#worker.removeEventListener('message', this.#diagnosticListener);
 		this.#worker.terminate();

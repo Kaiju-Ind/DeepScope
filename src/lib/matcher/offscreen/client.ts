@@ -16,7 +16,6 @@ import {
 } from '../contracts';
 import { MatcherError } from '../error';
 import { createMatcherPipelineResult } from '../partition';
-import * as development from './development';
 
 const logger = logging.get('background', 'matcher-offscreen');
 
@@ -41,13 +40,11 @@ let activeRequests = 0;
 /**
  * Run one matcher job through its production runtime.
  *
- * Production work is isolated in the offscreen dedicated-worker pool. Development
- * may use the explicit in-background implementation for Vite reloadability. A
- * production failure is surfaced to the caller and is never repeated as a full
- * background matcher pass.
+ * Matching always uses the offscreen dedicated-worker pool so development and
+ * production exercise the same ownership, cancellation, memory, and failure path.
+ * A host failure is surfaced to the caller and is never repeated as background work.
  */
 export async function run(request: RunMatcherJobRequest): Promise<MatcherJobRunResult> {
-	if (import.meta.env.DEV) return await development.run(request);
 	return await runOffscreen(request);
 }
 
@@ -135,8 +132,8 @@ async function runOffscreen(request: RunMatcherJobRequest): Promise<MatcherJobRu
 				registry: request.registry,
 				relationshipGraph: request.relationshipGraph,
 				partitions,
-				analyzedAt: request.analyzedAt,
-				source: request.source,
+				...(request.analyzedAt !== undefined ? { analyzedAt: request.analyzedAt } : {}),
+				...(request.source !== undefined ? { source: request.source } : {}),
 			});
 			return {
 				job: response.value.job,
@@ -171,7 +168,6 @@ function compact(request: RunMatcherJobRequest): OffscreenMatcherJobRequest {
 		mode: request.mode,
 		batch: request.batch,
 		...(request.options ? { options: request.options } : {}),
-		...(request.maxWorkerCount === undefined ? {} : { maxWorkerCount: request.maxWorkerCount }),
 	};
 }
 

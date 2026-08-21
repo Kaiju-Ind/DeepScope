@@ -158,12 +158,10 @@ export interface RunMatcherJobRequest {
 	readonly analyzedAt?: number;
 	/** Source marker written to emitted analysis. */
 	readonly source?: SiteAnalysis['source'];
-	/** Maximum workers the offscreen pool may keep hot. */
-	readonly maxWorkerCount?: number;
 }
 
 /** Executor path that produced a matcher job result. */
-export type MatcherJobExecutor = 'offscreen-worker-pool' | 'development-background';
+export type MatcherJobExecutor = 'offscreen-worker-pool';
 
 /** Completed matcher job returned to the background. */
 export interface MatcherJobRunResult {
@@ -190,7 +188,7 @@ export interface MatcherJobRunResult {
  */
 export type OffscreenMatcherJobRequest = Pick<
 	RunMatcherJobRequest,
-	'job' | 'mode' | 'batch' | 'options' | 'maxWorkerCount'
+	'job' | 'mode' | 'batch' | 'options'
 >;
 
 /** Partition-only result returned by the offscreen worker host. */

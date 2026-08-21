@@ -120,23 +120,27 @@ function mergeTechnologyDefinitions(definitions: readonly TechnologyDefinition[]
 				...definition,
 				categories: [...definition.categories],
 				rules: [...definition.rules],
-				implies: definition.implies ? [...definition.implies] : undefined,
-				requires: definition.requires ? [...definition.requires] : undefined,
-				excludes: definition.excludes ? [...definition.excludes] : undefined,
-				relationships: definition.relationships ? [...definition.relationships] : undefined,
+				...(definition.implies ? { implies: [...definition.implies] } : {}),
+				...(definition.requires ? { requires: [...definition.requires] } : {}),
+				...(definition.excludes ? { excludes: [...definition.excludes] } : {}),
+				...(definition.relationships ? { relationships: [...definition.relationships] } : {}),
 			});
 			continue;
 		}
 
-		Object.assign(existing, {
+		const implies = mergeOptionalStrings(existing.implies, definition.implies);
+		const requires = mergeOptionalStrings(existing.requires, definition.requires);
+		const excludes = mergeOptionalStrings(existing.excludes, definition.excludes);
+		merged.set(definition.id, {
+			...existing,
 			categories: uniqueValues([...existing.categories, ...definition.categories]),
 			rules: mergeRules(existing.rules, definition.rules),
-			implies: mergeOptionalStrings(existing.implies, definition.implies),
-			requires: mergeOptionalStrings(existing.requires, definition.requires),
-			excludes: mergeOptionalStrings(existing.excludes, definition.excludes),
-			relationships: definition.relationships
-				? [...(existing.relationships ?? []), ...definition.relationships]
-				: existing.relationships,
+			...(implies ? { implies } : {}),
+			...(requires ? { requires } : {}),
+			...(excludes ? { excludes } : {}),
+			...(definition.relationships
+				? { relationships: [...(existing.relationships ?? []), ...definition.relationships] }
+				: {}),
 		});
 	}
 

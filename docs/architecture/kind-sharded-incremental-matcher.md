@@ -1,18 +1,19 @@
 # Kind-sharded continuous matcher runtime
 
-The visible-tab runtime no longer treats the first popup result as a separate truth model. The first analysis plans from the complete compiled registry, collects the evidence surfaces that are already available, and lets the offscreen worker pool match those observations by kind. Follow-up collection does not run as one large enrichment job. Broad HTML, response headers, visible text, and source-content reads are split into evidence passes that publish ordinary detector snapshot revisions as they finish.
+The visible-tab runtime no longer treats the first popup result as a separate truth model. The first analysis plans from a rule-free runtime registry, collects the evidence surfaces that are already available, and lets the offscreen worker pool match those observations by kind. Follow-up collection does not run as one large enrichment job. Broad HTML, response headers, visible text, and source-content reads are split into evidence passes that publish ordinary detector snapshot revisions as they finish.
 
-The change fixes the mismatch created by the older bootstrap/enrichment split. Bootstrap was fast because it removed rule kinds from the registry before collection and matching. That made the popup responsive, but it also meant the first result could not see many rule surfaces. The continuous runtime keeps the full registry as the planning and graph authority, then narrows only the worker payload that processes a specific observation kind.
+The change fixes the mismatch created by the older bootstrap/enrichment split. Bootstrap was fast because it removed rule kinds from the registry before collection and matching. That made the popup responsive, but it also meant the first result could not see many rule surfaces. The continuous runtime now separates two generated products: a rule-free background artifact for planning/finalization and matcher-only kind shards for worker execution.
 
 ```text
-complete registry
-  ├─► collection passes by evidence surface
-  │     ├─► initial facts already visible in the page
-  │     ├─► bounded HTML probes
-  │     ├─► response headers
-  │     ├─► visible text
-  │     └─► same-origin source content
-  ├─► relationship graph and final emission metadata
+build-time registry
+  ├─► rule-free runtime artifact
+  │     ├─► collection passes by evidence surface
+  │     │     ├─► initial facts already visible in the page
+  │     │     ├─► bounded HTML probes
+  │     │     ├─► response headers
+  │     │     ├─► visible text
+  │     │     └─► same-origin source content
+  │     └─► relationship graph and final emission metadata
   └─► generated matcher shards
         ├─► registry.kind.meta.json
         ├─► registry.kind.scriptSrc.json
@@ -42,7 +43,7 @@ The background remains the lifecycle owner. It decides whether a result still be
 
 ## Runtime behavior
 
-The initial visible-tab path always fetches the complete compiled registry artifact. The collection plan still has internal cost tiers, but those tiers now describe collector cost, not detector truth. The first pass gathers cheap and already-visible observations, including URL-like resource surfaces. Later passes ask for one expensive surface at a time.
+The initial visible-tab path fetches the rule-free runtime registry artifact. The collection plan still has internal cost tiers, but those tiers now describe collector cost, not detector truth. The first pass gathers cheap and already-visible observations, including URL-like resource surfaces. Later passes ask for one expensive surface at a time.
 
 ```text
 initial pass complete ───────► snapshot revision 2
@@ -57,6 +58,6 @@ The popup applies these revisions through the same storage subscription it alrea
 
 ## Compatibility notes
 
-`registry.bootstrap.json` can remain as a compatibility artifact for old tests or benchmark baselines, but the visible-tab runtime should not use it for normal analysis. New runtime work should use `getCompiledRegistry()` for planning and final coordination, and `getCompiledObservationKindRegistry(kind)` inside matcher workers.
+`registry.bootstrap.json` and the complete enrichment asset can remain for compatibility tools and build/test baselines, but the visible-tab runtime should not load them for normal analysis. Background work uses `getRuntimeRegistry()` for planning and final coordination. Matcher workers use `getCompiledObservationKindRegistry(kind)` for matcher-only shards.
 
-The background-to-offscreen message contains only matcher identity, the page observation batch, mode, and small execution options. The complete registry, matcher index, and relationship graph stay in the background. Dedicated matcher workers load only the observation-kind shards needed by their partitions, and the offscreen host returns partition matches for background-owned finalization. This avoids cloning registry-scale object graphs into the offscreen context for every job.
+The background-to-offscreen message contains only matcher identity, the page observation batch, mode, and small execution options. Matcher indexes stay inside dedicated matcher workers. The rule-free relationship graph stays in the background. Dedicated workers load only the matcher-only observation-kind shards needed by their partitions, and packaged regular expressions remain plain source/flags data until routing admits a rule for evaluation. The offscreen host streams each partition once and returns only a terminal partition count. This avoids registry-scale cross-context clones and a second retained partition-result set.

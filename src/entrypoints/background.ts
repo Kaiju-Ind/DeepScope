@@ -7,7 +7,7 @@ import { createAutoScanController } from '@/lib/autostart/controller';
 import { getAutoScanEnabled } from '@/lib/autostart/settings';
 import { createBackgroundRuntime } from '@/lib/background/runtime';
 import { collectExtensionObservationBatch } from '@/lib/collectors/extension-page-collector';
-import { bundledTechnologyRegistryProvider } from '@/lib/detection/registry-provider';
+import { bundledRuntimeTechnologyRegistryProvider } from '@/lib/detection/registry-provider';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import * as logging from '@/lib/diagnostics/logging';
 import {
@@ -201,7 +201,7 @@ export default defineBackground(() => {
 		executeContentScript,
 		createContentApiClient,
 		collectObservationBatch: collectExtensionObservationBatch,
-		registryProvider: bundledTechnologyRegistryProvider,
+		registryProvider: bundledRuntimeTechnologyRegistryProvider,
 		matcher: {
 			cancelJob: offscreen.cancel,
 			runJob: offscreen.run,

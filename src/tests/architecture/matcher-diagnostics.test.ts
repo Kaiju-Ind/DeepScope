@@ -9,7 +9,6 @@ const OFFSCREEN_CLIENT = fileURLToPath(new URL('../../lib/matcher/offscreen/clie
 const OFFSCREEN_HOST = fileURLToPath(new URL('../../lib/matcher/offscreen/host.ts', import.meta.url));
 const OFFSCREEN_POOL = fileURLToPath(new URL('../../lib/matcher/offscreen/pool.ts', import.meta.url));
 const OFFSCREEN_QUEUE = fileURLToPath(new URL('../../lib/matcher/offscreen/queue.ts', import.meta.url));
-const OFFSCREEN_DEVELOPMENT = fileURLToPath(new URL('../../lib/matcher/offscreen/development.ts', import.meta.url));
 const OLD_OFFSCREEN_LIFECYCLE = fileURLToPath(new URL('../../lib/lifecycle/offscreen-matcher.ts', import.meta.url));
 const OLD_DOM_MATCHER = fileURLToPath(new URL('../../lib/content/dom-selectors.ts', import.meta.url));
 const MATCHER_CONTRACTS = fileURLToPath(new URL('../../lib/matcher/contracts.ts', import.meta.url));
@@ -61,7 +60,8 @@ describe('matcher worker diagnostics', () => {
 		expect(host).toContain('MAX_QUEUED_JOBS = 8');
 		expect(host).toContain('limit: MAX_QUEUED_JOBS');
 		expect(queue).toContain('new QueueFullError(options.limit)');
-		expect(queue).toContain('entry?.reject(new Error(\'Matcher job was canceled before dispatch.\'))');
+		expect(queue).toContain("cancel(jobId, reason = new Error('Matcher job was canceled before dispatch.'))");
+		expect(queue).toContain('entry?.reject(reason)');
 	});
 
 	it('releases idle dedicated-worker heaps', () => {
@@ -82,7 +82,8 @@ describe('matcher worker diagnostics', () => {
 		const host = read(OFFSCREEN_HOST);
 
 		expect(contracts).toContain('export type OffscreenMatcherJobRequest = Pick<');
-		expect(contracts).toContain("'job' | 'mode' | 'batch' | 'options' | 'maxWorkerCount'");
+		expect(contracts).toContain("'job' | 'mode' | 'batch' | 'options'");
+		expect(contracts).not.toContain('maxWorkerCount');
 		expect(client).toContain('request: compact(request)');
 		expect(client).toContain('registry: request.registry');
 		expect(client).toContain('relationshipGraph: request.relationshipGraph');
@@ -102,6 +103,9 @@ describe('matcher worker diagnostics', () => {
 		expect(runtime).toContain('dependencies.registryProvider.getRuntimeRegistry()');
 		expect(runtime).not.toContain('dependencies.registryProvider.getCompiledRegistry()');
 		expect(runtime).not.toContain('.matcherIndex');
+		expect(read(BACKGROUND_ENTRYPOINT)).toContain('bundledRuntimeTechnologyRegistryProvider');
+		expect(worker).toContain('createPackagedMatcherTechnologyRegistryProvider');
+		expect(worker).not.toContain('createPackagedTechnologyRegistryProvider');
 		expect(worker).toContain('CompiledMatcherRegistryArtifact');
 		expect(worker).not.toContain('compileValidatedTechnologyRegistry');
 	});
@@ -111,10 +115,11 @@ describe('matcher worker diagnostics', () => {
 		const host = read(OFFSCREEN_HOST);
 		const pool = read(OFFSCREEN_POOL);
 
-		expect(pool).toContain('assignByKind(tasks, this.#workers.length)');
+		expect(pool).toContain('assignByKind(tasks, this.#workers.length, this.#workerIndexByKind)');
+		expect(pool).toContain("#workerIndexByKind = new Map<MatcherPartitionTask['kind'], number>()");
 		expect(pool).toContain('await this.#options.onPartition(result, completedPartitionCount, tasks.length)');
 		expect(pool).not.toContain('const results: MatcherPartitionResult[]');
-		expect(host).toContain('const partitionCount = await this.#getPool(request).run(tasks);');
+		expect(host).toContain('const partitionCount = await this.#getPool().run(tasks);');
 		expect(client).toContain('value.value.partitionCount !== partitions.length');
 		expect(client).toContain("message.type === 'matcher.partition-complete'");
 	});
@@ -123,10 +128,11 @@ describe('matcher worker diagnostics', () => {
 		const host = read(OFFSCREEN_HOST);
 		const pool = read(OFFSCREEN_POOL);
 
-		expect(host).toContain("this.#dispose('Matcher job was canceled.')");
-		expect(host).toContain("this.#dispose(error instanceof Error ? error.message : 'Matcher job failed.')");
+		expect(host).toContain("new MatcherError('canceled', 'Matcher job was canceled.')");
+		expect(host).toContain("this.#dispose(error instanceof Error ? error : new Error('Matcher job failed.'))");
+		expect(host).toContain("error instanceof MatcherError && error.reason === 'canceled'");
 		expect(pool).toContain('#activeReject');
-		expect(pool).toContain('this.#activeReject?.(new Error(reason))');
+		expect(pool).toContain('reason instanceof Error ? reason : new Error(reason)');
 		expect(pool).toContain('this.#worker.terminate()');
 	});
 
@@ -161,15 +167,17 @@ describe('matcher worker diagnostics', () => {
 		expect(read(BACKGROUND_ENTRYPOINT)).not.toContain('offscreen.close(');
 	});
 
-	it('keeps the background matcher implementation development-only', () => {
+	it('uses the same offscreen matcher topology in development and packaged builds', () => {
 		const client = read(OFFSCREEN_CLIENT);
-		const development = read(OFFSCREEN_DEVELOPMENT);
 		const contracts = read(MATCHER_CONTRACTS);
+		const developmentPath = fileURLToPath(new URL('../../lib/matcher/offscreen/development.ts', import.meta.url));
 
-		expect(client).toContain('if (import.meta.env.DEV) return await development.run(request)');
+		expect(existsSync(developmentPath)).toBe(false);
+		expect(client).not.toContain('import.meta.env.DEV');
+		expect(client).not.toContain('development.run');
 		expect(client).not.toContain('background-fallback');
-		expect(development).toContain("executor: 'development-background'");
-		expect(contracts).toContain("'offscreen-worker-pool' | 'development-background'");
+		expect(contracts).toContain("export type MatcherJobExecutor = 'offscreen-worker-pool'");
+		expect(contracts).not.toContain('development-background');
 		expect(contracts).not.toContain('background-fallback');
 	});
 

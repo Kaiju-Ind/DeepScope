@@ -15,7 +15,14 @@ import {
 	getDetectionSessionSnapshotKey,
 } from '@/lib/storage/contracts';
 import type { ObservationBatch } from '@/lib/observations';
-import type { MatcherJobRecord } from '@/lib/matcher';
+import {
+	createMatcherPartitionTasks,
+	createMatcherPipelineResult,
+	type MatcherJobRecord,
+	type MatcherJobRunResult,
+	type MatcherPartitionResult,
+	type RunMatcherJobRequest,
+} from '@/lib/matcher';
 import type { DetectionReplayTrace } from '@/lib/pipeline';
 import type { RuntimeTechnologyRegistryArtifact } from '@/lib/registry/runtime-artifact';
 import { extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
@@ -160,6 +167,53 @@ function makeObservationBatch(signals = makeSignals()): ObservationBatch {
 	};
 }
 
+/** Build a deterministic matcher result without crossing extension runtime contexts. */
+function makeMatcherRunResult(request: RunMatcherJobRequest): MatcherJobRunResult {
+	const partitions = createMatcherPartitionTasks({
+		job: request.job,
+		batch: request.batch,
+		...(request.options ? { options: request.options } : {}),
+	}).map((task): MatcherPartitionResult => ({
+		job: task.job,
+		partitionId: task.partitionId,
+		kind: task.kind,
+		priority: task.priority,
+		observationCount: task.batch.observations.length,
+		matches: [],
+		diagnostics: {
+			observationCount: task.batch.observations.length,
+			skippedObservationCount: 0,
+			candidateRuleCount: 0,
+			keyedRuleCount: 0,
+			fallbackRuleCount: 0,
+			literalRuleCount: 0,
+			literalRejectedRuleCount: 0,
+			matchCount: 0,
+			observationsByKind: { [task.kind]: task.batch.observations.length },
+			skippedObservationsByKind: {},
+			candidateRulesByKind: {},
+		},
+		completedAt: request.analyzedAt ?? request.batch.observedAt,
+	}));
+	const result = createMatcherPipelineResult({
+		batch: request.batch,
+		registry: request.registry,
+		relationshipGraph: request.relationshipGraph,
+		partitions,
+		...(request.analyzedAt !== undefined ? { analyzedAt: request.analyzedAt } : {}),
+		...(request.source !== undefined ? { source: request.source } : {}),
+	});
+
+	return {
+		job: request.job,
+		mode: request.mode,
+		result,
+		partitions,
+		executor: 'offscreen-worker-pool',
+		completedAt: request.analyzedAt ?? request.batch.observedAt,
+	};
+}
+
 function makeDeferred<T = void>(): {
 	readonly promise: Promise<T>;
 	readonly resolve: (value: T | PromiseLike<T>) => void;
@@ -257,12 +311,9 @@ async function loadBackgroundApi(input: BackgroundApiHarnessOptions) {
 
 async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	vi.resetModules();
-	vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 204 })));
-	vi.doMock('@/registry/technologies', () => ({
-		technologies: [],
-	}));
 	vi.doMock('@/registry/technologies', () => ({
 		SOURCE_LIMITS: SOURCE_LIMITS_STUB,
+		technologies: [],
 	}));
 
 	const pollingState: observe.StateType = {
@@ -362,7 +413,8 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	})));
 
 	const { collectExtensionObservationBatch } = await import('@/lib/collectors/extension-page-collector');
-	const matcher = await import('@/lib/matcher/offscreen');
+	const cancelMatcherJob = vi.fn(async () => undefined);
+	const runMatcherJob = vi.fn(async (request: RunMatcherJobRequest) => makeMatcherRunResult(request));
 	const { createBackgroundRuntime } = await import('@/lib/background/runtime');
 	const runtime = createBackgroundRuntime({
 		getTab,
@@ -373,8 +425,8 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		collectObservationBatch: collectExtensionObservationBatch,
 		registryProvider: { getRuntimeRegistry },
 		matcher: {
-			cancelJob: matcher.cancel,
-			runJob: matcher.run,
+			cancelJob: cancelMatcherJob,
+			runJob: runMatcherJob,
 		},
 		persistence: {
 			getBestVisibleSnapshot: getBestVisibleDetectionSessionSnapshot,
@@ -403,12 +455,14 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 			sendMessage,
 			analyzeSite,
 			executeScript,
+			cancelMatcherJob,
 			getCachedReplayTrace,
 			getCachedReplayTraceHistory,
 			getBestVisibleDetectionSessionSnapshot,
 			getStatus,
 			getRuntimeRegistry,
 			saveDetectionSessionSnapshot,
+			runMatcherJob,
 			saveMatcherJobRecord,
 			saveReplayTrace,
 			updateMatcherJobRecord,
@@ -422,7 +476,6 @@ afterEach(() => {
 	vi.doUnmock('wxt/browser');
 	vi.doUnmock('@/registry/technologies');
 	vi.doUnmock('@/lib/detection/engine');
-	vi.doUnmock('@/registry/technologies');
 	vi.resetModules();
 });
 

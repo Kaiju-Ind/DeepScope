@@ -6,7 +6,7 @@ import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import * as logging from '@/lib/diagnostics/logging';
 import type { DetectionPatternType } from '@/lib/detection/types';
 import type { CompiledMatcherRegistryArtifact } from '@/lib/registry/matcher-artifact';
-import { createPackagedTechnologyRegistryProvider } from '@/lib/registry/packaged-provider';
+import { createPackagedMatcherTechnologyRegistryProvider } from '@/lib/registry/packaged-provider';
 import type {
 	MatcherPartitionMatch,
 	MatcherWorkerResponseMessage,
@@ -55,7 +55,7 @@ const workerScope = globalThis as Partial<MatcherWorkerGlobal>;
  * registry clone from every worker message and lets different workers match
  * different evidence surfaces in parallel.
  */
-const registryProvider = createPackagedTechnologyRegistryProvider({
+const registryProvider = createPackagedMatcherTechnologyRegistryProvider({
 	maxObservationKindShards: MAX_CACHED_OBSERVATION_KIND_SHARDS,
 	resolveUrl(path) {
 		const workerOrigin = workerScope.location?.origin ?? globalThis.location.origin;
@@ -101,30 +101,31 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 	const shardReadyAt = globalThis.performance.now();
 	const profileRules = matcherWorkerLogger.isEnabledFor('trace');
 	const matchStartedAt = globalThis.performance.now();
+	const onRuleEvaluation = profileRules
+		? (event: ObservationRuleEvaluationEvent) => {
+			const isSlowRule = event.durationMs >= SLOW_RULE_EVALUATION_MS;
+			if (!isSlowRule && !shouldRememberSlowestRuleEvaluation(slowestRuleEvaluations, event.durationMs)) {
+				return;
+			}
+
+			const summary = createRuleEvaluationSummary({
+				task,
+				event,
+				observationIndex: observationIndexes.get(event.observation),
+			});
+			rememberSlowestRuleEvaluation(slowestRuleEvaluations, summary);
+
+			if (isSlowRule) {
+				matcherWorkerLogger.trace(formatSlowRuleEvaluationMessage(summary), { ...summary });
+			}
+		}
+		: undefined;
 	const matched = matchIndexedObservationBatch({
 		registry: shardArtifact.technologies,
 		batch: task.batch,
 		index: shardArtifact.matcherIndex,
-		options: task.options,
-		onRuleEvaluation: profileRules
-			? (event) => {
-				const isSlowRule = event.durationMs >= SLOW_RULE_EVALUATION_MS;
-				if (!isSlowRule && !shouldRememberSlowestRuleEvaluation(slowestRuleEvaluations, event.durationMs)) {
-					return;
-				}
-
-				const summary = createRuleEvaluationSummary({
-					task,
-					event,
-					observationIndex: observationIndexes.get(event.observation),
-				});
-				rememberSlowestRuleEvaluation(slowestRuleEvaluations, summary);
-
-				if (isSlowRule) {
-					matcherWorkerLogger.trace(formatSlowRuleEvaluationMessage(summary), { ...summary });
-				}
-			}
-			: undefined,
+		...(task.options ? { options: task.options } : {}),
+		...(onRuleEvaluation ? { onRuleEvaluation } : {}),
 	});
 	const matchFinishedAt = globalThis.performance.now();
 	const matches: MatcherPartitionMatch[] = matched.matches.map((match, matchIndex) => ({
@@ -225,15 +226,15 @@ function createRuleEvaluationSummary(input: {
 	readonly observationIndex: number | undefined;
 }): SlowRuleEvaluationSummary {
 	const observation = input.event.observation;
-	const base = {
+	return {
 		tabId: input.task.job.tabId,
 		jobId: input.task.job.jobId,
-		sessionId: input.task.job.sessionId,
+		...(input.task.job.sessionId ? { sessionId: input.task.job.sessionId } : {}),
 		expectedUrlPreview: previewLogValue(input.task.job.expectedUrl),
 		partitionId: input.task.partitionId,
 		kind: input.task.kind,
-		observationIndex: input.observationIndex,
-		observationKey: observation.key === undefined ? undefined : previewLogValue(observation.key),
+		...(input.observationIndex !== undefined ? { observationIndex: input.observationIndex } : {}),
+		...(observation.key !== undefined ? { observationKey: previewLogValue(observation.key) } : {}),
 		observationValuePreview: previewObservationValue(observation.value),
 		observationValueLength: String(observation.value).length,
 		technologyId: input.event.technology.id,
@@ -244,8 +245,6 @@ function createRuleEvaluationSummary(input: {
 		matched: input.event.matched,
 		durationMs: roundDuration(input.event.durationMs),
 	};
-
-	return withoutUndefined(base);
 }
 
 function rememberSlowestRuleEvaluation(

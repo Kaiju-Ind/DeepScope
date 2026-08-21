@@ -58,7 +58,7 @@ The offscreen document now has one job: host CPU-heavy technology matching. It r
 
 The background-to-offscreen runtime message is deliberately compact. It contains the matcher job identity, page observation batch, mode, and small execution options. It does not clone the full technology registry, matcher index, or relationship graph into every runtime message. The offscreen host also does not load a full finalization registry. Workers load only the observation-kind shards they need and return partition matches. Background then finalizes those partitions with the registry and relationship graph it already holds for collection planning. This removes a second full registry object graph from the offscreen context while keeping CPU-heavy rule matching in dedicated workers.
 
-A timeout only ends the background's wait for the offscreen response. It does not stop JavaScript that is already running in the offscreen document. The background therefore sends an explicit cancel request and the offscreen host terminates the active worker pool on cancellation or worker failure. Production does not start a second full matcher pass in the background service worker after an offscreen timeout or failure. That duplicate fallback previously allowed two expensive copies of the same job to overlap. WXT development mode keeps the explicit `development-background` executor because its dev-time worker transformation does not represent the packaged Chrome runtime.
+A timeout only ends the background's wait for the offscreen response. It does not stop JavaScript that is already running in the offscreen document. The background therefore sends an explicit cancel request and the offscreen host terminates the active worker pool on cancellation or worker failure. Development and packaged builds both use this path. The background never starts a second full matcher pass after an offscreen timeout or failure because overlapping copies would duplicate expensive matcher state.
 
 Active work is keyed by visible session rather than only by tab id:
 
@@ -82,4 +82,4 @@ matcher-partition-complete ...
 analysis-queued-persist-complete
 ```
 
-A packaged Chrome trace should report `offscreen-worker-pool` for matcher completion. An offscreen timeout or failure must appear as a failed/canceled matcher job and diagnostic record, not as a second production matcher pass in the background service worker. Development builds can report `development-background` explicitly.
+A matcher completion trace should report `offscreen-worker-pool` in both development and packaged builds. An offscreen timeout or failure must appear as a failed or canceled matcher job and diagnostic record, not as a second matcher pass in the background service worker.

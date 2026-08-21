@@ -45,11 +45,11 @@ export type QueueType<Request, Result> = {
 	/** Add one request or reject immediately when the queue is full. */
 	add(request: Request): Promise<Result>;
 	/** Remove every queued copy of a job and reject its waiting caller. */
-	cancel(jobId: string): boolean;
+	cancel(jobId: string, reason?: unknown): boolean;
 	/** Claim the highest-priority queued job, preserving FIFO order within a priority. */
 	take(): QueueEntryType<Request, Result> | undefined;
 	/** Reject and release every queued request during host disposal. */
-	clear(reason?: string): void;
+	clear(reason?: unknown): void;
 };
 
 /** Internal scheduling fields retained only while a request waits for capacity. */
@@ -107,12 +107,12 @@ export function create<Request, Result>(options: QueueOptionsType<Request>): Que
 			});
 		},
 
-		cancel(jobId) {
+		cancel(jobId, reason = new Error('Matcher job was canceled before dispatch.')) {
 			let canceled = false;
 			for (let index = entries.length - 1; index >= 0; index -= 1) {
 				if (options.getId(entries[index]!.request) !== jobId) continue;
 				const [entry] = entries.splice(index, 1);
-				entry?.reject(new Error('Matcher job was canceled before dispatch.'));
+				entry?.reject(reason);
 				canceled = true;
 			}
 			if (canceled) publish();
@@ -127,8 +127,8 @@ export function create<Request, Result>(options: QueueOptionsType<Request>): Que
 			return entry;
 		},
 
-		clear(reason = 'Matcher queue was disposed.') {
-			for (const entry of entries.splice(0)) entry.reject(new Error(reason));
+		clear(reason = new Error('Matcher queue was disposed.')) {
+			for (const entry of entries.splice(0)) entry.reject(reason);
 		},
 	};
 }

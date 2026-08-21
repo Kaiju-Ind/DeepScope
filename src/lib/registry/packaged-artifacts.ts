@@ -3,7 +3,7 @@ import type { PackagedRuntimeTechnologyRegistryData } from './runtime-artifact';
 import type { NormalizedObservationKind } from '../observations';
 
 /** Current JSON registry asset schema version. */
-export const PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION = 1;
+export const PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION = 2;
 
 /** Literal JSON registry asset schema version used by runtime guards. */
 export type PackagedRegistryAssetSchemaVersion = typeof PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION;
@@ -39,13 +39,13 @@ export const PACKAGED_REGISTRY_OBSERVATION_KINDS = [
 /** Observation kind represented by a packaged matcher shard. */
 export type PackagedRegistryObservationKind = typeof PACKAGED_REGISTRY_OBSERVATION_KINDS[number];
 
-/** Registry asset kinds copied into the extension output by the WXT module. */
+/** Registry products generated for the build cache and packaged matcher runtime. */
 export const PACKAGED_REGISTRY_ASSET_KINDS = ['bootstrap', 'enrichment', 'runtime', 'metadata', 'relationships', 'manifest', 'kind-shard'] as const;
 
 /** Registry asset kind recorded in every generated JSON payload. */
 export type PackagedRegistryAssetKind = typeof PACKAGED_REGISTRY_ASSET_KINDS[number];
 
-/** Generated asset paths relative to the extension output root. */
+/** Stable generated paths shared by build-cache fixtures and packaged runtime assets. */
 export const PACKAGED_REGISTRY_ASSET_PATHS = Object.freeze({
 	bootstrap: 'kaiju-deepscope-registry/registry.bootstrap.json',
 	enrichment: 'kaiju-deepscope-registry/registry.enrichment.json',
@@ -55,17 +55,7 @@ export const PACKAGED_REGISTRY_ASSET_PATHS = Object.freeze({
 	manifest: 'kaiju-deepscope-registry/registry.manifest.json',
 } satisfies Record<Exclude<PackagedRegistryAssetKind, 'kind-shard'>, string>);
 
-/** Encoded regular expression marker used inside JSON registry assets. */
-export interface PackagedRegistryRegExpRecord {
-	/** Stable marker that distinguishes encoded regexes from ordinary rule objects. */
-	readonly $kaijuDeepScopeRegExp: true;
-	/** Original regular expression source. */
-	readonly source: string;
-	/** Original regular expression flags. */
-	readonly flags: string;
-}
-
-/** JSON registry asset containing technology definitions for runtime hydration. */
+/** Full registry build-cache asset used by compatibility tests and tooling. */
 export interface PackagedTechnologyRegistryAsset {
 	/** Asset schema version checked before hydration trusts the payload. */
 	readonly schemaVersion: PackagedRegistryAssetSchemaVersion;
@@ -161,7 +151,14 @@ export interface PackagedRegistryRelationshipsAsset {
 	readonly generatedAt: number;
 }
 
-/** Rule kinds safe for the small bootstrap registry asset kept for compatibility tests. */
+
+/** Fields permitted in rule-free background technology profiles. */
+const PACKAGED_RUNTIME_TECHNOLOGY_KEYS = new Set(['id', 'name', 'website', 'description', 'icon', 'categories']);
+
+/** Fields permitted in matcher-worker technology records. */
+const PACKAGED_MATCHER_TECHNOLOGY_KEYS = new Set(['id', 'name', 'rules']);
+
+/** Rule kinds safe for the small bootstrap build-cache asset kept for compatibility tests. */
 const BOOTSTRAP_RULE_KINDS = Object.freeze({
 	cookie: true,
 	dom: true,
@@ -263,11 +260,7 @@ export function countTechnologyRules(technologies: readonly { readonly rules: re
 /** Encode a value so `RegExp` rules survive JSON serialization. */
 export function encodeRegistryJsonValue(value: unknown): unknown {
 	if (value instanceof RegExp) {
-		return {
-			$kaijuDeepScopeRegExp: true,
-			source: value.source,
-			flags: value.flags,
-		} satisfies PackagedRegistryRegExpRecord;
+		return { source: value.source, flags: value.flags };
 	}
 
 	if (Array.isArray(value)) {
@@ -296,20 +289,6 @@ export function encodeRegistryJsonValue(value: unknown): unknown {
  */
 export function decodeRegistryJsonValue(value: unknown): unknown {
 	return value;
-}
-
-/** Guard the encoded regular expression record used as a lazy runtime pattern descriptor. */
-export function isPackagedRegistryRegExpRecord(value: unknown): value is PackagedRegistryRegExpRecord {
-	if (typeof value !== 'object' || value === null) {
-		return false;
-	}
-
-	const candidate = value as Partial<PackagedRegistryRegExpRecord>;
-	return (
-		candidate.$kaijuDeepScopeRegExp === true &&
-		typeof candidate.source === 'string' &&
-		typeof candidate.flags === 'string'
-	);
 }
 
 /** Guard the registry source asset before runtime hydration walks a large payload. */
@@ -346,6 +325,7 @@ export function isPackagedTechnologyRegistryShardAsset(
 		candidate.kind === 'kind-shard' &&
 		candidate.observationKind === observationKind &&
 		Array.isArray(candidate.technologies) &&
+		candidate.technologies.every(isPackagedMatcherTechnology) &&
 		typeof candidate.ruleCount === 'number' &&
 		typeof candidate.technologyCount === 'number' &&
 		typeof candidate.priority === 'number' &&
@@ -377,6 +357,7 @@ export function isPackagedRuntimeTechnologyRegistryAsset(
 		candidate.schemaVersion === PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION &&
 		candidate.kind === 'runtime' &&
 		Array.isArray(candidate.technologies) &&
+		candidate.technologies.every(isPackagedRuntimeTechnology) &&
 		typeof candidate.patternTables === 'object' && candidate.patternTables !== null &&
 		Array.isArray(candidate.relationshipEdges) &&
 		typeof candidate.collectionPlan === 'object' && candidate.collectionPlan !== null &&
@@ -385,9 +366,37 @@ export function isPackagedRuntimeTechnologyRegistryAsset(
 	);
 }
 
-/** Render JSON with stable indentation for reviewable generated artifacts. */
+/** Validate the rule-free technology profile embedded in the background runtime asset. */
+function isPackagedRuntimeTechnology(value: unknown): boolean {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+	const candidate = value as Record<string, unknown>;
+	if (Object.keys(candidate).some((key) => !PACKAGED_RUNTIME_TECHNOLOGY_KEYS.has(key))) return false;
+	return (
+		typeof candidate.id === 'string' &&
+		typeof candidate.name === 'string' &&
+		typeof candidate.website === 'string' &&
+		(candidate.description === undefined || typeof candidate.description === 'string') &&
+		(candidate.icon === undefined || typeof candidate.icon === 'string') &&
+		Array.isArray(candidate.categories) &&
+		candidate.categories.every((category) => typeof category === 'string')
+	);
+}
+
+/** Validate that a matcher shard contains only matcher identity and executable rules. */
+function isPackagedMatcherTechnology(value: unknown): boolean {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+	const candidate = value as Record<string, unknown>;
+	if (Object.keys(candidate).some((key) => !PACKAGED_MATCHER_TECHNOLOGY_KEYS.has(key))) return false;
+	return (
+		typeof candidate.id === 'string' &&
+		typeof candidate.name === 'string' &&
+		Array.isArray(candidate.rules)
+	);
+}
+
+/** Render compact deterministic JSON for runtime assets and build-cache artifacts. */
 export function renderPackagedRegistryJson(value: unknown): string {
-	return `${JSON.stringify(encodeRegistryJsonValue(value), null, 2)}\n`;
+	return `${JSON.stringify(encodeRegistryJsonValue(value))}\n`;
 }
 
 /** HTML probes reuse `html` rules even when the normalized observation kind is `htmlMatch`. */

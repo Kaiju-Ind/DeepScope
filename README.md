@@ -142,7 +142,14 @@ Concrete capabilities stay in `src/lib/`; declarative detector definitions stay 
 
 ## Registry baseline
 
-The bundled registry is generated from the declarative TypeScript technology tree under `src/registry/technology/` and re-exported through `src/registry/technologies.ts`. The compiled registry artifact exposes matcher indexes, relationship graphs, collection plans, source maps, and diagnostics. The long-term architecture still allows a JSON or YAML source migration, but the current extension runtime already consumes compiled artifacts for event matching and graph refinement.
+The bundled registry is generated from the declarative TypeScript technology tree under `src/registry/technology/` and re-exported through `src/registry/technologies.ts`. Production now emits separate runtime products instead of making every extension context hydrate the complete detector graph:
+
+- the background loads a rule-free runtime artifact with technology profiles, the collection plan, relationship edges, pattern counts, and compiler diagnostic count;
+- dedicated matcher workers load matcher-only observation-kind shards containing only technology identity and rules for that kind;
+- packaged regular expressions stay as source/flags data until routing admits a rule that actually needs semantic regex evaluation;
+- the offscreen host streams each completed partition once and retains no second complete partition-result array.
+
+Matcher-worker and offscreen-document retention use one 30-second idle lifecycle owned by the offscreen host. On idle expiry, the host terminates the worker pool and sends a lifecycle event that wakes the background so it can call `offscreen.closeDocument()`. The 120-second queue and execution limits are separate stuck-work deadlines, not additional idle timers.
 
 ## Privacy notes
 
