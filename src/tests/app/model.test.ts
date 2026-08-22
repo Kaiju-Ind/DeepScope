@@ -335,7 +335,7 @@ describe('side panel model', () => {
 
 		expect(update.addedDetectionIds).toEqual(['shopify']);
 		expect(update.lateDetectionIds).toEqual(['shopify']);
-		expect(update.notice?.text).toBe('Analysis update found 1 additional detection on example.com.');
+		expect(update.notice?.text).toBe('Late analysis found 1 additional detection on example.com.');
 	});
 
 

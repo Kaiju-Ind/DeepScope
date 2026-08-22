@@ -938,7 +938,7 @@ function getAnalysisNotice(input: {
 		if (input.source === 'auto') {
 			return {
 				variant: 'success',
-				text: `Analysis update found ${count} additional detection${count === 1 ? '' : 's'} on ${input.nextAnalysis.hostname}.`,
+				text: `Late analysis found ${count} additional detection${count === 1 ? '' : 's'} on ${input.nextAnalysis.hostname}.`,
 			};
 		}
 
