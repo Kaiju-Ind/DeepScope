@@ -32,7 +32,7 @@ BACKGROUND
   owns browser tab lookup and privileged browser APIs
   queues the first matcher revision after the cheap collection pass
   schedules enrichment passes after initial matcher persistence
-  cancels session-keyed matcher work on navigation, tab close, and superseding refresh
+  reprioritizes matcher work on tab activation and cancels it on navigation, tab close, or superseding document work
   records matcher lifecycle diagnostics on snapshots
 
 STORAGE
@@ -82,7 +82,7 @@ Use this checklist when changing side-panel, background, storage, or matcher cod
 - Does the command carry the session, URL, or tab identity already visible in the side panel?
 - Can a late response from an old tab overwrite the current tab?
 - Does a tab-change event during an in-flight identity sync rerun once for the newest visible tab?
-- Does navigation, tab close, or newer visible-session work cancel active matcher jobs before stale progress can write?
+- Does tab activation only reprioritize open-tab work, while navigation, tab close, or newer document work cancels stale jobs before they can write?
 - Does the first matcher job register before enrichment collection starts?
 - Does replay UI render from the snapshot summary even if full history hydration fails?
 - Does the snapshot carry enough matcher lifecycle metadata to debug dev/build execution without exposing executor details in the side panel?

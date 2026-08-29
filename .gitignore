@@ -26,5 +26,6 @@ web-ext.config.ts
 *.sw?
 .pnpm-store
 .tmp
+.agents/
 *.zip
 repomix-output.xml

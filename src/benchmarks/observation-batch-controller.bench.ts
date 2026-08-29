@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { bench, do_not_optimize, summary } from 'mitata';
 
 import {
 	createObservationBatchController,
@@ -9,26 +9,15 @@ import {
 /** Number of observations used to approximate one heavy mutation burst. */
 const OBSERVATION_COUNT = 2_000;
 
-/** Vitest benchmark settings tuned for stable local comparison without huge CI cost. */
-const BENCHMARK_OPTIONS = {
-	time: 1_000,
-	warmupTime: 250,
-	iterations: 64,
-	warmupIterations: 16,
-} as const;
-
 /** Workloads measured for the observation batch controller. */
 const BATCH_CONTROLLER_WORKLOADS = ['unique', 'duplicate-storm'] as const;
 
 /** Workload name measured by this benchmark. */
 type BatchControllerWorkload = typeof BATCH_CONTROLLER_WORKLOADS[number];
 
-/** Visible benchmark sink used because Tinybench does not expose `do_not_optimize()`. */
-let consumedBatchCount = 0;
-
-/** Consume benchmark output through a visible side effect. */
+/** Keep the measured result observable to the JIT. */
 function consumeBatchCount(count: number): void {
-	consumedBatchCount = (consumedBatchCount + count) % Number.MAX_SAFE_INTEGER;
+	do_not_optimize(count);
 }
 
 /** Benchmark policy large enough to compare queue behavior rather than setup errors. */
@@ -91,10 +80,10 @@ const scenarios = BATCH_CONTROLLER_WORKLOADS.map((workload) => ({
 	observations: createObservations(workload),
 }));
 
-describe('observation batch controller', () => {
+summary(() => {
 	for (const scenario of scenarios) {
 		bench(`${scenario.workload} workload`, () => {
 			consumeBatchCount(runControllerWorkload(scenario.observations));
-		}, BENCHMARK_OPTIONS);
+		});
 	}
 });

@@ -37,12 +37,10 @@ export type MatcherJobTerminalReason =
 	| 'navigation'
 	| 'tab-closed'
 	| 'tab-closed-cache-complete'
-	| 'tab-deactivated'
 	| 'newer-job'
 	| 'offscreen-unavailable'
 	| 'worker-failed'
 	| 'queue-full'
-	| 'queue-timeout'
 	| 'matcher-timeout'
 	| 'persistence-failed'
 	| 'context-interrupted';
@@ -56,6 +54,8 @@ export interface MatcherJobIdentity {
 	readonly jobId: string;
 	/** Browser tab that requested or owns the job. */
 	readonly tabId: number;
+	/** Browser window used for cross-tab priority changes. */
+	readonly windowId: number;
 	/** Session id for live side-panel observation, when the job belongs to an observation session. */
 	readonly sessionId?: string;
 	/** Document URL captured before collection started. */
@@ -64,13 +64,15 @@ export interface MatcherJobIdentity {
 	readonly incognito?: boolean;
 }
 
-/** Durable lifecycle record used by background scheduling and diagnostics. */
+/** Runtime matcher job record owned by one background context. */
 export interface MatcherJobRecord extends MatcherJobIdentity {
+	/** Background-context identity used only to classify orphaned diagnostic records. */
+	readonly contextId: string;
 	/** Current state of the job. */
 	readonly status: MatcherJobStatus;
 	/** Scheduling mode selected for this run. */
 	readonly mode: MatcherJobMode;
-	/** Target document from the observation batch. */
+	/** Target document from the observation batch. This value is never persisted in matcher diagnostics. */
 	readonly target: ObservationTarget;
 	/** Timestamp when the background created the job. */
 	readonly createdAt: number;
@@ -84,13 +86,31 @@ export interface MatcherJobRecord extends MatcherJobIdentity {
 	readonly completedPartitionCount: number;
 	/** Optional terminal reason for stale, canceled, completed, or failed jobs. */
 	readonly reason?: MatcherJobTerminalReason;
-	/** State that was active when a new background context found this job orphaned. */
-	readonly interruptedStatus?: MatcherJobStatus;
-	/** Timestamp when a new background context classified the job as interrupted. */
-	readonly interruptedAt?: number;
 	/** Error message stored when a job fails before a usable result exists. */
 	readonly errorMessage?: string;
 }
+
+/** Privacy-safe matcher lifecycle projection persisted for Diagnostics. */
+export type MatcherJobLifecycleRecord = Readonly<{
+	schemaVersion: 2;
+	jobId: string;
+	tabId: number;
+	windowId: number;
+	sessionId?: string;
+	/** Context that created this lifecycle record. Legacy records can omit it during migration. */
+	contextId?: string;
+	status: MatcherJobStatus;
+	mode: MatcherJobMode;
+	createdAt: number;
+	updatedAt: number;
+	observationCount: number;
+	partitionCount: number;
+	completedPartitionCount: number;
+	reason?: MatcherJobTerminalReason;
+	interruptedStatus?: MatcherJobStatus;
+	interruptedAt?: number;
+	errorMessage?: string;
+}>;
 
 /** Partition of observations that can be matched independently by kind. */
 export interface MatcherPartitionTask {
@@ -120,6 +140,21 @@ export interface MatcherPartitionMatch {
 	readonly match: ObservationPatternMatch;
 }
 
+/** Worker-local cache and native-pattern telemetry used only for diagnostics. */
+export interface MatcherWorkerRuntimeTelemetry {
+	readonly shardCacheHit: boolean;
+	readonly retainedShardBytes: number;
+	readonly retainedShardCount: number;
+	readonly shardCacheBudgetBytes: number;
+	readonly shardRetainedBytes: number;
+	readonly shardPatternCount: number;
+	readonly shardRuleCount: number;
+	readonly compiledPatternCount: number;
+	readonly patternCacheHitCount: number;
+	readonly totalCompiledPatternCount: number;
+	readonly totalPatternCacheHitCount: number;
+}
+
 /** Worker result for one kind partition. */
 export interface MatcherPartitionResult {
 	/** Job that owns this result. */
@@ -136,6 +171,8 @@ export interface MatcherPartitionResult {
 	readonly matches: readonly MatcherPartitionMatch[];
 	/** Indexed matcher diagnostics for this partition. */
 	readonly diagnostics: ObservationMatcherDiagnostics;
+	/** Optional worker-local memory telemetry. It never participates in matching semantics. */
+	readonly runtime?: MatcherWorkerRuntimeTelemetry;
 	/** Timestamp recorded by the worker when the partition completed. */
 	readonly completedAt: number;
 }
@@ -158,9 +195,11 @@ export interface RunMatcherJobRequest {
 	readonly analyzedAt?: number;
 	/** Source marker written to emitted analysis. */
 	readonly source?: SiteAnalysis['source'];
+	/** Analysis-lifecycle lease that keeps the hot two-worker pool alive across staged evidence passes. */
+	readonly lifecycleId?: string;
 }
 
-/** Executor path that produced a matcher job result. */
+/** Executor path that produced matcher partition work. */
 export type MatcherJobExecutor = 'offscreen-worker-pool';
 
 /** Completed matcher job returned to the background. */
@@ -179,125 +218,134 @@ export interface MatcherJobRunResult {
 	readonly completedAt: number;
 }
 
-/**
- * Matcher payload sent across the extension runtime channel.
- *
- * The background keeps only rule-free profiles and relationships. The offscreen host
- * receives page observations and scheduler metadata, while dedicated matcher workers
- * load observation-kind rule shards directly from packaged assets.
- */
-export type OffscreenMatcherJobRequest = Pick<
-	RunMatcherJobRequest,
-	'job' | 'mode' | 'batch' | 'options'
->;
+/** One partition request sent from the background scheduler to the offscreen host. */
+export interface RunMatcherPartitionRequest {
+	/** Independently executable partition selected by the background scheduler. */
+	readonly task: MatcherPartitionTask;
+	/** Dedicated-worker slot selected by the scheduler's kind-affinity policy. */
+	readonly workerIndex: number;
+	/** Analysis lifecycle that keeps the two-worker pool warm between staged jobs. */
+	readonly lifecycleId?: string;
+}
 
-/** Partition-only result returned by the offscreen worker host. */
-export interface OffscreenMatcherJobResult {
+/** Lightweight terminal result returned after a scheduler-owned matcher job finishes. */
+export interface MatcherJobExecutorResult {
 	/** Identity supplied by the background. */
 	readonly job: MatcherJobIdentity;
 	/** Job mode that produced these partitions. */
 	readonly mode: MatcherJobMode;
-	/** Number of partition results already streamed to the background. */
+	/** Number of partitions completed by the partition scheduler. */
 	readonly partitionCount: number;
-	/** Timestamp when offscreen partition matching completed. */
+	/** Runtime that executed the partitions. */
+	readonly executor: MatcherJobExecutor;
+	/** Timestamp when the final partition and observer callback completed. */
 	readonly completedAt: number;
 }
 
-/** Offscreen-host message channel used by background and the hidden page. */
-export const MATCHER_OFFSCREEN_CHANNEL = 'kaiju-deepscope.matcher-offscreen.v2';
-
-/** Message asking the offscreen host to run a matcher job. */
-export interface RunMatcherJobMessage {
-	/** Private channel discriminator so unrelated runtime messages are ignored. */
-	readonly channel: typeof MATCHER_OFFSCREEN_CHANNEL;
-	/** Command name handled by the offscreen host. */
-	readonly type: 'matcher.run-job';
-	/** Compact request payload generated by the background scheduler. */
-	readonly request: OffscreenMatcherJobRequest;
+/** Job-scoped observer that gives one background owner the matcher progress stream. */
+export interface MatcherJobObserver {
+	/** Queue or running state for the awaited job. */
+	readonly onState?: (state: MatcherJobState) => void | Promise<void>;
+	/** One completed partition. The observer is the only full-result accumulator in background. */
+	readonly onPartition?: (progress: MatcherPartitionProgress) => void | Promise<void>;
 }
 
-/** Message asking the offscreen host to cancel queued or running job work. */
-export interface CancelMatcherJobMessage {
+/** Offscreen-host message channel used by background and the hidden page. */
+export const MATCHER_OFFSCREEN_CHANNEL = 'kaiju-deepscope.matcher-offscreen.v3';
+
+/** Message asking the offscreen host to execute one already-selected matcher partition. */
+export interface RunMatcherPartitionMessage {
 	/** Private channel discriminator so unrelated runtime messages are ignored. */
 	readonly channel: typeof MATCHER_OFFSCREEN_CHANNEL;
 	/** Command name handled by the offscreen host. */
+	readonly type: 'matcher.run-partition';
+	/** Partition and lifecycle selected by the background scheduler. */
+	readonly request: RunMatcherPartitionRequest;
+}
+
+/** Message asking the offscreen host to cancel running partition work for one job. */
+export interface CancelMatcherJobMessage {
+	readonly channel: typeof MATCHER_OFFSCREEN_CHANNEL;
 	readonly type: 'matcher.cancel-job';
-	/** Job id to remove from queues and mark canceled. */
 	readonly jobId: string;
+}
+
+/** Message asking the offscreen host to cancel every running partition owned by a tab. */
+export interface CancelMatcherTabMessage {
+	readonly channel: typeof MATCHER_OFFSCREEN_CHANNEL;
+	readonly type: 'matcher.cancel-tab';
+	readonly tabId: number;
+	readonly reason: MatcherJobTerminalReason;
+}
+
+/** Refresh the idle watchdog for one staged analysis lifecycle. */
+export interface TouchMatcherLifecycleMessage {
+	readonly channel: typeof MATCHER_OFFSCREEN_CHANNEL;
+	readonly type: 'matcher.lifecycle-touch';
+	readonly lifecycleId: string;
+	readonly tabId: number;
+}
+
+/** Release one staged analysis lifecycle and allow the hot worker pool to close immediately. */
+export interface ReleaseMatcherLifecycleMessage {
+	readonly channel: typeof MATCHER_OFFSCREEN_CHANNEL;
+	readonly type: 'matcher.lifecycle-release';
+	readonly lifecycleId: string;
 }
 
 /** Message asking the offscreen host whether it is loaded and ready. */
 export interface PingMatcherHostMessage {
-	/** Private channel discriminator so unrelated runtime messages are ignored. */
 	readonly channel: typeof MATCHER_OFFSCREEN_CHANNEL;
-	/** Command name handled by the offscreen host. */
 	readonly type: 'matcher.ping';
 }
 
 /** Runtime messages accepted by the offscreen matcher host. */
 export type MatcherOffscreenRequestMessage =
-	| RunMatcherJobMessage
+	| RunMatcherPartitionMessage
 	| CancelMatcherJobMessage
+	| CancelMatcherTabMessage
+	| TouchMatcherLifecycleMessage
+	| ReleaseMatcherLifecycleMessage
 	| PingMatcherHostMessage;
 
 /** Machine-readable offscreen host rejection reason. */
-export type MatcherHostFailure = 'queue-full' | 'canceled' | 'failed';
+export type MatcherHostFailure = 'canceled' | 'failed';
 
 /** Successful or failed response from the offscreen matcher host. */
 export type MatcherOffscreenResponse =
 	| { readonly ok: true; readonly ready: true }
-	| { readonly ok: true; readonly canceled: true; readonly jobId: string }
-	| { readonly ok: true; readonly value: OffscreenMatcherJobResult }
+	| { readonly ok: true; readonly canceled: true; readonly jobId: string; readonly canceledPartitionCount: number }
+	| { readonly ok: true; readonly canceledTab: true; readonly tabId: number; readonly canceledPartitionCount: number }
+	| { readonly ok: true; readonly lifecycle: 'touched' | 'released'; readonly lifecycleId: string }
+	| { readonly ok: true; readonly value: MatcherPartitionResult }
 	| { readonly ok: false; readonly reason: MatcherHostFailure; readonly message: string };
 
+/** Job state visible before the first matcher partition completes. */
+export type MatcherJobPhase = 'queued' | 'running';
 
-/** Offscreen-host state visible before the first matcher partition completes. */
-export type MatcherHostPhase = 'queued' | 'running';
-
-/** Queue and execution state emitted by the offscreen matcher host. */
-export type MatcherJobStateMessage = {
-	/** Private channel discriminator so background can ignore unrelated messages. */
-	readonly channel: typeof MATCHER_OFFSCREEN_CHANNEL;
-	/** Progress event name emitted before partition-complete events. */
-	readonly type: 'matcher.job-state';
-	/** Matcher job whose waiting or execution state changed. */
+/** Scheduling and execution state emitted locally by the background partition scheduler. */
+export type MatcherJobState = {
 	readonly jobId: string;
-	/** Whether the job is waiting for the worker pool or actively matching. */
-	readonly phase: MatcherHostPhase;
-	/** Timestamp when the offscreen host accepted the job into its bounded queue. */
+	readonly phase: MatcherJobPhase;
 	readonly queuedAt: number;
-	/** Timestamp when the job acquired matcher capacity. */
 	readonly startedAt?: number;
-	/** One-based queue position while waiting. */
 	readonly queuePosition?: number;
-	/** Jobs still waiting behind or ahead of the active job. */
 	readonly queueDepth: number;
-	/** Partition count known once execution starts. */
+	readonly queueEstimatedBytes?: number;
 	readonly partitionCount?: number;
 };
 
-
-/** Message emitted when the offscreen host has been idle long enough to release its document. */
+/** Message emitted when the offscreen host has no lifecycle or active partition left. */
 export interface MatcherHostIdleMessage {
-	/** Private channel discriminator so background can ignore unrelated messages. */
 	readonly channel: typeof MATCHER_OFFSCREEN_CHANNEL;
-	/** Lifecycle event emitted by the offscreen host after its one idle grace period. */
 	readonly type: 'matcher.host-idle';
-	/** Timestamp when the host decided that no queued or running work remained. */
 	readonly idleAt: number;
 }
 
-/** Message emitted by offscreen when a partition completes before the full job. */
-export interface MatcherPartitionProgressMessage {
-	/** Private channel discriminator so background can ignore unrelated messages. */
-	readonly channel: typeof MATCHER_OFFSCREEN_CHANNEL;
-	/** Progress event name emitted from offscreen to background. */
-	readonly type: 'matcher.partition-complete';
-	/** Completed partition summary. */
+/** Progress value emitted locally when one background-scheduled partition completes. */
+export interface MatcherPartitionProgress {
 	readonly partition: MatcherPartitionResult;
-	/** Number of partitions completed so far for the job. */
 	readonly completedPartitionCount: number;
-	/** Total partition count for the job. */
 	readonly partitionCount: number;
 }
 

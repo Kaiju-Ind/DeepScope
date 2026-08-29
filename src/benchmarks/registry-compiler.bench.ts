@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { bench, do_not_optimize, summary } from 'mitata';
 
 import { buildCollectionPlan } from '@/lib/collectors/planning';
 import { createObservationMatcherIndex } from '@/lib/detection/observation-matcher-index';
@@ -12,20 +12,9 @@ const LARGE_REGISTRY_SIZE = 1_000;
 /** Number of rule groups per generated technology. */
 const RULE_GROUPS_PER_TECHNOLOGY = 4;
 
-/** Vitest benchmark settings tuned for stable local comparison without huge CI cost. */
-const BENCHMARK_OPTIONS = {
-	time: 1_000,
-	warmupTime: 250,
-	iterations: 64,
-	warmupIterations: 16,
-} as const;
-
-/** Visible benchmark sink used because Tinybench does not expose `do_not_optimize()`. */
-let consumedArtifactSize = 0;
-
-/** Consume benchmark output through a visible side effect. */
+/** Keep the measured result observable to the JIT. */
 function consumeArtifactSize(count: number): void {
-	consumedArtifactSize = (consumedArtifactSize + count) % Number.MAX_SAFE_INTEGER;
+	do_not_optimize(count);
 }
 
 /** Create deterministic registry entries for compiler benchmark scenarios. */
@@ -70,12 +59,12 @@ function buildCompiledArtifact(registry: readonly TechnologyDefinition[]): numbe
 
 const registry = createBenchmarkRegistry(LARGE_REGISTRY_SIZE);
 
-describe('registry compiler', () => {
+summary(() => {
 	bench('separate runtime artifacts', () => {
 		consumeArtifactSize(buildSeparateArtifacts(registry));
-	}, BENCHMARK_OPTIONS);
+	});
 
 	bench('compiled registry artifact', () => {
 		consumeArtifactSize(buildCompiledArtifact(registry));
-	}, BENCHMARK_OPTIONS);
+	});
 });

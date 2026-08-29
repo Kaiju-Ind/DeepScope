@@ -12,15 +12,6 @@ export const RULE_PROFILE_TARGET = {
 /** Default large-payload size used to make content-rule misses expose regex backtracking cost. */
 export const DEFAULT_RULE_PROFILE_PAYLOAD_CHARS = 24_000;
 
-/** Default report budget for rule evaluations that are expected to match. */
-export const DEFAULT_RULE_PROFILE_PASS_BUDGET_MS = 5;
-
-/** Default report budget for rule evaluations that are expected to miss. */
-export const DEFAULT_RULE_PROFILE_MISS_BUDGET_MS = 25;
-
-/** Default number of slowest rule rows printed after a benchmark run. */
-export const DEFAULT_RULE_PROFILE_REPORT_LIMIT = 20;
-
 /** Kind of semantic outcome a rule-profile case is expected to produce. */
 export type RuleProfileExpectedOutcome = 'match' | 'miss';
 
@@ -51,44 +42,6 @@ export interface RuleProfileCase {
 	readonly origin: RuleProfileCaseOrigin;
 	/** Observation fed directly into the semantic one-rule matcher. */
 	readonly observation: NormalizedObservation;
-}
-
-/** Timed result from one semantic rule evaluation. */
-export interface RuleTimingRecord {
-	/** Unique key for deduping repeated benchmark measurements of the same scenario. */
-	readonly key: string;
-	/** Stable scenario label printed by reports. */
-	readonly scenario: string;
-	/** Origin of the benchmark case. */
-	readonly origin: RuleProfileCaseOrigin;
-	/** Technology that owns the evaluated rule. */
-	readonly technologyId: string;
-	/** Rule identifier reported in diagnostics. */
-	readonly ruleId: string;
-	/** Observation kind evaluated by the rule. */
-	readonly kind: NormalizedObservationKind;
-	/** Expected semantic outcome for the case. */
-	readonly expected: RuleProfileExpectedOutcome;
-	/** Actual semantic outcome from the matcher. */
-	readonly matched: boolean;
-	/** Median matcher duration used for stable budget decisions. */
-	readonly durationMs: number;
-	/** Slowest warmed sample retained for diagnostics only. */
-	readonly maxDurationMs: number;
-	/** Number of warmed matcher samples summarized by this record. */
-	readonly sampleCount: number;
-}
-
-/** Runtime budgets used to decide which rule timings deserve attention. */
-export interface RuleProfileBudgets {
-	/** Duration budget for cases expected to match. */
-	readonly passBudgetMs: number;
-	/** Duration budget for cases expected to miss. */
-	readonly missBudgetMs: number;
-	/** Number of rows printed for slowest-rule and budget reports. */
-	readonly reportLimit: number;
-	/** Whether a budget violation should fail the benchmark process. */
-	readonly failOnBudget: boolean;
 }
 
 /** Summary of generated benchmark coverage for the current registry. */
@@ -296,136 +249,16 @@ export function createPayloadScanCases(input: {
 	return cases;
 }
 
-/** Options for one stable rule timing sample group. */
-export type RuleProfileSampleOptions = {
-	/** Number of measured samples reduced to one median. */
-	readonly samples?: number;
-	/** Untimed matcher runs used to warm parser and regex state. */
-	readonly warmup?: number;
-};
-
-/**
- * Run one profile case through the production semantic matcher.
- *
- * Budget checks use the median of a small warmed sample group instead of one
- * wall-clock observation. This prevents an unrelated scheduler or GC pause from
- * masquerading as sustained matcher cost while `maxDurationMs` still preserves
- * the outlier for diagnostics.
- */
-export function profileRuleCase(
-	input: RuleProfileCase,
-	options: RuleProfileSampleOptions = {},
-): RuleTimingRecord {
-	const sampleCount = normalizeSampleCount(options.samples ?? 1);
-	const warmupCount = normalizeSampleCount(options.warmup ?? 0, true);
-	let matched = false;
-
-	for (let index = 0; index < warmupCount; index += 1) {
-		matched = Boolean(matchProfileCase(input));
-	}
-
-	const durations: number[] = [];
-	for (let index = 0; index < sampleCount; index += 1) {
-		const startedAt = performance.now();
-		matched = Boolean(matchProfileCase(input));
-		durations.push(performance.now() - startedAt);
-	}
-	durations.sort((left, right) => left - right);
-	const durationMs = durations[Math.floor(durations.length / 2)] ?? 0;
-	const maxDurationMs = durations[durations.length - 1] ?? durationMs;
-
-	return {
-		key: `${input.scenario}:${input.target.technology.id}:${input.target.ruleId}`,
-		scenario: input.scenario,
-		origin: input.origin,
-		technologyId: input.target.technology.id,
-		ruleId: input.target.ruleId,
-		kind: input.target.rule.kind,
-		expected: input.expected,
-		matched,
-		durationMs,
-		maxDurationMs,
-		sampleCount,
-	};
-}
-
-/** Execute one matcher case without adding profiler timing policy. */
-function matchProfileCase(input: RuleProfileCase) {
-	return matchObservationRule({
+/** Execute one rule case through the production semantic matcher without timing it. */
+export function evaluateRuleProfileCase(input: RuleProfileCase): boolean {
+	return Boolean(matchObservationRule({
 		technology: input.target.technology,
 		rule: input.target.rule,
 		ruleIndex: input.target.ruleIndex,
 		observation: input.observation,
-	});
+	}));
 }
 
-/** Normalize benchmark sample counts while permitting zero warmup runs. */
-function normalizeSampleCount(value: number, allowZero = false): number {
-	if (!Number.isFinite(value)) return allowZero ? 0 : 1;
-	const normalized = Math.floor(value);
-	return Math.max(allowZero ? 0 : 1, normalized);
-}
-
-/** Keep the slowest timing seen for each scenario and rule pair. */
-export function recordSlowRule(
-	records: Map<string, RuleTimingRecord>,
-	record: RuleTimingRecord,
-): void {
-	const existing = records.get(record.key);
-	if (!existing || record.durationMs > existing.durationMs) {
-		records.set(record.key, record);
-	}
-}
-
-/** Return timing records that exceeded their configured pass or miss budget. */
-export function findRuleProfileBudgetViolations(
-	records: readonly RuleTimingRecord[],
-	budgets: RuleProfileBudgets,
-): readonly RuleTimingRecord[] {
-	return records
-		.filter((record) => record.durationMs > getRecordBudgetMs(record, budgets))
-		.sort((left, right) => right.durationMs - left.durationMs);
-}
-
-/** Return cases whose actual matcher result did not match the expected result. */
-export function findRuleProfileExpectationMismatches(
-	records: readonly RuleTimingRecord[],
-): readonly RuleTimingRecord[] {
-	return records.filter((record) => (record.expected === 'match') !== record.matched);
-}
-
-/** Format a timing record as a single grep-friendly diagnostics row. */
-export function formatRuleTimingRecord(record: RuleTimingRecord): string {
-	return [
-		`durationMs=${formatDurationMs(record.durationMs)}`,
-		`maxDurationMs=${formatDurationMs(record.maxDurationMs)}`,
-		`samples=${record.sampleCount}`,
-		`scenario=${quoteReportValue(record.scenario)}`,
-		`origin=${record.origin}`,
-		`expected=${record.expected}`,
-		`matched=${record.matched}`,
-		`technologyId=${record.technologyId}`,
-		`ruleId=${record.ruleId}`,
-		`kind=${record.kind}`,
-	].join(' ');
-}
-
-/** Keep sub-millisecond matcher costs visible without noisy long decimals. */
-function formatDurationMs(value: number): string {
-	if (value < 0.01) return value.toFixed(4);
-	if (value < 1) return value.toFixed(3);
-	return value.toFixed(1);
-}
-
-/** Get benchmark budgets from environment variables with safe defaults. */
-export function getRuleProfileBudgets(env: Record<string, string | undefined>): RuleProfileBudgets {
-	return {
-		passBudgetMs: getPositiveNumberEnv(env.KAIJU_DEEPSCOPE_RULE_BENCH_PASS_BUDGET_MS, DEFAULT_RULE_PROFILE_PASS_BUDGET_MS),
-		missBudgetMs: getPositiveNumberEnv(env.KAIJU_DEEPSCOPE_RULE_BENCH_MISS_BUDGET_MS, DEFAULT_RULE_PROFILE_MISS_BUDGET_MS),
-		reportLimit: getPositiveIntegerEnv(env.KAIJU_DEEPSCOPE_RULE_BENCH_REPORT_LIMIT, DEFAULT_RULE_PROFILE_REPORT_LIMIT),
-		failOnBudget: env.KAIJU_DEEPSCOPE_RULE_BENCH_FAIL_ON_BUDGET === '1',
-	};
-}
 
 /** Create a normalized observation for a rule-profile case. */
 export function makeRuleProfileObservation(
@@ -480,8 +313,8 @@ function createVerifiedGeneratedCase(input: {
 			origin: input.origin ?? 'generated',
 			observation,
 		};
-		const record = profileRuleCase(profileCase);
-		if ((input.expected === 'match') === record.matched) {
+		const matched = evaluateRuleProfileCase(profileCase);
+		if ((input.expected === 'match') === matched) {
 			return profileCase;
 		}
 	}
@@ -611,38 +444,12 @@ function hasPatternLikeMatcher(rule: DetectionRule): boolean {
 	return 'pattern' in rule && isDetectionPattern(rule.pattern);
 }
 
-function getRecordBudgetMs(record: RuleTimingRecord, budgets: RuleProfileBudgets): number {
-	return record.expected === 'match' ? budgets.passBudgetMs : budgets.missBudgetMs;
-}
-
 function getRuleId(rule: DetectionRule, ruleIndex: number): string {
 	return rule.id ?? `rule:${ruleIndex}`;
 }
 
 function getRuleSourceIndex(rule: DetectionRule, fallbackRuleIndex: number): number {
 	return typeof rule.sourceRuleIndex === 'number' ? rule.sourceRuleIndex : fallbackRuleIndex;
-}
-
-function quoteReportValue(value: string): string {
-	return JSON.stringify(value);
-}
-
-function getPositiveNumberEnv(value: string | undefined, fallback: number): number {
-	if (!value) {
-		return fallback;
-	}
-
-	const parsed = Number.parseFloat(value);
-	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function getPositiveIntegerEnv(value: string | undefined, fallback: number): number {
-	if (!value) {
-		return fallback;
-	}
-
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function getConfiguredHydrationPayloadLength(value: string | undefined): number {

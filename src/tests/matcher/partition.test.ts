@@ -13,6 +13,7 @@ import { makePageSignals } from '../support/factories';
 const job = {
 	jobId: 'job-1',
 	tabId: 7,
+	windowId: 1,
 	expectedUrl: 'https://example.com/products',
 } as const;
 

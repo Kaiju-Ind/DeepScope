@@ -4,7 +4,7 @@ import {
 	createCuratedRuleProfileCases,
 	createGeneratedRuleMissCases,
 	createGeneratedRulePassCases,
-	profileRuleCase,
+	evaluateRuleProfileCase,
 	summarizeRuleProfileCoverage,
 } from '@/lib/detection/rule-performance-profile';
 import { technologyDefinitions } from '@/registry/technologies';
@@ -20,8 +20,7 @@ describe('rule performance fixtures', () => {
 		});
 
 		for (const profileCase of cases) {
-			const record = profileRuleCase(profileCase);
-			expect(record.matched, profileCase.scenario).toBe(profileCase.expected === 'match');
+			expect(evaluateRuleProfileCase(profileCase), profileCase.scenario).toBe(profileCase.expected === 'match');
 		}
 	});
 
@@ -39,8 +38,7 @@ describe('rule performance fixtures', () => {
 		expect(cases.length).toBeGreaterThan(0);
 		expect(cases.length + coverage.generatedMissUncoveredRuleCount).toBe(coverage.ruleCount);
 		for (const profileCase of cases) {
-			const record = profileRuleCase(profileCase);
-			expect(record.matched, profileCase.scenario).toBe(false);
+			expect(evaluateRuleProfileCase(profileCase), profileCase.scenario).toBe(false);
 		}
 	});
 
@@ -56,8 +54,7 @@ describe('rule performance fixtures', () => {
 		expect(cases.length).toBeGreaterThan(0);
 		expect(cases.length + coverage.generatedPassUncoveredRuleCount).toBe(coverage.ruleCount);
 		for (const profileCase of cases) {
-			const record = profileRuleCase(profileCase);
-			expect(record.matched, profileCase.scenario).toBe(true);
+			expect(evaluateRuleProfileCase(profileCase), profileCase.scenario).toBe(true);
 		}
 	});
 });

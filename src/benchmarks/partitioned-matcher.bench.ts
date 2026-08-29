@@ -1,6 +1,7 @@
-import { bench, describe } from 'vitest';
+import { bench, do_not_optimize, summary } from 'mitata';
 
 import { createEvidenceCandidateBatch, refineEvidenceCandidateBatch } from '@/lib/candidates';
+import { emitSiteAnalysisFromRefinedCandidates } from '@/lib/emission';
 import { matchIndexedObservationBatch } from '@/lib/detection/observation-matcher-index';
 import { createCompiledDetectionRegistry } from '@/lib/detection/registry-graph';
 import type { DetectionRule, MatcherTechnologyType, TechnologyDefinition } from '@/lib/detection/types';
@@ -13,20 +14,9 @@ import { makePageSignals } from '../tests/support/factories';
 /** Number of generated technologies used to approximate the shipped registry scale. */
 const LARGE_REGISTRY_SIZE = 1_000;
 
-/** Vitest benchmark settings tuned for local regression checks without excessive CI cost. */
-const BENCHMARK_OPTIONS = {
-	time: 1_000,
-	warmupTime: 250,
-	iterations: 64,
-	warmupIterations: 16,
-} as const;
-
-/** Visible benchmark sink used because Tinybench does not expose `do_not_optimize()`. */
-let consumedResultCount = 0;
-
-/** Consume benchmark output through a visible side effect. */
+/** Keep the measured result observable to the JIT. */
 function consumeResultCount(count: number): void {
-	consumedResultCount = (consumedResultCount + count) % Number.MAX_SAFE_INTEGER;
+	do_not_optimize(count);
 }
 
 /** Create a mixed registry with cheap key routes and expensive URL/content routes. */
@@ -72,15 +62,20 @@ const batch = createBenchmarkBatch();
 const job = {
 	jobId: 'benchmark-job',
 	tabId: 1,
+	windowId: 1,
 	expectedUrl: batch.target.url,
 } as const;
 
-/** Run today's indexed matcher path as the baseline. */
+/** Run the non-partitioned indexed matcher through the same final emission stage as partitioned cases. */
 function runWholeIndexedMatcher(): number {
 	const matches = matchIndexedObservationBatch({ registry, batch, index: matcherIndex });
 	const candidates = createEvidenceCandidateBatch({ registry, evidence: matches.evidenceBatch });
 	const refined = refineEvidenceCandidateBatch({ batch: candidates, compiledRegistry: relationshipGraph });
-	return refined.candidates.length;
+	return emitSiteAnalysisFromRefinedCandidates({
+		batch: refined,
+		analyzedAt: batch.observedAt,
+		source: 'fresh',
+	}).analysis.results.length;
 }
 
 function getShardArtifact(kind: NormalizedObservationKind) {
@@ -168,21 +163,20 @@ function runKindShardedPartitionedMatcher(): number {
 /**
  * Compare the current whole-batch matcher with the partition merge path.
  *
- * Worker parallelism is intentionally not included here because Vitest runs in a
- * Node process, while the extension pool runs in Chrome. The benchmark protects
+ * Worker parallelism is intentionally not included here because this benchmark runs in a Node process, while the extension pool runs in Chrome. The benchmark protects
  * the deterministic partition and merge overhead so future worker-pool tuning
  * can compare browser timings against a stable in-process baseline.
  */
-describe('partitioned matcher', () => {
+summary(() => {
 	bench('whole indexed matcher baseline', () => {
 		consumeResultCount(runWholeIndexedMatcher());
-	}, BENCHMARK_OPTIONS);
+	});
 
 	bench('partitioned matcher merge', () => {
 		consumeResultCount(runPartitionedMatcherMerge());
-	}, BENCHMARK_OPTIONS);
+	});
 
 	bench('kind-sharded partitioned matcher merge', () => {
 		consumeResultCount(runKindShardedPartitionedMatcher());
-	}, BENCHMARK_OPTIONS);
+	});
 });

@@ -1,117 +1,155 @@
 # Partitioned offscreen matcher runtime
 
-CPU-heavy technology matching must not monopolize the Manifest V3 background service worker. The background coordinates tabs, durable job state, snapshot publication, and final semantic assembly. The offscreen document owns only the local dedicated-worker host used for rule matching.
+CPU-heavy technology matching must not monopolize the Manifest V3 background service worker. DeepScope therefore separates scheduling from execution.
 
 ```text
 background service worker
-  -> collect normalized observations
-  -> create durable matcher job
-  -> retain rule-free runtime profiles + relationship graph
-  -> send compact matcher request
+  -> persist small matcher control record
+  -> retain bounded transient ObservationBatch
+  -> split batch into kind partitions
+  -> choose next partition by tab priority and fairness
+  -> dispatch at most two independent kinds
 
 matcher offscreen document
-  -> split observations into kind partitions
-  -> run partitions through a small worker pool
-  -> stream partition results back to background
-  -> return a terminal partition count
+  -> own two DedicatedWorker slots
+  -> preserve one hot shard owner per observation kind
+  -> execute only scheduler-selected partitions
+  -> cancel and replace only the worker slot that owns canceled work
 
-matcher dedicated workers
-  -> load only required observation-kind registry shards
-  -> match one partition at a time
-  -> keep a bounded matcher-only shard cache
-  -> compile packaged regular expressions only after routing admits a rule
+matcher dedicated worker
+  -> load one observation-kind registry shard
+  -> reuse weighted shard cache
+  -> compile packaged RegExp values lazily
+  -> return one partition result
 
 background service worker
-  -> merge partition results with retained registry knowledge
-  -> validate current visible document ownership
-  -> publish partial and final detector snapshot revisions
+  -> accumulate each partition exactly once
+  -> publish bounded partial revisions
+  -> run final relationship/candidate emission
 ```
 
-## Ownership
+The offscreen document does not own a waiting job queue. Waiting policy, tab priority, fairness, and durable job control belong to the background scheduler.
 
-The background remains the authority for browser tab state, current-document identity, matcher job lifecycle, durable storage, and final detector output. The offscreen host does not read tabs, write detector storage, resolve visible-session ownership, or load the complete technology registry.
+## Durable control state
 
-The runtime message intentionally omits registry-scale fields. It carries the matcher job identity, mode, observation batch, and small execution options. This prevents each offscreen message from cloning the registry, matcher index, and relationship graph into the hidden document. The background itself loads a rule-free runtime registry product, while matcher workers load matcher-only kind shards.
-
-## Scheduling
-
-Observation-kind partitions carry priorities. Lower values run first so cheap, high-value evidence can publish useful revisions before expensive source and asset work finishes. Large high-fan-out kinds are split into smaller partitions so one resource-heavy kind cannot hide all progress until its final item completes.
-
-The offscreen host admits complete matcher jobs through one bounded serial queue. Each active job can use the small worker pool concurrently across its partitions. The queue retains at most eight waiting jobs. That value is a memory safety ceiling because each waiting entry owns a complete observation batch. It is not a claim that eight is the throughput optimum.
-
-Priority remains stable and FIFO within each mode. Every queue mutation publishes the current position and depth. Starting a job publishes a separate running state with `queuedAt` and `startedAt`, so diagnostics can measure queue wait independently from matcher execution.
-
-The background client also uses separate deadlines. One deadline limits how long a job can wait for capacity. A second deadline starts only after the offscreen host reports that matching began. A queue wait can therefore no longer consume the job's complete execution allowance.
-
-Do not increase worker count or queue retention from intuition. Measure job arrival rate, queue wait, execution time, retained heap, and active browser-window count first.
-
-## DOM selectors do not use the offscreen document
-
-DOM selector matching belongs to the content script because the live Chromium document is the authoritative DOM representation.
+IndexedDB stores only small execution-control records through `idb`.
 
 ```text
-compiled selector plan
-  -> live document traversal
-  -> route by right-most tag / attribute / id / class
-  -> element.matches(selector)
-  -> retain positive evidence
+persisted
+  work id
+  browser session id
+  tab/window/document identity
+  semantic priority
+  queued/claimed state
+  attempt and claim owner
+  estimated transient bytes
+
+not persisted by the scheduler
+  raw HTML
+  page text
+  script source
+  cookies
+  ObservationBatch
+  MatcherPartitionResult[]
 ```
 
-The initial document scan yields after bounded element or time slices. MutationObserver callbacks only classify changed nodes and do not run descendant selector queries. Positive matches are sticky for the current document, so already-proven selectors retire from later scans.
+Raw page evidence remains transient. This keeps the scheduler from changing DeepScope into a local page archive merely to survive service-worker replacement.
 
-Late mutations use one shared element traversal for selector checks, images, scripts, stylesheets, links, metadata, and inline source evidence. The observer does not perform a separate descendant query for each evidence family. Full CSSOM collection is reserved for an explicit complete-document scan instead of being repeated for every changed subtree.
+The background keeps no more than eight matcher jobs and 12 MiB of estimated transient observation evidence. IndexedDB durability does not make RAM buffering unbounded.
 
-The selector compiler also records structural invalidation. Adjacent and following sibling selectors recheck affected existing siblings. Parent and ancestor-sensitive selectors recheck the required local region. Structural syntax that cannot be invalidated safely with a local region falls back to one time-sliced document scan rather than silently missing evidence.
+## Tab priority and fairness
 
-Each DOM scan publishes bounded diagnostics: elements visited, native selector checks, positive matches, cooperative yields, duration, scope, and cancellation state. Those measurements are retained through the diagnostic journal and can be used to verify renderer churn on representative dynamic applications.
-
-DeepScope does not serialize `document.documentElement.outerHTML` merely to send the DOM to an offscreen `DOMParser`. This removes a second parsed document graph and avoids retaining detached offscreen documents.
-
-## Lifecycle
-
-The dedicated worker pool is deliberately small. Two workers are the default until representative Chrome benchmarks justify another value. Each worker keeps at most four matcher-only observation-kind shards. Partitions of one observation kind stay on one worker for a job so a large shard is not duplicated across worker heaps without a measured reason.
-
-There is one idle grace period for both worker and offscreen-document cleanup. The offscreen host owns the 30-second timer because a Manifest V3 background service-worker timer can disappear when Chrome suspends that service worker. When the host remains idle for the complete grace period, it terminates the worker pool and emits `matcher.host-idle`. That event wakes the background, which calls the privileged `offscreen.closeDocument()` API. The background does not maintain a second idle timer. Interrupted-job reconciliation cancels orphaned work and then lets this same host-idle lifecycle release the document.
-
-Cancellation and worker failure dispose the active worker pool. Queue wait and matcher execution have separate 120-second operation deadlines. They are safety deadlines for stuck work, not idle-retention policy. When either deadline expires, the background sends an explicit cancel request because ending the caller's Promise does not stop JavaScript already running in the offscreen document.
-
-The background progress map temporarily retains the complete observation batch and rule-free runtime registry while partial matcher revisions can still be produced. The complete matcher lifecycle is wrapped in `finally`, so success, cancellation, navigation, worker failure, replay failure, and snapshot persistence failure all release those registry-scale references. Matcher completion is recorded only after the replay and final detector snapshot have been persisted. The side panel therefore exposes distinct `queued`, `matching`, and `recording` stages instead of treating worker completion as durable completion.
-
-## Failure policy
-
-Packaged production builds do not repeat a failed or timed-out offscreen matcher job inside the background service worker. Starting a second full matcher pass while the first copy may still be consuming CPU or memory creates duplicate expensive work and hides the real offscreen failure.
-
-Production behavior is:
+Tab activation changes the priority of unfinished work. It does not cancel an open tab.
 
 ```text
-offscreen success
-  -> executor = offscreen-worker-pool
-
-offscreen timeout or failure
-  -> cancel offscreen job
-  -> dispose failed worker resources
-  -> record structured failure
-  -> caller decides whether a later new job is appropriate
+explicit user work     interactive
+active automatic work  foreground
+inactive open tab       background
+cleanup/reconciliation maintenance
 ```
 
-WXT development and packaged builds use the same offscreen matcher topology. Tests that target background orchestration inject a deterministic matcher capability instead of starting extension runtime workers, so test isolation does not create a second production implementation.
+The active tab normally receives matcher capacity first. When lower-priority work is waiting, the scheduler forces one lower-priority partition after a bounded foreground burst. This prevents a stream of newly active tabs from starving background tabs indefinitely.
+
+Priority changes apply between partitions. A partition already running is allowed to finish. The next partition is selected from current priority state.
+
+## Kind affinity
+
+The scheduler does not run two partitions of the same observation kind concurrently. The offscreen pool maps each active kind to one worker slot for the lifetime of the hot pool.
+
+This matters for large shards such as `scriptSrc` and `jsGlobal`. Keeping one kind on one worker avoids hydrating the same heavy shard into both worker heaps without evidence that duplication improves latency.
+
+Affinity is a performance policy, not job ownership. Different jobs can use the same kind owner over time.
+
+## Cancellation
+
+Closed or replaced documents stop work. Tab switching does not.
+
+```text
+tab closes / document changes
+  -> abort live collection
+  -> remove durable scheduler records
+  -> reject queued matcher work
+  -> cancel active partitions for that tab
+  -> replace only affected DedicatedWorker slots
+  -> reject stale publication
+```
+
+Per-worker replacement is deliberate. Canceling one tab must not terminate an unrelated partition that another worker is still executing.
+
+A CPU-bound DedicatedWorker cannot process a normal cancellation message while synchronous matcher JavaScript is running. DeepScope therefore cancels an active partition by terminating that one worker slot and creating a fresh worker for later work.
+
+## Service-worker replacement
+
+The browser-session id lives in `chrome.storage.session`. IndexedDB work records survive a Manifest V3 service-worker replacement inside the same browser session.
+
+Analysis intent can be requeued because collection can run again against the live document. Matcher records cannot resume because their raw observation batches are intentionally not durable. A replacement background therefore cancels orphaned offscreen matcher work, removes those matcher records, and schedules fresh analysis for still-valid visible tabs.
+
+This guarantee is service-worker restart recovery. It is not cross-browser-session batch durability.
+
+## Offscreen lifetime
+
+Two matcher workers stay hot across the stages of one analysis lifecycle because recreating them between initial and enriched matching would increase latency.
+
+Normal completion explicitly releases the analysis lifecycle. When no partition and no lifecycle remains, the offscreen host terminates both workers immediately and asks the background to close the document.
+
+A 30-second host-owned timer remains only as a watchdog for a lost background context or missed lifecycle release. The background does not own a competing idle timer.
+
+## Shard memory
+
+Each matcher worker uses one weighted shard cache. The old fixed four-shard LRU and the second `recentShardKinds` cache authority are removed.
+
+Worker diagnostics report:
+
+```text
+retained shard bytes
+retained shard count
+shard cache budget
+current shard rule/pattern counts
+packaged RegExp compile count
+packaged RegExp cache-hit count
+```
+
+These measurements are intended to correlate Chrome process memory with actual matcher state. They do not claim that V8 heap size equals Chrome Task Manager memory footprint.
+
+## Build-time routing
+
+The Registry is static for one extension version. Matcher route tables are therefore packaged as numeric references at build time rather than reconstructed by walking every matcher rule on every cold shard load.
+
+Workers hydrate those references against the shard's shared technology/rule objects. Packaged regular expressions remain `{ source, flags }` values until semantic evaluation actually needs a `RegExp`.
 
 ## Verification
 
-A release check for this subsystem must prove all of these behaviors in packaged Chrome, not only in source tests:
+A packaged Chrome release should prove:
 
-- the background remains responsive while matcher workers are busy;
-- queue, matching, and recording progress describe the real per-tab lifecycle before final completion;
-- partition progress produces monotonic visible revisions;
-- stale tab or document jobs cannot publish current detector state;
-- offscreen failure does not start a duplicate production background matcher;
-- cancellation terminates active matcher workers;
-- worker and offscreen host heaps are reclaimed after idle cleanup;
-- a later matcher job recreates the host and still completes;
-- live DOM selectors still detect initial and late evidence without an offscreen DOM parser;
-- late adjacent-sibling evidence is detected after insertion and after removal creates new adjacency;
-- repeated subtree mutations do not trigger repeated complete CSSOM reads;
-- queued batches respect the hard retention limit and queue wait is measured separately from execution;
-- replay or snapshot persistence failure releases active matcher progress state;
-- renderer scan diagnostics remain within the accepted long-task budget on representative dynamic sites;
-- retained memory reaches a stable range across repeated scans and tab changes.
+- active-tab work normally wins without starving inactive tabs;
+- switching tabs reprioritizes instead of canceling open-tab work;
+- closing or replacing a tab stops all work owned by the old document;
+- two independent kinds can use both matcher workers;
+- two partitions of the same kind do not duplicate the shard across workers;
+- canceling one job replaces only worker slots that execute that job;
+- one background accumulator owns complete partition results;
+- transient observation memory respects both job-count and byte limits;
+- orphaned matcher records are reconciled after service-worker replacement;
+- worker pools terminate promptly after the final analysis lifecycle releases;
+- repeated idle -> scan -> release cycles return to a stable process-memory range;
+- build-generated matcher routes are behaviorally equivalent to the reference runtime index builder.

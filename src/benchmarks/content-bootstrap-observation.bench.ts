@@ -1,16 +1,8 @@
-import { bench, describe } from 'vitest';
+import { bench, do_not_optimize, summary } from 'mitata';
 
 import type { PageSignals } from '@/lib/detection/types';
 import { normalizePageSignals } from '@/lib/observations';
 import { makePageSignals } from '../tests/support/factories';
-
-/** Vitest benchmark settings tuned for local regression checks without making CI runs excessive. */
-const BENCHMARK_OPTIONS = {
-	time: 1_000,
-	warmupTime: 250,
-	iterations: 64,
-	warmupIterations: 16,
-} as const;
 
 /** Page shapes used to approximate first-scan and late-heavy content workloads. */
 const CONTENT_BOOTSTRAP_WORKLOADS = ['common-page', 'late-heavy-page'] as const;
@@ -24,18 +16,9 @@ interface ContentBootstrapScenario {
 	readonly signals: PageSignals;
 }
 
-/**
- * Observable benchmark sink.
- *
- * Tinybench does not expose Mitata's `do_not_optimize()`. Writing the normalized
- * observation count into module state gives each benchmark body a visible side
- * effect, which keeps the normalization work from becoming an unused expression.
- */
-let consumedObservationCount = 0;
-
-/** Consume benchmark output through a visible side effect. */
+/** Keep the measured result observable to the JIT. */
 function consumeObservationCount(count: number): void {
-	consumedObservationCount = (consumedObservationCount + count) % Number.MAX_SAFE_INTEGER;
+	do_not_optimize(count);
 }
 
 /**
@@ -108,10 +91,10 @@ const scenarios = CONTENT_BOOTSTRAP_WORKLOADS.map(createContentBootstrapScenario
  * revisions should reach storage fast enough for the side panel to stop feeling
  * blocked on background work.
  */
-describe('content bootstrap observation', () => {
+summary(() => {
 	for (const scenario of scenarios) {
 		bench(scenario.workload, () => {
 			consumeObservationCount(runContentBootstrapNormalization(scenario.signals));
-		}, BENCHMARK_OPTIONS);
+		});
 	}
 });

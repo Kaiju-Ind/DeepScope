@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Run the source and generated Chrome release gates"
+set -euo pipefail
+exec pnpm check:release "$@"

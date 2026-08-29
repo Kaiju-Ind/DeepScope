@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Run the interactive Vitest test runner"
+set -euo pipefail
+exec pnpm test "$@"

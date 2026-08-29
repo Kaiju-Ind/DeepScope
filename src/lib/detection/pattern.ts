@@ -2,6 +2,19 @@ import type { DetectionPatternType } from './types';
 
 /** Native patterns compiled on demand for packaged matcher descriptors. */
 const compiledPatterns = new WeakMap<object, RegExp>();
+let packagedCompileCount = 0;
+let packagedCacheHitCount = 0;
+
+/** Cumulative worker-local native-pattern activity without retaining pattern keys. */
+export interface DetectionPatternCacheStats {
+	readonly packagedCompileCount: number;
+	readonly packagedCacheHitCount: number;
+}
+
+/** Return cumulative packaged-pattern activity for runtime diagnostics and benchmarks. */
+export function getDetectionPatternCacheStats(): DetectionPatternCacheStats {
+	return { packagedCompileCount, packagedCacheHitCount };
+}
 
 /** Return true when a value has the source/flags shape used by detection patterns. */
 export function isDetectionPattern(value: unknown): value is DetectionPatternType {
@@ -33,10 +46,14 @@ export function getDetectionRegExp(pattern: DetectionPatternType): RegExp {
 
 	const key = pattern as object;
 	const cached = compiledPatterns.get(key);
-	if (cached) return cached;
+	if (cached) {
+		packagedCacheHitCount += 1;
+		return cached;
+	}
 
 	const compiled = new RegExp(pattern.source, pattern.flags);
 	compiledPatterns.set(key, compiled);
+	packagedCompileCount += 1;
 	return compiled;
 }
 

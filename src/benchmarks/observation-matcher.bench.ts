@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { bench, do_not_optimize, summary } from 'mitata';
 
 import type { DetectionRule, TechnologyDefinition } from '@/lib/detection/types';
 import { matchObservationBatch } from '@/lib/detection/observation-matcher';
@@ -15,14 +15,6 @@ const LARGE_REGISTRY_SIZE = 1_000;
 
 /** Number of rule groups per generated technology. */
 const RULE_GROUPS_PER_TECHNOLOGY = 4;
-
-/** Vitest benchmark settings tuned for stable local comparison without huge CI cost. */
-const BENCHMARK_OPTIONS = {
-	time: 1_000,
-	warmupTime: 250,
-	iterations: 64,
-	warmupIterations: 16,
-} as const;
 
 /** Workload names measured by the observation matcher benchmark. */
 const OBSERVATION_MATCHER_WORKLOADS = ['common', 'adversarial'] as const;
@@ -46,18 +38,9 @@ interface ObservationMatcherScenario {
 	readonly batch: ObservationBatch;
 }
 
-/**
- * Observable benchmark sink.
- *
- * Tinybench does not expose Mitata's `do_not_optimize()`. Writing the measured
- * result into module state gives the benchmark body a visible side effect so the
- * matcher call cannot collapse into an unused pure expression.
- */
-let consumedMatchCount = 0;
-
-/** Consume benchmark output through a visible side effect. */
+/** Keep the measured result observable to the JIT. */
 function consumeMatchCount(count: number): void {
-	consumedMatchCount = (consumedMatchCount + count) % Number.MAX_SAFE_INTEGER;
+	do_not_optimize(count);
 }
 
 /**
@@ -125,32 +108,30 @@ function createObservationMatcherScenario(workload: ObservationMatcherWorkload):
 
 const scenarios = OBSERVATION_MATCHER_WORKLOADS.map(createObservationMatcherScenario);
 
-describe('observation matcher', () => {
-	for (const scenario of scenarios) {
-		describe(`${scenario.workload} large registry`, () => {
-			bench('sequential', () => {
-				consumeMatchCount(matchObservationBatch({
-					registry: scenario.registry,
-					batch: scenario.batch,
-				}).matches.length);
-			}, BENCHMARK_OPTIONS);
-
-			bench('indexed', () => {
-				consumeMatchCount(matchIndexedObservationBatch({
-					registry: scenario.registry,
-					batch: scenario.batch,
-					index: scenario.index,
-				}).matches.length);
-			}, BENCHMARK_OPTIONS);
-
-			bench('indexed initial-pass disabled URL surfaces', () => {
-				consumeMatchCount(matchIndexedObservationBatch({
-					registry: scenario.registry,
-					batch: scenario.batch,
-					index: scenario.index,
-					options: { disabledKinds: INITIAL_DISABLED_KINDS },
-				}).matches.length);
-			}, BENCHMARK_OPTIONS);
+for (const scenario of scenarios) {
+	summary(() => {
+		bench(`${scenario.workload} / sequential`, () => {
+			consumeMatchCount(matchObservationBatch({
+				registry: scenario.registry,
+				batch: scenario.batch,
+			}).matches.length);
 		});
-	}
-});
+
+		bench(`${scenario.workload} / indexed`, () => {
+			consumeMatchCount(matchIndexedObservationBatch({
+				registry: scenario.registry,
+				batch: scenario.batch,
+				index: scenario.index,
+			}).matches.length);
+		});
+
+		bench(`${scenario.workload} / indexed initial-pass disabled URL surfaces`, () => {
+			consumeMatchCount(matchIndexedObservationBatch({
+				registry: scenario.registry,
+				batch: scenario.batch,
+				index: scenario.index,
+				options: { disabledKinds: INITIAL_DISABLED_KINDS },
+			}).matches.length);
+		});
+	});
+}

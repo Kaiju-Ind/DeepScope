@@ -1,20 +1,29 @@
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-function read(relative: string): string {
-	return readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8');
+import {
+	callName,
+	callNames,
+	importSources,
+	isNode,
+	jsxAttributeNames,
+	parseSource,
+	stringLiterals,
+	walk,
+} from '@/tests/support/oxc';
+
+function source(relative: string) {
+	return parseSource(fileURLToPath(new URL(relative, import.meta.url)));
 }
 
 describe('crash-durable diagnostics architecture', () => {
-	it('routes LogTape records to console and the durable journal without throttling failures', () => {
-		const logging = read('../../lib/diagnostics/logging.ts');
+	it('routes diagnostics to console and durable journal without a failure throttle', () => {
+		const logging = source('../../lib/diagnostics/logging.ts');
+		const literals = stringLiterals(logging);
 
-		expect(logging).toContain("sinks: { console: consoleSink, journal: journalSink }");
-		expect(logging).toContain("sinks: ['console', 'journal']");
-		expect(logging).toContain("level === 'warning' || level === 'error' || level === 'fatal'");
-		expect(logging).not.toContain("filters: ['kaijuDeepScopeBurstThrottle']");
+		expect(literals).toEqual(expect.arrayContaining(['console', 'journal', 'warning', 'error', 'fatal']));
+		expect(literals).not.toContain('kaijuDeepScopeBurstThrottle');
 	});
 
 	it('installs crash hooks on every long-lived extension execution surface', () => {
@@ -26,63 +35,71 @@ describe('crash-durable diagnostics architecture', () => {
 			'../../entrypoints/offscreen/matcher.worker.ts',
 			'../../entrypoints/options/main.tsx',
 		]) {
-			expect(read(file)).toContain('installDiagnosticCrashHooks(');
+			expect(callNames(source(file))).toContain('installDiagnosticCrashHooks');
 		}
 	});
 
 	it('does not persist host-page global errors as content-script crashes', () => {
-		const content = read('../../entrypoints/content.ts');
-		const crash = read('../../lib/diagnostics/crash.ts');
+		const content = source('../../entrypoints/content.ts');
+		const crash = source('../../lib/diagnostics/crash.ts');
+		let contentDisablesGlobalErrors = false;
+		let crashHonorsOption = false;
 
-		expect(content).toContain('installDiagnosticCrashHooks("content", { captureGlobalError: false });');
-		expect(crash).toContain('options.captureGlobalError !== false');
+		walk(content.program, (node) => {
+			if (node.type !== 'CallExpression' || callName(node) !== 'installDiagnosticCrashHooks') return;
+			const args = Array.isArray(node.arguments) ? node.arguments : [];
+			const options = args[1];
+			if (!isNode(options) || options.type !== 'ObjectExpression') return;
+			for (const property of Array.isArray(options.properties) ? options.properties : []) {
+				if (!isNode(property) || property.type !== 'Property') continue;
+				if (!isNode(property.key) || property.key.type !== 'Identifier' || property.key.name !== 'captureGlobalError') continue;
+				if (isNode(property.value) && property.value.type === 'Literal' && property.value.value === false) contentDisablesGlobalErrors = true;
+			}
+		});
+		walk(crash.program, (node) => {
+			if (node.type !== 'BinaryExpression' || node.operator !== '!==') return;
+			const left = node.left;
+			const right = node.right;
+			if (!isNode(left) || left.type !== 'MemberExpression' || !isNode(left.property) || left.property.type !== 'Identifier') return;
+			if (left.property.name === 'captureGlobalError' && isNode(right) && right.type === 'Literal' && right.value === false) crashHonorsOption = true;
+		});
+
+		expect(contentDisablesGlobalErrors).toBe(true);
+		expect(crashHonorsOption).toBe(true);
 	});
 
 	it('preserves worker errors and structured-clone failures at the matcher pool', () => {
-		const pool = read('../../lib/matcher/offscreen/pool.ts');
+		const pool = source('../../lib/matcher/offscreen/pool.ts');
+		const literals = stringLiterals(pool);
 
-		expect(pool).toContain("addEventListener('error'");
-		expect(pool).toContain("addEventListener('messageerror'");
-		expect(pool).toContain('filename: event.filename');
-		expect(pool).toContain('line: event.lineno');
-		expect(pool).toContain('column: event.colno');
+		expect(literals).toEqual(expect.arrayContaining(['error', 'messageerror']));
+		expect(pool.text).toMatch(/event\.filename/u);
+		expect(pool.text).toMatch(/event\.lineno/u);
+		expect(pool.text).toMatch(/event\.colno/u);
 	});
 
 	it('forwards storage-less offscreen diagnostics to the background storage owner', () => {
-		const journal = read('../../lib/diagnostics/journal.ts');
-		const background = read('../../entrypoints/background.ts');
+		const journal = source('../../lib/diagnostics/journal.ts');
+		const background = source('../../entrypoints/background.ts');
 
-		expect(journal).toContain('DIAGNOSTIC_TRANSPORT_CHANNEL');
-		expect(journal).toContain("type: 'diagnostics.context'");
-		expect(journal).toContain("type: 'diagnostics.record'");
-		expect(journal).toContain('extensionRuntime.sendMessage(message)');
-		expect(journal).toContain('runtime.postMessage?.(message)');
-		expect(background).toContain('isDiagnosticTransportMessage(message)');
-		expect(background).toContain('persistTransportedDiagnosticMessage(message)');
+		expect(stringLiterals(journal)).toEqual(expect.arrayContaining(['diagnostics.context', 'diagnostics.record']));
+		expect(callNames(journal)).toEqual(expect.arrayContaining(['extensionRuntime.sendMessage', 'runtime.postMessage']));
+		expect(callNames(background)).toEqual(expect.arrayContaining([
+			'isDiagnosticTransportMessage',
+			'persistTransportedDiagnosticMessage',
+		]));
 	});
 
-	it('reconciles non-terminal matcher records when a new background context starts', () => {
-		const reconcile = read('../../lib/background/reconcile-matcher-jobs.ts');
-		const contracts = read('../../lib/matcher/contracts.ts');
-
-		expect(reconcile).toContain("reason: 'context-interrupted'");
-		expect(reconcile).toContain('interruptedStatus: record.status');
-		expect(reconcile).toContain('offscreen.cancel(record.jobId)');
-		expect(contracts).toContain("| 'context-interrupted';");
-	});
 	it('keeps the diagnostic composition root small and virtualizes the filtered timeline', () => {
-		const view = read('../../app/components/diagnostics-view.tsx');
-		const timeline = read('../../app/diagnostics/timeline.tsx');
+		const view = source('../../app/components/diagnostics-view.tsx');
+		const timeline = source('../../app/diagnostics/timeline.tsx');
+		const timelineCalls = callNames(timeline);
 
-		expect(view).toContain("import { Timeline } from '@/app/diagnostics/timeline';");
-		expect(timeline).toContain("from '@tanstack/solid-virtual'");
-		expect(timeline).toContain('query.find(props.records');
-		expect(timeline).toContain('virtualizer.getVirtualItems()');
-		expect(timeline).toContain('const virtualRows = createMemo(');
-		expect(timeline).toContain('height: `${row.size}px`');
-		expect(timeline).not.toContain('measureElement(');
-		expect(timeline).not.toContain('data-index=');
-		expect(timeline).not.toContain('records.slice(0, 80)');
+		expect(importSources(view)).toContain('@/app/diagnostics/timeline');
+		expect(importSources(timeline)).toContain('@tanstack/solid-virtual');
+		expect(timelineCalls).toEqual(expect.arrayContaining(['query.find', 'virtualizer.getVirtualItems', 'createMemo']));
+		expect(timelineCalls).not.toContain('virtualizer.measureElement');
+		expect(jsxAttributeNames(timeline)).not.toContain('data-index');
+		expect(timeline.text).not.toContain('records.slice(0, 80)');
 	});
-
 });

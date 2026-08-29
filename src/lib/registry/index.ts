@@ -61,11 +61,8 @@ export {
 	normalizePackagedRegistryObservationKind,
 	renderPackagedRegistryJson,
 } from './packaged-artifacts';
-export {
-	createPackagedMatcherTechnologyRegistryProvider,
-	createPackagedRuntimeTechnologyRegistryProvider,
-	createPackagedTechnologyRegistryProvider,
-} from './packaged-provider';
+export { createPackagedMatcherTechnologyRegistryProvider } from './packaged-matcher';
+export { createPackagedRuntimeTechnologyRegistryProvider } from './packaged-runtime';
 export { createPrecompiledTechnologyRegistryProvider } from './precompiled-artifact';
 
 export type { CompiledMatcherRegistryArtifact } from './matcher-artifact';

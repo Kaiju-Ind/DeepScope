@@ -1,40 +1,23 @@
-import { afterAll, bench, describe } from 'vitest';
+import { bench, do_not_optimize } from 'mitata';
 
 import {
 	createCuratedRuleProfileCases,
 	createGeneratedRuleMissCases,
 	createGeneratedRulePassCases,
 	createPayloadScanCases,
-	findRuleProfileBudgetViolations,
-	findRuleProfileExpectationMismatches,
-	formatRuleTimingRecord,
+	evaluateRuleProfileCase,
 	makeNextHydrationPayload,
 	makeReactRouterHydrationPayload,
-	profileRuleCase,
-	getRuleProfileBudgets,
-	recordSlowRule,
 	summarizeRuleProfileCoverage,
 	type RuleProfileCase,
-	type RuleTimingRecord,
 } from '@/lib/detection/rule-performance-profile';
 import { technologyDefinitions } from '@/registry/technologies';
 import { RULE_PERFORMANCE_FIXTURES } from '../tests/support/rule-performance-fixtures';
 
-const BENCHMARK_OPTIONS = {
-	time: 250,
-	warmupTime: 0,
-	iterations: 1,
-	warmupIterations: 0,
-} as const;
-
 const ENABLE_REGISTRY_WIDE_SCAN = process.env.KAIJU_DEEPSCOPE_RULE_BENCH_REGISTRY_SCAN === '1';
 const ENABLE_GENERATED_PASS_SCAN = process.env.KAIJU_DEEPSCOPE_RULE_BENCH_GENERATED_PASS_SCAN === '1';
 const registry = technologyDefinitions;
-const budgets = getRuleProfileBudgets(process.env);
-const curatedCases = createCuratedRuleProfileCases({
-	registry,
-	fixtures: RULE_PERFORMANCE_FIXTURES,
-});
+const curatedCases = createCuratedRuleProfileCases({ registry, fixtures: RULE_PERFORMANCE_FIXTURES });
 const generatedMissCases = createGeneratedRuleMissCases(registry);
 const generatedPassCases = createGeneratedRulePassCases(registry);
 const coverage = summarizeRuleProfileCoverage({
@@ -44,127 +27,66 @@ const coverage = summarizeRuleProfileCoverage({
 	curatedFixtures: RULE_PERFORMANCE_FIXTURES,
 });
 
-let consumedMatchState = 0;
-const slowestByKey = new Map<string, RuleTimingRecord>();
+/** Consume semantic results so the benchmark cannot discard the matcher work. */
+function consume(value: number): void {
+	do_not_optimize(value);
+}
 
-describe('rule detection profile', () => {
-	describe('curated passing and failing samples', () => {
-		for (const profileCase of curatedCases) {
-			bench(profileCase.scenario, () => {
-				consumeProfiledCase(profileCase);
-			}, BENCHMARK_OPTIONS);
-		}
-	});
-
-	describe('registry-wide generated misses', () => {
-		bench(`generated miss coverage across ${generatedMissCases.length} registry rules`, () => {
-			consumeProfiledCases(generatedMissCases);
-		}, BENCHMARK_OPTIONS);
-	});
-
-	if (ENABLE_GENERATED_PASS_SCAN) {
-		describe('registry-wide generated passes', () => {
-			bench(`generated pass coverage across ${generatedPassCases.length} structural registry rules`, () => {
-				consumeProfiledCases(generatedPassCases);
-			}, BENCHMARK_OPTIONS);
-		});
-	}
-
-	if (ENABLE_REGISTRY_WIDE_SCAN) {
-		describe('registry-wide failing hydration scans', () => {
-			const reactRouterHydrationMissCases = createPayloadScanCases({
-				registry,
-				scenario: 'react-router-hydration-miss',
-				payload: makeReactRouterHydrationPayload(),
-			});
-			const nextHydrationMissCases = createPayloadScanCases({
-				registry,
-				scenario: 'next-hydration-miss',
-				payload: makeNextHydrationPayload(),
-			});
-
-			bench(`React Router hydration miss across ${reactRouterHydrationMissCases.length} content rules`, () => {
-				consumeProfiledCases(reactRouterHydrationMissCases);
-			}, BENCHMARK_OPTIONS);
-
-			bench(`Next hydration miss across ${nextHydrationMissCases.length} content rules`, () => {
-				consumeProfiledCases(nextHydrationMissCases);
-			}, BENCHMARK_OPTIONS);
-		});
-	}
-});
-
-afterAll(() => {
-	const slowest = [...slowestByKey.values()]
-		.sort((left, right) => right.durationMs - left.durationMs)
-		.slice(0, budgets.reportLimit);
-	const records = [...slowestByKey.values()];
-	const expectationMismatches = findRuleProfileExpectationMismatches(records)
-		.slice(0, budgets.reportLimit);
-	const budgetViolations = findRuleProfileBudgetViolations(records, budgets)
-		.slice(0, budgets.reportLimit);
-
-	console.log('\n[kaiju-deepscope][rule-profile] coverage');
-	console.log([
-		`technologies=${coverage.technologyCount}`,
-		`rules=${coverage.ruleCount}`,
-		`generatedMissCases=${coverage.generatedMissCaseCount}`,
-		`generatedMissUncoveredRules=${coverage.generatedMissUncoveredRuleCount}`,
-		`generatedPassCases=${coverage.generatedPassCaseCount}`,
-		`generatedPassUncoveredRules=${coverage.generatedPassUncoveredRuleCount}`,
-		`curatedFixtures=${coverage.curatedFixtureCount}`,
-		`passBudgetMs=${budgets.passBudgetMs}`,
-		`missBudgetMs=${budgets.missBudgetMs}`,
-		`failOnBudget=${budgets.failOnBudget}`,
-	].join(' '));
-
-	if (slowest.length > 0) {
-		console.log('\n[kaiju-deepscope][rule-profile] slowest rule evaluations');
-		for (const record of slowest) {
-			console.log(formatRuleTimingRecord(record));
-		}
-	}
-
-	if (expectationMismatches.length > 0) {
-		console.log('\n[kaiju-deepscope][rule-profile] expectation mismatches');
-		for (const record of expectationMismatches) {
-			console.log(formatRuleTimingRecord(record));
-		}
-		throw new Error(`Rule profile expectations failed for ${expectationMismatches.length} evaluated rules.`);
-	}
-
-	if (budgetViolations.length === 0) {
-		return;
-	}
-
-	console.log('\n[kaiju-deepscope][rule-profile] budget violations');
-	for (const record of budgetViolations) {
-		console.log(formatRuleTimingRecord(record));
-	}
-
-	if (budgets.failOnBudget) {
-		throw new Error(`Rule performance budget exceeded by ${budgetViolations.length} profiled evaluations.`);
-	}
-});
-
-function consumeProfiledCases(cases: readonly RuleProfileCase[]): void {
-	let matchCount = 0;
+/** Evaluate a fixed case set once. Mitata owns timing, warmup, and sampling policy. */
+function evaluate(cases: readonly RuleProfileCase[]): void {
+	let matches = 0;
 	for (const profileCase of cases) {
-		const record = profileRuleCase(profileCase, { samples: 5, warmup: 1 });
-		recordSlowRule(slowestByKey, record);
-		if (record.matched) {
-			matchCount += 1;
-		}
+		if (evaluateRuleProfileCase(profileCase)) matches += 1;
 	}
-	consumeMatchState(matchCount);
+	consume(matches);
 }
 
-function consumeProfiledCase(profileCase: RuleProfileCase): void {
-	const record = profileRuleCase(profileCase, { samples: 5, warmup: 1 });
-	recordSlowRule(slowestByKey, record);
-	consumeMatchState(record.matched ? 1 : 0);
+/**
+ * Measure semantic rule evaluation without nesting another wall-clock profiler.
+ *
+ * Correctness belongs to `rule-performance-fixtures.test.ts`. This file only
+ * measures representative matcher work, so workstation timing noise cannot turn
+ * a semantic regression test red or double-count warmup/sample loops.
+ */
+for (const profileCase of curatedCases) {
+	bench(`curated / ${profileCase.scenario}`, () => evaluate([profileCase]));
 }
 
-function consumeMatchState(value: number): void {
-	consumedMatchState = (consumedMatchState + value) % Number.MAX_SAFE_INTEGER;
+bench(`generated misses across ${generatedMissCases.length} registry rules`, () => {
+	evaluate(generatedMissCases);
+});
+
+if (ENABLE_GENERATED_PASS_SCAN) {
+	bench(`generated passes across ${generatedPassCases.length} structural rules`, () => {
+		evaluate(generatedPassCases);
+	});
 }
+
+if (ENABLE_REGISTRY_WIDE_SCAN) {
+	const reactRouterCases = createPayloadScanCases({
+		registry,
+		scenario: 'react-router-hydration-miss',
+		payload: makeReactRouterHydrationPayload(),
+	});
+	const nextCases = createPayloadScanCases({
+		registry,
+		scenario: 'next-hydration-miss',
+		payload: makeNextHydrationPayload(),
+	});
+
+	bench(`React Router hydration miss across ${reactRouterCases.length} content rules`, () => {
+		evaluate(reactRouterCases);
+	});
+	bench(`Next hydration miss across ${nextCases.length} content rules`, () => {
+		evaluate(nextCases);
+	});
+}
+
+
+console.log('[kaiju-deepscope][rule-benchmark] coverage', {
+	technologies: coverage.technologyCount,
+	rules: coverage.ruleCount,
+	generatedMissCases: coverage.generatedMissCaseCount,
+	generatedPassCases: coverage.generatedPassCaseCount,
+	curatedFixtures: coverage.curatedFixtureCount,
+});

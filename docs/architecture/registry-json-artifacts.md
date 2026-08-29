@@ -16,60 +16,56 @@ The cache copy under `.wxt/kaiju-deepscope-registry` gives maintainers a predict
 
 ## Generated files
 
-```txt
-registry.enrichment.json
-  Complete TypeScript-authored registry with regular expressions encoded as JSON records.
+The WXT build cache contains several products because tests and benchmarks still need to compare compile-time representations. The packaged extension is intentionally narrower.
 
-registry.manifest.json
-  Per-observation-kind shard index with each shard path, rule count, technology count, and scheduler priority.
+```text
+build cache
+  registry.bootstrap.json
+  registry.enrichment.json
+  registry.runtime.json
+  registry.manifest.json
+  registry.metadata.json
+  registry.relationships.json
+  registry.kind.<kind>.json
 
-registry.kind.<kind>.json
-  Matcher shard for one observation kind, such as scriptSrc, resourceUrl, meta, dom, htmlMatch, or header.
-
-registry.bootstrap.json
-  Compatibility artifact retained for tests and benchmarks that compare the older fast-path model.
-
-registry.metadata.json
-  Lightweight technology metadata and rule-kind counts.
-
-registry.relationships.json
-  Relationship edges used to inspect graph shape without loading full rules.
+packaged Chrome runtime
+  registry.runtime.json
+  registry.kind.<kind>.json
 ```
 
-Regular expressions cannot survive normal JSON serialization. The artifact encoder writes them as explicit records containing source and flags, then the runtime hydrator rebuilds `RegExp` values before compiling the in-memory matcher, graph, and collection plan.
+`registry.runtime.json` is rule-free. It contains technology profiles, relationship edges, collection planning, pattern-table summaries, and diagnostics counts needed by the background coordinator.
+
+Each `registry.kind.<kind>.json` contains only matcher technology/rule data for one observation kind plus a build-generated numeric matcher route index. Workers hydrate those references against shared shard objects instead of walking every rule to rebuild route tables at runtime.
+
+Regular expressions are serialized as source/flags records. Worker evaluation compiles them lazily only after matcher routing admits the rule.
 
 ## Runtime path
 
-The background loads the complete registry when fresh analysis needs planning, relationship refinement, or final emission. That keeps collection needs and final graph behavior equivalent to the full detector instead of letting a small bootstrap artifact define what evidence can be collected.
-
-```txt
+```text
 background starts
-  -> register listeners
-  -> answer cache-only paths where possible
-  -> fetch registry.enrichment.json when fresh analysis needs rules
-  -> compile full collection plan, matcher graph, and final coordinator state
-  -> collect initial observations from the complete plan
-  -> queue observation-kind matcher tasks for the offscreen worker pool
-  -> workers fetch registry.kind.<kind>.json as each kind is matched
-  -> background merges partition progress into snapshot revisions
+  -> register listeners without executable matcher rules
+  -> load registry.runtime.json when analysis planning needs it
+  -> collect observations from the rule-free collection plan
+  -> background scheduler splits observations into kind partitions
+  -> offscreen host executes selected partitions only
+  -> worker fetches registry.kind.<kind>.json on demand
+  -> background accumulates partition results and emits snapshots
 ```
 
-The startup invariant is still the important part: listener registration must not depend on the full registry payload. Fresh analysis can pay the JSON parse and compiler cost, but that work happens after a user-invoked analysis request and can be measured separately from service-worker cold start.
-
-The old bootstrap artifact is no longer the normal visible-tab truth surface. It exists so compatibility tests, benchmarks, and migration comparisons can still prove why the older staged model under-detected compared with the complete registry.
+The complete enrichment/bootstrap products are build/test inputs, not browser-runtime compatibility APIs. Production code should not regain a `getCompiledRegistry()` path merely because those generated cache files exist.
 
 ## Validation targets
 
-A healthy build should prove these facts:
+A healthy build should prove:
 
-```txt
-.wxt/kaiju-deepscope-registry/registry.manifest.json exists after WXT prepare
-.wxt/kaiju-deepscope-registry/registry.kind.<kind>.json exists for every observation kind
-.output/<target>/kaiju-deepscope-registry/*.json exists after WXT build
-background entrypoint no longer imports #/compiled-registry
-packaged registry hydration preserves detector order and regular expressions
-observation-kind shards only contain rules that can receive that kind
-visible-tab analysis plans from the complete registry, not registry.bootstrap.json
+```text
+.wxt/kaiju-deepscope-registry contains validation/build-cache products
+.output/<target>/kaiju-deepscope-registry contains only runtime + kind shards
+background dependency graph does not reach build Registry products
+matcher worker is the only runtime that loads matcher kind shards
+packaged route hydration is behaviorally equivalent to the reference index builder
+kind shards contain only rules routable from that observation kind
+headless background/offscreen/worker graphs do not reach Solid/UI modules
 ```
 
-The benchmark `src/benchmarks/registry-json-hydration.bench.ts` compares packaged JSON parse and hydration against the previous in-memory registry compilation baseline. It does not claim the JSON path is faster. It measures the cost accepted in order to keep the background startup bundle smaller.
+The benchmark `src/benchmarks/matcher-shard-hydration.bench.ts` compares build-routed shard hydration with the superseded runtime route-reconstruction path. It measures only route/shard setup. Browser fetch and native RegExp costs remain separate measurements.

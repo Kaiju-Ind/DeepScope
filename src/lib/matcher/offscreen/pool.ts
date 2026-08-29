@@ -12,124 +12,89 @@ import type {
 
 const logger = logging.get('offscreen', 'matcher-pool');
 
-/** Callback surface owned by the offscreen host rather than individual worker slots. */
-export type PoolOptionsType = {
-	/** Return true when the background canceled a job while its partition was running. */
-	readonly isCanceled: (jobId: string) => boolean;
-	/** Publish a completed partition before the complete job settles. */
-	readonly onPartition: (
-		partition: MatcherPartitionResult,
-		completedPartitionCount: number,
-		partitionCount: number,
-	) => Promise<void>;
-};
-
-/** Shared dedicated-worker pool that executes matcher partitions in parallel. */
+/** Shared dedicated-worker pool that executes scheduler-selected partitions. */
 export class Pool {
 	/** Fixed worker slots owned for the complete lifetime of this hot pool. */
 	readonly #workers: Slot[];
-	/** Host callbacks used for cancellation and progressive partition publication. */
-	readonly #options: PoolOptionsType;
-	/** Stable shard owner retained while this hot pool exists. */
-	readonly #workerIndexByKind = new Map<MatcherPartitionTask['kind'], number>();
 
-	constructor(workerCount: number, options: PoolOptionsType) {
+	constructor(workerCount: number) {
 		this.#workers = Array.from({ length: Math.max(1, workerCount) }, (_item, index) => new Slot(index));
-		this.#options = options;
 	}
 
-	/**
-	 * Run one job while keeping every observation kind on one worker heap.
-	 *
-	 * Heavy kinds such as `scriptSrc` and `jsGlobal` dominate matcher residency.
-	 * Assigning adjacent partitions to arbitrary workers can load the same large
-	 * shard into multiple isolates. Kind affinity keeps one shard owner per job,
-	 * while independent kinds can still use separate workers concurrently.
-	 */
-	async run(tasks: readonly MatcherPartitionTask[]): Promise<number> {
-		const assignments = assignByKind(tasks, this.#workers.length, this.#workerIndexByKind);
-		let completedPartitionCount = 0;
+	/** Number of partitions that can execute concurrently. */
+	get capacity(): number {
+		return this.#workers.length;
+	}
 
-		await Promise.all(this.#workers.map(async (worker, workerIndex) => {
-			for (const task of assignments[workerIndex] ?? []) {
-				if (this.#options.isCanceled(task.job.jobId)) continue;
-				const result = await worker.run(task);
-				if (this.#options.isCanceled(task.job.jobId)) continue;
-				completedPartitionCount += 1;
-				await this.#options.onPartition(result, completedPartitionCount, tasks.length);
-			}
-		}));
+	/** Execute one partition on the physical worker slot selected by the background scheduler. */
+	run(task: MatcherPartitionTask, workerIndex: number): Promise<MatcherPartitionResult> {
+		const worker = this.#workers[workerIndex];
+		if (!worker) return Promise.reject(new Error(`Matcher worker index is outside pool capacity: ${workerIndex}.`));
+		return worker.run(task);
+	}
 
-		return completedPartitionCount;
+	/** Cancel only worker slots currently executing the selected job. */
+	cancelJob(jobId: string, reason: Error | string = 'Matcher job was canceled.'): number {
+		return this.#cancel((task) => task.job.jobId === jobId, reason);
+	}
+
+	/** Cancel only worker slots currently executing work for one browser tab. */
+	cancelTab(tabId: number, reason: Error | string = 'Matcher tab work was canceled.'): number {
+		return this.#cancel((task) => task.job.tabId === tabId, reason);
 	}
 
 	/** Terminate every worker and reject any partition still owned by a slot. */
 	dispose(reason: Error | string = 'Matcher worker pool was disposed.'): void {
-		this.#workerIndexByKind.clear();
 		for (const worker of this.#workers) worker.dispose(reason);
 	}
-}
 
-/** Assign all partitions of one kind to the least-loaded worker. */
-function assignByKind(
-	tasks: readonly MatcherPartitionTask[],
-	workerCount: number,
-	workerIndexByKind: Map<MatcherPartitionTask['kind'], number>,
-): readonly MatcherPartitionTask[][] {
-	const assignments = Array.from({ length: workerCount }, () => [] as MatcherPartitionTask[]);
-	const load = Array.from({ length: workerCount }, () => 0);
-	const groups = new Map<MatcherPartitionTask['kind'], MatcherPartitionTask[]>();
-
-	for (const task of tasks) {
-		const group = groups.get(task.kind) ?? [];
-		group.push(task);
-		groups.set(task.kind, group);
-	}
-
-	for (const [kind, group] of groups) {
-		let workerIndex = workerIndexByKind.get(kind);
-		if (workerIndex === undefined || workerIndex >= workerCount) {
-			workerIndex = 0;
-			for (let index = 1; index < load.length; index += 1) {
-				if (load[index]! < load[workerIndex]!) workerIndex = index;
-			}
-			workerIndexByKind.set(kind, workerIndex);
+	/** Cancel matching slots. The background scheduler owns all shard-affinity state. */
+	#cancel(predicate: (task: MatcherPartitionTask) => boolean, reason: Error | string): number {
+		let count = 0;
+		for (const worker of this.#workers) {
+			if (worker.cancel(predicate, reason)) count += 1;
 		}
-
-		assignments[workerIndex]!.push(...group);
-		load[workerIndex] = load[workerIndex]! + group.reduce((total, task) => total + task.batch.observations.length, 0);
+		return count;
 	}
-
-	return assignments;
 }
 
 /** Dedicated worker slot that owns at most one in-flight partition Promise. */
 class Slot {
-	/** Dedicated worker whose heap owns one bounded registry-shard cache. */
-	readonly #worker: Worker;
 	/** Stable slot ordinal used only for diagnostics and worker naming. */
 	readonly #index: number;
 	readonly #diagnosticListener = (event: MessageEvent<unknown>): void => {
 		if (!isDiagnosticTransportMessage(event.data)) return;
 		forwardDiagnostic(event.data);
 	};
-	/** Reject callback for the one partition currently owned by this slot. */
+	#worker: Worker;
+	#activeTask: MatcherPartitionTask | undefined;
 	#activeReject: ((error: Error) => void) | undefined;
+	#disposed = false;
 
 	constructor(index: number) {
 		this.#index = index;
-		this.#worker = new Worker(
-			new URL('../../../entrypoints/offscreen/matcher.worker.ts', import.meta.url),
-			{ type: 'module', name: `kaiju-deepscope-matcher-${index}` },
-		);
-		this.#worker.addEventListener('message', this.#diagnosticListener);
+		this.#worker = this.#createWorker();
+	}
+
+	/** Whether this slot currently owns a partition. */
+	get busy(): boolean {
+		return this.#activeTask !== undefined;
 	}
 
 	/** Dispatch one partition and own its temporary message/error listeners until settlement. */
 	run(task: MatcherPartitionTask): Promise<MatcherPartitionResult> {
+		if (this.#disposed) return Promise.reject(new Error('Matcher worker slot is disposed.'));
+		if (this.#activeTask) return Promise.reject(new Error(`Matcher worker ${this.#index} already owns a partition.`));
+		this.#activeTask = task;
+
 		return new Promise((resolve, reject) => {
 			let cleanup = (): void => undefined;
-			const fail = (error: Error, event: string, details: Record<string, unknown> = {}): void => {
+			const fail = (
+				error: Error,
+				event: string,
+				details: Record<string, unknown> = {},
+				replaceWorker = false,
+			): void => {
 				cleanup();
 				logger.error(event, {
 					error,
@@ -140,6 +105,7 @@ class Slot {
 					...details,
 				});
 				reject(error);
+				if (replaceWorker) this.#replaceWorker();
 			};
 			const onMessage = (event: MessageEvent<MatcherWorkerResponseMessage | DiagnosticTransportMessage>): void => {
 				if (isDiagnosticTransportMessage(event.data)) return;
@@ -156,12 +122,16 @@ class Slot {
 				event.error instanceof Error ? event.error : new Error(event.message || 'Matcher worker failed.'),
 				'Matcher worker JavaScript error.',
 				{ filename: event.filename, line: event.lineno, column: event.colno },
+				true,
 			);
 			const onMessageError = (): void => fail(
 				new Error('Matcher worker returned a message that could not be deserialized.'),
 				'Matcher worker message deserialization failed.',
+				{},
+				true,
 			);
 			cleanup = (): void => {
+				this.#activeTask = undefined;
 				this.#activeReject = undefined;
 				this.#worker.removeEventListener('message', onMessage);
 				this.#worker.removeEventListener('error', onError);
@@ -184,12 +154,41 @@ class Slot {
 		});
 	}
 
+	/** Terminate and recreate this worker only when its active task matches cancellation. */
+	cancel(predicate: (task: MatcherPartitionTask) => boolean, reason: Error | string): boolean {
+		if (!this.#activeTask || !predicate(this.#activeTask)) return false;
+		const error = reason instanceof Error ? reason : new Error(reason);
+		this.#activeReject?.(error);
+		this.#replaceWorker();
+		return true;
+	}
+
 	/** End this worker's heap and reject the partition that still owns the slot. */
 	dispose(reason: Error | string = 'Matcher worker was disposed.'): void {
+		if (this.#disposed) return;
+		this.#disposed = true;
 		this.#activeReject?.(reason instanceof Error ? reason : new Error(reason));
+		this.#activeTask = undefined;
 		this.#activeReject = undefined;
 		this.#worker.removeEventListener('message', this.#diagnosticListener);
 		this.#worker.terminate();
+	}
+
+	/** Create one isolated matcher worker and attach the persistent diagnostic bridge. */
+	#createWorker(): Worker {
+		const worker = new Worker(
+			new URL('../../../entrypoints/offscreen/matcher.worker.ts', import.meta.url),
+			{ type: 'module', name: `kaiju-deepscope-matcher-${this.#index}` },
+		);
+		worker.addEventListener('message', this.#diagnosticListener);
+		return worker;
+	}
+
+	/** Replace a canceled worker so unrelated job partitions can continue on this slot. */
+	#replaceWorker(): void {
+		this.#worker.removeEventListener('message', this.#diagnosticListener);
+		this.#worker.terminate();
+		if (!this.#disposed) this.#worker = this.#createWorker();
 	}
 }
 

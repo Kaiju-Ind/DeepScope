@@ -60,7 +60,7 @@ The current permission model supports both automatic and manual analysis:
 - `host_permissions` for `http://*/*` and `https://*/*` allow automatic page-load analysis without requiring a toolbar click first.
 - `activeTab` remains available for explicit toolbar-driven interaction and compatibility with the manual flow.
 - `scripting` is used for runtime content-script injection and MAIN-world JavaScript-global probing.
-- `storage` persists normalized analysis, redacted replay traces, matcher lifecycle state, the bounded diagnostic journal, and extension preferences.
+- `storage` persists normalized analysis, redacted replay traces, privacy-safe matcher lifecycle summaries, the bounded diagnostic journal, and extension preferences.
 - `sidePanel` hosts one persistent window-scoped analysis UI. The mounted panel follows active-tab changes in its own browser window instead of creating a different panel instance for each tab.
 - `offscreen` owns the local matcher host so heavier registry matching does not block the panel or depend on service-worker memory.
 - `clipboardWrite` is used only after the user presses **Copy report** on Diagnostics. The extension does not read clipboard contents.
@@ -83,12 +83,12 @@ Run the extension in Chrome and verify:
 - Open a technology result and confirm raw evidence is available on its detail route instead of being repeated across every result row.
 - Open **Diagnostics**, copy a report, and confirm it includes build identity, current extension contexts, recent context runs, matcher lifecycle state, and recent warnings/errors.
 - Open the extension options page and confirm Diagnostics works without mounting the detector state owner.
-- End a background context during non-terminal matcher work, then reopen the extension and confirm the job is reconciled as `context-interrupted` with its previous matcher state retained.
+- End a background context during non-terminal matcher work, then reopen the extension. Confirm the orphaned lifecycle record becomes `context-interrupted`, the previous matcher status is retained only as diagnostic history, and an exact still-open document is recollected as new recovery work instead of resuming the lost in-memory batch.
 - Dirty refresh does not append final results blindly. Existing and late observations are evaluated together, so `implies`, `requires`, and `excludes` are recalculated as one candidate graph.
 
 ## Tooling
 
-This repo uses `mise` to pin project tools and `pnpm` for package scripts and dependency management.
+This repo uses `mise` to pin project tools and expose the repository task surface through executable `.mise/tasks/` files. Those tasks delegate to the matching pnpm compatibility scripts, while pnpm continues to own dependency management.
 
 Common commands:
 
@@ -100,10 +100,10 @@ mise run zip
 mise run test
 mise run bench
 mise run bench:rules
-mise run bench:rules:gate
+mise run bench:rules:wide
 ```
 
-`bench:rules` profiles curated pass/fail samples plus generated miss cases across the registry. `bench:rules:gate` also enables generated structural pass cases, high-risk hydration miss scans, and failing budget checks through the rule-profile environment flags. Rule gates use the median of five warmed samples and retain the maximum sample only as diagnostics, so an isolated scheduler or garbage-collection pause does not masquerade as sustained regex cost. Use `KAIJU_DEEPSCOPE_RULE_BENCH_PASS_BUDGET_MS`, `KAIJU_DEEPSCOPE_RULE_BENCH_MISS_BUDGET_MS`, and `KAIJU_DEEPSCOPE_RULE_BENCH_REPORT_LIMIT` when a local machine needs different diagnostic thresholds.
+`bench:rules` measures the curated rule workload. `bench:rules:wide` adds the broader registry scan. Benchmarks use Mitata with manual GC exposed by the Node benchmark runner. They report performance only; correctness remains in the test suite, so machine timing noise cannot turn a semantic test red.
 
 You can also run package scripts directly with pnpm:
 
@@ -116,12 +116,12 @@ pnpm check:release
 pnpm validate:chrome-artifact
 pnpm bench
 pnpm bench:rules
-pnpm bench:rules:gate
+pnpm bench:rules:wide
 ```
 
-`pnpm build` type-checks before WXT emits the default browser build. `pnpm build:chrome` adds a generated-artifact Chromium check after the Chrome build. `pnpm check:release` runs TypeScript, the complete Vitest suite, the Chrome WXT build, and the generated-artifact Chromium check. `pnpm zip:chrome` applies the same source checks before packaging and validates the generated Chrome output. Set `CHROME_BIN` when Chrome or Chromium is not discoverable from the normal platform paths.
+`pnpm build` type-checks before WXT emits the default browser build. `pnpm build:chrome` adds a generated-artifact Chromium check after the Chrome build. `pnpm check:release` runs TypeScript, the complete Vitest suite, the Chrome WXT build, and the generated-artifact Chromium check. `pnpm zip:chrome` applies the same source checks before packaging and validates the generated Chrome output. Set `CHROME_BIN` to Chromium or Chrome for Testing when automatic discovery is unsuitable; current Chrome-branded builds may reject command-line loading of unpacked extensions.
 
-The generated-artifact check is deliberate. It executes the emitted content collector, live observation lifecycle, side-panel analysis model, and the generated side-panel/options entry startup prefixes through their root guards. Source tests and JavaScript syntax checks do not prove that bundling preserved browser globals. The generated UI root-binding startup check specifically rejects errors such as `getElementById is not a function` before a release can pass.
+The generated-artifact check is deliberate. It inspects the emitted Registry and HTML surfaces, requires the emitted content/app validation probes, and loads the generated side-panel/options pages in Chrome through their real extension URLs. Source tests do not prove that bundling preserved browser globals. The startup check specifically rejects root-binding failures such as `getElementById is not a function` before a release can pass.
 
 If you prefer `mise`, it keeps the repo's Node and pnpm versions aligned before you run the package scripts above.
 

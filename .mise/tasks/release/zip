@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Create the validated Chrome release ZIP"
+set -euo pipefail
+exec pnpm release:zip "$@"

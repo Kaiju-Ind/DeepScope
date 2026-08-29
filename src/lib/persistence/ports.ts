@@ -6,7 +6,7 @@ import type {
 import type { AnalysisStatus } from '../detection/types';
 import type { VisibleTabIdentity } from '../messaging/analysis';
 import type { DetectionReplayTrace } from '../pipeline/replay';
-import type { MatcherJobRecord } from '../matcher';
+import type { MatcherJobLifecycleRecord, MatcherJobRecord } from '../matcher';
 
 /** Pointer from a browser tab to one known page-session snapshot. */
 export interface DetectionSessionIndexEntry {
@@ -83,11 +83,11 @@ export interface DetectionPersistenceMaintenance {
 
 /** Matcher-job lifecycle persistence used by background orchestration. */
 export interface MatcherJobStore {
-	saveMatcherJob(record: MatcherJobRecord): Promise<MatcherJobRecord>;
+	saveMatcherJob(record: MatcherJobRecord): Promise<MatcherJobLifecycleRecord>;
 	updateMatcherJob(
 		jobId: string,
-		patch: Partial<Omit<MatcherJobRecord, 'jobId' | 'tabId' | 'expectedUrl' | 'target' | 'createdAt'>>,
-	): Promise<MatcherJobRecord | null>;
+		patch: Partial<Omit<MatcherJobLifecycleRecord, 'schemaVersion' | 'jobId' | 'tabId' | 'windowId' | 'contextId' | 'createdAt'>>,
+	): Promise<MatcherJobLifecycleRecord | null>;
 }
 
 /** Persistence capabilities required by the background analysis runtime. */

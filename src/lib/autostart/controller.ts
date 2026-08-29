@@ -5,6 +5,7 @@ import type {
 	VisibleTabIdentity,
 } from '@/lib/messaging';
 import type { ExtensionResult } from '@/lib/messaging/result';
+import * as generation from '@/utils/generation';
 
 export type AutoScanControllerDependencies = {
 	readonly getEnabled: () => Promise<boolean>;
@@ -16,26 +17,42 @@ export type AutoScanControllerDependencies = {
 export type AutoScanController = {
 	/** Analyze a tab when it is the currently visible page and automatic scanning is enabled. */
 	scanVisibleTab(tabId: number, windowId: number, mode: AnalyzeVisibleTabMode, reason: string): Promise<void>;
+	/** Invalidate an automatic scan that has not yet crossed into scheduler-owned analysis work. */
+	cancelTab(tabId: number): void;
 };
 
+interface InFlightScan {
+	readonly generation: number;
+	readonly task: Promise<void>;
+}
+
 /**
- * Serialize automatic scans per tab so load/activation events cannot enqueue duplicate work.
+ * Serialize automatic scans per tab and reject stale pre-scheduler work.
  *
- * The background API resolves the exact window/tab pair from the browser immediately before analysis.
- * If activation changes while this controller is waiting, the now-inactive target is rejected.
+ * Scheduler/runtime cancellation owns analysis after it is admitted. The local
+ * generation closes the smaller race before admission: a tab can close or
+ * navigate after identity lookup but before `analyzeVisibleTab()` is called.
  */
 export function createAutoScanController(
 	dependencies: AutoScanControllerDependencies,
 ): AutoScanController {
-	const inFlightByTab = new Map<number, Promise<void>>();
+	const inFlightByTab = new Map<number, InFlightScan>();
+	const generations = generation.create<number>();
 
-	async function runVisibleTabScan(tabId: number, windowId: number, mode: AnalyzeVisibleTabMode, reason: string): Promise<void> {
-		if (!(await dependencies.getEnabled())) {
-			dependencies.log?.('auto-scan-disabled', { tabId, reason });
+	async function runVisibleTabScan(
+		tabId: number,
+		windowId: number,
+		mode: AnalyzeVisibleTabMode,
+		reason: string,
+		generation: number,
+	): Promise<void> {
+		if (!(await dependencies.getEnabled()) || !generations.isCurrent(tabId, generation)) {
+			dependencies.log?.('auto-scan-disabled-or-canceled', { tabId, reason });
 			return;
 		}
 
 		const identityResponse = await dependencies.getVisibleTabIdentity({ tabId, windowId });
+		if (!generations.isCurrent(tabId, generation)) return;
 		if (!identityResponse.ok) {
 			dependencies.log?.('auto-scan-target-unavailable', {
 				tabId,
@@ -52,11 +69,13 @@ export function createAutoScanController(
 			mode,
 			reason,
 		});
+		if (!generations.isCurrent(tabId, generation)) return;
 		const response: ExtensionResult<AnalyzeVisibleTabOutput> = await dependencies.analyzeVisibleTab({
 			target: identity,
 			mode,
 			observe: 'none',
 		});
+		if (!generations.isCurrent(tabId, generation)) return;
 		dependencies.log?.(response.ok ? 'auto-scan-queued' : 'auto-scan-failed', {
 			tabId,
 			hostname: identity.hostname,
@@ -70,13 +89,14 @@ export function createAutoScanController(
 
 	return {
 		scanVisibleTab(tabId, windowId, mode, reason) {
+			const currentGeneration = generations.capture(tabId);
 			const existing = inFlightByTab.get(tabId);
-			if (existing) {
+			if (existing?.generation === currentGeneration) {
 				dependencies.log?.('auto-scan-already-in-flight', { tabId, mode, reason });
-				return existing;
+				return existing.task;
 			}
 
-			const task = runVisibleTabScan(tabId, windowId, mode, reason)
+			const task = runVisibleTabScan(tabId, windowId, mode, reason, currentGeneration)
 				.catch((error: unknown) => {
 					dependencies.log?.('auto-scan-threw', {
 						tabId,
@@ -86,12 +106,16 @@ export function createAutoScanController(
 					});
 				})
 				.finally(() => {
-					if (inFlightByTab.get(tabId) === task) {
-						inFlightByTab.delete(tabId);
-					}
+					if (inFlightByTab.get(tabId)?.task === task) inFlightByTab.delete(tabId);
 				});
-			inFlightByTab.set(tabId, task);
+			inFlightByTab.set(tabId, { generation: currentGeneration, task });
 			return task;
+		},
+
+		cancelTab(tabId) {
+			generations.invalidate(tabId);
+			inFlightByTab.delete(tabId);
+			dependencies.log?.('auto-scan-canceled', { tabId });
 		},
 	};
 }

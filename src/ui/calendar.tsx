@@ -1,8 +1,8 @@
-import Calendar from "@corvu/calendar";
+import Calendar, { type RootChildrenProps } from "@corvu/calendar";
 import { getWeek } from "date-fns";
 import ChevronLeft from "~icons/fluent/chevron-left-24-regular";
 import ChevronRight from "~icons/fluent/chevron-right-24-regular";
-import { type ComponentProps, Index, type JSX, mergeProps, Show, splitProps } from "solid-js";
+import { type ComponentProps, Index, type JSX, Match, mergeProps, Show, splitProps, Switch } from "solid-js";
 import { cn } from "@/utils/cn";
 import { Button, buttonVariants } from "@/ui/button";
 import {
@@ -195,24 +195,7 @@ const CalendarComponent = (props: CalendarProps) => {
       return { label: year.toString(), value: year };
     });
 
-  return (
-    // @ts-expect-error - Calendar component is not typed correctly
-    <Calendar
-      mode={local.mode}
-      value={local.value as Date | null}
-      onValueChange={local.onValueChange as (value: Date | null) => void}
-      initialValue={local.defaultValue as Date | null}
-      month={local.month}
-      onMonthChange={local.onMonthChange}
-      initialMonth={local.defaultMonth}
-      numberOfMonths={local.numberOfMonths}
-      fixedWeeks={local.fixedWeeks}
-      disableOutsideDays={!local.showOutsideDays}
-      disabled={(date: Date) => local.disabled?.(date) || local.booked?.(date) || false}
-      startOfWeek={local.weekStartsOn}
-    >
-      {/* @ts-expect-error - Calendar component is not typed correctly */}
-      {(calendarProps) => (
+  const renderContent = (calendarProps: RootChildrenProps) => (
         <div
           data-slot="calendar"
           class={cn(
@@ -251,7 +234,7 @@ const CalendarComponent = (props: CalendarProps) => {
                         <h2
                           class="flex-1 select-none text-center font-medium text-sm"
                           data-slot="calendar-label"
-                          id={calendarProps.labelIds[index]?.()}
+                          id={calendarProps.labelIds[index]}
                         >
                           {formatMonth(monthData().month)}
                         </h2>
@@ -389,8 +372,68 @@ const CalendarComponent = (props: CalendarProps) => {
             </Index>
           </div>
         </div>
-      )}
-    </Calendar>
+  );
+
+  const disabled = (date: Date) => local.disabled?.(date) || local.booked?.(date) || false;
+
+  return (
+    <Switch
+      fallback={
+        <Calendar
+          mode="single"
+          value={local.value as CalendarSingleValue | undefined}
+          onValueChange={local.onValueChange as ((value: CalendarSingleValue) => void) | undefined}
+          initialValue={local.defaultValue as CalendarSingleValue | undefined}
+          month={local.month}
+          onMonthChange={local.onMonthChange}
+          initialMonth={local.defaultMonth}
+          numberOfMonths={local.numberOfMonths}
+          fixedWeeks={local.fixedWeeks}
+          disableOutsideDays={!local.showOutsideDays}
+          disabled={disabled}
+          startOfWeek={local.weekStartsOn}
+        >
+          {renderContent}
+        </Calendar>
+      }
+    >
+      <Match when={local.mode === "multiple"}>
+        <Calendar
+          mode="multiple"
+          value={local.value as CalendarMultipleValue | undefined}
+          onValueChange={local.onValueChange as ((value: CalendarMultipleValue) => void) | undefined}
+          initialValue={local.defaultValue as CalendarMultipleValue | undefined}
+          month={local.month}
+          onMonthChange={local.onMonthChange}
+          initialMonth={local.defaultMonth}
+          numberOfMonths={local.numberOfMonths}
+          fixedWeeks={local.fixedWeeks}
+          disableOutsideDays={!local.showOutsideDays}
+          disabled={disabled}
+          startOfWeek={local.weekStartsOn}
+        >
+          {renderContent}
+        </Calendar>
+      </Match>
+      <Match when={local.mode === "range"}>
+        <Calendar
+          mode="range"
+          value={local.value as CalendarRangeValue | undefined}
+          onValueChange={local.onValueChange as ((value: CalendarRangeValue) => void) | undefined}
+          initialValue={local.defaultValue as CalendarRangeValue | undefined}
+          month={local.month}
+          onMonthChange={local.onMonthChange}
+          initialMonth={local.defaultMonth}
+          numberOfMonths={local.numberOfMonths}
+          fixedWeeks={local.fixedWeeks}
+          disableOutsideDays={!local.showOutsideDays}
+          disabled={disabled}
+          startOfWeek={local.weekStartsOn}
+        >
+          {renderContent}
+        </Calendar>
+      </Match>
+    </Switch>
   );
 };
 

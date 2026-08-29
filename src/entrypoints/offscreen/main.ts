@@ -1,6 +1,6 @@
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import * as logging from '@/lib/diagnostics/logging';
-import * as host from '@/lib/matcher/offscreen/host';
+import { Host } from '@/lib/matcher/offscreen/host';
 
 logging.configure('offscreen');
 installDiagnosticCrashHooks('offscreen');
@@ -12,4 +12,4 @@ installDiagnosticCrashHooks('offscreen');
  * Keeping the runtime check here makes the entrypoint import-safe while the
  * matcher host remains a separately testable capability module.
  */
-if (typeof globalThis.document !== 'undefined' && typeof globalThis.Worker !== 'undefined') host.start();
+if (typeof globalThis.document !== 'undefined' && typeof globalThis.Worker !== 'undefined') new Host().start();

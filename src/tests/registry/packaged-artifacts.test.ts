@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { createObservationMatcherIndex } from '@/lib/detection/observation-matcher-index';
 import { testDetectionPattern } from '@/lib/detection/pattern';
 import type { DetectionPatternType, TechnologyDefinition } from '@/lib/detection/types';
 import { compileTechnologyRegistry } from '@/lib/registry';
+import { createPackagedBuildTechnologyRegistryProvider } from '@/lib/registry/build-provider';
+import { hydrateMatcherIndex, packageMatcherIndex } from '@/lib/registry/matcher-artifact';
 import {
 	PACKAGED_REGISTRY_ASSET_PATHS,
 	PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
@@ -16,11 +19,8 @@ import {
 	renderPackagedRegistryJson,
 	type PackagedRegistryObservationKind,
 } from '@/lib/registry/packaged-artifacts';
-import {
-	createPackagedMatcherTechnologyRegistryProvider,
-	createPackagedRuntimeTechnologyRegistryProvider,
-	createPackagedTechnologyRegistryProvider,
-} from '@/lib/registry/packaged-provider';
+import { createPackagedMatcherTechnologyRegistryProvider } from '@/lib/registry/packaged-matcher';
+import { createPackagedRuntimeTechnologyRegistryProvider } from '@/lib/registry/packaged-runtime';
 
 function makeRegistry(): readonly TechnologyDefinition[] {
 	return [
@@ -59,14 +59,20 @@ function makeRegistryAsset(registry: readonly TechnologyDefinition[], kind: 'boo
 }
 
 function makeShardAsset(registry: readonly TechnologyDefinition[], observationKind: PackagedRegistryObservationKind) {
-	const shard = createObservationKindTechnologyRegistry(registry, observationKind);
+	const technologies = createObservationKindTechnologyRegistry(registry, observationKind);
+	const matcherIndex = packageMatcherIndex(technologies);
+	const patternCount = technologies.reduce((count, technology) => count + technology.rules.length, 0);
+	const encodedPayloadBytes = new TextEncoder().encode(renderPackagedRegistryJson({ technologies, matcherIndex })).byteLength;
 	return {
 		schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
-		kind: 'kind-shard',
+		kind: 'kind-shard' as const,
 		observationKind,
-		technologies: shard,
-		ruleCount: shard.reduce((count, technology) => count + technology.rules.length, 0),
-		technologyCount: shard.length,
+		technologies,
+		ruleCount: matcherIndex.ruleCount,
+		technologyCount: technologies.length,
+		matcherIndex,
+		patternCount,
+		encodedPayloadBytes,
 		priority: 1,
 		generatedAt: 1,
 	};
@@ -85,6 +91,29 @@ function makeRuntimeAsset(registry: readonly TechnologyDefinition[]) {
 		collectionPlan: artifact.collectionPlan,
 		diagnosticCount: artifact.diagnostics.length,
 		generatedAt: 1,
+	};
+}
+
+function summarizeMatcherIndex(index: ReturnType<typeof createObservationMatcherIndex>) {
+	const rule = (value: {
+		readonly technology: { readonly id: string };
+		readonly ruleIndex: number;
+		readonly sequence: number;
+		readonly requiredLiteral?: string;
+	}) => ({
+		technologyId: value.technology.id,
+		ruleIndex: value.ruleIndex,
+		sequence: value.sequence,
+		...('requiredLiteral' in value ? { requiredLiteral: value.requiredLiteral } : {}),
+	});
+	return {
+		technologyCount: index.technologyCount,
+		ruleCount: index.ruleCount,
+		fallbackRules: Object.fromEntries(Object.entries(index.fallbackRules).map(([kind, rules]) => [kind, (rules ?? []).map(rule)])),
+		keyedRules: Object.fromEntries(Object.entries(index.keyedRules).map(([kind, keys]) => [kind, Object.fromEntries(
+			Object.entries(keys ?? {}).map(([key, rules]) => [key, (rules ?? []).map(rule)]),
+		)])),
+		literalRules: Object.fromEntries(Object.entries(index.literalRules).map(([kind, rules]) => [kind, (rules ?? []).map(rule)])),
 	};
 }
 
@@ -168,7 +197,7 @@ describe('packaged registry artifacts', () => {
 		});
 		vi.stubGlobal('fetch', fetchAsset);
 
-		const provider = createPackagedTechnologyRegistryProvider({
+		const provider = createPackagedBuildTechnologyRegistryProvider({
 			resolveUrl: (path) => `extension://${path}`,
 		});
 
@@ -193,7 +222,7 @@ describe('packaged registry artifacts', () => {
 					: renderPackagedRegistryJson(makeRegistryAsset(registry, 'enrichment')));
 			},
 		}));
-		const provider = createPackagedTechnologyRegistryProvider({
+		const provider = createPackagedBuildTechnologyRegistryProvider({
 			resolveUrl: (path) => `extension://${path}`,
 			fetchAsset,
 		});
@@ -269,13 +298,13 @@ describe('packaged registry artifacts', () => {
 				const observationKind: PackagedRegistryObservationKind = url.includes('registry.kind.meta')
 					? 'meta'
 					: 'scriptSrc';
-				return JSON.parse(renderPackagedRegistryJson(makeShardAsset(registry, observationKind)));
+				return { ...makeShardAsset(registry, observationKind), encodedPayloadBytes: 200_000 };
 			},
 		}));
 		const provider = createPackagedMatcherTechnologyRegistryProvider({
 			resolveUrl: (path) => `extension://${path}`,
 			fetchAsset,
-			maxObservationKindShards: 1,
+			maxShardCacheBytes: 256 * 1024,
 		});
 
 		const firstScriptShard = await provider.getCompiledObservationKindRegistry('scriptSrc');
@@ -287,6 +316,63 @@ describe('packaged registry artifacts', () => {
 		expect(secondScriptShard.matcherIndex.ruleCount).toBe(1);
 	});
 
+	it('retries an observation-kind shard after a transient load failure', async () => {
+		const registry = makeRegistry();
+		let attempt = 0;
+		const fetchAsset = vi.fn(async () => {
+			attempt += 1;
+			if (attempt === 1) throw new Error('temporary extension asset failure');
+			return {
+				ok: true,
+				async json() {
+					return makeShardAsset(registry, 'scriptSrc');
+				},
+			};
+		});
+		const provider = createPackagedMatcherTechnologyRegistryProvider({
+			resolveUrl: (path) => `extension://${path}`,
+			fetchAsset,
+		});
+
+		await expect(provider.getCompiledObservationKindRegistry('scriptSrc')).rejects.toThrow('temporary extension asset failure');
+		const artifact = await provider.getCompiledObservationKindRegistry('scriptSrc');
+
+		expect(fetchAsset).toHaveBeenCalledTimes(2);
+		expect(artifact.matcherIndex.ruleCount).toBe(1);
+	});
+
+	it('reports weighted cache state from generated shard metadata', async () => {
+		const registry = makeRegistry();
+		const asset = { ...makeShardAsset(registry, 'scriptSrc'), encodedPayloadBytes: 321_000, patternCount: 17 };
+		const provider = createPackagedMatcherTechnologyRegistryProvider({
+			resolveUrl: (path) => `extension://${path}`,
+			fetchAsset: vi.fn(async () => ({ ok: true, async json() { return asset; } })),
+			maxShardCacheBytes: 512 * 1024,
+		});
+
+		const before = provider.getCacheState('scriptSrc');
+		await provider.getCompiledObservationKindRegistry('scriptSrc');
+		const after = provider.getCacheState('scriptSrc');
+
+		expect(before).toMatchObject({ cached: false, retainedBytes: 0, retainedShardCount: 0 });
+		expect(after).toMatchObject({
+			cached: true,
+			retainedBytes: 321_000,
+			retainedShardCount: 1,
+			shardRetainedBytes: 321_000,
+			shardPatternCount: 17,
+			shardRuleCount: 1,
+		});
+	});
+
+	it('rehydrates the same matcher routes that the build-time index compiled', () => {
+		const technologies = createObservationKindTechnologyRegistry(makeRegistry(), 'scriptSrc');
+		const compiled = createObservationMatcherIndex(technologies);
+		const hydrated = hydrateMatcherIndex(technologies, packageMatcherIndex(technologies, compiled));
+
+		expect(summarizeMatcherIndex(hydrated)).toEqual(summarizeMatcherIndex(compiled));
+	});
+
 	it('loads packaged enrichment JSON once and preserves detector order', async () => {
 		const registry = makeRegistry();
 		const rendered = renderPackagedRegistryJson(makeRegistryAsset(registry));
@@ -296,7 +382,7 @@ describe('packaged registry artifacts', () => {
 				return JSON.parse(rendered);
 			},
 		}));
-		const provider = createPackagedTechnologyRegistryProvider({
+		const provider = createPackagedBuildTechnologyRegistryProvider({
 			resolveUrl: (path) => `extension://${path}`,
 			fetchAsset,
 		});

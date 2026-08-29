@@ -4,9 +4,9 @@ import {
 } from '@/lib/detection/observation-matcher-index';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import * as logging from '@/lib/diagnostics/logging';
+import { getDetectionPatternCacheStats } from '@/lib/detection/pattern';
 import type { DetectionPatternType } from '@/lib/detection/types';
-import type { CompiledMatcherRegistryArtifact } from '@/lib/registry/matcher-artifact';
-import { createPackagedMatcherTechnologyRegistryProvider } from '@/lib/registry/packaged-provider';
+import { createPackagedMatcherTechnologyRegistryProvider } from '@/lib/registry/packaged-matcher';
 import type {
 	MatcherPartitionMatch,
 	MatcherWorkerResponseMessage,
@@ -27,8 +27,8 @@ const SLOW_SHARD_LOAD_MS = 250;
 /** Number of worst rule evaluations retained for one partition summary. */
 const MAX_SLOW_EVALUATION_SUMMARY_ITEMS = 5;
 
-/** Maximum compiled registry shards retained by one matcher worker. */
-const MAX_CACHED_OBSERVATION_KIND_SHARDS = 4;
+/** Encoded shard budget retained by one matcher worker. One oversized active shard may exceed it. */
+const MATCHER_SHARD_CACHE_BYTES = 6 * 1024 * 1024;
 
 logging.configure('matcher-worker');
 installDiagnosticCrashHooks('matcher-worker');
@@ -56,15 +56,13 @@ const workerScope = globalThis as Partial<MatcherWorkerGlobal>;
  * different evidence surfaces in parallel.
  */
 const registryProvider = createPackagedMatcherTechnologyRegistryProvider({
-	maxObservationKindShards: MAX_CACHED_OBSERVATION_KIND_SHARDS,
+	maxShardCacheBytes: MATCHER_SHARD_CACHE_BYTES,
 	resolveUrl(path) {
 		const workerOrigin = workerScope.location?.origin ?? globalThis.location.origin;
 		return new globalThis.URL(path, `${workerOrigin}/`).toString();
 	},
 });
 
-/** Observation kinds currently expected to resolve from the provider's bounded LRU cache. */
-const recentShardKinds = new Map<NormalizedObservationKind, true>();
 
 if (typeof workerScope.addEventListener === 'function') {
 	workerScope.addEventListener('message', (event: MessageEvent<MatcherWorkerRunMessage>) => {
@@ -95,10 +93,12 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 		task.observationIndexes[index] ?? index,
 	]));
 	const slowestRuleEvaluations: SlowRuleEvaluationSummary[] = [];
-	const shardCacheHit = recentShardKinds.has(task.kind);
+	const cacheBefore = registryProvider.getCacheState(task.kind);
+	const patternBefore = getDetectionPatternCacheStats();
 	const shardLoadStartedAt = globalThis.performance.now();
-	const shardArtifact = await getShardArtifact(task.kind);
+	const shardArtifact = await registryProvider.getCompiledObservationKindRegistry(task.kind);
 	const shardReadyAt = globalThis.performance.now();
+	const cacheAfter = registryProvider.getCacheState(task.kind);
 	const profileRules = matcherWorkerLogger.isEnabledFor('trace');
 	const matchStartedAt = globalThis.performance.now();
 	const onRuleEvaluation = profileRules
@@ -128,6 +128,20 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 		...(onRuleEvaluation ? { onRuleEvaluation } : {}),
 	});
 	const matchFinishedAt = globalThis.performance.now();
+	const patternAfter = getDetectionPatternCacheStats();
+	const runtime = {
+		shardCacheHit: cacheBefore.cached,
+		retainedShardBytes: cacheAfter.retainedBytes,
+		retainedShardCount: cacheAfter.retainedShardCount,
+		shardCacheBudgetBytes: cacheAfter.budgetBytes,
+		shardRetainedBytes: cacheAfter.shardRetainedBytes,
+		shardPatternCount: cacheAfter.shardPatternCount,
+		shardRuleCount: cacheAfter.shardRuleCount,
+		compiledPatternCount: patternAfter.packagedCompileCount - patternBefore.packagedCompileCount,
+		patternCacheHitCount: patternAfter.packagedCacheHitCount - patternBefore.packagedCacheHitCount,
+		totalCompiledPatternCount: patternAfter.packagedCompileCount,
+		totalPatternCacheHitCount: patternAfter.packagedCacheHitCount,
+	} as const;
 	const matches: MatcherPartitionMatch[] = matched.matches.map((match, matchIndex) => ({
 		observationIndex: observationIndexes.get(match.observation) ?? matchIndex,
 		matchIndex,
@@ -148,7 +162,7 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 				`totalDurationMs=${roundDuration(partitionDurationMs)}`,
 				`shardLoadDurationMs=${roundDuration(shardLoadDurationMs)}`,
 				`matchDurationMs=${roundDuration(matchDurationMs)}`,
-				`shardCacheHit=${shardCacheHit}`,
+				`shardCacheHit=${runtime.shardCacheHit}`,
 				`observationCount=${task.batch.observations.length}`,
 				`candidateRuleCount=${matched.diagnostics.candidateRuleCount}`,
 				`matchCount=${matched.matches.length}`,
@@ -165,7 +179,15 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 				totalDurationMs: roundDuration(partitionDurationMs),
 				shardLoadDurationMs: roundDuration(shardLoadDurationMs),
 				matchDurationMs: roundDuration(matchDurationMs),
-				shardCacheHit,
+				shardCacheHit: runtime.shardCacheHit,
+				retainedShardBytes: runtime.retainedShardBytes,
+				retainedShardCount: runtime.retainedShardCount,
+				shardCacheBudgetBytes: runtime.shardCacheBudgetBytes,
+				shardRetainedBytes: runtime.shardRetainedBytes,
+				shardPatternCount: runtime.shardPatternCount,
+				shardRuleCount: runtime.shardRuleCount,
+				compiledPatternCount: runtime.compiledPatternCount,
+				patternCacheHitCount: runtime.patternCacheHitCount,
 				observationCount: task.batch.observations.length,
 				candidateRuleCount: matched.diagnostics.candidateRuleCount,
 				matchCount: matched.matches.length,
@@ -184,21 +206,12 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 			observationCount: task.batch.observations.length,
 			matches,
 			diagnostics: matched.diagnostics,
+			runtime,
 			completedAt: Date.now(),
 		},
 	};
 }
 
-function getShardArtifact(kind: NormalizedObservationKind): Promise<CompiledMatcherRegistryArtifact> {
-	if (recentShardKinds.has(kind)) recentShardKinds.delete(kind);
-	recentShardKinds.set(kind, true);
-	while (recentShardKinds.size > MAX_CACHED_OBSERVATION_KIND_SHARDS) {
-		const leastRecentlyUsedKind = recentShardKinds.keys().next().value as NormalizedObservationKind | undefined;
-		if (leastRecentlyUsedKind === undefined) break;
-		recentShardKinds.delete(leastRecentlyUsedKind);
-	}
-	return registryProvider.getCompiledObservationKindRegistry(kind);
-}
 
 interface SlowRuleEvaluationSummary {
 	readonly tabId: number;

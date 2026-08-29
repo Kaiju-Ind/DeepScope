@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Run the curated rule-detection benchmark suite"
+set -euo pipefail
+exec pnpm bench:rules "$@"

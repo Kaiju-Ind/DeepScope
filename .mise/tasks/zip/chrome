@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Type-check, test, validate, and package the Chrome extension"
+set -euo pipefail
+exec pnpm zip:chrome "$@"

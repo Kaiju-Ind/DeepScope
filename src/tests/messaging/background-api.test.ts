@@ -18,6 +18,7 @@ import type { ObservationBatch } from '@/lib/observations';
 import {
 	createMatcherPartitionTasks,
 	createMatcherPipelineResult,
+	type MatcherJobLifecycleRecord,
 	type MatcherJobRecord,
 	type MatcherJobRunResult,
 	type MatcherPartitionResult,
@@ -69,10 +70,11 @@ type BackgroundApiHarnessOptions = {
 	cachedReplayTrace?: DetectionReplayTrace | null;
 	cachedReplayHistory?: DetectionReplayTrace[];
 	collectionPlan?: CollectionPlan;
+	getRuntimeRegistry?: () => Promise<RuntimeTechnologyRegistryArtifact>;
 	updateMatcherJobRecord?: (
 		jobId: string,
-		patch?: Partial<Omit<MatcherJobRecord, 'jobId' | 'tabId' | 'expectedUrl' | 'target' | 'createdAt'>>,
-	) => Promise<MatcherJobRecord | null>;
+		patch?: Partial<Omit<MatcherJobLifecycleRecord, 'schemaVersion' | 'jobId' | 'tabId' | 'windowId' | 'contextId' | 'createdAt'>>,
+	) => Promise<MatcherJobLifecycleRecord | null>;
 	saveSnapshot?: (snapshot: DetectionSessionSnapshot) => Promise<{
 		readonly accepted: boolean;
 		readonly sessionStorageKey: string;
@@ -391,7 +393,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		collectionPlan: input.collectionPlan ?? buildPlan([]),
 		diagnosticCount: 0,
 	};
-	const getRuntimeRegistry = vi.fn(async () => runtimeRegistryArtifact);
+	const getRuntimeRegistry = vi.fn(input.getRuntimeRegistry ?? (async () => runtimeRegistryArtifact));
 
 	const getCachedReplayTrace = vi.fn(async () => input.cachedReplayTrace ?? null);
 	const getCachedReplayTraceHistory = vi.fn(async () =>
@@ -399,7 +401,21 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	);
 	const getStatus = vi.fn(async () => ({ totalAnalyses: 0, trackedOrigins: 0 }));
 	const saveReplayTrace = vi.fn(async (trace: DetectionReplayTrace) => trace);
-	const saveMatcherJobRecord = vi.fn(async (record: MatcherJobRecord) => record);
+	const saveMatcherJobRecord = vi.fn(async (record: MatcherJobRecord): Promise<MatcherJobLifecycleRecord> => ({
+		schemaVersion: 2,
+		jobId: record.jobId,
+		tabId: record.tabId,
+		windowId: record.windowId,
+		...(record.sessionId ? { sessionId: record.sessionId } : {}),
+		contextId: record.contextId,
+		status: record.status,
+		mode: record.mode,
+		createdAt: record.createdAt,
+		updatedAt: record.updatedAt,
+		observationCount: record.observationCount,
+		partitionCount: record.partitionCount,
+		completedPartitionCount: record.completedPartitionCount,
+	}));
 	const updateMatcherJobRecord = vi.fn(input.updateMatcherJobRecord ?? (async () => null));
 	const getBestVisibleDetectionSessionSnapshot = vi.fn(async () => input.cachedAnalysis
 		? makeDetectionSnapshotFromAnalysis(input.cachedAnalysis)
@@ -414,6 +430,9 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 
 	const { collectExtensionObservationBatch } = await import('@/lib/collectors/extension-page-collector');
 	const cancelMatcherJob = vi.fn(async () => undefined);
+	const cancelMatcherTab = vi.fn(async () => undefined);
+	const touchMatcherLifecycle = vi.fn(async () => undefined);
+	const releaseMatcherLifecycle = vi.fn(async () => undefined);
 	const runMatcherJob = vi.fn(async (request: RunMatcherJobRequest) => makeMatcherRunResult(request));
 	const { createBackgroundRuntime } = await import('@/lib/background/runtime');
 	const runtime = createBackgroundRuntime({
@@ -426,6 +445,9 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		registryProvider: { getRuntimeRegistry },
 		matcher: {
 			cancelJob: cancelMatcherJob,
+			cancelTab: cancelMatcherTab,
+			touchLifecycle: touchMatcherLifecycle,
+			releaseLifecycle: releaseMatcherLifecycle,
 			runJob: runMatcherJob,
 		},
 		persistence: {
@@ -456,6 +478,9 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 			analyzeSite,
 			executeScript,
 			cancelMatcherJob,
+			cancelMatcherTab,
+			touchMatcherLifecycle,
+			releaseMatcherLifecycle,
 			getCachedReplayTrace,
 			getCachedReplayTraceHistory,
 			getBestVisibleDetectionSessionSnapshot,
@@ -507,6 +532,68 @@ describe.sequential('background visible-tab identity', () => {
 		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 3 })).resolves.toMatchObject({
 			ok: false,
 			error: { code: 'NO_ACTIVE_TAB' },
+		});
+	});
+
+	it('resolves persisted hashed scheduler identity against an inactive exact document', async () => {
+		const harness = await loadBackgroundApiHarness({ tab: { ...HTTP_TAB, active: false } });
+
+		await expect(harness.runtime.resolveScheduledTab({
+			windowId: 3,
+			tabId: 7,
+			frameId: 0,
+			urlHash: createDetectionStorageHash(HTTP_TAB.url!),
+		})).resolves.toMatchObject({
+			ok: true,
+			value: { url: HTTP_TAB.url, active: false },
+		});
+	});
+
+	it('rejects persisted scheduler identity after navigation changes its URL hash', async () => {
+		const harness = await loadBackgroundApiHarness({ tab: { ...HTTP_TAB, active: false, url: 'https://example.com/other' } });
+
+		await expect(harness.runtime.resolveScheduledTab({
+			windowId: 3,
+			tabId: 7,
+			frameId: 0,
+			urlHash: createDetectionStorageHash(HTTP_TAB.url!),
+		})).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'VALIDATION_ERROR' },
+		});
+	});
+
+	it('keeps public analysis visibility-scoped while scheduler work can continue on the exact inactive document', async () => {
+		const cachedAnalysis = makeAnalysis();
+		const harness = await loadBackgroundApiHarness({
+			tab: { ...HTTP_TAB, active: false },
+			cachedAnalysis,
+		});
+		const input = { target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'none' } as const;
+
+		await expect(harness.api.analyzeVisibleTab(input)).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'NO_ACTIVE_TAB' },
+		});
+		await expect(harness.runtime.analyzeScheduledTab(input)).resolves.toMatchObject({
+			ok: true,
+			value: { analysis: cachedAnalysis, snapshot: { status: 'hit' } },
+		});
+	});
+
+	it('rejects scheduler work after the tab navigates away from its durable document identity', async () => {
+		const harness = await loadBackgroundApiHarness({
+			tab: { ...HTTP_TAB, active: false, url: 'https://example.com/other' },
+			cachedAnalysis: makeAnalysis(),
+		});
+
+		await expect(harness.runtime.analyzeScheduledTab({
+			target: VISIBLE_TAB_TARGET,
+			mode: 'snapshot-first',
+			observe: 'none',
+		})).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'VALIDATION_ERROR' },
 		});
 	});
 
@@ -603,6 +690,41 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 				message: 'Content script did not respond before the messaging timeout.',
 			},
 		});
+	});
+
+	it('releases fresh-analysis ownership when registry loading throws', async () => {
+		vi.useFakeTimers();
+		const registryFailure = new Error('registry load failed');
+		const harness = await loadBackgroundApiHarness({
+			tab: HTTP_TAB,
+			getRuntimeRegistry: vi.fn(async () => {
+				throw registryFailure;
+			}),
+			contentApi: {
+				getObservationSessionState: vi.fn(async () => extensionSuccess({
+					status: 'dirty' as const,
+					throttleMs: 1_500,
+					pendingMutationCount: 1,
+					sessionId: 'session-1',
+					expectedUrl: HTTP_TAB.url!,
+				})),
+			},
+		});
+
+		await expect(
+			harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-panel-open' }),
+		).rejects.toBe(registryFailure);
+
+		harness.runtime.handleRuntimeMessage({
+			type: 'kaiju-deepscope.observation-dirty.v1',
+			sessionId: 'session-1',
+			expectedUrl: HTTP_TAB.url!,
+			observedAt: 1_700_000_000_250,
+			pendingMutationCount: 1,
+		}, { tab: { id: HTTP_TAB.id!, incognito: false } });
+		await vi.advanceTimersByTimeAsync(250);
+
+		expect(harness.contentApi.getObservationSessionState).toHaveBeenCalledOnce();
 	});
 
 	it('returns stored snapshot analysis without probing content runtime in snapshot-first mode', async () => {
@@ -878,6 +1000,51 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 			.filter(([, patch]) => (patch as { status?: string } | undefined)?.status === 'completed')
 			.map(([jobId]) => jobId);
 		expect(completedJobIds).not.toContain(canceledJobId);
+	});
+
+	it('supersedes matcher work from an older observation session on the same tab', async () => {
+		const firstDispatchRegistered = makeDeferred();
+		let dispatchingUpdateCount = 0;
+		let observationSession = 0;
+		const updateMatcherJobRecord = vi.fn(async (_jobId: string, patch?: unknown) => {
+			if ((patch as { status?: string } | undefined)?.status === 'dispatching') {
+				dispatchingUpdateCount += 1;
+				if (dispatchingUpdateCount === 1) await firstDispatchRegistered.promise;
+			}
+			return null;
+		});
+		const beginObservationSession = vi.fn(async () => {
+			observationSession += 1;
+			return extensionSuccess({
+				status: 'observing' as const,
+				sessionId: `session-${observationSession}`,
+				expectedUrl: HTTP_TAB.url!,
+				startedAt: 1_700_000_000_000 + observationSession,
+				expiresAt: Number.MAX_SAFE_INTEGER,
+				throttleMs: 1_500,
+				pendingMutationCount: 0,
+			});
+		});
+		const harness = await loadBackgroundApiHarness({
+			tab: HTTP_TAB,
+			contentApi: { beginObservationSession },
+			updateMatcherJobRecord,
+		});
+		const request = { target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-panel-open' } as const;
+
+		await expect(harness.api.analyzeVisibleTab(request)).resolves.toMatchObject({ ok: true });
+		await vi.waitFor(() => expect(updateMatcherJobRecord).toHaveBeenCalledWith(
+			expect.any(String),
+			expect.objectContaining({ status: 'dispatching' }),
+		));
+
+		await expect(harness.api.analyzeVisibleTab(request)).resolves.toMatchObject({ ok: true });
+		await vi.waitFor(() => expect(updateMatcherJobRecord).toHaveBeenCalledWith(
+			expect.any(String),
+			expect.objectContaining({ status: 'canceled', reason: 'newer-job' }),
+		));
+
+		firstDispatchRegistered.resolve(undefined);
 	});
 
 	it('skips persistent analysis and replay writes for incognito visible tabs', async () => {

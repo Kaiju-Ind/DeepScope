@@ -3,6 +3,19 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import {
+	callNames,
+	callObjectStringValues,
+	callStringArguments,
+	dynamicImportSources,
+	expressionNames,
+	importedNames,
+	importSources,
+	jsxElementNames,
+	parseSource,
+	stringLiterals,
+} from '@/tests/support/oxc';
+
 const ROUTER = fileURLToPath(new URL('../../app/router.tsx', import.meta.url));
 const SIDE_PANEL_MAIN = fileURLToPath(new URL('../../entrypoints/sidepanel/main.tsx', import.meta.url));
 const SIDE_PANEL_APP = fileURLToPath(new URL('../../app/app.tsx', import.meta.url));
@@ -17,101 +30,97 @@ function read(relative: string): string {
 
 describe('side-panel page composition', () => {
 	it('uses hash routing for the extension user flows', () => {
-		const router = readFileSync(ROUTER, 'utf8');
+		const router = parseSource(ROUTER);
+		const paths = callObjectStringValues(router, 'createRoute', 'path');
 
-		expect(router).toContain('createHashHistory()');
-		expect(router).toContain("path: '/'");
-		expect(router).toContain("path: '/technologies'");
-		expect(router).toContain("path: '/technology/$technologyId'");
-		expect(router).toContain("path: '/history'");
-		expect(router).not.toContain("path: '/scans'");
-		expect(router).toContain("path: '/diagnostics'");
-		expect(router).toContain("path: '/settings'");
+		expect(importedNames(router, '@tanstack/solid-router')).toContain('createHashHistory');
+		expect(paths).toEqual([
+			'/',
+			'/technologies',
+			'/technology/$technologyId',
+			'/history',
+			'/diagnostics',
+			'/settings',
+		]);
 	});
 
 	it('mounts the router inside one side-panel state owner and the Kaiju UI styles', () => {
-		const main = readFileSync(SIDE_PANEL_MAIN, 'utf8');
-		const app = readFileSync(SIDE_PANEL_APP, 'utf8');
+		const main = parseSource(SIDE_PANEL_MAIN);
+		const app = parseSource(SIDE_PANEL_APP);
 
-		expect(main).toContain("import('@/app/app')");
-		expect(main).toContain('<SupportFallback surface="sidepanel"');
-		expect(app).toContain('<PanelProvider>');
-		expect(app).toContain('<RouterProvider router={panelRouter} />');
-		expect(main).toContain("import '@/styles/app.css';");
-		expect(main).toContain("import '@/styles/panel.css';");
-		expect(main).not.toContain("import './style.css';");
-		expect(main).not.toContain("import './App.css';");
+		expect(dynamicImportSources(main)).toContain('@/app/app');
+		expect(jsxElementNames(main)).toContain('SupportFallback');
+		expect(jsxElementNames(app)).toEqual(expect.arrayContaining(['PanelProvider', 'RouterProvider']));
+		expect(importSources(main)).toEqual(expect.arrayContaining(['@/styles/app.css', '@/styles/panel.css']));
+		expect(importSources(main)).not.toEqual(expect.arrayContaining(['./style.css', './App.css']));
 	});
 
 	it('gives each routed product page a narrow state projection', () => {
-		const summary = read('../../app/pages/summary.tsx');
-		const history = read('../../app/pages/history.tsx');
-		const settings = read('../../app/pages/settings.tsx');
-		const technologies = read('../../app/pages/technologies.tsx');
-		const technology = read('../../app/pages/technology.tsx');
+		const projections = [
+			['../../app/pages/summary.tsx', 'useSummary'],
+			['../../app/pages/history.tsx', 'useHistory'],
+			['../../app/pages/settings.tsx', 'useSettings'],
+			['../../app/pages/technologies.tsx', 'useTechnologies'],
+			['../../app/pages/technology.tsx', 'useTechnology'],
+		] as const;
 
-		expect(summary).toContain('useSummary()');
-		expect(history).toContain('useHistory()');
-		expect(settings).toContain('useSettings()');
-		expect(technologies).toContain('useTechnologies()');
-		expect(technology).toContain('useTechnology()');
-		for (const source of [summary, history, settings, technologies, technology]) expect(source).not.toContain('usePanel()');
+		for (const [relative, projection] of projections) {
+			const source = parseSource(fileURLToPath(new URL(relative, import.meta.url)));
+			const imports = importedNames(source, '@/app/context');
+			expect(imports).toContain(projection);
+			expect(imports).not.toContain('usePanel');
+		}
 	});
 
 	it('keeps live inspection in Summary and completed replay in History', () => {
-		const summary = read('../../app/pages/summary.tsx');
-		const history = read('../../app/pages/history.tsx');
-		const technologies = read('../../app/pages/technologies.tsx');
+		const summary = parseSource(fileURLToPath(new URL('../../app/pages/summary.tsx', import.meta.url)));
+		const history = parseSource(fileURLToPath(new URL('../../app/pages/history.tsx', import.meta.url)));
+		const technologies = parseSource(fileURLToPath(new URL('../../app/pages/technologies.tsx', import.meta.url)));
 
-		expect(summary).toContain('<AnalysisProgress activity=');
-		expect(summary).toContain('Detected on this page');
-		expect(summary).toContain('Key findings');
-		expect(summary).not.toContain('Current inspection');
-		expect(history).toContain('panel.getReplayHistory');
-		expect(history).toContain('Changes from previous run');
-		expect(history).toContain("scope: 'page'");
-		expect(history).toContain("showUrl={scope() === 'origin'}");
-		expect(history).toContain('Emitted technologies only.');
-		expect(technologies).toContain('<AnalysisProgress activity=');
-		expect(technologies).toContain('TechnologyListSkeleton');
+		expect(jsxElementNames(summary)).toContain('AnalysisProgress');
+		expect(stringLiterals(summary)).toEqual(expect.arrayContaining(['Detected on this page', 'Key findings']));
+		expect(stringLiterals(summary)).not.toContain('Current inspection');
+		expect(callNames(history)).toContain('panel.getReplayHistory');
+		expect(stringLiterals(history)).toEqual(expect.arrayContaining(['Changes from previous run', 'page', 'origin', 'Emitted technologies only.']));
+		expect(jsxElementNames(technologies)).toEqual(expect.arrayContaining(['AnalysisProgress', 'TechnologyListSkeleton']));
 	});
 
 	it('retargets the mounted panel by exact tab identity and rejects stale async state', () => {
-		const provider = read('../../app/provider.tsx');
-		const background = read('../../entrypoints/background.ts');
+		const provider = parseSource(fileURLToPath(new URL('../../app/provider.tsx', import.meta.url)));
+		const background = parseSource(fileURLToPath(new URL('../../entrypoints/background.ts', import.meta.url)));
 
-		expect(provider).toContain('subscribeTabTargetChanges');
-		expect(provider).toContain('resetTab(identity)');
-		expect(provider).toContain('!sameTab(visibleTabIdentity(), identity)');
-		expect(provider).toContain('snapshot-revision-ignored-for-stale-tab');
-		expect(provider).toContain('analysis-revision-ignored-for-stale-tab');
-		expect(provider).toContain('void hydrateReplay(revision, options.identity)');
-		expect(provider).toContain('visible-tab-identity-retry-after-stale-target');
-		expect(provider).toContain('queueTabSync("tab-change")');
-		expect(background).toContain("scanVisibleTab(tabId, windowId, 'snapshot-first', 'tab-activated')");
+		expect(callNames(provider)).toEqual(expect.arrayContaining(['subscribeTabTargetChanges', 'resetTab', 'sameTab', 'hydrateReplay', 'queueTabSync']));
+		expect(stringLiterals(provider)).toEqual(expect.arrayContaining([
+			'snapshot-revision-ignored-for-stale-tab',
+			'analysis-revision-ignored-for-stale-tab',
+			'visible-tab-identity-retry-after-stale-target',
+			'tab-change',
+		]));
+		expect(callNames(background)).toContain('autoScanController.scanVisibleTab');
+		expect(callStringArguments(background, 'autoScanController.scanVisibleTab')).toEqual(expect.arrayContaining(['snapshot-first', 'tab-activated']));
 	});
 
 	it('owns at most one panel observation and does not start a scan just because the user switched tabs', () => {
-		const provider = read('../../app/provider.tsx');
+		const provider = parseSource(fileURLToPath(new URL('../../app/provider.tsx', import.meta.url)));
+		const reasons = callStringArguments(provider, 'releaseObservationTarget');
 
-		expect(provider).toContain('releaseObservationTarget(previousSessionTarget, "tab-change")');
-		expect(provider).toContain('releaseObservationTarget(response.value.sessionTarget, "stale-response")');
-		expect(provider).toContain('releaseObservationTarget(target, "panel-close")');
-		expect(provider).toContain('if (reason === "tab-change") {');
-		expect(provider).toContain('setWorkflow({ kind: "idle" });');
-		expect(provider).not.toContain('cleanup-retain-observation');
+		expect(reasons).toEqual(expect.arrayContaining(['tab-change', 'stale-response', 'panel-close']));
+		expect(callNames(provider)).toContain('setWorkflow');
+		expect(stringLiterals(provider)).toEqual(expect.arrayContaining(['tab-change', 'idle']));
+		expect(stringLiterals(provider)).not.toContain('cleanup-retain-observation');
 	});
 
 	it('releases panel-local state when browser tabs close', () => {
-		const provider = read('../../app/provider.tsx');
-		const tab = readFileSync(TAB_RUNTIME, 'utf8');
-		const session = readFileSync(PANEL_SESSION, 'utf8');
+		const provider = parseSource(fileURLToPath(new URL('../../app/provider.tsx', import.meta.url)));
+		const tab = parseSource(TAB_RUNTIME);
+		const session = parseSource(PANEL_SESSION);
 
-		expect(provider).toContain('closed: session.remove');
-		expect(tab).toContain('browser.tabs.onRemoved.addListener(onRemoved)');
-		expect(tab).toContain('browser.tabs.onRemoved.removeListener(onRemoved)');
-		expect(session).toContain('export function remove(tabId: number): void');
-		expect(session).toContain('tabs.delete(tabId)');
+		expect(expressionNames(provider)).toContain('session.remove');
+		expect(callNames(tab)).toEqual(expect.arrayContaining([
+			'browser.tabs.onRemoved.addListener',
+			'browser.tabs.onRemoved.removeListener',
+		]));
+		expect(callNames(session)).toContain('tabs.delete');
 	});
 
 	it('telegraphs incremental technology discovery instead of silently inserting late results', () => {
@@ -125,16 +134,14 @@ describe('side-panel page composition', () => {
 	});
 
 	it('keeps diagnostics reachable from both the panel and an independent options page', () => {
-		const panelDiagnostics = read('../../app/pages/diagnostics.tsx');
-		const options = read('../../entrypoints/options/main.tsx');
+		const panelDiagnostics = parseSource(fileURLToPath(new URL('../../app/pages/diagnostics.tsx', import.meta.url)));
+		const options = parseSource(fileURLToPath(new URL('../../entrypoints/options/main.tsx', import.meta.url)));
 		const optionsHtml = readFileSync(OPTIONS_ENTRYPOINT, 'utf8');
 
-		expect(panelDiagnostics).toContain('<DiagnosticsView showOpenFullPage');
-		expect(options).toContain("import('@/app/components/diagnostics-view')");
-		expect(options).toContain('<DiagnosticsView standalone />');
-		expect(options).toContain('<SupportFallback surface="options"');
-		expect(options).not.toContain('PanelProvider');
-		expect(options).not.toContain('panelRouter');
+		expect(jsxElementNames(panelDiagnostics)).toContain('DiagnosticsView');
+		expect(dynamicImportSources(options)).toContain('@/app/components/diagnostics-view');
+		expect(jsxElementNames(options)).toEqual(expect.arrayContaining(['DiagnosticsView', 'SupportFallback']));
+		expect(jsxElementNames(options)).not.toEqual(expect.arrayContaining(['PanelProvider', 'RouterProvider']));
 		expect(optionsHtml).toContain('<meta name="manifest.open_in_tab" content="true" />');
 	});
 

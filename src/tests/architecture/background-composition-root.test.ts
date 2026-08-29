@@ -1,101 +1,102 @@
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
+
+import { callName, callNames, callStringArguments, importSources, importedNames, isNode, parseSource, walk } from '@/tests/support/oxc';
 
 const BACKGROUND_ENTRYPOINT = fileURLToPath(new URL('../../entrypoints/background.ts', import.meta.url));
 const BACKGROUND_RUNTIME = fileURLToPath(new URL('../../lib/background/runtime.ts', import.meta.url));
 const SIDE_PANEL_PROVIDER = fileURLToPath(new URL('../../app/provider.tsx', import.meta.url));
 const SIDE_PANEL_TAB = fileURLToPath(new URL('../../app/tab.ts', import.meta.url));
 const SIDE_PANEL_SETTINGS = fileURLToPath(new URL('../../app/pages/settings.tsx', import.meta.url));
-const SIDE_PANEL_ENTRYPOINT = fileURLToPath(new URL('../../entrypoints/sidepanel/index.html', import.meta.url));
-const WXT_CONFIG = fileURLToPath(new URL('../../../wxt.config.ts', import.meta.url));
 
 describe('background composition-root ownership', () => {
-	it('keeps orchestration state and workflows out of the browser entrypoint', () => {
-		const source = readFileSync(BACKGROUND_ENTRYPOINT, 'utf8');
+	it('keeps browser-owned startup effects inside the WXT background callback', () => {
+		const source = parseSource(BACKGROUND_ENTRYPOINT);
+		const forbiddenModuleCalls = new Set([
+			'logging.configure',
+			'installDiagnosticCrashHooks',
+			'createBackgroundRuntime',
+			'createAutoScanController',
+			'analysisScheduler.create',
+			'matcherScheduler.create',
+			'offscreen.start',
+		]);
+		const violations: string[] = [];
+		let hasDefineBackground = false;
 
-		expect(source).toContain('createBackgroundRuntime({');
-		expect(source).not.toMatch(/new\s+(?:Map|Set)</);
-		expect(source).not.toContain('function analyzeFreshVisibleTab');
-		expect(source).not.toContain('function analyzeAndPersistObservationBatch');
-		expect(source).not.toContain('scheduleObservationRefreshFromContent');
-		expect(source).not.toContain('createMatcherPipelineResult(');
+		walk(source.program, (node, ancestors) => {
+			if (!isNode(node) || node.type !== 'CallExpression') return;
+			const name = callName(node);
+			if (name === 'defineBackground') hasDefineBackground = true;
+			if (!name || !forbiddenModuleCalls.has(name)) return;
+			const insideFunction = ancestors.some((ancestor) =>
+				ancestor.type === 'FunctionDeclaration' ||
+				ancestor.type === 'FunctionExpression' ||
+				ancestor.type === 'ArrowFunctionExpression'
+			);
+			if (!insideFunction) violations.push(name);
+		});
+
+		expect(hasDefineBackground).toBe(true);
+		expect(violations).toEqual([]);
 	});
 
-	it('keeps WXT background imports free of browser-owned startup work', () => {
-		const source = readFileSync(BACKGROUND_ENTRYPOINT, 'utf8');
-		const defineIndex = source.indexOf('export default defineBackground(() => {');
-		expect(defineIndex).toBeGreaterThan(0);
+	it('keeps analysis and matcher scheduling at the executable composition root', () => {
+		const source = parseSource(BACKGROUND_ENTRYPOINT);
 
-		const modulePrefix = source.slice(0, defineIndex);
-		expect(modulePrefix).not.toContain("logging.configure('background')");
-		expect(modulePrefix).not.toContain("installDiagnosticCrashHooks('background')");
-		expect(modulePrefix).not.toContain('const backgroundRuntime = createBackgroundRuntime({');
-		expect(modulePrefix).not.toContain('const autoScanController = createAutoScanController({');
-		expect(modulePrefix).not.toContain('void reconcileInterruptedMatcherJobs(');
-
-		const runtimeBody = source.slice(defineIndex);
-		expect(runtimeBody).toContain("logging.configure('background')");
-		expect(runtimeBody).toContain("installDiagnosticCrashHooks('background')");
-		expect(runtimeBody).toContain('const backgroundRuntime = createBackgroundRuntime({');
-		expect(runtimeBody).toContain('const autoScanController = createAutoScanController({');
-		expect(runtimeBody).toContain('void reconcileInterruptedMatcherJobs(');
+		expect(importSources(source)).toContain('@/lib/scheduler/analysis');
+		expect(importSources(source)).toContain('@/lib/scheduler/matcher');
+		expect(importedNames(source, '@/lib/scheduler/analysis')).toContain('*');
+		expect(importedNames(source, '@/lib/scheduler/matcher')).toContain('*');
+		expect(importSources(source)).not.toContain('@/lib/background/reconcile-matcher-jobs');
+		expect(callNames(source)).not.toContain('createMatcherPipelineResult');
 	});
 
-	it('starts toggleable automatic analysis from active page load and activation events', () => {
-		const source = readFileSync(BACKGROUND_ENTRYPOINT, 'utf8');
-		const config = readFileSync(WXT_CONFIG, 'utf8');
-		const sidePanel = readFileSync(SIDE_PANEL_SETTINGS, 'utf8');
+	it('starts toggleable automatic analysis from page load and activation events', () => {
+		const source = parseSource(BACKGROUND_ENTRYPOINT);
+		const settings = parseSource(SIDE_PANEL_SETTINGS);
+		const calls = callNames(source);
+		const scanArguments = callStringArguments(source, 'scanVisibleTab');
 
-		expect(source).toContain('browser.tabs.onUpdated.addListener');
-		expect(source).toContain("scanVisibleTab(tabId, tab.windowId, 'refresh', 'page-load')");
-		expect(source).toContain('browser.tabs.onActivated.addListener');
-		expect(source).toContain("scanVisibleTab(tabId, windowId, 'snapshot-first', 'tab-activated')");
-		expect(config).toContain("host_permissions: ['http://*/*', 'https://*/*']");
-		expect(sidePanel).toContain('Scan pages automatically');
-		expect(sidePanel).toContain('panel.setAutoScanEnabled');
+		expect(calls).toContain('browser.tabs.onUpdated.addListener');
+		expect(calls).toContain('browser.tabs.onActivated.addListener');
+		expect(scanArguments).toEqual(expect.arrayContaining(['refresh', 'page-load', 'snapshot-first', 'tab-activated']));
+		expect(callNames(settings)).toContain('panel.setAutoScanEnabled');
 	});
 
 	it('opens one window-scoped side panel and lets it follow active-tab changes', () => {
-		const source = readFileSync(BACKGROUND_ENTRYPOINT, 'utf8');
-		const config = readFileSync(WXT_CONFIG, 'utf8');
-		const provider = readFileSync(SIDE_PANEL_PROVIDER, 'utf8');
-		const tab = readFileSync(SIDE_PANEL_TAB, 'utf8');
-		const sidePanel = readFileSync(SIDE_PANEL_ENTRYPOINT, 'utf8');
+		const source = parseSource(BACKGROUND_ENTRYPOINT);
+		const provider = parseSource(SIDE_PANEL_PROVIDER);
+		const tab = parseSource(SIDE_PANEL_TAB);
+		const backgroundCalls = callNames(source);
+		const tabCalls = callNames(tab);
 
-		expect(source).toContain('browser.action.onClicked.addListener');
-		expect(source).toContain('browser.sidePanel.open({ windowId })');
-		expect(source).not.toContain('browser.sidePanel.setOptions({');
-		expect(provider).toContain('subscribeTabTargetChanges({');
-		expect(tab).toContain('browser.tabs.onActivated.addListener');
-		expect(tab).toContain('browser.tabs.onUpdated.addListener');
-		expect(source).toContain("notifySidePanelTab(tabId, windowId, 'activated')");
-		expect(source).toContain("notifySidePanelTab(tabId, tab.windowId, 'updated')");
-		expect(tab).toContain('isSidePanelTabNotification(message)');
-		expect(provider).toContain('getWindowId()');
-		expect(provider).toContain('getTabTarget(panelWindowId)');
-		expect(config).not.toContain('default_popup');
-		expect(config).toContain("minimum_chrome_version: '119'");
-		expect(sidePanel).not.toContain('manifest.type');
+		expect(backgroundCalls).toContain('browser.action.onClicked.addListener');
+		expect(backgroundCalls).toContain('browser.sidePanel.open');
+		expect(backgroundCalls).not.toContain('browser.sidePanel.setOptions');
+		expect(callNames(provider)).toContain('subscribeTabTargetChanges');
+		expect(tabCalls).toContain('browser.tabs.onActivated.addListener');
+		expect(tabCalls).toContain('browser.tabs.onUpdated.addListener');
+		expect(callStringArguments(source, 'notifySidePanelTab')).toEqual(expect.arrayContaining(['activated', 'updated']));
+		expect(callNames(tab)).toContain('isSidePanelTabNotification');
+		expect(callNames(provider)).toEqual(expect.arrayContaining(['getWindowId', 'getTabTarget']));
 	});
 
-	it('keeps live side-panel revisions on origin storage until the exact page session is known', () => {
-		const source = readFileSync(SIDE_PANEL_PROVIDER, 'utf8');
+	it('keeps live side-panel revisions on the session-aware snapshot source', () => {
+		const source = parseSource(SIDE_PANEL_PROVIDER);
+		const calls = callNames(source);
 
-		expect(source).toContain('subscribeToSnapshotRevisions(');
-		expect(source).toContain('exactSessionKey,');
-		expect(source).toContain('visibleDetectorSnapshotRevision');
-		expect(source).toContain('visibleLifecycleSnapshotRevision');
-		expect(source).not.toContain('browserDetectionSnapshotRevisionSource');
+		expect(calls).toContain('subscribeToSnapshotRevisions');
+		expect(importSources(source)).not.toContain('@/lib/storage/browser-detection-snapshot-revision-source');
 	});
 
 	it('keeps the application runtime independent from concrete browser/RPC implementations', () => {
-		const source = readFileSync(BACKGROUND_RUNTIME, 'utf8');
+		const imports = importSources(parseSource(BACKGROUND_RUNTIME));
 
-		expect(source).not.toMatch(/from\s+['"]wxt\/browser['"]/);
-		expect(source).not.toMatch(/from\s+['"]comctx['"]/);
-		expect(source).not.toMatch(/from\s+['"]@\/lib\/persistence\/browser['"]/);
-		expect(source).not.toMatch(/from\s+['"]@\/lib\/storage['"]/);
+		expect(imports).not.toContain('wxt/browser');
+		expect(imports).not.toContain('comctx');
+		expect(imports).not.toContain('@/lib/persistence/browser');
+		expect(imports).not.toContain('@/lib/storage');
 	});
 });

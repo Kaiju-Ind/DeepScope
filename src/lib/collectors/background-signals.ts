@@ -25,6 +25,8 @@ export type BackgroundObservationCollectorInput = {
 	readonly log?: CollectorLog;
 	/** Optional debug id used only to correlate summary timing logs. */
 	readonly timingTraceId?: string;
+	/** Document-work cancellation propagated from the background tab owner. */
+	readonly signal?: AbortSignal;
 };
 
 const PASSIVE_FETCH_TIMEOUT_MS = 1_500;
@@ -43,6 +45,7 @@ const BACKGROUND_FETCH_CONCURRENCY = 4;
 export async function collectBackgroundObservationBatch(
 	input: BackgroundObservationCollectorInput,
 ): Promise<ObservationBatch> {
+	input.signal?.throwIfAborted();
 	const pageOrigin = url.getOrigin(input.batch.target.url);
 	const timingContext: TimingContext = {
 		traceId: input.timingTraceId,
@@ -57,7 +60,7 @@ export async function collectBackgroundObservationBatch(
 		timeAsyncSpan(
 			'collector.background.js-globals',
 			timingContext,
-			() => collectInjectedJsGlobals(input.tabId, input.collectionPlan.jsGlobalPropertyList, input.log),
+			() => collectInjectedJsGlobals(input.tabId, input.collectionPlan.jsGlobalPropertyList, input.log, input.signal),
 			(values) => ({
 				requestedGlobalCount: input.collectionPlan.jsGlobalPropertyList.length,
 				matchedGlobalCount: Object.keys(values).length,
@@ -66,19 +69,20 @@ export async function collectBackgroundObservationBatch(
 		timeAsyncSpan(
 			'collector.background.headers',
 			timingContext,
-			() => input.collectionPlan.needsHeaders ? collectResponseHeaders(input.batch.target.url) : Promise.resolve<Record<string, string>>({}),
+			() => input.collectionPlan.needsHeaders ? collectResponseHeaders(input.batch.target.url, input.signal) : Promise.resolve<Record<string, string>>({}),
 			(values) => ({ headerCount: Object.keys(values).length }),
 		),
 		timeAsyncSpan(
 			'collector.background.same-origin-source-content',
 			timingContext,
-			() => collectSameOriginSourceContents(input.batch, pageOrigin, input.collectionPlan),
+			() => collectSameOriginSourceContents(input.batch, pageOrigin, input.collectionPlan, input.signal),
 			(values) => ({
 				scriptContentCount: values.scriptContents.length,
 				stylesheetContentCount: values.stylesheetContents.length,
 			}),
 		),
 	]);
+	input.signal?.throwIfAborted();
 	const observations = [
 		...input.batch.observations,
 		...createJsGlobalObservations(input.batch, jsGlobals),
@@ -112,7 +116,9 @@ export async function collectInjectedJsGlobals(
 	tabId: number,
 	propertyPaths: string[],
 	log?: CollectorLog,
+	signal?: AbortSignal,
 ): Promise<Record<string, JsGlobalSignalValue>> {
+	signal?.throwIfAborted();
 	if (!propertyPaths.length) {
 		return {};
 	}
@@ -125,6 +131,7 @@ export async function collectInjectedJsGlobals(
 			args: [propertyPaths, SOURCE_LIMITS.jsGlobalValueChars],
 		});
 
+		signal?.throwIfAborted();
 		const firstResult = results[0]?.result;
 		return isJsGlobalSignalRecord(firstResult) ? firstResult : {};
 	} catch (error) {
@@ -136,13 +143,13 @@ export async function collectInjectedJsGlobals(
 	}
 }
 
-async function collectResponseHeaders(pageUrl: string): Promise<Record<string, string>> {
+async function collectResponseHeaders(pageUrl: string, signal?: AbortSignal): Promise<Record<string, string>> {
 	try {
 		const response = await fetchWithTimeout(pageUrl, {
 			cache: 'force-cache',
 			credentials: 'omit',
 			method: 'HEAD',
-		}, PASSIVE_FETCH_TIMEOUT_MS);
+		}, PASSIVE_FETCH_TIMEOUT_MS, signal);
 
 		return headersToSignalRecord(response.headers);
 	} catch {
@@ -154,6 +161,7 @@ async function collectSameOriginSourceContents(
 	batch: ObservationBatch,
 	pageOrigin: string,
 	collectionPlan: CollectionTierPlan,
+	signal?: AbortSignal,
 ): Promise<{ scriptContents: string[]; stylesheetContents: string[] }> {
 	const scriptContentsAlreadyCollected = countObservations(batch, 'scriptContent');
 	const stylesheetContentsAlreadyCollected = countObservations(batch, 'stylesheetContent');
@@ -165,6 +173,7 @@ async function collectSameOriginSourceContents(
 				SOURCE_LIMITS.scriptContentItems - scriptContentsAlreadyCollected,
 				SOURCE_LIMITS.scriptContentChars,
 				SOURCE_LIMITS.scriptContentTotalChars - totalObservationTextChars(batch, 'scriptContent'),
+				signal,
 			)
 			: [],
 		collectionPlan.needsStylesheetContent
@@ -174,6 +183,7 @@ async function collectSameOriginSourceContents(
 				SOURCE_LIMITS.stylesheetContentItems - stylesheetContentsAlreadyCollected,
 				SOURCE_LIMITS.stylesheetContentChars,
 				SOURCE_LIMITS.stylesheetContentTotalChars - totalObservationTextChars(batch, 'stylesheetContent'),
+				signal,
 			)
 			: [],
 	]);
@@ -289,7 +299,9 @@ async function fetchBoundedTextSignals(
 	maxItems: number,
 	maxChars: number,
 	maxTotalChars: number,
+	signal?: AbortSignal,
 ): Promise<string[]> {
+	signal?.throwIfAborted();
 	if (maxItems <= 0 || maxTotalChars <= 0) {
 		return [];
 	}
@@ -300,9 +312,10 @@ async function fetchBoundedTextSignals(
 
 	const fetched: string[] = [];
 	for (let index = 0; index < candidates.length; index += BACKGROUND_FETCH_CONCURRENCY) {
+		signal?.throwIfAborted();
 		const batch = candidates.slice(index, index + BACKGROUND_FETCH_CONCURRENCY);
 		const values = await Promise.all(
-			batch.map((value) => fetchBoundedText(value, maxChars)),
+			batch.map((value) => fetchBoundedText(value, maxChars, signal)),
 		);
 
 		for (const value of values) {
@@ -319,14 +332,14 @@ async function fetchBoundedTextSignals(
 	return limitStringsByTotalChars(fetched, maxItems, maxTotalChars);
 }
 
-async function fetchBoundedText(value: string, maxChars: number): Promise<string> {
+async function fetchBoundedText(value: string, maxChars: number, signal?: AbortSignal): Promise<string> {
 	let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
 	try {
 		const response = await fetchWithTimeout(value, {
 			cache: 'force-cache',
 			credentials: 'omit',
-		}, PASSIVE_FETCH_TIMEOUT_MS);
+		}, PASSIVE_FETCH_TIMEOUT_MS, signal);
 
 		if (!response.ok || !response.body) {
 			return '';
@@ -371,9 +384,13 @@ async function fetchWithTimeout(
 	value: string,
 	init: RequestInit,
 	timeoutMs: number,
+	parentSignal?: AbortSignal,
 ): Promise<Response> {
+	parentSignal?.throwIfAborted();
 	const controller = new globalThis.AbortController();
-	const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+	const abortFromParent = () => controller.abort(parentSignal?.reason);
+	if (parentSignal) parentSignal.addEventListener('abort', abortFromParent, { once: true });
+	const timeoutId = globalThis.setTimeout(() => controller.abort(new DOMException('Passive fetch timed out.', 'TimeoutError')), timeoutMs);
 	try {
 		return await globalThis.fetch(value, {
 			...init,
@@ -381,6 +398,7 @@ async function fetchWithTimeout(
 		});
 	} finally {
 		globalThis.clearTimeout(timeoutId);
+		if (parentSignal) parentSignal.removeEventListener('abort', abortFromParent);
 	}
 }
 

@@ -56,8 +56,8 @@ late observer batch ─────────► snapshot revision 7
 
 The popup applies these revisions through the same storage subscription it already uses for late observation updates. There is no separate "deeper evidence pending" state in the visible path. A revision is simply the newest detector snapshot for the current tab and document.
 
-## Compatibility notes
+## Build and runtime products
 
-`registry.bootstrap.json` and the complete enrichment asset can remain for compatibility tools and build/test baselines, but the visible-tab runtime should not load them for normal analysis. Background work uses `getRuntimeRegistry()` for planning and final coordination. Matcher workers use `getCompiledObservationKindRegistry(kind)` for matcher-only shards.
+The build cache can contain bootstrap, enrichment, metadata, relationship, manifest, runtime, and kind-shard products for validation and benchmark work. The packaged extension publishes only the rule-free runtime artifact and matcher kind shards. Browser-runtime modules do not expose a complete-registry provider API.
 
-The background-to-offscreen message contains only matcher identity, the page observation batch, mode, and small execution options. Matcher indexes stay inside dedicated matcher workers. The rule-free relationship graph stays in the background. Dedicated workers load only the matcher-only observation-kind shards needed by their partitions, and packaged regular expressions remain plain source/flags data until routing admits a rule for evaluation. The offscreen host streams each partition once and returns only a terminal partition count. This avoids registry-scale cross-context clones and a second retained partition-result set.
+The background partitions the transient observation batch before offscreen dispatch. Each runtime message contains one selected partition plus its optional analysis lifecycle id. Matcher indexes stay inside dedicated matcher workers. The rule-free relationship graph stays in the background. Packaged regular expressions remain source/flags data until routing admits a rule for evaluation. The offscreen host therefore retains no waiting observation queue and no second complete partition-result accumulator.

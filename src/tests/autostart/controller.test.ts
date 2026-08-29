@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createAutoScanController } from '@/lib/autostart/controller';
 import type { AnalyzeVisibleTabOutput, VisibleTabIdentity } from '@/lib/messaging';
-import { errorResponse, extensionSuccess } from '@/lib/messaging/result';
+import { errorResponse, extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
 
 const VISIBLE_IDENTITY: VisibleTabIdentity = {
 	windowId: 3,
@@ -77,6 +77,40 @@ describe('automatic scan controller', () => {
 
 		expect(getVisibleTabIdentity).toHaveBeenCalledWith({ tabId: VISIBLE_IDENTITY.tabId, windowId: 3 });
 		expect(analyzeVisibleTab).not.toHaveBeenCalled();
+	});
+
+	it('does not admit analysis when the tab is canceled during identity lookup', async () => {
+		let resolveIdentity!: (value: ExtensionResult<VisibleTabIdentity>) => void;
+		const identityGate = new Promise<ExtensionResult<VisibleTabIdentity>>((resolve) => {
+			resolveIdentity = resolve;
+		});
+		const analyzeVisibleTab = vi.fn(async () => extensionSuccess(makeOutput()));
+		const controller = createAutoScanController({
+			getEnabled: vi.fn(async () => true),
+			getVisibleTabIdentity: vi.fn(async () => await identityGate),
+			analyzeVisibleTab,
+		});
+
+		const scan = controller.scanVisibleTab(VISIBLE_IDENTITY.tabId, 3, 'refresh', 'page-load');
+		controller.cancelTab(VISIBLE_IDENTITY.tabId);
+		resolveIdentity(extensionSuccess(VISIBLE_IDENTITY));
+		await scan;
+
+		expect(analyzeVisibleTab).not.toHaveBeenCalled();
+	});
+
+	it('allows a new generation to scan after the previous generation was canceled', async () => {
+		const analyzeVisibleTab = vi.fn(async () => extensionSuccess(makeOutput()));
+		const controller = createAutoScanController({
+			getEnabled: vi.fn(async () => true),
+			getVisibleTabIdentity: vi.fn(async () => extensionSuccess(VISIBLE_IDENTITY)),
+			analyzeVisibleTab,
+		});
+
+		controller.cancelTab(VISIBLE_IDENTITY.tabId);
+		await controller.scanVisibleTab(VISIBLE_IDENTITY.tabId, 3, 'refresh', 'page-load');
+
+		expect(analyzeVisibleTab).toHaveBeenCalledOnce();
 	});
 
 	it('deduplicates concurrent page-load and activation events for the same tab', async () => {

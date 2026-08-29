@@ -3,7 +3,6 @@ export type MatcherFailureType =
 	| 'canceled'
 	| 'offscreen-unavailable'
 	| 'queue-full'
-	| 'queue-timeout'
 	| 'run-timeout'
 	| 'host-failed';
 

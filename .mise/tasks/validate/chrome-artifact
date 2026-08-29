@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Validate the generated Chrome extension artifact"
+set -euo pipefail
+exec pnpm validate:chrome-artifact "$@"

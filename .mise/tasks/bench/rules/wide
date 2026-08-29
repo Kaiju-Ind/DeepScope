@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Run rule benchmarks with the wider Registry payload scan"
+set -euo pipefail
+exec pnpm bench:rules:wide "$@"

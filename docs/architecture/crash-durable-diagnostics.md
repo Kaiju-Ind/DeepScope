@@ -94,14 +94,14 @@ queued
           -> streaming
 ```
 
-A newly created background service-worker context cannot recover Promise/callback ownership from the previous JavaScript context. At startup, it therefore reconciles any non-terminal durable matcher job:
+A newly created background service-worker context cannot recover the previous context's Promise callbacks or transient `ObservationBatch`. The execution scheduler and diagnostic lifecycle store therefore reconcile different facts at startup:
 
-1. Ask the offscreen host to cancel the orphaned job, best effort.
-2. Preserve the job's previous state as `interruptedStatus`.
-3. Record `interruptedAt`.
-4. Mark the durable job `failed` with reason `context-interrupted`.
+1. The matcher scheduler asks the offscreen host to cancel orphaned CPU work and removes the obsolete scheduler claim.
+2. The diagnostic lifecycle record preserves the previous matcher state as `interruptedStatus`, records `interruptedAt`, and becomes `failed` with reason `context-interrupted`.
+3. Recovery carries only the tab/window identity and hashed document key. Raw document URLs, observation targets, HTML, text, and script source are not stored in matcher lifecycle diagnostics.
+4. The background resolves the current Chrome tab. If its URL hash still matches the recovery key, it queues a new analysis that recollects evidence from the live document.
 
-The term **interrupted** is deliberate. Chrome may have normally suspended an MV3 worker. The extension must not claim a crash when it only knows that JavaScript ownership disappeared before the durable operation reached a terminal state.
+The old matcher job is **not resumed**. Recollection is a new job because the observation batch belonged to the lost JavaScript context and was deliberately never persisted. The term **interrupted** remains deliberate: Chrome may have normally suspended an MV3 worker, so the diagnostic history must not claim a crash when it only knows that JavaScript ownership disappeared before terminal state.
 
 ## Diagnostic surfaces
 

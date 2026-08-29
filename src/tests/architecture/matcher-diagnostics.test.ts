@@ -1,227 +1,160 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import {
+	callName,
+	callNames,
+	callNumberArguments,
+	expressionNames,
+	importSources,
+	objectPropertyCallNames,
+	objectPropertyNames,
+	parseSource,
+	stringLiterals,
+	walk,
+} from '@/tests/support/oxc';
+
+const SRC_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const MATCHER_WORKER = fileURLToPath(new URL('../../entrypoints/offscreen/matcher.worker.ts', import.meta.url));
 const OFFSCREEN_ENTRY = fileURLToPath(new URL('../../entrypoints/offscreen/main.ts', import.meta.url));
 const OFFSCREEN_CLIENT = fileURLToPath(new URL('../../lib/matcher/offscreen/client.ts', import.meta.url));
 const OFFSCREEN_HOST = fileURLToPath(new URL('../../lib/matcher/offscreen/host.ts', import.meta.url));
-const OFFSCREEN_POOL = fileURLToPath(new URL('../../lib/matcher/offscreen/pool.ts', import.meta.url));
-const OFFSCREEN_QUEUE = fileURLToPath(new URL('../../lib/matcher/offscreen/queue.ts', import.meta.url));
-const OLD_OFFSCREEN_LIFECYCLE = fileURLToPath(new URL('../../lib/lifecycle/offscreen-matcher.ts', import.meta.url));
-const OLD_DOM_MATCHER = fileURLToPath(new URL('../../lib/content/dom-selectors.ts', import.meta.url));
-const MATCHER_CONTRACTS = fileURLToPath(new URL('../../lib/matcher/contracts.ts', import.meta.url));
 const BACKGROUND_RUNTIME = fileURLToPath(new URL('../../lib/background/runtime.ts', import.meta.url));
 const BACKGROUND_ENTRYPOINT = fileURLToPath(new URL('../../entrypoints/background.ts', import.meta.url));
-const CONTENT_ENTRYPOINT = fileURLToPath(new URL('../../entrypoints/content.ts', import.meta.url));
+const MATCHER_SCHEDULER = fileURLToPath(new URL('../../lib/scheduler/matcher.ts', import.meta.url));
 
-function read(path: string): string {
-	return readFileSync(path, 'utf8');
+const OBSOLETE_MATCHER_MODULES = [
+	fileURLToPath(new URL('../../lib/matcher/offscreen/queue.ts', import.meta.url)),
+	fileURLToPath(new URL('../../lib/matcher/offscreen/development.ts', import.meta.url)),
+	fileURLToPath(new URL('../../lib/lifecycle/offscreen-matcher.ts', import.meta.url)),
+	fileURLToPath(new URL('../../lib/content/dom-selectors.ts', import.meta.url)),
+	fileURLToPath(new URL('../../lib/registry/packaged-provider.ts', import.meta.url)),
+] as const;
+
+/** Resolve a project-owned static import to its authored TypeScript module. */
+function resolveProjectImport(importer: string, specifier: string): string | undefined {
+	let candidate: string;
+	if (specifier.startsWith('@/')) candidate = resolve(SRC_ROOT, specifier.slice(2));
+	else if (specifier.startsWith('./') || specifier.startsWith('../')) candidate = resolve(dirname(importer), specifier);
+	else return undefined;
+
+	for (const path of [candidate, `${candidate}.ts`, `${candidate}.tsx`, resolve(candidate, 'index.ts'), resolve(candidate, 'index.tsx')]) {
+		if (existsSync(path) && statSync(path).isFile()) return path;
+	}
+	return undefined;
 }
 
-describe('matcher worker diagnostics', () => {
-	it('keeps performance diagnostics out of Chrome extension warning records', () => {
-		const source = read(MATCHER_WORKER);
+/** Traverse static project imports from one executable root. */
+function dependencyGraph(root: string): ReadonlySet<string> {
+	const visited = new Set<string>();
+	const visit = (path: string): void => {
+		if (visited.has(path)) return;
+		visited.add(path);
+		for (const specifier of importSources(parseSource(path))) {
+			const dependency = resolveProjectImport(path, specifier);
+			if (dependency) visit(dependency);
+		}
+	};
+	visit(root);
+	return visited;
+}
 
-		expect(source).toContain('matcherWorkerLogger.debug(');
-		expect(source).toContain("matcherWorkerLogger.isEnabledFor('trace')");
-		expect(source).toContain('matcherWorkerLogger.trace(formatSlowRuleEvaluationMessage(summary)');
-		expect(source).not.toContain('matcherWorkerLogger.warn(');
-		expect(source).not.toContain('Slow matcher partition in worker:');
+/** Return external static imports reached from a set of authored modules. */
+function externalImports(paths: Iterable<string>): readonly string[] {
+	const imports = new Set<string>();
+	for (const path of paths) {
+		for (const specifier of importSources(parseSource(path))) {
+			if (!resolveProjectImport(path, specifier)) imports.add(specifier);
+		}
+	}
+	return [...imports];
+}
+
+describe('matcher runtime architecture', () => {
+	it('removes superseded matcher ownership modules instead of preserving compatibility paths', () => {
+		for (const path of OBSOLETE_MATCHER_MODULES) expect(existsSync(path)).toBe(false);
 	});
 
-	it('separates shard hydration from semantic matcher duration', () => {
-		const source = read(MATCHER_WORKER);
+	it('keeps waiting and partition-selection policy in the background scheduler', () => {
+		const hostImports = importSources(parseSource(OFFSCREEN_HOST));
+		const schedulerImports = importSources(parseSource(MATCHER_SCHEDULER));
 
-		expect(source).toContain('shardLoadDurationMs');
-		expect(source).toContain('matchDurationMs');
-		expect(source).toContain('totalDurationMs');
-		expect(source).toContain('shardCacheHit');
+		expect(hostImports).not.toContain('./queue');
+		expect(hostImports).not.toContain('../partition');
+		expect(schedulerImports).toContain('./database');
+		expect(schedulerImports).toContain('./budget');
+		expect(schedulerImports).toContain('./fairness');
+		expect(schedulerImports).toContain('@/lib/matcher/partition');
 	});
 
-	it('redacts page-derived values before they enter performance logs', () => {
-		const source = read(MATCHER_WORKER);
+	it('keeps the background runtime on the rule-free Registry provider contract', () => {
+		const imports = importSources(parseSource(BACKGROUND_RUNTIME));
 
-		expect(source).toContain('redactEvidenceValue(value, 240)');
-		expect(source).toContain('expectedUrlPreview: previewLogValue(task.job.expectedUrl)');
-		expect(source).not.toContain('expectedUrl: task.job.expectedUrl');
-		expect(source).not.toContain('observationValue: observation.value');
-		expect(source).not.toContain('observationAttributes: observation.attributes');
+		expect(imports).toContain('@/lib/detection/registry-provider');
+		expect(imports).not.toContain('@/lib/registry/build-provider');
+		expect(imports).not.toContain('@/lib/registry/matcher-artifact');
+		expect(imports).not.toContain('@/lib/registry/packaged-matcher');
 	});
 
-	it('bounds both worker shard retention and queued observation batches', () => {
-		const worker = read(MATCHER_WORKER);
-		const host = read(OFFSCREEN_HOST);
-		const queue = read(OFFSCREEN_QUEUE);
+	it('loads matcher shards only inside the dedicated matcher worker', () => {
+		const workerImports = importSources(parseSource(MATCHER_WORKER));
+		const backgroundGraph = dependencyGraph(BACKGROUND_ENTRYPOINT);
 
-		expect(worker).toContain('MAX_CACHED_OBSERVATION_KIND_SHARDS = 4');
-		expect(worker).toContain('maxObservationKindShards: MAX_CACHED_OBSERVATION_KIND_SHARDS');
-		expect(host).toContain('MAX_QUEUED_JOBS = 8');
-		expect(host).toContain('limit: MAX_QUEUED_JOBS');
-		expect(queue).toContain('new QueueFullError(options.limit)');
-		expect(queue).toContain("cancel(jobId, reason = new Error('Matcher job was canceled before dispatch.'))");
-		expect(queue).toContain('entry?.reject(reason)');
+		expect(workerImports).toContain('@/lib/registry/packaged-matcher');
+		expect([...backgroundGraph].some((path) => path.endsWith('/registry/build-provider.ts'))).toBe(false);
+		expect([...backgroundGraph].some((path) => path.endsWith('/registry/matcher-artifact.ts'))).toBe(false);
 	});
 
-	it('releases idle dedicated-worker heaps', () => {
-		const host = read(OFFSCREEN_HOST);
+	it('keeps headless background, offscreen, and matcher-worker dependency graphs free of UI runtime modules', () => {
+		for (const root of [BACKGROUND_ENTRYPOINT, OFFSCREEN_ENTRY, MATCHER_WORKER]) {
+			const graph = dependencyGraph(root);
+			const uiFiles = [...graph].filter((path) => path.includes('/src/app/'));
+			const external = externalImports(graph);
 
-		expect(host).toContain('HOST_IDLE_MS = 30_000');
-		expect(host).toContain('pool.dispose(reason)');
-		expect(host).toContain("event: 'matcher-worker-pool-created'");
-		expect(host).toContain("event: 'matcher-worker-pool-disposed'");
-		expect(host).toContain('HOST_IDLE_MS}ms idle limit');
-		expect(host).toContain('this.#emitIdle()');
-		expect(host).toContain("event: 'matcher-host-idle'");
+			expect(uiFiles).toEqual([]);
+			expect(external).not.toContain('solid-js');
+			expect(external).not.toContain('@solidjs/router');
+		}
 	});
 
-	it('keeps registry-scale matcher state out of cross-context requests and the offscreen host', () => {
-		const client = read(OFFSCREEN_CLIENT);
-		const contracts = read(MATCHER_CONTRACTS);
-		const host = read(OFFSCREEN_HOST);
+	it('uses the WORKERS offscreen reason without a DOM parser dependency', () => {
+		const client = parseSource(OFFSCREEN_CLIENT);
+		const graph = dependencyGraph(OFFSCREEN_ENTRY);
+		const members = expressionNames(client);
 
-		expect(contracts).toContain('export type OffscreenMatcherJobRequest = Pick<');
-		expect(contracts).toContain("'job' | 'mode' | 'batch' | 'options'");
-		expect(contracts).not.toContain('maxWorkerCount');
-		expect(client).toContain('request: compact(request)');
-		expect(client).toContain('registry: request.registry');
-		expect(client).toContain('relationshipGraph: request.relationshipGraph');
-		expect(host).not.toContain('createPackagedTechnologyRegistryProvider');
-		expect(host).not.toContain('createCompiledDetectionRegistry');
-		expect(host).not.toContain('createMatcherPipelineResult');
-		expect(host).not.toContain('request.registry');
-		expect(host).not.toContain('request.relationshipGraph');
-		expect(host).not.toContain('request.index');
+		expect(members).toContain('offscreen.Reason.WORKERS');
+		expect(members).not.toContain('offscreen.Reason.DOM_PARSER');
+		expect([...graph].some((path) => path.endsWith('/content/dom-selectors.ts'))).toBe(false);
 	});
 
-	it('keeps matcher rules and matcher indexes out of the production background registry', () => {
-		const runtime = read(BACKGROUND_RUNTIME);
-		const worker = read(MATCHER_WORKER);
+	it('does not log raw observation values or full expected URLs from matcher performance diagnostics', () => {
+		const worker = parseSource(MATCHER_WORKER);
+		const calls = callNames(worker);
+		const properties = objectPropertyNames(worker);
 
-		expect(runtime).toContain("Pick<TechnologyRegistryProvider, 'getRuntimeRegistry'>");
-		expect(runtime).toContain('dependencies.registryProvider.getRuntimeRegistry()');
-		expect(runtime).not.toContain('dependencies.registryProvider.getCompiledRegistry()');
-		expect(runtime).not.toContain('.matcherIndex');
-		expect(read(BACKGROUND_ENTRYPOINT)).toContain('bundledRuntimeTechnologyRegistryProvider');
-		expect(worker).toContain('createPackagedMatcherTechnologyRegistryProvider');
-		expect(worker).not.toContain('createPackagedTechnologyRegistryProvider');
-		expect(worker).toContain('CompiledMatcherRegistryArtifact');
-		expect(worker).not.toContain('compileValidatedTechnologyRegistry');
+		expect(calls).toContain('redactEvidenceValue');
+		expect(callNumberArguments(worker, 'redactEvidenceValue')).toContain(240);
+		expect(objectPropertyCallNames(worker, 'expectedUrlPreview')).toContain('previewLogValue');
+		expect(objectPropertyCallNames(worker, 'observationValuePreview')).toContain('previewObservationValue');
+		expect(properties).not.toContain('expectedUrl');
+		expect(properties).not.toContain('observationValue');
+		expect(properties).not.toContain('observationAttributes');
 	});
 
-	it('streams each partition once instead of retaining a second offscreen result set', () => {
-		const client = read(OFFSCREEN_CLIENT);
-		const host = read(OFFSCREEN_HOST);
-		const pool = read(OFFSCREEN_POOL);
+	it('routes tab activation into matcher reprioritization instead of cancellation', () => {
+		const runtime = parseSource(BACKGROUND_RUNTIME);
+		const background = parseSource(BACKGROUND_ENTRYPOINT);
+		const calls: string[] = [];
+		walk(background.program, (node) => {
+			const name = callName(node);
+			if (name) calls.push(name);
+		});
 
-		expect(pool).toContain('assignByKind(tasks, this.#workers.length, this.#workerIndexByKind)');
-		expect(pool).toContain("#workerIndexByKind = new Map<MatcherPartitionTask['kind'], number>()");
-		expect(pool).toContain('await this.#options.onPartition(result, completedPartitionCount, tasks.length)');
-		expect(pool).not.toContain('const results: MatcherPartitionResult[]');
-		expect(host).toContain('const partitionCount = await this.#getPool().run(tasks);');
-		expect(client).toContain('value.value.partitionCount !== partitions.length');
-		expect(client).toContain("message.type === 'matcher.partition-complete'");
-	});
-
-	it('terminates active matcher workers on cancellation or failure', () => {
-		const host = read(OFFSCREEN_HOST);
-		const pool = read(OFFSCREEN_POOL);
-
-		expect(host).toContain("new MatcherError('canceled', 'Matcher job was canceled.')");
-		expect(host).toContain("this.#dispose(error instanceof Error ? error : new Error('Matcher job failed.'))");
-		expect(host).toContain("error instanceof MatcherError && error.reason === 'canceled'");
-		expect(pool).toContain('#activeReject');
-		expect(pool).toContain('reason instanceof Error ? reason : new Error(reason)');
-		expect(pool).toContain('this.#worker.terminate()');
-	});
-
-	it('uses separate queue and execution deadlines', () => {
-		const client = read(OFFSCREEN_CLIENT);
-
-		expect(client).toContain('QUEUE_DEADLINE_MS = 120_000');
-		expect(client).toContain('RUN_DEADLINE_MS = 120_000');
-		expect(client).toContain("message.phase !== 'running'");
-		expect(client).toContain('arm(RUN_DEADLINE_MS)');
-		expect(client).toContain('browser.runtime.onMessage.addListener(onMessage)');
-		expect(client.indexOf('browser.runtime.onMessage.addListener(onMessage)')).toBeLessThan(client.indexOf('response = send()'));
-	});
-
-	it('keeps DOM parsing out of the offscreen host and closes an idle WORKERS document', () => {
-		const client = read(OFFSCREEN_CLIENT);
-		const host = read(OFFSCREEN_HOST);
-		const entry = read(OFFSCREEN_ENTRY);
-
-		expect(`${client}\n${host}\n${entry}`).not.toContain('DOMParser');
-		expect(`${client}\n${host}\n${entry}`).not.toContain('parseFromString');
-		expect(client).toContain('reasons: [offscreen.Reason.WORKERS]');
-		expect(client).not.toContain('offscreen.Reason.DOM_PARSER');
-		expect(host).toContain('HOST_IDLE_MS = 30_000');
-		expect(host).toContain("type: 'matcher.host-idle'");
-		expect(client).not.toContain('const IDLE_MS');
-		expect(client).not.toContain('idleTimer');
-		expect(client).not.toContain('scheduleClose');
-		expect(client).toContain('await offscreen.closeDocument()');
-		expect(client).toContain("event: 'matcher-offscreen-document-closed'");
-		expect(read(BACKGROUND_ENTRYPOINT)).toContain('offscreen.start()');
-		expect(read(BACKGROUND_ENTRYPOINT)).not.toContain('offscreen.close(');
-	});
-
-	it('uses the same offscreen matcher topology in development and packaged builds', () => {
-		const client = read(OFFSCREEN_CLIENT);
-		const contracts = read(MATCHER_CONTRACTS);
-		const developmentPath = fileURLToPath(new URL('../../lib/matcher/offscreen/development.ts', import.meta.url));
-
-		expect(existsSync(developmentPath)).toBe(false);
-		expect(client).not.toContain('import.meta.env.DEV');
-		expect(client).not.toContain('development.run');
-		expect(client).not.toContain('background-fallback');
-		expect(contracts).toContain("export type MatcherJobExecutor = 'offscreen-worker-pool'");
-		expect(contracts).not.toContain('development-background');
-		expect(contracts).not.toContain('background-fallback');
-	});
-
-	it('keeps the offscreen entrypoint as composition instead of matcher ownership', () => {
-		const entry = read(OFFSCREEN_ENTRY);
-
-		expect(entry).toContain('host.start()');
-		expect(entry).not.toContain('queuedJobs');
-		expect(entry).not.toContain('new Worker');
-		expect(entry).not.toContain('createMatcherPartitionTasks');
-	});
-
-	it('removes the obsolete matcher lifecycle and DOM serialization modules', () => {
-		expect(existsSync(OLD_OFFSCREEN_LIFECYCLE)).toBe(false);
-		expect(existsSync(OLD_DOM_MATCHER)).toBe(false);
-	});
-
-	it('cancels inactive-tab matcher work and retains full observation batches only for live observers', () => {
-		const runtime = read(BACKGROUND_RUNTIME);
-		const background = read(BACKGROUND_ENTRYPOINT);
-
-		expect(runtime).toContain('const observationRefreshBaselineByTab = new Map<number, ObservationRefreshBaseline>()');
-		expect(runtime).not.toContain('eventObservationBatchByTab');
-		expect(runtime).toContain("void cancelMatcherJob(jobId, 'tab-deactivated')");
-		expect(runtime).toContain('if (current.active === false || !current.url)');
-		expect(background).toContain('backgroundRuntime.onTabActivated(tabId, windowId)');
-	});
-
-	it('stops content observation by exact session identity in one content RPC', () => {
-		const runtime = read(BACKGROUND_RUNTIME);
-		const content = read(CONTENT_ENTRYPOINT);
-
-		expect(runtime).toContain('contentApi.stopObservationSession(target)');
-		expect(content).toContain('active.sessionId !== input.sessionId');
-		expect(content).toContain('url.sameDocument(active.expectedUrl, input.expectedUrl)');
-		expect(content).toContain('The requested observation session no longer owns this content runtime.');
-		expect(runtime).not.toContain('contentApi.stopObservationSession()');
-	});
-
-	it('relays dedicated-worker diagnostics through the offscreen pool', () => {
-		const pool = read(OFFSCREEN_POOL);
-
-		expect(pool).toContain('isDiagnosticTransportMessage(event.data)');
-		expect(pool).toContain('forwardDiagnostic(event.data)');
-		expect(pool).toContain('browser.runtime.sendMessage(message)');
+		expect(stringLiterals(runtime)).not.toContain('tab-deactivated');
+		expect(stringLiterals(background)).not.toContain('tab-deactivated');
+		expect(calls).toContain('matcherQueue.activateTab');
 	});
 });

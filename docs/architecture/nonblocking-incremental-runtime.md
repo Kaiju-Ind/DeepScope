@@ -1,44 +1,36 @@
 # Non-blocking incremental matcher runtime
 
-The visible-tab command now starts the analysis session and returns before CPU-bound matching completes. The side panel should treat storage-backed detector snapshots as the receive stream: stored snapshot output paints first, worker partition revisions advance the visible result, and the final matcher result replaces the stored detector snapshot when all partitions finish.
-
-This fixes the older staged shape where the side panel waited for one large matcher job, then started later evidence work. In that design, collection took milliseconds but the matcher could occupy the background request for tens of seconds. The content observer could expire while the first matcher job was still running, and side-panel reopen behavior could race between content lifecycle snapshots and detector snapshots.
+The visible-tab command starts analysis and can return useful stored or initial state before all CPU-heavy matching and enrichment finishes. Storage-backed detector snapshots are the side panel's receive stream. Worker partition revisions advance that snapshot until the final matcher result is persisted.
 
 ```text
-side panel opens
-  -> background reads the visible snapshot or returns a pending response
-  -> content/background collectors gather cheap first-pass observations
-  -> matcher job is registered and dispatched without blocking the side-panel RPC
-  -> enrichment collectors gather deeper evidence as follow-up revisions
-  -> offscreen workers process small kind chunks
-  -> each completed chunk publishes a detector snapshot revision
-  -> final result updates the detector snapshot and replay storage
+side panel
+  -> render exact-session/origin recovery snapshot
+  -> request or join analysis intent
+
+background scheduler
+  -> collect cheap initial observations
+  -> queue matcher work
+  -> continue deeper evidence passes
+
+partition scheduler
+  -> choose work by current tab priority
+  -> execute at most two independent observation kinds
+  -> publish completed partition revisions
+
+background coordinator
+  -> merge accumulated partition evidence
+  -> persist final detector snapshot and replay state
 ```
 
-The registry still plans collection from the complete compiled artifact. Kind shards are used only by workers so each partition can hydrate the smallest matcher index needed for its observation kind. This keeps the product truth surface complete while reducing per-worker matching cost.
+## Collection cost follows the Registry plan
 
+Initial collection uses evidence that is already cheap and visible. Expensive HTML/text/source surfaces are collected only when the rule-free runtime Registry plan requires them. Long-lived observation sessions retain the same item and byte limits used by direct collection.
 
-## Collection cost follows the registry plan
-
-The observer must not collect every evidence surface on every pass. Cheap route and DOM evidence stays available to the initial matcher, while large inline or accessible source text is collected only when the compiled enrichment plan has rules that require it.
-
-```text
-initial collection
-  -> URLs, DOM selectors, links, metadata, resources
-  -> no script or stylesheet source unless requested
-
-enrichment collection
-  -> add only the expensive surfaces required by the registry
-
-live observation
-  -> keep the same source-content flags for late mutations
-```
-
-Accumulated script and stylesheet source also obey the same item, per-item character, and total-character limits used by one direct collection pass. A long-lived observation session therefore cannot exceed the payload contract merely because many valid snapshots were merged over time.
+The Registry plan is complete detector truth. Cost tiers describe collection cost, not a separate reduced detector model.
 
 ## Snapshot precedence
 
-Detector snapshots are the startup source of truth. Content-owned snapshots describe the page-local observation lifecycle and can preserve an exact-session analysis, but they must not replace a background detector result at the origin-latest key just because an observer event wrote a newer timestamp. Origin recovery therefore ranks snapshots as:
+Detector snapshots remain the startup truth for visible detections. Content-owned lifecycle snapshots can preserve exact-session state, but they do not replace a newer background detector result merely because they have a later timestamp.
 
 ```text
 background detector snapshot
@@ -46,40 +38,39 @@ background detector snapshot
   > content lifecycle placeholder
 ```
 
-This keeps side-panel reopen behavior stable. Opening and closing the side panel should show the last real detector output immediately, then subscribe to newer revisions for the visible tab.
+## Partition progress
 
-## Worker progress
+Large observation kinds are chunked before worker execution. The background owns the partition scheduler, so priority can change between chunks when the user activates another tab.
 
-Large observation kinds are chunked before they enter the offscreen pool. A single Vercel-style `resourceUrl` or `requestUrl` partition can otherwise block visible progress until the entire kind completes. Chunking turns high-fan-out surfaces into multiple progress events while preserving deterministic merge order through original observation indexes.
+The offscreen document does not keep a second waiting queue. It owns only two active DedicatedWorker slots. Kind affinity keeps a large observation-kind shard on one worker while the pool is hot.
 
-DOM selector matching now stays in the content script and reads the live browser document directly. The selector plan routes each traversed element by its right-most tag, attribute, id, or class when possible. The initial full-document scan yields after bounded element or time slices, mutation callbacks only queue affected roots, and positive selector matches retire from later scans for that document. The content script never serializes the full DOM merely to run selector rules in another extension context.
+Tab activation changes priority. It does not cancel the old tab. Navigation, tab close, tab replacement, or a newer job for the same document can cancel old work and block stale publication.
 
-The offscreen document now has one job: host CPU-heavy technology matching. It reuses one small dedicated-worker pool across nearby jobs, then terminates the worker pool after 30 seconds without matcher work. Each worker keeps at most four observation-kind compiled shards in a least-recently-used cache. The background also closes the offscreen document itself after 30 seconds without an owning matcher request. A restarted background closes any orphaned matcher host after durable job reconciliation before later work recreates it. This releases the host heap, listeners, and worker-host state rather than keeping them for the complete browser session.
+## Service-worker recovery
 
-The background-to-offscreen runtime message is deliberately compact. It contains the matcher job identity, page observation batch, mode, and small execution options. It does not clone the full technology registry, matcher index, or relationship graph into every runtime message. The offscreen host also does not load a full finalization registry. Workers load only the observation-kind shards they need and return partition matches. Background then finalizes those partitions with the registry and relationship graph it already holds for collection planning. This removes a second full registry object graph from the offscreen context while keeping CPU-heavy rule matching in dedicated workers.
+Small scheduler records live in IndexedDB. Raw `ObservationBatch` values do not.
 
-A timeout only ends the background's wait for the offscreen response. It does not stop JavaScript that is already running in the offscreen document. The background therefore sends an explicit cancel request and the offscreen host terminates the active worker pool on cancellation or worker failure. Development and packaged builds both use this path. The background never starts a second full matcher pass after an offscreen timeout or failure because overlapping copies would duplicate expensive matcher state.
+After a background replacement:
 
-Active work is keyed by visible session rather than only by tab id:
+- analysis intent can be requeued and recollected from a still-live document;
+- matcher work from the old context is canceled because its transient observation payload no longer exists;
+- the old offscreen host is told to cancel orphan partitions;
+- a valid visible tab can receive fresh analysis work.
 
-```text
-tabId:frameId:documentId:urlHash
-```
-
-Navigation, tab deactivation in the same browser window, tab close, or a newer job for the same visible session cancels the old matcher job and drops late partition progress before it can write snapshot lifecycle updates. Background also rechecks the current tab and document before it creates a matcher job, after expensive evidence collection, and before it persists a completed result.
+This avoids pretending that in-memory matcher progress is checkpoint-resumable.
 
 ## Trace markers
 
-A healthy browser trace should show these events:
+A healthy trace should show scheduler ownership explicitly:
 
 ```text
 analysis-requested
-analysis-fresh-start
-collect-observation-batch-success
-matcher-job-dispatch
+scheduler-analysis-complete / scheduler-analysis-failed
+scheduler-matcher-queued
+matcher-job-running
 matcher-partition-complete ...
-matcher-partition-complete ...
-analysis-queued-persist-complete
+matcher-worker-pool-disposed
+matcher-host-idle
 ```
 
-A matcher completion trace should report `offscreen-worker-pool` in both development and packaged builds. An offscreen timeout or failure must appear as a failed or canceled matcher job and diagnostic record, not as a second matcher pass in the background service worker.
+A matcher failure must remain a failed or canceled matcher job. DeepScope does not start a hidden second full matcher implementation in the background service worker.

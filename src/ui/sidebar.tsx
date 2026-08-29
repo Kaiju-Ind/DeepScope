@@ -270,9 +270,10 @@ const SidebarTrigger = (props: SidebarTriggerProps) => {
       variant="ghost"
       size="icon-sm"
       class={cn("z-sidebar-trigger", local.class)}
-      onClick={(event: MouseEvent) => {
-        //@ts-expect-error - TODO: Typescript wizardry needed here
-        local.onClick?.(event);
+      onClick={(event) => {
+        const handler = local.onClick;
+        if (typeof handler === "function") handler(event);
+        else if (handler) handler[0](handler[1], event);
         toggleSidebar();
       }}
       {...others}

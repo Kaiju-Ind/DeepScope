@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Type-check and build the default extension target"
+set -euo pipefail
+exec pnpm build "$@"

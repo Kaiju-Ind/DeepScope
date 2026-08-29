@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Type-check, test, and create the default WXT ZIP"
+set -euo pipefail
+exec pnpm zip "$@"

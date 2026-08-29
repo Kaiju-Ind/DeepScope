@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Run the WXT development server"
+set -euo pipefail
+exec pnpm dev "$@"
