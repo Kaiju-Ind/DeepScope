@@ -1,0 +1,33 @@
+name: Verify
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify DeepScope
+    runs-on: ubicloud-standard-2-arm
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prepare shared tooling
+        uses: Kaiju-Ind/GitHub/.github/actions/tooling-setup@b5ac10ef7f28c1b7f2212eea28e06000f0254064
+        with:
+          ssh-key: ${{ secrets.KAIJU_GITHUB_SSH_KEY }}
+          github-token: ${{ github.token }}
+          cache: true
+
+      - name: Qualify source through shared Mise capabilities
+        run: mise run check
