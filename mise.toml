@@ -1,3 +1,26 @@
+min_version = "2026.9.14"
+
+[settings]
+experimental = true
+task.output = "keep-order"
+task.quiet = true
+
+[vars]
+kaiju_tooling_ref = "b5ac10ef7f28c1b7f2212eea28e06000f0254064"
+
+[task_config]
+includes = [
+  "git::ssh://git@github.com/Kaiju-Ind/GitHub.git//packs/core?ref={{vars.kaiju_tooling_ref}}",
+  "git::ssh://git@github.com/Kaiju-Ind/GitHub.git//packs/node?ref={{vars.kaiju_tooling_ref}}",
+  "git::ssh://git@github.com/Kaiju-Ind/GitHub.git//packs/security?ref={{vars.kaiju_tooling_ref}}",
+  "git::ssh://git@github.com/Kaiju-Ind/GitHub.git//packs/actions?ref={{vars.kaiju_tooling_ref}}",
+  "git::ssh://git@github.com/Kaiju-Ind/GitHub.git//packs/container?ref={{vars.kaiju_tooling_ref}}",
+]
+
+[env]
+KAIJU_NODE_PROJECTS = "."
+KAIJU_NODE_CHECK_SCRIPTS = "compile,test:run"
+
 [tools]
-pnpm = "latest"
-node = "latest"
+node = "24.21.0"
+pnpm = "11.27.0"
