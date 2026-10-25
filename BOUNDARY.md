@@ -1,6 +1,8 @@
-# Boundary
+# DeepScope responsibilities
 
-DeepScope is the browser intelligence product boundary.
+DeepScope identifies technologies on the page a person is viewing and shows the
+evidence in the browser extension. This repository owns that browser experience
+and the code that collects, evaluates, and stores page observations locally.
 
 ## Owns
 
@@ -20,15 +22,19 @@ DeepScope is the browser intelligence product boundary.
 - shared cluster substrate
 - public marketing websites
 
-The current declarative registry under `src/registry/` contains semantic material that must be classified during migration. Canonical knowledge belongs in Intelligence; browser-runtime implementation and browser-specific projection remain here.
+The current `src/registry/` still contains technology definitions and detection
+rules. The planned migration must separate reusable technology knowledge from
+browser-specific collection and execution rules. Intelligence is the intended
+owner of the reusable definitions; this ownership document does not prove that
+the migration or an artifact consumer is implemented.
 
-## External boundaries
+## Planned connection to Intelligence
 
 - DeepScope should consume a versioned, browser-friendly Intelligence artifact such as a package subpath or generated JSON bundle
 - the artifact must contain only the semantic/runtime data the extension needs
 - DeepScope must not import Intelligence source directly or bundle unrelated server-side semantic machinery
 
-## Mechanical rules
+## Conditions for the migration
 
 - keep browser-specific runtime behavior local to this repository
 - make generated Registry projection inputs versioned and reproducible
