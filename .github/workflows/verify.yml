@@ -1,0 +1,52 @@
+# Automatic runs check types. Run this workflow manually for all tests and the Chrome build.
+# Cache scope and the required-check migration are documented in docs/ci.md.
+name: DeepScope checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Only read-only checks are cancelled when a newer source revision is available.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: ${{ github.event_name == 'workflow_dispatch' && 'Tests and Chrome build (manual)' || 'Type checks' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 25 || 2 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Node and pnpm with Mise
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: "2026.10.25"
+          cache: true
+          cache_save: ${{ github.event_name != 'pull_request' }}
+      - name: Locate pnpm download store
+        id: pnpm-store
+        shell: bash
+        run: printf 'path=%s\n' "$(mise exec -- pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Restore pnpm download store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: deepscope-pnpm-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'pnpm-lock.yaml', '.npmrc') }}
+      - name: Install locked dependencies
+        run: mise exec -- pnpm install --frozen-lockfile
+      - name: Check types
+        if: github.event_name != 'workflow_dispatch'
+        run: mise exec -- pnpm run compile
+      - name: Run all tests and build Chrome extension
+        if: github.event_name == 'workflow_dispatch'
+        run: mise exec -- pnpm run check:release
