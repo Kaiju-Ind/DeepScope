@@ -12,8 +12,9 @@ A passing automatic type check does not mean the manual tests passed.
 The last combined job at source `1e88a2e672fc98acaab1b219b65c39978666e231` took
 128 seconds from job start to completion in Actions run `41603619534`.
 The two-minute policy therefore moves the combined command to manual execution.
-It does not impose a two-minute timeout on a running test.
-The new automatic job's cold and warm durations still need measurement.
+Automatic type checks have a two-minute timeout including preparation. Manual
+qualification retains its 25-minute budget and all existing checks. Hosted timing
+observations still matter: a timeout is a cost bound, not proof that a check passes.
 
 ## Dependency caching
 
@@ -43,6 +44,5 @@ could not be inspected or changed. If a rule requires the old combined name,
 the repository owner must review that rule before merging. A manually dispatched
 workflow is not a substitute for a required PR-triggered check.
 
-The existing independent documentation PRs and shared-tooling PR #36 remain
-unmerged. This workflow uses pinned upstream Actions and local `mise.toml`; it
-does not depend on merging #36.
+This workflow uses pinned upstream Actions and local `mise.toml`; it does not
+depend on a shared-tooling PR being merged.
