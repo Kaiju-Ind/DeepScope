@@ -32,7 +32,8 @@ jobs:
         with:
           version: "2026.10.25"
           cache: true
-          cache_save: ${{ github.event_name != 'pull_request' }}
+          cache_save_post: true
+          cache_save: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       - name: Locate pnpm download store
         id: pnpm-store
         shell: bash
