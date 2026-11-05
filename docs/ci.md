@@ -46,3 +46,9 @@ workflow is not a substitute for a required PR-triggered check.
 
 This workflow uses pinned upstream Actions and local `mise.toml`; it does not
 depend on a shared-tooling PR being merged.
+
+Mise saves installed tools after the job finishes, including tools prepared by
+later steps. Same-repository PRs may save the native tool cache; forks cannot.
+The pnpm store caches downloads only. Frozen installation, type checks and
+manual release tests still run with the current source and lockfile. This
+repository currently uses native Mise directly rather than the shared catalog.
