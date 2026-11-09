@@ -1,20 +1,5 @@
 min_version = "2026.11.5"
 
-[settings]
-experimental = true
-
-# Type checking has no build output. Cache its successful result with complete source inputs.
-[tasks."ci:compile"]
-description = "Type-check WXT source using native Mise artifact caching"
-run = "pnpm run compile"
-sources = [
-  "src/**", "modules/**", "public/**", ".wxt/**",
-  "tsconfig.json", "wxt.config.ts", "vitest.config.ts", "components.json",
-  "package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", ".npmrc",
-]
-outputs = []
-cache = { enabled = true, env = ["CI", "NODE_ENV", "NODE_OPTIONS", "WXT_MODE"] }
-
 [tools]
 pnpm = "12.18.0"
 node = "26.13.0"
