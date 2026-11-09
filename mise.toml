@@ -1,6 +1,8 @@
+min_version = "2026.11.5"
+
 [tools]
-pnpm = "12.10.1"
-node = "26.11.1"
+pnpm = "12.18.0"
+node = "26.13.0"
 
 # Shared Actions use this immutable revision; application tools stay local.
 [vars]
