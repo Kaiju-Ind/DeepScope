@@ -4,4 +4,4 @@ node = "26.11.1"
 
 # Shared Actions use this immutable revision; application tools stay local.
 [vars]
-kaiju_tooling_ref = "c017e8b85806da4d9f2e6f6fead1ca7818949e00"
+kaiju_tooling_ref = "9d513530d1e52d70973f70c9b8e8c431641f88c5"
