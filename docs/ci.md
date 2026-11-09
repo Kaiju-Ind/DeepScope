@@ -1,7 +1,9 @@
 # DeepScope CI checks
 
 Pull requests against any branch and pushes to `main` run the existing TypeScript command,
-`mise exec -- pnpm run compile`. This is a source check, not a test or build result.
+`mise run ci:compile`, which still executes `pnpm run compile` when its
+native Mise task cache has no valid result. This is a source check, not a
+full test or build result.
 
 Use **Actions → DeepScope checks → Run workflow**, select the branch, and start
 the workflow to run `mise exec -- pnpm run check:release`. That existing command
@@ -33,6 +35,25 @@ Every run still performs the same frozen installation and WXT postinstall step.
 This workflow is read-only: it does not publish the extension. Release work must
 not treat a cache hit as evidence that tests or a build ran.
 
+### Native type-check task cache
+
+Only automatic TypeScript checks use Mise's experimental artifact cache.
+The task declares authored source, generated WXT types, configs, the frozen
+pnpm lock, and relevant environment variables. It writes no build outputs:
+`outputs = []` stores only a successful result and the task log.
+Any changed declared input or runtime forces `tsc --noEmit` to run again.
+
+The workflow restores only `.tmp/ci-mise-task-cache`, not installed packages
+or all Mise files. GitHub's cache key includes OS, architecture, tool/lock
+identity and the candidate SHA; restore prefixes allow Mise to check an
+earlier candidate's exact content fingerprint. Failed checks do not save.
+Fork pull requests cannot write shared cache entries. The manual full check
+still runs fresh Vitest and the WXT Chrome build without using this result.
+
+**Savings are not yet measured.** Compare actual successful cold and warm
+jobs, including cache restore, source hashing and frozen installation,
+before enabling the pattern in another repository. Missing task inputs
+could produce a false cache hit, so review the declared input closure.
 ## Required checks and branch settings
 
 The automatic check is **Type checks**. A manually started run is named
@@ -47,8 +68,8 @@ workflow is not a substitute for a required PR-triggered check.
 
 This workflow pins the shared cache action to
 `084d0133ac56714027256b12d64e84e9c9c01fc1`. The same revision is declared in
-`mise.toml`; update both together. It adds no private Git task packs and leaves
-Node 26.11.1, pnpm 12.10.1 and the native package scripts unchanged.
+`mise.toml`; update both together. It adds no private Git task packs and keeps
+Node 26.13.0, pnpm 12.18.0 and the native package scripts unchanged.
 
 ## Parallel branches and manual requests
 

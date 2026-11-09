@@ -23,6 +23,8 @@ jobs:
     name: ${{ github.event_name == 'workflow_dispatch' && 'Tests and Chrome build (manual)' || 'Type checks' }}
     runs-on: ubicloud-standard-2
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 25 || 2 }}
+    env:
+      MISE_TASK_CACHE_DIR: ${{ github.workspace }}/.tmp/ci-mise-task-cache
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,12 +44,32 @@ jobs:
           stores: pnpm
       - name: Install locked dependencies
         run: mise exec -- pnpm install --frozen-lockfile
+      # Restore only this content-keyed task cache, not installed dependencies.
+      - name: Restore native type-check results
+        if: github.event_name != 'workflow_dispatch'
+        id: types-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tmp/ci-mise-task-cache
+          key: deepscope-types-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            deepscope-types-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'pnpm-lock.yaml') }}-
       - name: Check types
         if: github.event_name != 'workflow_dispatch'
-        run: mise exec -- pnpm run compile
+        run: mise run ci:compile
       - name: Run all tests and build Chrome extension
         if: github.event_name == 'workflow_dispatch'
         run: mise exec -- pnpm run check:release
+      - name: Save successful native type-check results
+        if: >-
+          github.event_name != 'workflow_dispatch' && success() &&
+          steps.types-cache.outputs.cache-hit != 'true' &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tmp/ci-mise-task-cache
+          key: ${{ steps.types-cache.outputs.cache-primary-key }}
       - name: Save successful pnpm download store
         uses: Kaiju-Ind/GitHub/.github/actions/dependency-cache@084d0133ac56714027256b12d64e84e9c9c01fc1
         with:
