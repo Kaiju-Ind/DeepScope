@@ -1,3 +1,7 @@
 [tools]
 pnpm = "12.10.1"
 node = "26.11.1"
+
+# Shared Actions use this immutable revision; application tools stay local.
+[vars]
+kaiju_tooling_ref = "c017e8b85806da4d9f2e6f6fead1ca7818949e00"
