@@ -46,7 +46,7 @@ the repository owner must review that rule before merging. A manually dispatched
 workflow is not a substitute for a required PR-triggered check.
 
 This workflow pins the shared cache action to
-`9d513530d1e52d70973f70c9b8e8c431641f88c5`. The same revision is declared in
+`084d0133ac56714027256b12d64e84e9c9c01fc1`. The same revision is declared in
 `mise.toml`; update both together. It adds no private Git task packs and leaves
 Node 26.11.1, pnpm 12.10.1 and the native package scripts unchanged.
 

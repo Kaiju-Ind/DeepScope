@@ -36,7 +36,7 @@ jobs:
           cache_save_post: true
           cache_save: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       - name: Restore pnpm download store
-        uses: Kaiju-Ind/GitHub/.github/actions/dependency-cache@9d513530d1e52d70973f70c9b8e8c431641f88c5
+        uses: Kaiju-Ind/GitHub/.github/actions/dependency-cache@084d0133ac56714027256b12d64e84e9c9c01fc1
         with:
           mode: restore
           stores: pnpm
@@ -49,7 +49,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: mise exec -- pnpm run check:release
       - name: Save successful pnpm download store
-        uses: Kaiju-Ind/GitHub/.github/actions/dependency-cache@9d513530d1e52d70973f70c9b8e8c431641f88c5
+        uses: Kaiju-Ind/GitHub/.github/actions/dependency-cache@084d0133ac56714027256b12d64e84e9c9c01fc1
         with:
           mode: save
           stores: pnpm
