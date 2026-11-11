@@ -32,7 +32,7 @@ afterEach(() => {
 	vi.resetModules();
 });
 
-describe.sequential('detection session snapshots', () => {
+describe('detection session snapshots', { concurrent: false }, () => {
 	it('rejects superseded version 1 snapshot records', async () => {
 		const storage = await loadStorageHarness();
 		const obsoleteSnapshot = { ...makeDetectionSessionSnapshot(), schemaVersion: 1 };

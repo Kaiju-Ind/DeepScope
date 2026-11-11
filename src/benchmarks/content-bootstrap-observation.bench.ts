@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { describe, test } from 'vitest';
 
 import type { PageSignals } from '@/lib/detection/types';
 import { normalizePageSignals } from '@/lib/observations';
@@ -110,8 +110,10 @@ const scenarios = CONTENT_BOOTSTRAP_WORKLOADS.map(createContentBootstrapScenario
  */
 describe('content bootstrap observation', () => {
 	for (const scenario of scenarios) {
-		bench(scenario.workload, () => {
-			consumeObservationCount(runContentBootstrapNormalization(scenario.signals));
-		}, BENCHMARK_OPTIONS);
+		test(scenario.workload, async ({ bench }) => {
+			await bench(scenario.workload, () => {
+				consumeObservationCount(runContentBootstrapNormalization(scenario.signals));
+			}).run(BENCHMARK_OPTIONS);
+		});
 	}
 });

@@ -5,7 +5,7 @@ afterEach(() => {
 	vi.resetModules();
 });
 
-describe.sequential('automatic scan setting', () => {
+describe('automatic scan setting', { concurrent: false }, () => {
 	it('defaults to enabled when no preference has been stored', async () => {
 		const get = vi.fn(async () => ({}));
 		vi.doMock('wxt/browser', () => ({

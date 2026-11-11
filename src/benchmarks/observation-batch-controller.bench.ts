@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { describe, test } from 'vitest';
 
 import {
 	createObservationBatchController,
@@ -93,8 +93,10 @@ const scenarios = BATCH_CONTROLLER_WORKLOADS.map((workload) => ({
 
 describe('observation batch controller', () => {
 	for (const scenario of scenarios) {
-		bench(`${scenario.workload} workload`, () => {
-			consumeBatchCount(runControllerWorkload(scenario.observations));
-		}, BENCHMARK_OPTIONS);
+		test(`${scenario.workload} workload`, async ({ bench }) => {
+			await bench(`${scenario.workload} workload`, () => {
+				consumeBatchCount(runControllerWorkload(scenario.observations));
+			}).run(BENCHMARK_OPTIONS);
+		});
 	}
 });

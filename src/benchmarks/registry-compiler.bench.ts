@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { describe, test } from 'vitest';
 
 import { buildCollectionPlan } from '@/lib/collectors/planning';
 import { createObservationMatcherIndex } from '@/lib/detection/observation-matcher-index';
@@ -71,11 +71,15 @@ function buildCompiledArtifact(registry: readonly TechnologyDefinition[]): numbe
 const registry = createBenchmarkRegistry(LARGE_REGISTRY_SIZE);
 
 describe('registry compiler', () => {
-	bench('separate runtime artifacts', () => {
-		consumeArtifactSize(buildSeparateArtifacts(registry));
-	}, BENCHMARK_OPTIONS);
+	test('separate runtime artifacts', async ({ bench }) => {
+		await bench('separate runtime artifacts', () => {
+			consumeArtifactSize(buildSeparateArtifacts(registry));
+		}).run(BENCHMARK_OPTIONS);
+	});
 
-	bench('compiled registry artifact', () => {
-		consumeArtifactSize(buildCompiledArtifact(registry));
-	}, BENCHMARK_OPTIONS);
+	test('compiled registry artifact', async ({ bench }) => {
+		await bench('compiled registry artifact', () => {
+			consumeArtifactSize(buildCompiledArtifact(registry));
+		}).run(BENCHMARK_OPTIONS);
+	});
 });

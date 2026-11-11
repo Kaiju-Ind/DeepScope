@@ -34,7 +34,7 @@ afterEach(() => {
 	vi.resetModules();
 });
 
-describe.sequential('snapshot-backed storage status and replay records', () => {
+describe('snapshot-backed storage status and replay records', { concurrent: false }, () => {
 	it('builds response and replay keys from origins instead of full paths', () => {
 		expect(getAnalysisResponseKey('https://example.com/products')).toBe(
 			'analysis:https://example.com',
