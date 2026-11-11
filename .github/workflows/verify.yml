@@ -4,7 +4,6 @@ name: DeepScope checks
 
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
@@ -12,15 +11,17 @@ on:
 permissions:
   contents: read
 
-# Only read-only checks are cancelled when a newer source revision is available.
+# Automatic checks replace outdated revisions. Manual builds keep their exact
+# source SHA and do not interrupt a build that has already started.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+  queue: single
 
 jobs:
   checks:
     name: ${{ github.event_name == 'workflow_dispatch' && 'Tests and Chrome build (manual)' || 'Type checks' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubicloud-standard-2
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 25 || 2 }}
     steps:
       - name: Checkout
@@ -30,19 +31,15 @@ jobs:
       - name: Install Node and pnpm with Mise
         uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
-          version: "2026.10.25"
+          version: "2026.11.5"
           cache: true
           cache_save_post: true
           cache_save: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-      - name: Locate pnpm download store
-        id: pnpm-store
-        shell: bash
-        run: printf 'path=%s\n' "$(mise exec -- pnpm store path --silent)" >> "$GITHUB_OUTPUT"
       - name: Restore pnpm download store
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: Kaiju-Ind/GitHub/.github/actions/dependency-cache@084d0133ac56714027256b12d64e84e9c9c01fc1
         with:
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: deepscope-pnpm-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'pnpm-lock.yaml', '.npmrc') }}
+          mode: restore
+          stores: pnpm
       - name: Install locked dependencies
         run: mise exec -- pnpm install --frozen-lockfile
       - name: Check types
@@ -51,3 +48,8 @@ jobs:
       - name: Run all tests and build Chrome extension
         if: github.event_name == 'workflow_dispatch'
         run: mise exec -- pnpm run check:release
+      - name: Save successful pnpm download store
+        uses: Kaiju-Ind/GitHub/.github/actions/dependency-cache@084d0133ac56714027256b12d64e84e9c9c01fc1
+        with:
+          mode: save
+          stores: pnpm

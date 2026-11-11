@@ -1,6 +1,6 @@
 # DeepScope CI checks
 
-Pull requests and pushes to `main` run the existing TypeScript command,
+Pull requests against any branch and pushes to `main` run the existing TypeScript command,
 `mise exec -- pnpm run compile`. This is a source check, not a test or build result.
 
 Use **Actions → DeepScope checks → Run workflow**, select the branch, and start
@@ -13,25 +13,39 @@ The last combined job at source `1e88a2e672fc98acaab1b219b65c39978666e231` took
 128 seconds from job start to completion in Actions run `41603619534`.
 The two-minute policy therefore moves the combined command to manual execution.
 Automatic type checks have a two-minute timeout including preparation. Manual
-qualification retains its 25-minute budget and all existing checks. Hosted timing
+execution retains its 25-minute budget and all existing checks. Hosted timing
 observations still matter: a timeout is a cost bound, not proof that a check passes.
 
 ## Dependency caching
 
-Mise caches the selected Node and pnpm toolchain. Pull requests restore that cache
-without saving it. Main pushes and manually started runs can populate their
-GitHub-scoped cache.
+Mise caches the selected Node and pnpm toolchain after the job. Same-repository
+PRs may save that cache; fork PRs cannot. Application tools remain pinned in this
+repository's `mise.toml`.
 
-The pnpm download-store key includes operating system, architecture, `mise.toml`,
-`pnpm-lock.yaml`, and `.npmrc`. A changed lock or toolchain gets a different key.
-GitHub's trigger-specific cache access rules remain enabled. The workflow does
-not grant pull requests cache-write access, cache `node_modules`, or cache
-credentials. A cache miss still runs the same frozen installation and the WXT
-postinstall step.
+The shared dependency-cache action discovers the native pnpm download store and
+keys it by operating system, architecture, actual tool versions and native lock
+inputs. It saves only after successful work, only for an admitted trusted event,
+and only when the restore identity still matches. A changed lock or toolchain
+cannot populate the old key. GitHub's branch and PR cache scopes remain enabled.
+The cache contains downloads, not `node_modules`, credentials or test results.
+Every run still performs the same frozen installation and WXT postinstall step.
 
 This workflow is read-only: it does not publish the extension. Release work must
 not treat a cache hit as evidence that tests or a build ran.
 
+### Native task-cache experiment
+
+On November 9, 2026, the same source was tested twice in
+[Actions run #42711392941](https://github.com/Kaiju-Ind/DeepScope/actions/runs/42711392941).
+Mise stored a 546-byte type-check result in the first run. GitHub restored
+that record on the second attempt, but Mise still reported `cache miss` and
+executed `tsc --noEmit` again. The completed jobs took approximately 57
+and 38 seconds, respectively. The latter also restored the pnpm download
+store and Mise binaries, so its improvement is not a task-result cache saving.
+
+The experimental result cache was removed. Keep type checks executing on
+every PR update until the WXT-generated input closure can produce a stable
+native cache key and a measured decrease in total job cost.
 ## Required checks and branch settings
 
 The automatic check is **Type checks**. A manually started run is named
@@ -44,11 +58,34 @@ could not be inspected or changed. If a rule requires the old combined name,
 the repository owner must review that rule before merging. A manually dispatched
 workflow is not a substitute for a required PR-triggered check.
 
-This workflow uses pinned upstream Actions and local `mise.toml`; it does not
-depend on a shared-tooling PR being merged.
+This workflow pins the shared cache action to
+`084d0133ac56714027256b12d64e84e9c9c01fc1`. The same revision is declared in
+`mise.toml`; update both together. It adds no private Git task packs and uses
+Node 26.13.0, pnpm 12.18.0 and the native package scripts unchanged.
 
-Mise saves installed tools after the job finishes, including tools prepared by
-later steps. Same-repository PRs may save the native tool cache; forks cannot.
-The pnpm store caches downloads only. Frozen installation, type checks and
-manual release tests still run with the current source and lockfile. This
-repository currently uses native Mise directly rather than the shared catalog.
+## Parallel branches and manual requests
+
+Type checks run on every PR layer, including PRs whose base is another branch.
+The full manual command does not use affected-file selection, so it needs no
+comparison base. Select the exact top branch to check a complete stack; select
+and check a lower prefix explicitly before landing only that prefix. These
+source checks do not certify that the manual tests or build passed. A new
+workflow must exist on the repository's default branch before GitHub offers its
+manual dispatch control.
+
+Automatic checks still cancel an outdated run for the same PR or branch.
+Manual requests use a concurrency group containing their exact source SHA and
+do not cancel an active build. GitHub's `single` queue keeps at most one pending
+request for that SHA, replacing excess pending requests. The remaining pending
+request still executes after the active run; this is bounded serialization,
+not proof that duplicate work has been eliminated. Different source revisions
+and parallel branches with different SHAs can proceed independently.
+
+Jobs use Ubicloud's 2-CPU x86 runner, preserving the previous private GitHub
+runner's architecture and 8 GB memory shape. Lower minute pricing does not prove
+an execution-time improvement; compare complete cold and warm hosted runs.
+
+WXT still builds fresh output on each manual run. Its configuration embeds a
+time-based build identity and consumes font-provider inputs, so this workflow
+does not cache a successful WXT result or substitute a previous extension
+artifact for the current build.
