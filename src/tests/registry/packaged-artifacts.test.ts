@@ -93,6 +93,7 @@ describe('packaged registry artifacts', () => {
 		const rendered = renderPackagedRegistryJson(makeRegistryAsset(makeRegistry()));
 		expect(rendered).not.toContain('$kaijuDeepScopeRegExp');
 		const parsed = JSON.parse(rendered);
+		expect(rendered.trimEnd()).toBe(JSON.stringify(parsed));
 
 		expect(isPackagedTechnologyRegistryAsset(parsed, 'enrichment')).toBe(true);
 		const hydrated = hydratePackagedTechnologyRegistry(parsed);

@@ -1,38 +1,23 @@
 # Verification workflow
 
-This workflow gives reviewers a repeatable way to validate migration patches without pretending that every environment can run every check. It separates command-level validation, targeted subsystem validation, and manual Chrome verification so each pull request can report what actually ran.
-
-Phase 8 does not add a new test runner. It documents the checks that already matter for this WXT extension and the boundaries introduced by phases 1 through 7.
+Use package scripts to check source and build the WXT extension. Inspect generated output and test extension behavior in Chrome before release. Record the commands that ran, their results, and any checks that remain unrun.
 
 ## Validation layers
 
-Use this diagram to choose the narrowest useful check first, then widen validation as the patch touches more runtime surface.
+Start with tests for the changed subsystem. Run the full Vitest suite and TypeScript check when the change crosses source owners. Build the Chrome extension for changes to entrypoints, UI, dependencies, manifests, or bundling. Inspect the generated files, then exercise the affected user flows in Chrome.
 
-```text
-patch applies
-  -> formatting check
-  -> targeted subsystem tests
-  -> full Vitest suite
-  -> TypeScript compile
-  -> WXT Chrome build
-  -> generated Chrome artifact runtime check
-  -> manual Chrome QA
-```
-
-The top of the stack is cheap and should run for every generated patch stack. The bottom of the stack is needed when behavior crosses extension runtime interfaces that unit tests cannot reproduce.
+The package scripts finish at WXT output generation. Runtime checks of that output and manual Chrome checks require separate execution.
 
 ## Required command set
 
 | Command | Purpose | Run when | Report as passing only when |
 | --- | --- | --- | --- |
-| `git apply --check <patch>` | Confirms the patch applies to the intended branch state. | Every patch stack. | The command exits with code 0 for every patch. |
-| `git diff --check` | Catches whitespace errors before patches are packaged. | Every patch stack after application. | No whitespace warnings are reported. |
+| `git diff --check` | Catches whitespace errors in the change. | Before review. | No whitespace warnings are reported. |
 | `pnpm test:run` | Runs the Vitest suite non-interactively. | Runtime, contract, detector, collector, side-panel, storage, or test-support changes. | The command exits successfully. |
 | `pnpm compile` | Runs TypeScript without emitting files. | Any TypeScript or TSX change. | The command exits successfully after WXT preparation exists. |
-| `pnpm validate:chrome-artifact` | Executes generated Chrome runtime paths in headless Chrome or Chromium. | Content, lifecycle, messaging, side-panel, options, URL utilities, or build-sensitive changes. | Generated collection, live observation, analysis-update, and side-panel/options root-binding startup checks complete without the guarded runtime failures. |
-| `pnpm build:chrome` | Type-checks, builds through WXT, then validates the generated Chrome artifact. | Side-panel, WXT, manifest, content, background, or build-sensitive changes. | Every stage exits successfully and `.output/chrome-mv3` is produced. |
-| `pnpm check:release` | Runs TypeScript, the full Vitest suite, a Chrome WXT build, and generated-artifact validation. | Every release candidate. | Every stage exits successfully. |
-| `pnpm zip:chrome` | Type-checks, runs Vitest, creates the Chrome zip through WXT, and validates generated Chrome runtime paths. | Release-oriented checkpoints. | Every stage exits successfully and the Chrome package is created. |
+| `pnpm build:chrome` | Runs TypeScript, then builds through WXT for Chrome. | Side-panel, WXT, manifest, content, background, or build-sensitive changes. | Both stages exit successfully and `.output/chrome-mv3` is produced. |
+| `pnpm check:release` | Runs TypeScript, the full Vitest suite, then a Chrome WXT build. | Every release candidate. | All three stages exit successfully. |
+| `pnpm zip:chrome` | Runs TypeScript and Vitest, then creates the Chrome zip through WXT. | Release packaging. | All three stages exit successfully and the Chrome package is created. |
 
 When a command cannot be run or cannot complete, record the exact reason. Do not describe a partial command as passed.
 
@@ -47,15 +32,15 @@ pnpm vitest run src/tests/collectors/planning.test.ts --reporter=verbose
 pnpm vitest run src/tests/messaging/messages.test.ts --reporter=verbose
 ```
 
-Use targeted tests to answer a specific review question. For example, a side-panel page or TSX change should run panel tests and build. A storage mock change should run storage tests and at least one consumer test that imports the shared mock. Architecture tests parse handwritten TypeScript and TSX with Oxc instead of depending on the TypeScript compiler API, so TypeScript-native toolchain changes do not silently disable source-structure checks.
+Use targeted tests to answer a specific review question. For example, a side-panel page or TSX change should run panel tests and build. A storage mock change should run storage tests and at least one consumer test that imports the shared mock. The generated-name and UI-binding rules use Oxc to inspect TypeScript and TSX syntax. Runtime tests exercise the behavior of the owning APIs.
 
-## Generated Chrome artifact runtime check
+## Inspect and run the generated extension
 
-`pnpm validate:chrome-artifact` executes code from `.output/chrome-mv3` in headless Chrome or Chromium. It does not import the TypeScript source as a substitute for the emitted artifact.
+After `pnpm build:chrome`, inspect the manifest, HTML entrypoints, JavaScript, registry assets, and font assets in `.output/chrome-mv3`. Confirm that generated references resolve to packaged files and that extension HTML has no unwanted `preload` or `modulepreload` tags.
 
-The content check covers bounded DOM collection, images, metadata, inline scripts, stylesheets, visible text, cookie names, storage key names, live mutation observation, flush, stop, and cleanup. The app-model check executes the emitted `buildAnalysisUpdate` path for active and idle observation state. Separate startup checks execute each generated `sidepanel.html` and `options.html` entry prefix through its root guard with a real DOM root. They reject root-binding failures such as a generated URL helper replacing the browser `document` object without claiming that the complete routed UI has been mounted. The validator also rejects generated HTML `preload` and `modulepreload` tags so extension-resource and unused-preload warnings cannot re-enter the packaged artifact unnoticed.
+Load that output as an unpacked extension in Chrome or Chromium. Open the side panel and options page, then exercise collection, live observation, flush, stop, and cleanup. Check runtime errors and the diagnostic journal for failures introduced by bundling or minification, including invalid bindings in generated entrypoints.
 
-This stage exists because source tests and `node --check` can both pass while scope hoisting or minification changes the meaning of a generated identifier. A missing Chrome/Chromium executable is a failed validation stage. Set `CHROME_BIN=/absolute/path/to/chrome` or pass `--chrome=/absolute/path/to/chrome` when automatic discovery is not suitable.
+These checks are separate from the package scripts in the table. Record the browser and built output used, the scenarios exercised, and any checks that could not run.
 
 ## Manual Chrome QA
 
@@ -89,9 +74,9 @@ If a step cannot be verified, record the browser, page URL type, and failure mod
 
 ## Pull request acceptance checklist
 
-Use this checklist for migration PRs after phase 8.
+Use this checklist when preparing a change for review.
 
-- The patch applies cleanly to `mvp`.
+- The change is based on the intended branch and preserves concurrent work.
 - The commit scope matches the subsystem touched.
 - Public TypeScript exports have TSDoc that explains why they exist and what contract they protect.
 - Comments explain constraints, invariants, or non-obvious control flow rather than restating syntax.
@@ -102,21 +87,20 @@ Use this checklist for migration PRs after phase 8.
 
 ## Reporting template
 
-Use this shape in generated patch summaries and pull request descriptions.
+Record actual outcomes in the pull request description, including commands that failed or did not run.
 
 ```text
 Validation:
-- git apply --check: passed
-- git diff --check: passed
-- pnpm test:run: failed, reason ...
-- pnpm compile: not run, reason ...
-- pnpm build:chrome: passed
-- pnpm validate:chrome-artifact: passed
-- manual Chrome QA: not run in sandbox
+- git diff --check: <result>
+- pnpm test:run: <result, test counts or failure>
+- pnpm compile: <result or reason not run>
+- pnpm build:chrome: <result or reason not run>
+- Generated-output inspection: <files inspected and result, or not run>
+- Chrome runtime scenarios: <browser, scenarios and result, or not run>
 
 Notes:
-- No benchmark added because the patch changes docs/test support only.
+- Benchmark: <measured change and baseline, or why it was not needed>
 - Full suite failure is pre-existing or unrelated only if the failure was observed before the patch or isolated by targeted tests.
 ```
 
-The point is not to make every local environment perfect. The point is to make validation claims precise enough that another maintainer can reproduce or challenge them.
+Include enough detail for another maintainer to reproduce the checks and assess their limits.

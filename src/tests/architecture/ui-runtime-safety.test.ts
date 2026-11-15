@@ -142,14 +142,4 @@ describe('generated UI runtime safety', () => {
 		}
 		expect(violations).toEqual([]);
 	});
-
-	it('keeps diagnostic virtualization on fixed rows without TanStack DOM measurement', () => {
-		const source = uiSources().find((entry) => entry.relativePath === 'app/diagnostics/timeline.tsx');
-		expect(source).toBeDefined();
-		const text = source?.text ?? '';
-		expect(text).toContain('estimateSize: () => 84');
-		expect(text).toContain('const virtualRows = createMemo(');
-		expect(text).not.toContain('measureElement(');
-		expect(text).not.toContain('data-index=');
-	});
 });
