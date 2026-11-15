@@ -4,7 +4,6 @@ name: DeepScope checks
 
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
@@ -12,15 +11,17 @@ on:
 permissions:
   contents: read
 
-# Only read-only checks are cancelled when a newer source revision is available.
+# Automatic checks replace outdated revisions. Manual builds keep their exact
+# source SHA and do not interrupt a build that has already started.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+  queue: single
 
 jobs:
   checks:
     name: ${{ github.event_name == 'workflow_dispatch' && 'Tests and Chrome build (manual)' || 'Type checks' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubicloud-standard-2
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 25 || 2 }}
     steps:
       - name: Checkout
@@ -30,24 +31,72 @@ jobs:
       - name: Install Node and pnpm with Mise
         uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
-          version: "2026.10.25"
+          version: "2026.11.5"
           cache: true
           cache_save_post: true
           cache_save: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-      - name: Locate pnpm download store
-        id: pnpm-store
+      - name: Identify locked pnpm downloads
+        id: pnpm-before
+        if: hashFiles('pnpm-lock.yaml') != ''
+        continue-on-error: true
         shell: bash
-        run: printf 'path=%s\n' "$(mise exec -- pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+        env:
+          CACHE_PLATFORM: ${{ runner.os }}-${{ runner.arch }}
+          CACHE_INPUTS: ${{ hashFiles('mise.toml', 'mise.lock', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json') }}
+        run: |
+          node_version=$(mise exec -- node --version)
+          pnpm_version=$(mise exec -- pnpm --version)
+          printf 'key=deepscope-pnpm-v1-%s-%s-%s-%s\n' "$CACHE_PLATFORM" "$node_version" "$pnpm_version" "$CACHE_INPUTS" >> "$GITHUB_OUTPUT"
       - name: Restore pnpm download store
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: pnpm-restore
+        if: steps.pnpm-before.outputs.key != ''
+        continue-on-error: true
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: deepscope-pnpm-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'pnpm-lock.yaml', '.npmrc') }}
+          path: ${{ runner.temp }}/pnpm-store
+          key: ${{ steps.pnpm-before.outputs.key }}
       - name: Install locked dependencies
+        env:
+          # Keep cached packages outside the checkout and generated WXT output.
+          PNPM_CONFIG_STORE_DIR: ${{ runner.temp }}/pnpm-store
         run: mise exec -- pnpm install --frozen-lockfile
       - name: Check types
         if: github.event_name != 'workflow_dispatch'
+        env:
+          PNPM_CONFIG_STORE_DIR: ${{ runner.temp }}/pnpm-store
         run: mise exec -- pnpm run compile
       - name: Run all tests and build Chrome extension
         if: github.event_name == 'workflow_dispatch'
+        env:
+          PNPM_CONFIG_STORE_DIR: ${{ runner.temp }}/pnpm-store
         run: mise exec -- pnpm run check:release
+      - name: Recheck pnpm download identity
+        id: pnpm-after
+        if: steps.pnpm-before.outputs.key != '' && steps.pnpm-restore.outputs.cache-hit != 'true'
+        continue-on-error: true
+        shell: bash
+        env:
+          CACHE_PLATFORM: ${{ runner.os }}-${{ runner.arch }}
+          CACHE_INPUTS: ${{ hashFiles('mise.toml', 'mise.lock', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json') }}
+        run: |
+          node_version=$(mise exec -- node --version)
+          pnpm_version=$(mise exec -- pnpm --version)
+          printf 'key=deepscope-pnpm-v1-%s-%s-%s-%s\n' "$CACHE_PLATFORM" "$node_version" "$pnpm_version" "$CACHE_INPUTS" >> "$GITHUB_OUTPUT"
+      # PR caches remain in their merge-ref scope; release jobs cannot read them.
+      - name: Save successful pnpm download store
+        if: >-
+          success() && github.event.repository.fork == false &&
+          (
+            (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_protected == true)) ||
+            (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') && endsWith(github.ref, '/merge') &&
+             github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.repo.fork == false) ||
+            (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/'))
+          ) &&
+          steps.pnpm-after.outputs.key != '' &&
+          steps.pnpm-before.outputs.key == steps.pnpm-after.outputs.key &&
+          steps.pnpm-restore.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/pnpm-store
+          key: ${{ steps.pnpm-after.outputs.key }}

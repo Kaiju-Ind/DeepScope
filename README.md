@@ -113,15 +113,14 @@ pnpm build
 pnpm zip
 pnpm test
 pnpm check:release
-pnpm validate:chrome-artifact
 pnpm bench
 pnpm bench:rules
 pnpm bench:rules:gate
 ```
 
-`pnpm build` type-checks before WXT emits the default browser build. `pnpm build:chrome` adds a generated-artifact Chromium check after the Chrome build. `pnpm check:release` runs TypeScript, the complete Vitest suite, the Chrome WXT build, and the generated-artifact Chromium check. `pnpm zip:chrome` applies the same source checks before packaging and validates the generated Chrome output. Set `CHROME_BIN` when Chrome or Chromium is not discoverable from the normal platform paths.
+`pnpm build` checks types before WXT emits the default browser build. `pnpm build:chrome` selects Chrome. `pnpm check:release` runs TypeScript, the complete Vitest suite, then the Chrome WXT build. `pnpm zip:chrome` runs the same source checks before packaging Chrome output.
 
-The generated-artifact check is deliberate. It executes the emitted content collector, live observation lifecycle, side-panel analysis model, and the generated side-panel/options entry startup prefixes through their root guards. Source tests and JavaScript syntax checks do not prove that bundling preserved browser globals. The generated UI root-binding startup check specifically rejects errors such as `getElementById is not a function` before a release can pass.
+Inspect the generated assets and load the output in Chrome to check actual extension behavior. The [verification workflow](docs/architecture/verification-workflow.md) lists the generated-output and browser scenarios. Record those results separately from package command results.
 
 If you prefer `mise`, it keeps the repo's Node and pnpm versions aligned before you run the package scripts above.
 
