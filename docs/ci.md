@@ -22,13 +22,21 @@ Mise caches the selected Node and pnpm toolchain after the job. Same-repository
 PRs may save that cache; fork PRs cannot. Application tools remain pinned in this
 repository's `mise.toml`.
 
-The shared dependency-cache action discovers the native pnpm download store and
-keys it by operating system, architecture, actual tool versions and native lock
-inputs. It saves only after successful work, only for an admitted trusted event,
-and only when the restore identity still matches. A changed lock or toolchain
-cannot populate the old key. GitHub's branch and PR cache scopes remain enabled.
-The cache contains downloads, not `node_modules`, credentials or test results.
-Every run still performs the same frozen installation and WXT postinstall step.
+Public GitHub cache actions restore and save a dedicated pnpm store under the
+runner's temporary directory. `PNPM_CONFIG_STORE_DIR` makes the native installer
+use that location. The key includes operating system, architecture, actual Node
+and pnpm versions, and the tool, lock, package and workspace configuration files.
+The workflow rechecks that identity after successful work and saves only a miss
+whose inputs still match. Cache failures do not skip the frozen installation,
+WXT postinstall step or selected checks.
+
+Dependency cache writes are limited to this repository's main or protected
+pushes, same-repository nonfork PR merge refs, and manual branch runs. GitHub's
+branch and PR cache scopes remain enabled. The cached store excludes the
+checkout, installed `node_modules`, credentials, WXT output and test results.
+This public repository uses public actions directly because GitHub does not
+allow public consumers to use actions from a private repository. The replacement
+uses a new cache namespace, so its first run starts without the old cache.
 
 This workflow is read-only: it does not publish the extension. Release work must
 not treat a cache hit as evidence that tests or a build ran.
@@ -58,10 +66,10 @@ could not be inspected or changed. If a rule requires the old combined name,
 the repository owner must review that rule before merging. A manually dispatched
 workflow is not a substitute for a required PR-triggered check.
 
-This workflow pins the shared cache action to
-`084d0133ac56714027256b12d64e84e9c9c01fc1`. The same revision is declared in
-`mise.toml`; update both together. It adds no private Git task packs and uses
-Node 26.13.0, pnpm 12.18.0 and the native package scripts unchanged.
+The restore and save actions use the same immutable `actions/cache` revision,
+`55cc8345863c7cc4c66a329aec7e433d2d1c52a9` (v6.1.0). Mise selects Node 26.13.0
+and pnpm 12.19.0 from the local tool configuration. The workflow uses the native
+package scripts and has no private Git task packs or action dependency.
 
 ## Parallel branches and manual requests
 
