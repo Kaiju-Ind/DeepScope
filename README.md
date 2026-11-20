@@ -1,10 +1,31 @@
 # Kaiju DeepScope Web Extension
 
-A Chrome-first Manifest V3 technology detector built with WXT, TypeScript, Solid, and `comctx`.
+DeepScope is a Chrome extension that identifies technologies used by the website
+you are viewing. Open a detection to inspect the evidence behind it. The
+extension analyzes the page locally and stores its results in the browser.
 
 **Browser baseline:** Chrome 119 or newer. The current `comctx` runtime uses `Promise.withResolvers()`, which is part of the extension startup path.
 
-The extension analyzes active `http` or `https` pages locally, turns collected page facts into normalized observations, runs the shared event pipeline, and caches normalized `SiteAnalysis` output with an optional redacted replay trace. Automatic page-load scanning is enabled by default and can be turned off from Settings. Raw page payloads are used only during local analysis and are not stored as cache records.
+## Inspect a website
+
+1. Open an `http` or `https` page, then open the DeepScope side panel.
+2. Use **Technologies** to see detections for the active tab. Open a technology
+   to inspect its evidence, version, confidence, and explanation.
+3. Use **Summary** to check analysis and observation status. **Refresh** runs a
+   new analysis instead of using the saved result.
+4. Use **History** to inspect retained runs. Use **Diagnostics** when analysis
+   fails; reports stay local unless you choose to copy and share them.
+
+Automatic page-load scanning is on by default. Turn it off in **Settings** if
+you want to start analysis manually. Manual inspection and Refresh still work.
+Pages such as `chrome://extensions` cannot be analyzed. A page that does not
+respond returns `CONTENT_SCRIPT_UNAVAILABLE` instead of leaving the panel waiting.
+
+The implementation uses WXT, TypeScript, Solid, and `comctx` on Manifest V3.
+Collected page facts become observations that detection rules can match. The
+result is a normalized `SiteAnalysis` record, with an optional redacted replay
+trace for explaining the analysis. Raw page payloads are used during local
+analysis and are not stored as cache records.
 
 ## Current event flow
 
