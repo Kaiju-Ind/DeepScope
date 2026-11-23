@@ -6,7 +6,7 @@ import * as clipboard from '@/utils/clipboard';
 import { persistDiagnosticFailure } from '@/lib/diagnostics/journal';
 
 export type SupportFallbackPropsType = {
-	readonly surface: Extract<DiagnosticSurface, 'sidepanel' | 'options'>;
+	readonly surface: Extract<DiagnosticSurface, 'sidepanel' | 'popup' | 'page' | 'options'>;
 	readonly error: unknown;
 	readonly reset?: () => void;
 };
@@ -47,7 +47,7 @@ export function SupportFallback(props: SupportFallbackPropsType) {
 			<pre style={{ 'margin-top': '1rem', padding: '0.75rem', 'overflow-wrap': 'anywhere', 'white-space': 'pre-wrap', background: 'rgb(255 255 255 / 0.05)', 'border-radius': '0.75rem', 'font-size': '0.75rem' }}>{message()}</pre>
 			<div style={{ display: 'flex', gap: '0.5rem', 'flex-wrap': 'wrap', 'margin-top': '1rem' }}>
 				<button type="button" onClick={() => void copyReport()} style={buttonStyle}>Copy diagnostic report</button>
-				{props.surface === 'sidepanel' && (
+				{props.surface !== 'options' && (
 					<button type="button" onClick={() => void browser.runtime.openOptionsPage()} style={buttonStyle}>Open diagnostics page</button>
 				)}
 				{props.reset && <button type="button" onClick={props.reset} style={buttonStyle}>Retry UI</button>}

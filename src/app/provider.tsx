@@ -61,6 +61,7 @@ import {
 } from "@/app/snapshot";
 import { browserDetectionPersistence } from "@/lib/persistence";
 import { PanelContext, type PanelContextType } from "@/app/context";
+import type { TargetPolicy } from "@/app/surface";
 import { getTabTarget, getWindowId, subscribeTabTargetChanges, type TabTarget } from "@/app/tab";
 import * as session from "@/app/session";
 
@@ -246,7 +247,12 @@ function formatCompleteness(state: DetectionEvidenceState | null): string {
 }
 
 /** Own detector state and mount browser targeting that must survive routed page changes. */
-export function PanelProvider(props: { readonly children: JSX.Element }) {
+export function PanelProvider(props: {
+  readonly children: JSX.Element;
+  /** Follow the window's active tab (side panel, sidebar, popup) or stay on one tab (full page). */
+  readonly policy?: TargetPolicy;
+}) {
+  const policy: TargetPolicy = props.policy ?? { kind: "follow-window" };
   const [status, setStatus] = createStore<AnalysisStatus>({
     totalAnalyses: 0,
     trackedOrigins: 0,
@@ -1178,10 +1184,14 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
     const { promise, resolve } = Promise.withResolvers<void>();
     visibleTabLookup = { reason, requestedTarget, completed: promise, settle: resolve };
     try {
-      const target = requestedTarget ?? await getTabTarget(panelWindowId);
+      const target = requestedTarget ?? await getTabTarget(panelWindowId, policy);
+      // A pinned tab can move to another window; follow it there.
+      if (target && policy.kind === "pinned") panelWindowId = target.windowId;
       if (disposed) return;
       if (!target) {
-        const message = "No active browser tab is available in this window.";
+        const message = policy.kind === "pinned"
+          ? "The tab this page described was closed."
+          : "No active browser tab is available in this window.";
         logPanelEvent("visible-tab-target-unavailable", { reason, windowId: panelWindowId });
         if (!pendingVisibleTabIdentitySync()) resetUnavailableTab(message);
         return;
@@ -1259,12 +1269,13 @@ export function PanelProvider(props: { readonly children: JSX.Element }) {
       getVisibleTabId: () => visibleTabIdentity()?.tabId ?? null,
       sync: (target) => { void syncTab("tab-change", target); },
       closed: session.remove,
+      policy,
     });
 
     void (async () => {
       logPanelEvent("mount");
       try {
-        panelWindowId = await getWindowId();
+        panelWindowId = await getWindowId(policy);
         if (disposed) return;
         logPanelEvent("window-target-resolved", { windowId: panelWindowId });
       } catch (error) {

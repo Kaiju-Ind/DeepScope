@@ -18,10 +18,18 @@ import { SummaryPage } from '@/app/pages/summary';
 import { TechnologiesPage } from '@/app/pages/technologies';
 import { TechnologyPage } from '@/app/pages/technology';
 import { PanelShell } from '@/app/shell';
+import { openPage, policyFromLocation } from '@/app/surface';
+
+/** A full page is already pinned to its tab, so it does not offer to open another. */
+const isFullPage = policyFromLocation(globalThis.location.href).kind === 'pinned';
 
 /** Compose the routed side panel around the current analysis owner. */
 function PanelRoot() {
 	const panel = usePanel();
+	const openVisibleTabPage = (): void => {
+		const identity = panel.visibleTabIdentity();
+		if (identity) void openPage(identity);
+	};
 	const location = useLocation();
 	let activeTabId: number | undefined;
 	let restoreGeneration = 0;
@@ -64,6 +72,7 @@ function PanelRoot() {
 		<PanelShell
 			busy={panel.busy()}
 			hostname={panel.analysis()?.hostname ?? panel.visibleTabIdentity()?.hostname}
+			onOpenPage={!isFullPage && panel.visibleTabIdentity() ? openVisibleTabPage : undefined}
 		>
 			<Outlet />
 		</PanelShell>

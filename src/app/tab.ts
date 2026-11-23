@@ -1,6 +1,7 @@
 import { browser, type Browser } from 'wxt/browser';
 
 import { isSidePanelActionNotification, isSidePanelTabNotification } from '@/lib/messaging';
+import type { TargetPolicy } from '@/app/surface';
 import { shouldSyncTabUpdate } from '@/app/tab-update';
 
 type BrowserTab = Browser.tabs.Tab;
@@ -26,10 +27,23 @@ export type TabTargetSubscription = {
 	/** Remove panel-local state when Chrome closes a tab in this panel window. */
 	readonly closed?: (tabId: number) => void;
 	readonly visibility?: TabVisibility;
+	/** Follow the window's active tab, or stay on one pinned tab. Defaults to following. */
+	readonly policy?: TargetPolicy;
 };
 
-/** Return the browser window that contains the mounted side-panel document. */
-export async function getWindowId(): Promise<number> {
+/**
+ * Return the browser window whose tab the mounted surface describes.
+ *
+ * A following surface describes its own window. A pinned page describes the
+ * window that currently holds its tab, which changes when the tab is moved.
+ */
+export async function getWindowId(policy: TargetPolicy = { kind: 'follow-window' }): Promise<number> {
+	if (policy.kind === 'pinned') {
+		const tab = await browser.tabs.get(policy.tabId);
+		if (typeof tab.windowId !== 'number') throw new Error('The browser did not report a window for the inspected tab.');
+		return tab.windowId;
+	}
+
 	const currentWindow = await browser.windows.getCurrent();
 	if (typeof currentWindow.id !== 'number') {
 		throw new Error('Chrome did not provide a window id for the side panel.');
@@ -44,8 +58,21 @@ export async function getActiveTab(windowId: number): Promise<BrowserTab | undef
 	return tab;
 }
 
-/** Return the exact window/tab target that the mounted side panel should render. */
-export async function getTabTarget(windowId: number): Promise<TabTarget | undefined> {
+/** Return the exact window/tab target that the mounted surface should render. */
+export async function getTabTarget(
+	windowId: number,
+	policy: TargetPolicy = { kind: 'follow-window' },
+): Promise<TabTarget | undefined> {
+	if (policy.kind === 'pinned') {
+		try {
+			const tab = await browser.tabs.get(policy.tabId);
+			return typeof tab.windowId === 'number' ? { windowId: tab.windowId, tabId: policy.tabId } : undefined;
+		} catch {
+			// `tabs.get` rejects once the tab is closed; the page then has no target.
+			return undefined;
+		}
+	}
+
 	const tab = await getActiveTab(windowId);
 	if (typeof tab?.id !== 'number') {
 		return undefined;
@@ -64,7 +91,10 @@ export async function getTabTarget(windowId: number): Promise<TabTarget | undefi
  */
 export function subscribeTabTargetChanges(input: TabTargetSubscription): () => void {
 	const visibility = input.visibility ?? document;
+	const pinnedTabId = input.policy?.kind === 'pinned' ? input.policy.tabId : null;
 	const onActivated = (activeInfo: { readonly tabId: number; readonly windowId: number }): void => {
+		// A pinned page keeps its tab; activating another tab is not a retarget.
+		if (pinnedTabId !== null) return;
 		if (input.getWindowId() !== activeInfo.windowId) return;
 		input.sync(activeInfo);
 	};
@@ -73,6 +103,11 @@ export function subscribeTabTargetChanges(input: TabTargetSubscription): () => v
 		changeInfo: { readonly status?: string; readonly url?: string },
 		tab: { readonly active?: boolean; readonly windowId?: number },
 	): void => {
+		if (pinnedTabId !== null) {
+			// Navigation inside the pinned tab, or moving it between windows, re-resolves it.
+			if (tabId === pinnedTabId && (changeInfo.status === 'complete' || changeInfo.url !== undefined)) input.sync();
+			return;
+		}
 		const panelWindowId = input.getWindowId();
 		if (!shouldSyncTabUpdate({
 			tabId,
@@ -85,10 +120,18 @@ export function subscribeTabTargetChanges(input: TabTargetSubscription): () => v
 		input.sync({ windowId: tab.windowId!, tabId });
 	};
 	const onRemoved = (tabId: number, removeInfo: { readonly windowId: number }): void => {
+		if (pinnedTabId !== null) {
+			if (tabId !== pinnedTabId) return;
+			input.closed?.(tabId);
+			input.sync();
+			return;
+		}
 		if (input.getWindowId() !== removeInfo.windowId) return;
 		input.closed?.(tabId);
 	};
 	const onRuntimeMessage = (message: unknown): void => {
+		// Toolbar and tab notifications describe the active tab, which a pinned page ignores.
+		if (pinnedTabId !== null) return;
 		const panelWindowId = input.getWindowId();
 		if (isSidePanelActionNotification(message)) {
 			if (message.windowId !== panelWindowId) return;

@@ -2,12 +2,14 @@ import BugIcon from '~icons/fluent/bug-24-regular';
 import HistoryIcon from '~icons/fluent/history-24-regular';
 import HomeIcon from '~icons/fluent/home-24-regular';
 import MoreIcon from '~icons/fluent/more-horizontal-24-regular';
+import OpenIcon from '~icons/fluent/open-24-regular';
 import SettingsIcon from '~icons/fluent/settings-24-regular';
 import TechnologyIcon from '~icons/fluent/apps-24-regular';
 import { createMediaQuery } from '@solid-primitives/media';
 import { Link, useLocation } from '@tanstack/solid-router';
 import type { Component, JSX } from 'solid-js';
 import { For, Show, createSignal } from 'solid-js';
+import { browser } from 'wxt/browser';
 
 import { Badge } from '@/ui/badge';
 import {
@@ -23,7 +25,15 @@ export type PanelShellPropsType = {
 	readonly children: JSX.Element;
 	readonly busy: boolean;
 	readonly hostname?: string;
+	/**
+	 * Open the current tab's results as a full browser page. Omitted on the full
+	 * page itself and when no inspectable tab is visible.
+	 */
+	readonly onOpenPage?: () => void;
 };
+
+/** Extension version shown in the More drawer, read from the built manifest. */
+const extensionVersion = browser.runtime.getManifest().version;
 
 type NavigationItemType = {
 	readonly to: '/' | '/technologies' | '/history';
@@ -95,6 +105,14 @@ export function PanelShell(props: PanelShellPropsType) {
 						<DrawerDescription>Support, settings, and extension information.</DrawerDescription>
 					</DrawerHeader>
 					<div class="grid gap-2 p-4 pt-0">
+						<Show when={props.onOpenPage}>
+							{(openPage) => (
+								<button type="button" class="k-more-link text-left" onClick={() => { setMoreOpen(false); openPage()(); }}>
+									<OpenIcon class="size-5 text-kaiju-cyan" aria-hidden="true" />
+									<div><p class="text-sm font-medium text-white">Open in a tab</p><p class="mt-0.5 text-xs text-white/42">Keep these results open in a full page while you browse.</p></div>
+								</button>
+							)}
+						</Show>
 						<Link to="/diagnostics" class="k-more-link" onClick={() => setMoreOpen(false)}>
 							<BugIcon class="size-5 text-kaiju-cyan" aria-hidden="true" />
 							<div><p class="text-sm font-medium text-white">Diagnostics</p><p class="mt-0.5 text-xs text-white/42">Investigate failures, jobs, contexts, and logs.</p></div>
@@ -105,7 +123,7 @@ export function PanelShell(props: PanelShellPropsType) {
 						</Link>
 						<div class="k-more-link cursor-default">
 							<div class="grid size-5 place-items-center rounded bg-kaiju-cyan/10 font-mono text-[0.625rem] text-kaiju-cyan">i</div>
-							<div><p class="text-sm font-medium text-white">DeepScope 0.1.0</p><p class="mt-0.5 text-xs text-white/42">Local browser technology inspection by Kaiju.</p></div>
+							<div><p class="text-sm font-medium text-white">DeepScope {extensionVersion}</p><p class="mt-0.5 text-xs text-white/42">Local browser technology inspection by Kaiju.</p></div>
 						</div>
 					</div>
 				</DrawerContent>

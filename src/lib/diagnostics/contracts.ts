@@ -8,6 +8,8 @@ export type DiagnosticSurface =
 	| 'background'
 	| 'content'
 	| 'sidepanel'
+	| 'popup'
+	| 'page'
 	| 'offscreen'
 	| 'matcher-worker'
 	| 'options'
