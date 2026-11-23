@@ -8,6 +8,7 @@ import { createBackgroundRuntime } from '@/lib/background/runtime';
 import { reconcileInterruptedMatcherJobs } from '@/lib/background/reconcile-matcher-jobs';
 import { reconcileAndResume } from '@/lib/background/startup';
 import { openPanelFromToolbar } from '@/lib/background/toolbar';
+import { badgeText, createBadgeWriter, type BadgeState } from '@/lib/background/badge';
 import { collectExtensionObservationBatch } from '@/lib/collectors/extension-page-collector';
 import { createPackagedRuntimeTechnologyRegistryProvider } from '@/lib/registry/packaged-runtime';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
@@ -147,8 +148,8 @@ function notifySidePanelTab(
  * module remains import-safe in that Node.js build process.
  */
 /** Show a compact count and useful finding in the browser action without opening the panel. */
-async function setBadge(tabId: number, count: number, finding?: string): Promise<void> {
-	const text = count <= 0 ? '' : count > 99 ? '99+' : String(count);
+async function applyBadge(tabId: number, { count, finding }: BadgeState): Promise<void> {
+	const text = badgeText(count);
 	const title = count <= 0
 		? 'Kaiju DeepScope'
 		: `Kaiju DeepScope · ${count} ${count === 1 ? 'technology' : 'technologies'}${finding ? ` · Top finding: ${finding}` : ''}`;
@@ -165,6 +166,9 @@ export default defineBackground(() => {
 	logging.configure('background');
 	installDiagnosticCrashHooks('background');
 	const { logBackgroundEvent, logAnalysisSummary } = createBackgroundLoggers();
+	const badges = createBadgeWriter(applyBadge, (tabId, error) => {
+		logBackgroundEvent('toolbar-badge-update-failed', { tabId, errorType: diagnosticErrorType(error) });
+	});
 	const matcherContextId = crypto.randomUUID();
 
 	// Firefox and Safari backgrounds are pages and run the matcher workers
@@ -201,7 +205,7 @@ export default defineBackground(() => {
 		scheduleBackgroundWork: (task) => analysisQueue.runBackground(task),
 		logEvent: logBackgroundEvent,
 		logAnalysisSummary,
-		setBadge,
+		setBadge: (tabId, count, finding) => badges.set(tabId, { count, ...(finding ? { finding } : {}) }),
 	});
 	const analysisQueue = analysisScheduler.create({
 		resolveTarget: (work) => backgroundRuntime.resolveScheduledTab({
@@ -276,6 +280,7 @@ export default defineBackground(() => {
 			void analysisQueue.cancelTab(tabId);
 		},
 		onTabRemoved(tabId) {
+			badges.forget(tabId);
 			autoScanController.onTabRemoved(tabId);
 			matcherRecoveryTabs.delete(tabId);
 			backgroundRuntime.onTabRemoved(tabId);
@@ -286,6 +291,7 @@ export default defineBackground(() => {
 	// A prerendered or restored page can replace a tab id. The old id never
 	// receives another event, so release its work as if the tab closed.
 	browser.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
+		badges.forget(removedTabId);
 		autoScanController.onTabRemoved(removedTabId);
 		matcherRecoveryTabs.delete(removedTabId);
 		backgroundRuntime.onTabRemoved(removedTabId);
@@ -293,11 +299,13 @@ export default defineBackground(() => {
 		logBackgroundEvent('tab-replaced', { addedTabId, removedTabId });
 	});
 	browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+		// Any tab can be scanned, so any tab's badge must clear when its page changes.
+		// Browsers clear it on a full navigation but not on history.pushState.
+		if (changeInfo.status === 'loading' || changeInfo.url !== undefined) void badges.clear(tabId);
+
 		if (tab.active !== true) {
 			return;
 		}
-
-		if (changeInfo.status === 'loading' || changeInfo.url !== undefined) void setBadge(tabId, 0);
 
 		if (isSidePanelTabUpdateChange(changeInfo)) {
 			notifySidePanelTab(tabId, tab.windowId, 'updated');

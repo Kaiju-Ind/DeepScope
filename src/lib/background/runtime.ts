@@ -764,6 +764,11 @@ export function createBackgroundRuntime(
 				reason: 'no-exact-session-or-matching-origin-snapshot',
 				targetUrlHash: target.urlHash,
 			});
+		} else if (snapshot.urlHash === target.urlHash) {
+			// A stored result for this exact URL restores the badge after navigation
+			// cleared it. A same-site fallback snapshot describes another page, so its
+			// count would be wrong here.
+			void dependencies.setBadge(target.tabId, snapshot.analysis.results.length, getFinding(snapshot.analysis));
 		}
 
 		return snapshot;
@@ -1061,6 +1066,9 @@ export function createBackgroundRuntime(
 		ownsPublication?: () => boolean,
 	): Promise<void> {
 		if (tab.incognito) {
+			// Private results are never stored, but the badge lives only in browser
+			// memory for this tab, so it still follows each published revision.
+			if (ownsPublication?.() !== false) publishBadge(tab, output.analysis);
 			return;
 		}
 
@@ -1092,6 +1100,7 @@ export function createBackgroundRuntime(
 			};
 
 			const writeResult = await saveDetectionSessionSnapshot(snapshot);
+			if (writeResult.accepted && ownsPublication?.() !== false) publishBadge(tab, writeResult.snapshot.analysis);
 			if (!writeResult.accepted) {
 				logBackgroundEvent('snapshot-write-rejected', {
 					...summarizeTab(tab),
@@ -1105,6 +1114,17 @@ export function createBackgroundRuntime(
 				});
 			}
 		});
+	}
+
+	/**
+	 * Show one published result on the tab's toolbar button.
+	 *
+	 * Called only for a revision that was just published and is still owned by
+	 * its document, so the badge always matches what the panel can show. The
+	 * background's badge writer orders the browser calls for each tab.
+	 */
+	function publishBadge(tab: InspectableTab, analysis: SiteAnalysis): void {
+		void dependencies.setBadge(tab.id, analysis.results.length, getFinding(analysis));
 	}
 
 	/** Build a stable key for ordered writes to one exact visible page session. */
@@ -2304,14 +2324,7 @@ export function createBackgroundRuntime(
 			if (!input.ownsPublication()) return;
 
 			if (!input.tab.incognito) logAnalysisSummary(analysis);
-			void dependencies.setBadge(input.tab.id, analysis.results.length, getFinding(analysis)).catch((error) => {
-				logBackgroundEvent('toolbar-badge-update-failed', {
-					tabId: input.tab.id,
-					...(input.tab.incognito
-						? { errorType: diagnosticErrorType(error) }
-						: { message: error instanceof Error ? error.message : String(error) }),
-				});
-			});
+			// The toolbar badge follows the snapshot published just below.
 			logBackgroundEvent('analysis-event-complete', {
 				...summarizeTab(input.tab),
 				snapshotStatus: input.snapshotStatus,

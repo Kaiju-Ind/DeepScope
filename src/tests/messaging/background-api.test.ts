@@ -737,6 +737,8 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 		} else {
 			expect(harness.mocks.logAnalysisSummary).toHaveBeenCalledWith(expect.objectContaining({ hostname: 'example.com' }));
 		}
+		// Private results are never stored, but the badge still shows them for this tab.
+		expect(harness.mocks.setBadge).toHaveBeenCalledWith(7, expect.any(Number), undefined);
 	});
 
 	it.each([false, true])('keeps scheduled refresh failures within sender tab privacy: %s', async (incognito) => {
@@ -1425,9 +1427,14 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			}
 
 			matching.resolve(makeMatcherRunResult(request));
+			// Marks the moment the page navigated away, to order badge writes against it.
+			const navigated = vi.fn();
 			try {
 				await waiting.promise;
-				if (stage !== 'current job') harness.runtime.onTabNavigation(7);
+				if (stage !== 'current job') {
+					navigated();
+					harness.runtime.onTabNavigation(7);
+				}
 			} finally {
 				release.resolve();
 			}
@@ -1439,7 +1446,11 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			const replayStarted = completed || stage === 'replay save' || stage === 'replay history' || stage === 'final revision';
 			expect(mocks.saveReplayTrace).toHaveBeenCalledTimes(replayStarted ? 1 : 0);
 			expect(mocks.getCachedReplayTraceHistory).toHaveBeenCalledTimes(replayStarted && stage !== 'replay save' ? 1 : 0);
-			expect(mocks.setBadge).toHaveBeenCalledTimes(completed || stage === 'final revision' ? 1 : 0);
+			// The badge follows each published revision, but never one written after
+			// the page lost publication rights.
+			const navigatedAt = navigated.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY;
+			expect(mocks.setBadge.mock.invocationCallOrder.every((order) => order < navigatedAt)).toBe(true);
+			if (completed) expect(mocks.setBadge).toHaveBeenCalled();
 			// One streamed partition revision precedes every stage, then recording and final revisions.
 			expect(mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(1 + (completed ? 2 : replayStarted ? 1 : 0));
 			const event = mocks.logEvent.mock.calls.find(([name, details]) =>
@@ -1520,6 +1531,9 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 		const first = mocks.runMatcherJob.mock.calls[0]![0];
 		firstMatch.resolve(makeMatcherRunResult(first));
 		await readingHistory.promise;
+		// Marks the moment the replacement analysis took ownership of the document.
+		const superseded = vi.fn();
+		superseded();
 		await harness.api.analyzeVisibleTab(refresh);
 		await vi.waitFor(() => expect(mocks.runMatcherJob).toHaveBeenCalledTimes(2));
 		const second = mocks.runMatcherJob.mock.calls[1]![0];
@@ -1529,7 +1543,10 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			await vi.waitFor(() => expect(mocks.logEvent.mock.calls).toEqual(expect.arrayContaining([
 				[expect.stringMatching(/^analysis-queued-persist-(failed|complete)$/), expect.any(Object)],
 			])));
-			expect(mocks.setBadge).not.toHaveBeenCalled();
+			// Revisions the first job published while it owned the document may set the
+			// badge; nothing from it may set the badge after the replacement took over.
+			const supersededAt = superseded.mock.invocationCallOrder[0]!;
+			expect(mocks.setBadge.mock.invocationCallOrder.every((order) => order < supersededAt)).toBe(true);
 			// The first job's partition and recording revisions; never its final one.
 			expect(mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(2);
 			expect(mocks.logEvent).not.toHaveBeenCalledWith('matcher-job-complete', expect.objectContaining({ jobId: first.job.jobId }));
@@ -1539,7 +1556,8 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 				'matcher-job-complete', expect.objectContaining({ jobId: second.job.jobId }),
 			));
 		}
-		expect(mocks.setBadge).toHaveBeenCalledOnce();
+		// The replacement's revisions are the last ones shown on the badge.
+		expect(mocks.setBadge.mock.invocationCallOrder.at(-1)).toBeGreaterThan(superseded.mock.invocationCallOrder[0]!);
 		expect(mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(5);
 	});
 
