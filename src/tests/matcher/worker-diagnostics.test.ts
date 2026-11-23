@@ -29,7 +29,6 @@ it.each([false, true])('keeps worker diagnostics within the job privacy policy: 
 		patternCount: 1,
 		encodedPayloadBytes: 1,
 		priority: 3,
-		generatedAt: 1,
 	});
 	const secrets = {
 		jobToken: 'job-secret-4baa',

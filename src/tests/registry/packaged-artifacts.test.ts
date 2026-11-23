@@ -54,7 +54,6 @@ function makeRegistryAsset(registry: readonly TechnologyDefinition[], kind: 'boo
 		kind,
 		technologies: registry,
 		ruleCount: registry.reduce((count, technology) => count + technology.rules.length, 0),
-		generatedAt: 1,
 	};
 }
 
@@ -74,7 +73,6 @@ function makeShardAsset(registry: readonly TechnologyDefinition[], observationKi
 		patternCount,
 		encodedPayloadBytes,
 		priority: 1,
-		generatedAt: 1,
 	};
 }
 
@@ -90,7 +88,6 @@ function makeRuntimeAsset(registry: readonly TechnologyDefinition[]) {
 		relationshipEdges: artifact.relationshipGraph.relationshipEdges,
 		collectionPlan: artifact.collectionPlan,
 		diagnosticCount: artifact.diagnostics.length,
-		generatedAt: 1,
 	};
 }
 

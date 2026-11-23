@@ -66,8 +66,6 @@ export interface PackagedTechnologyRegistryAsset {
 	readonly technologies: readonly unknown[];
 	/** Number of rules represented before JSON encoding, used for asset diagnostics. */
 	readonly ruleCount: number;
-	/** Millisecond timestamp from the build that generated the asset. */
-	readonly generatedAt: number;
 }
 
 /** Matcher shard containing only rules that can receive one observation kind. */
@@ -92,8 +90,6 @@ export interface PackagedTechnologyRegistryShardAsset {
 	readonly encodedPayloadBytes: number;
 	/** Scheduler priority assigned to this observation kind. */
 	readonly priority: number;
-	/** Millisecond timestamp from the build that generated the asset. */
-	readonly generatedAt: number;
 }
 
 /** Manifest entry for one generated observation-kind shard. */
@@ -122,8 +118,6 @@ export interface PackagedRegistryShardManifestAsset {
 	readonly kind: Extract<PackagedRegistryAssetKind, 'manifest'>;
 	/** Shard descriptors keyed by observation kind. */
 	readonly shards: Readonly<Record<PackagedRegistryObservationKind, PackagedRegistryShardManifestEntry>>;
-	/** Millisecond timestamp from the build that generated the asset. */
-	readonly generatedAt: number;
 }
 
 /** Rule-free runtime asset loaded by the background service worker. */
@@ -132,8 +126,6 @@ export interface PackagedRuntimeTechnologyRegistryAsset extends PackagedRuntimeT
 	readonly schemaVersion: PackagedRegistryAssetSchemaVersion;
 	/** Runtime coordination asset kind. */
 	readonly kind: Extract<PackagedRegistryAssetKind, 'runtime'>;
-	/** Millisecond timestamp from the build that generated the asset. */
-	readonly generatedAt: number;
 }
 
 /** Metadata asset used by tests, diagnostics, and future side-panel display loading. */
@@ -146,8 +138,6 @@ export interface PackagedRegistryMetadataAsset {
 	readonly technologyMetadata: readonly unknown[];
 	/** Rule-kind counts for diagnostics and benchmark setup. */
 	readonly patternTables: Readonly<Record<string, number>>;
-	/** Millisecond timestamp from the build that generated the asset. */
-	readonly generatedAt: number;
 }
 
 /** Relationship asset used to inspect graph data without reading full rules. */
@@ -158,8 +148,6 @@ export interface PackagedRegistryRelationshipsAsset {
 	readonly kind: Extract<PackagedRegistryAssetKind, 'relationships'>;
 	/** Relationship edges in compiler order. */
 	readonly relationshipEdges: readonly unknown[];
-	/** Millisecond timestamp from the build that generated the asset. */
-	readonly generatedAt: number;
 }
 
 
@@ -340,8 +328,7 @@ export function isPackagedTechnologyRegistryAsset(
 		candidate.schemaVersion === PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION &&
 		candidate.kind === kind &&
 		Array.isArray(candidate.technologies) &&
-		typeof candidate.ruleCount === 'number' &&
-		typeof candidate.generatedAt === 'number'
+		typeof candidate.ruleCount === 'number'
 	);
 }
 
@@ -366,8 +353,7 @@ export function isPackagedTechnologyRegistryShardAsset(
 		typeof candidate.matcherIndex === 'object' && candidate.matcherIndex !== null &&
 		typeof candidate.patternCount === 'number' &&
 		typeof candidate.encodedPayloadBytes === 'number' &&
-		typeof candidate.priority === 'number' &&
-		typeof candidate.generatedAt === 'number'
+		typeof candidate.priority === 'number'
 	);
 }
 
@@ -399,8 +385,7 @@ export function isPackagedRuntimeTechnologyRegistryAsset(
 		typeof candidate.patternTables === 'object' && candidate.patternTables !== null &&
 		Array.isArray(candidate.relationshipEdges) &&
 		typeof candidate.collectionPlan === 'object' && candidate.collectionPlan !== null &&
-		typeof candidate.diagnosticCount === 'number' &&
-		typeof candidate.generatedAt === 'number'
+		typeof candidate.diagnosticCount === 'number'
 	);
 }
 

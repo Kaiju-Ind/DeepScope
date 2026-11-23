@@ -26,7 +26,7 @@ import type { TechnologyDefinition } from '../src/lib/detection/types';
 const REGISTRY_CACHE_DIR = 'kaiju-deepscope-registry';
 const PUBLIC_ASSET_ROOT = 'kaiju-deepscope-public';
 
-interface RegistryAssetPayload {
+export interface RegistryAssetPayload {
 	readonly path: string;
 	readonly contents: string;
 }
@@ -78,18 +78,7 @@ async function generateRegistryJsonAssets(
 		import(resolve(root, 'src/registry/technologies.ts')) as Promise<{ readonly technologies: readonly TechnologyDefinition[] }>,
 		import(resolve(root, 'src/lib/registry/compiler.ts')) as Promise<{ compileTechnologyRegistry(input: { readonly technologies: readonly TechnologyDefinition[]; readonly sourceKind: 'typescript-definition' }): CompiledTechnologyRegistryArtifact }>,
 	]);
-	const fullArtifact = compileTechnologyRegistry({
-		technologies,
-		sourceKind: 'typescript-definition',
-	});
-	const bootstrapTechnologies = createBootstrapTechnologyRegistry(technologies);
-	const generatedAt = Date.now();
-	const assets = createRegistryAssets({
-		bootstrapTechnologies,
-		fullArtifact,
-		technologies,
-		generatedAt,
-	});
+	const { fullArtifact, assets } = buildRegistryAssets(technologies, compileTechnologyRegistry);
 
 	await Promise.all([
 		resetRegistryDir(cacheRegistryDir),
@@ -104,13 +93,33 @@ async function generateRegistryJsonAssets(
 	);
 }
 
+/**
+ * Compile the catalog and render every registry file, without touching disk.
+ *
+ * The output depends only on `technologies`: no clock, randomness or machine
+ * state goes into it. Rebuilding the same commit must give byte-identical files,
+ * because Firefox add-on review rebuilds the submitted sources and release
+ * checksums are only meaningful when a rebuild matches them.
+ */
+export function buildRegistryAssets(
+	technologies: readonly TechnologyDefinition[],
+	compile: (input: { readonly technologies: readonly TechnologyDefinition[]; readonly sourceKind: 'typescript-definition' }) => CompiledTechnologyRegistryArtifact,
+): { readonly fullArtifact: CompiledTechnologyRegistryArtifact; readonly assets: readonly RegistryAssetPayload[] } {
+	const fullArtifact = compile({ technologies, sourceKind: 'typescript-definition' });
+	const assets = createRegistryAssets({
+		bootstrapTechnologies: createBootstrapTechnologyRegistry(technologies),
+		fullArtifact,
+		technologies,
+	});
+	return { fullArtifact, assets };
+}
+
 function createRegistryAssets(input: {
 	readonly bootstrapTechnologies: readonly TechnologyDefinition[];
 	readonly fullArtifact: CompiledTechnologyRegistryArtifact;
 	readonly technologies: readonly TechnologyDefinition[];
-	readonly generatedAt: number;
 }): readonly RegistryAssetPayload[] {
-	const shardAssets = createRegistryShardAssets(input.technologies, input.generatedAt);
+	const shardAssets = createRegistryShardAssets(input.technologies);
 	const shardSummaries = shardAssets.map((asset) => asset.summary);
 	const runtime = createRuntimeTechnologyRegistryArtifact(input.fullArtifact);
 
@@ -122,7 +131,6 @@ function createRegistryAssets(input: {
 				kind: 'bootstrap',
 				technologies: input.bootstrapTechnologies,
 				ruleCount: countTechnologyRules(input.bootstrapTechnologies),
-				generatedAt: input.generatedAt,
 			}),
 		},
 		{
@@ -132,7 +140,6 @@ function createRegistryAssets(input: {
 				kind: 'enrichment',
 				technologies: input.fullArtifact.technologies,
 				ruleCount: input.fullArtifact.matcherIndex.ruleCount,
-				generatedAt: input.generatedAt,
 			}),
 		},
 		{
@@ -145,7 +152,6 @@ function createRegistryAssets(input: {
 				relationshipEdges: runtime.relationshipGraph.relationshipEdges,
 				collectionPlan: runtime.collectionPlan,
 				diagnosticCount: runtime.diagnosticCount,
-				generatedAt: input.generatedAt,
 			}),
 		},
 		{
@@ -154,7 +160,6 @@ function createRegistryAssets(input: {
 				schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
 				kind: 'manifest',
 				shards: Object.fromEntries(shardSummaries.map((summary) => [summary.observationKind, summary])),
-				generatedAt: input.generatedAt,
 			}),
 		},
 		...shardAssets.map(({ path, contents }) => ({ path, contents })),
@@ -165,7 +170,6 @@ function createRegistryAssets(input: {
 				kind: 'metadata',
 				technologyMetadata: input.fullArtifact.technologyMetadata,
 				patternTables: input.fullArtifact.patternTables,
-				generatedAt: input.generatedAt,
 			}),
 		},
 		{
@@ -174,7 +178,6 @@ function createRegistryAssets(input: {
 				schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
 				kind: 'relationships',
 				relationshipEdges: input.fullArtifact.relationshipGraph.relationshipEdges,
-				generatedAt: input.generatedAt,
 			}),
 		},
 	];
@@ -182,7 +185,6 @@ function createRegistryAssets(input: {
 
 function createRegistryShardAssets(
 	technologies: readonly TechnologyDefinition[],
-	generatedAt: number,
 ): readonly { readonly path: string; readonly contents: string; readonly summary: RegistryShardSummary }[] {
 	return PACKAGED_REGISTRY_OBSERVATION_KINDS.map((observationKind) => {
 		const shardTechnologies = createObservationKindTechnologyRegistry(technologies, observationKind);
@@ -218,8 +220,7 @@ function createRegistryShardAssets(
 				patternCount,
 				encodedPayloadBytes,
 				priority: summary.priority,
-				generatedAt,
-			}),
+					}),
 		};
 	});
 }

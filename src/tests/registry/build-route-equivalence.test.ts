@@ -35,7 +35,6 @@ function loadPackagedShard(kind: PackagedRegistryObservationKind, technologies: 
 		patternCount: countTechnologyPatterns(technologies),
 		encodedPayloadBytes: 1,
 		priority: 1,
-		generatedAt: 1,
 	});
 	const parsed: unknown = JSON.parse(json);
 	if (!isPackagedTechnologyRegistryShardAsset(parsed, kind)) throw new Error(`Rendered ${kind} shard failed its own schema guard.`);

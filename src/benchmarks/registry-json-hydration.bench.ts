@@ -56,7 +56,6 @@ const registryJson = renderPackagedRegistryJson({
 	kind: 'enrichment',
 	technologies: registry,
 	ruleCount: registry.reduce((count, technology) => count + technology.rules.length, 0),
-	generatedAt: 1,
 });
 const parsedRegistry = JSON.parse(registryJson);
 

@@ -63,7 +63,6 @@ const shardJson = renderPackagedRegistryJson({
 	patternCount: packagedMatcherIndex.ruleCount,
 	encodedPayloadBytes: 1,
 	priority: 3,
-	generatedAt: 1,
 });
 const parsedShard = JSON.parse(shardJson);
 
