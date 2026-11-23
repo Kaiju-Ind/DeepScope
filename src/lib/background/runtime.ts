@@ -45,9 +45,11 @@ import type {
 } from '@/lib/messaging';
 import type { NormalizedObservation, ObservationBatch } from '@/lib/observations';
 import {
+	CONTENT_SCRIPT_BUSY_LIMIT_MS,
 	CONTENT_SCRIPT_TIMEOUT_MS,
 	RpcTimeoutError,
 	contentScriptFailure,
+	injectionFailure,
 	withTimeout,
 } from '@/lib/messaging/rpc';
 import { isObservationDirtyNotification } from '@/lib/messaging/observation-notifications';
@@ -850,13 +852,17 @@ export function createBackgroundRuntime(
 		return errorResponse('NO_ACTIVE_TAB', 'The requested browser tab is no longer active.');
 	}
 
-	async function pingContentScript(tabId: number, signal?: AbortSignal): Promise<boolean> {
+	async function pingContentScript(
+		tabId: number,
+		signal?: AbortSignal,
+		timeoutMs = CONTENT_SCRIPT_PING_TIMEOUT_MS,
+	): Promise<boolean> {
 		const contentApi = createContentApiClient(tabId, 0);
 
 		try {
 			const response = await withTimeout(
 				contentApi.getObservationSessionState(),
-				CONTENT_SCRIPT_PING_TIMEOUT_MS,
+				timeoutMs,
 				'Content script ping timed out.',
 				{ signal },
 			);
@@ -874,7 +880,7 @@ export function createBackgroundRuntime(
 			signal?.throwIfAborted();
 			return extensionSuccess(undefined);
 		} catch (error) {
-			return contentScriptFailure(error);
+			return injectionFailure(error);
 		}
 	}
 
@@ -970,6 +976,10 @@ export function createBackgroundRuntime(
 				tier,
 				...(collectionTierPlan ? { collectionTierPlan } : {}),
 				contentApi: createContentApiClient(tab.id, 0),
+				// A busy content script (a large document walk, slow under Firefox's Xray
+				// DOM wrappers) may only answer once its collection ends; a missing one
+				// fails fast because the browser has no receiver for the message.
+				isContentAlive: (probeSignal) => pingContentScript(tab.id, probeSignal, CONTENT_SCRIPT_BUSY_LIMIT_MS),
 				log: logBackgroundEvent,
 				timingTraceId,
 				...(signal ? { signal } : {}),
