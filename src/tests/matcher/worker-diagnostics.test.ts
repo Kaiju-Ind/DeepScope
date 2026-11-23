@@ -91,7 +91,7 @@ it.each([false, true])('keeps worker diagnostics within the job privacy policy: 
 	try {
 		const { installDiagnosticCrashHooks } = await import('@/lib/diagnostics/crash');
 		disposeCrashHooks = () => installDiagnosticCrashHooks('matcher-worker').dispose();
-		await import('@/entrypoints/offscreen/matcher.worker');
+		await import('@/lib/matcher/workers/matcher.worker');
 		events.dispatchEvent(new MessageEvent('message', { data: request }));
 		await vi.advanceTimersByTimeAsync(0);
 

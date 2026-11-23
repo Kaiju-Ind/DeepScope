@@ -14,7 +14,7 @@ import type {
 } from '@/lib/matcher/contracts';
 import type { NormalizedObservationKind, ObservationValue } from '@/lib/observations';
 import { redactEvidenceValue } from '@/lib/privacy/redaction';
-import * as dictionary from '../../utils/dictionary';
+import * as dictionary from '../../../utils/dictionary';
 
 /** Log individual rule checks that are slow enough to explain visible matcher stalls. */
 const SLOW_RULE_EVALUATION_MS = 25;

@@ -3,227 +3,86 @@ import { browser } from 'wxt/browser';
 import * as logging from '../../diagnostics/logging';
 import {
 	MATCHER_OFFSCREEN_CHANNEL,
-	type CancelMatcherJobMessage,
-	type CancelMatcherTabMessage,
 	type MatcherHostFailure,
 	type MatcherHostIdleMessage,
 	type MatcherOffscreenRequestMessage,
 	type MatcherOffscreenResponse,
-	type QueryMatcherHostIdleMessage,
-	type ReleaseMatcherLifecycleMessage,
-	type RunMatcherPartitionRequest,
-	type TouchMatcherLifecycleMessage,
 } from '../contracts';
 import { MatcherError } from '../error';
-import { MATCHER_PARTITION_CONCURRENCY } from '../policy';
-import { Pool } from './pool';
+import { EXECUTOR_IDLE_MS, WorkerExecutor, type ExecutorIdleReason } from '../workers/executor';
 
 const logger = logging.get('offscreen', 'matcher-host');
 
 /**
- * Safety watchdog for a staged analysis that stops touching its matcher lifecycle.
+ * Chrome's offscreen matcher host.
  *
- * Normal completion releases the lifecycle explicitly and closes immediately.
- * This timer exists only for background interruption or a missed release message.
+ * A Chrome extension's background is a service worker, which cannot construct a
+ * `Worker`, so Chrome runs the matcher workers inside a hidden offscreen
+ * document. This class only translates runtime messages to a
+ * {@link WorkerExecutor}; the executor owns the workers, leases and watchdog.
+ * Firefox and Safari use the same executor directly from their background page.
  */
-const HOST_IDLE_MS = 30_000;
-
-/** Staged analysis lifecycle retained only while its background owner can still produce matcher partitions. */
-interface MatcherLifecycleLease {
-	readonly tabId: number;
-	lastTouchedAt: number;
-}
-
-/** Hidden offscreen host that owns only active dedicated-worker execution. */
 export class Host {
-	/** Analysis lifecycle leases that keep the hot two-worker pool available between staged passes. */
-	readonly #lifecycles = new Map<string, MatcherLifecycleLease>();
-	/** Number of scheduler-selected partitions currently executing in dedicated workers. */
-	#activePartitions = 0;
-	/** Hot dedicated-worker pool. Its worker heaps are the expensive active resource. */
-	#pool: Pool | undefined;
-	/** Offscreen-owned fallback cleanup timer. */
-	#idleTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
-	/**
-	 * Activity generation. Every partition or lifecycle touch increments it so a
-	 * `host-idle` notice that crossed new work in flight can be recognized as stale.
-	 */
-	#generation = 0;
+	readonly #executor = new WorkerExecutor({ onIdle: (reason, generation) => this.#emitHostIdle(reason, generation) });
 
 	/** Register the offscreen partition execution protocol. */
 	start(): void {
 		browser.runtime.onMessage.addListener((message: unknown) => {
 			if (!isMatcherOffscreenRequestMessage(message)) return;
-			if (message.type === 'matcher.ping') return Promise.resolve({ ok: true, ready: true } satisfies MatcherOffscreenResponse);
-			if (message.type === 'matcher.cancel-job') return Promise.resolve(this.#cancelJob(message));
-			if (message.type === 'matcher.cancel-tab') return Promise.resolve(this.#cancelTab(message));
-			if (message.type === 'matcher.lifecycle-touch') return Promise.resolve(this.#touchLifecycle(message));
-			if (message.type === 'matcher.lifecycle-release') return Promise.resolve(this.#releaseLifecycle(message));
-			if (message.type === 'matcher.idle-query') return Promise.resolve(this.#queryIdle(message));
-			this.#retainLifecycle(message.request);
-			return this.#execute(message.request);
+			switch (message.type) {
+				case 'matcher.ping':
+					return Promise.resolve({ ok: true, ready: true } satisfies MatcherOffscreenResponse);
+				case 'matcher.cancel-job': {
+					const canceledPartitionCount = this.#executor.cancelJob(message.jobId);
+					return Promise.resolve({ ok: true, canceled: true, jobId: message.jobId, canceledPartitionCount } satisfies MatcherOffscreenResponse);
+				}
+				case 'matcher.cancel-tab': {
+					const canceledPartitionCount = this.#executor.cancelTab(message.tabId, message.reason);
+					return Promise.resolve({ ok: true, canceledTab: true, tabId: message.tabId, canceledPartitionCount } satisfies MatcherOffscreenResponse);
+				}
+				case 'matcher.lifecycle-touch':
+					this.#executor.touchLifecycle(message.lifecycleId, message.tabId);
+					return Promise.resolve({ ok: true, lifecycle: 'touched', lifecycleId: message.lifecycleId } satisfies MatcherOffscreenResponse);
+				case 'matcher.lifecycle-release':
+					this.#executor.releaseLifecycle(message.lifecycleId);
+					return Promise.resolve({ ok: true, lifecycle: 'released', lifecycleId: message.lifecycleId } satisfies MatcherOffscreenResponse);
+				case 'matcher.idle-query':
+					return Promise.resolve({
+						ok: true,
+						idle: this.#executor.isIdleAt(message.generation),
+						generation: this.#executor.generation,
+					} satisfies MatcherOffscreenResponse);
+				default:
+					return this.#execute(message);
+			}
 		});
 	}
 
-	/** Execute one scheduler-selected partition without retaining offscreen waiting work. */
-	async #execute(request: RunMatcherPartitionRequest): Promise<MatcherOffscreenResponse> {
-		this.#generation += 1;
-		this.#activePartitions += 1;
-		this.#clearIdleTimer();
+	/** Run one partition and turn a failure into the wire response the client expects. */
+	async #execute(message: Extract<MatcherOffscreenRequestMessage, { type: 'matcher.run-partition' }>): Promise<MatcherOffscreenResponse> {
 		try {
-			return { ok: true, value: await this.#getPool().run(request.task, request.workerIndex) };
+			return { ok: true, value: await this.#executor.run(message.request) };
 		} catch (error) {
 			return {
 				ok: false,
 				reason: getHostFailure(error),
 				message: error instanceof Error ? error.message : 'Offscreen matcher partition failed.',
 			};
-		} finally {
-			this.#activePartitions = Math.max(0, this.#activePartitions - 1);
-			this.#scheduleIdle();
 		}
 	}
 
-	/** Cancel only worker slots currently executing one matcher job. */
-	#cancelJob(message: CancelMatcherJobMessage): MatcherOffscreenResponse {
-		const canceledPartitionCount = this.#pool?.cancelJob(
-			message.jobId,
-			new MatcherError('canceled', 'Matcher job was canceled.'),
-		) ?? 0;
-		this.#scheduleIdle();
-		return { ok: true, canceled: true, jobId: message.jobId, canceledPartitionCount };
-	}
-
-	/** Cancel active matcher partitions and lifecycle leases owned by one browser tab. */
-	#cancelTab(message: CancelMatcherTabMessage): MatcherOffscreenResponse {
-		const reason = new MatcherError('canceled', `Matcher tab work was canceled: ${message.reason}.`);
-		const canceledPartitionCount = this.#pool?.cancelTab(message.tabId, reason) ?? 0;
-		for (const [lifecycleId, lease] of this.#lifecycles) {
-			if (lease.tabId === message.tabId) this.#lifecycles.delete(lifecycleId);
-		}
-		this.#scheduleIdle();
-		return { ok: true, canceledTab: true, tabId: message.tabId, canceledPartitionCount };
-	}
-
-	/** Refresh the watchdog while staged collection is expected to queue another matcher pass. */
-	#touchLifecycle(message: TouchMatcherLifecycleMessage): MatcherOffscreenResponse {
-		this.#generation += 1;
-		const existing = this.#lifecycles.get(message.lifecycleId);
-		if (existing) existing.lastTouchedAt = Date.now();
-		else this.#lifecycles.set(message.lifecycleId, { tabId: message.tabId, lastTouchedAt: Date.now() });
-		this.#scheduleIdle();
-		return { ok: true, lifecycle: 'touched', lifecycleId: message.lifecycleId };
-	}
-
-	/** Release one completed analysis lifecycle and dispose expensive worker heaps as soon as no work remains. */
-	#releaseLifecycle(message: ReleaseMatcherLifecycleMessage): MatcherOffscreenResponse {
-		this.#lifecycles.delete(message.lifecycleId);
-		if (this.#activePartitions === 0 && this.#lifecycles.size === 0) {
-			this.#disposePool('Matcher analysis lifecycle completed.');
-			this.#emitHostIdle('analysis-complete');
-		} else {
-			this.#scheduleIdle();
-		}
-		return { ok: true, lifecycle: 'released', lifecycleId: message.lifecycleId };
-	}
-
-	/** Report whether nothing ran or was retained since the idle notice for `generation`. */
-	#queryIdle(message: QueryMatcherHostIdleMessage): MatcherOffscreenResponse {
-		const idle = this.#activePartitions === 0 && this.#lifecycles.size === 0 && message.generation === this.#generation;
-		return { ok: true, idle, generation: this.#generation };
-	}
-
-	/** Keep one lifecycle warm after its first selected partition reaches the offscreen host. */
-	#retainLifecycle(request: RunMatcherPartitionRequest): void {
-		if (!request.lifecycleId) return;
-		this.#lifecycles.set(request.lifecycleId, {
-			tabId: request.task.job.tabId,
-			lastTouchedAt: Date.now(),
-		});
-		this.#clearIdleTimer();
-	}
-
-	/** Create the active two-worker pool only when matching first needs CPU capacity. */
-	#getPool(): Pool {
-		this.#clearIdleTimer();
-		if (this.#pool) return this.#pool;
-		this.#pool = new Pool(MATCHER_PARTITION_CONCURRENCY);
-		logger.debug('Created matcher worker pool.', {
-			event: 'matcher-worker-pool-created',
-			workerCount: MATCHER_PARTITION_CONCURRENCY,
-			activePartitionCount: this.#activePartitions,
-		});
-		return this.#pool;
-	}
-
-	/** Terminate both workers so their V8/native matcher state becomes collectible by Chromium. */
-	#disposePool(reason: Error | string): void {
-		this.#clearIdleTimer();
-		const pool = this.#pool;
-		if (!pool) return;
-		pool.dispose(reason);
-		this.#pool = undefined;
-		logger.debug('Disposed matcher worker pool.', {
-			event: 'matcher-worker-pool-disposed',
-			reason: reason instanceof Error ? reason.message : reason,
-			activePartitionCount: this.#activePartitions,
-		});
-	}
-
-	/** Arm the offscreen-owned fallback cleanup deadline after productive work stops. */
-	#scheduleIdle(): void {
-		this.#clearIdleTimer();
-		if (this.#activePartitions > 0) return;
-		if (this.#lifecycles.size === 0) {
-			this.#disposePool('Matcher host has no active analysis lifecycle.');
-			this.#emitHostIdle('analysis-complete');
-			return;
-		}
-
-		const now = Date.now();
-		let nextDeadline = Number.POSITIVE_INFINITY;
-		for (const lease of this.#lifecycles.values()) {
-			nextDeadline = Math.min(nextDeadline, lease.lastTouchedAt + HOST_IDLE_MS);
-		}
-		const delayMs = Math.max(0, nextDeadline - now);
-		this.#idleTimer = globalThis.setTimeout(() => this.#expireIdleLifecycles(), delayMs);
-	}
-
-	/** Expire only analysis lifecycles whose own watchdog deadline has elapsed. */
-	#expireIdleLifecycles(): void {
-		this.#idleTimer = undefined;
-		if (this.#activePartitions > 0) return;
-		const now = Date.now();
-		for (const [lifecycleId, lease] of this.#lifecycles) {
-			if (now - lease.lastTouchedAt >= HOST_IDLE_MS) this.#lifecycles.delete(lifecycleId);
-		}
-		if (this.#lifecycles.size > 0) {
-			this.#scheduleIdle();
-			return;
-		}
-		this.#disposePool(`Matcher host reached the ${HOST_IDLE_MS}ms idle watchdog.`);
-		this.#emitHostIdle('watchdog');
-	}
-
-	/** Cancel the current fallback timer whenever real matcher activity resumes. */
-	#clearIdleTimer(): void {
-		if (this.#idleTimer === undefined) return;
-		globalThis.clearTimeout(this.#idleTimer);
-		this.#idleTimer = undefined;
-	}
-
-	/** Tell the background to close the privileged offscreen document. */
-	#emitHostIdle(reason: 'analysis-complete' | 'watchdog'): void {
+	/** Tell the background it may close the offscreen document. */
+	#emitHostIdle(reason: ExecutorIdleReason, generation: number): void {
 		logger.debug('Matcher host became disposable.', {
 			event: 'matcher-host-idle',
 			reason,
-			idleMs: reason === 'watchdog' ? HOST_IDLE_MS : 0,
+			idleMs: reason === 'watchdog' ? EXECUTOR_IDLE_MS : 0,
 		});
 		const message: MatcherHostIdleMessage = {
 			channel: MATCHER_OFFSCREEN_CHANNEL,
 			type: 'matcher.host-idle',
 			idleAt: Date.now(),
-			generation: this.#generation,
+			generation,
 		};
 		void browser.runtime.sendMessage(message).catch(() => undefined);
 	}

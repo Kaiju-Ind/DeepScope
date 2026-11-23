@@ -82,6 +82,7 @@ vi.mock('@/lib/matcher/offscreen', () => ({
 	start: vi.fn(),
 	capacity: 2,
 	cancel: vi.fn(),
+	cancelForRecovery: vi.fn(async () => undefined),
 	cancelTab: vi.fn(),
 	runPartition: vi.fn(),
 	touchLifecycle: vi.fn(),

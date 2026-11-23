@@ -18,6 +18,7 @@ import {
 import type { SiteAnalysis } from '@/lib/detection/types';
 import { diagnosticErrorType } from '@/lib/privacy/redaction';
 import * as offscreen from '@/lib/matcher/offscreen';
+import * as localWorkers from '@/lib/matcher/workers/local';
 import * as analysisScheduler from '@/lib/scheduler/analysis';
 import * as matcherScheduler from '@/lib/scheduler/matcher';
 import {
@@ -198,19 +199,29 @@ async function setBadge(tabId: number, count: number, finding?: string): Promise
 export default defineBackground(() => {
 	logging.configure('background');
 	installDiagnosticCrashHooks('background');
-	offscreen.start();
 	const { logBackgroundEvent, logAnalysisSummary } = createBackgroundLoggers();
 	const matcherContextId = crypto.randomUUID();
 
+	// Firefox and Safari backgrounds are pages and run the matcher workers
+	// themselves. Chrome's background is a service worker, which cannot create
+	// workers, so it delegates to the offscreen document.
+	const localMatcher = localWorkers.canRunWorkersLocally();
+	if (!localMatcher) offscreen.start();
+	const matcherExecutor: matcherScheduler.MatcherPartitionExecutor = localMatcher
+		? localWorkers.createLocalExecutor()
+		: {
+			capacity: offscreen.capacity,
+			runPartition: offscreen.runPartition,
+			cancelJob: offscreen.cancel,
+			cancelTab: offscreen.cancelTab,
+			touchLifecycle: offscreen.touchLifecycle,
+			releaseLifecycle: offscreen.releaseLifecycle,
+		};
+	const cancelForRecovery = localMatcher ? localWorkers.cancelForRecovery : offscreen.cancelForRecovery;
+	logBackgroundEvent('matcher-executor-selected', { executor: localMatcher ? 'background-workers' : 'offscreen-document' });
+
 	const registryProvider = createPackagedRuntimeTechnologyRegistryProvider();
-	const matcherQueue = matcherScheduler.create({
-		capacity: offscreen.capacity,
-		runPartition: offscreen.runPartition,
-		cancelJob: offscreen.cancel,
-		cancelTab: offscreen.cancelTab,
-		touchLifecycle: offscreen.touchLifecycle,
-		releaseLifecycle: offscreen.releaseLifecycle,
-	}, logBackgroundEvent);
+	const matcherQueue = matcherScheduler.create(matcherExecutor, logBackgroundEvent);
 
 	const backgroundRuntime = createBackgroundRuntime({
 		getTab: (tabId) => browser.tabs.get(tabId),
@@ -269,7 +280,7 @@ export default defineBackground(() => {
 
 	void reconcileAndResume({
 		schedulers: { analysis: analysisQueue, matcher: matcherQueue },
-		reconcileRecords: async () => (await reconcileInterruptedMatcherJobs(matcherContextId, logBackgroundEvent)).length,
+		reconcileRecords: async () => (await reconcileInterruptedMatcherJobs(matcherContextId, logBackgroundEvent, cancelForRecovery)).length,
 		recover(recovery) {
 			matcherRecoveryTabs.add(recovery.tabId);
 			void backgroundRuntime.resolveScheduledTab({

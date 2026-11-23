@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { MatcherPartitionTask, MatcherWorkerRunMessage } from '@/lib/matcher/contracts';
 import { createMatcherPartitionTasks } from '@/lib/matcher/partition';
-import type { Pool } from '@/lib/matcher/offscreen/pool';
+import type { Pool } from '@/lib/matcher/workers/pool';
 
 /** Workers are the browser boundary; the real pool owns protocol, settlement and listener cleanup. */
 class WorkerPort extends EventTarget {
@@ -105,7 +105,7 @@ async function load() {
 	}));
 	vi.doMock('@/lib/diagnostics/logging', () => ({ get: () => logger }));
 	return {
-		...(await import('@/lib/matcher/offscreen/pool')),
+		...(await import('@/lib/matcher/workers/pool')),
 		client: await import('@/lib/matcher/offscreen/client'),
 		logger,
 		sendMessage,

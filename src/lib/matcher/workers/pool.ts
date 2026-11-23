@@ -20,8 +20,23 @@ export class Pool {
 	/** Fixed worker slots owned for the complete lifetime of this hot pool. */
 	readonly #workers: Slot[];
 
-	constructor(workerCount: number, deadlineMs = MATCHER_PARTITION_DEADLINE_MS) {
-		this.#workers = Array.from({ length: Math.max(1, workerCount) }, (_item, index) => new Slot(index, deadlineMs));
+	/**
+	 * @param workerCount Number of dedicated worker slots.
+	 * @param deadlineMs Hard per-partition deadline before a slot replaces its worker.
+	 * @param onDiagnostic Receives diagnostics posted by workers. The offscreen host
+	 * relays them over runtime messaging. A background page that owns the pool
+	 * writes them to the journal directly, because a page does not receive its own
+	 * runtime messages.
+	 */
+	constructor(
+		workerCount: number,
+		deadlineMs = MATCHER_PARTITION_DEADLINE_MS,
+		onDiagnostic: DiagnosticSink = forwardDiagnostic,
+	) {
+		this.#workers = Array.from(
+			{ length: Math.max(1, workerCount) },
+			(_item, index) => new Slot(index, deadlineMs, onDiagnostic),
+		);
 	}
 
 	/** Number of partitions that can execute concurrently. */
@@ -67,9 +82,11 @@ class Slot {
 	readonly #index: number;
 	/** Hard per-partition deadline after which this slot terminates and replaces its worker. */
 	readonly #deadlineMs: number;
+	/** Destination for diagnostics this slot's worker posts. */
+	readonly #onDiagnostic: DiagnosticSink;
 	readonly #diagnosticListener = (event: MessageEvent<unknown>): void => {
 		if (!isDiagnosticTransportMessage(event.data)) return;
-		forwardDiagnostic(event.data);
+		this.#onDiagnostic(event.data);
 	};
 	/**
 	 * Persistent error listener for a worker that owns no partition.
@@ -93,9 +110,10 @@ class Slot {
 	#activeReject: ((error: Error) => void) | undefined;
 	#disposed = false;
 
-	constructor(index: number, deadlineMs: number) {
+	constructor(index: number, deadlineMs: number, onDiagnostic: DiagnosticSink) {
 		this.#index = index;
 		this.#deadlineMs = deadlineMs;
+		this.#onDiagnostic = onDiagnostic;
 		this.#worker = this.#createWorker();
 	}
 
@@ -212,7 +230,7 @@ class Slot {
 	/** Create one isolated matcher worker and attach the persistent diagnostic bridge. */
 	#createWorker(): Worker {
 		const worker = new Worker(
-			new URL('../../../entrypoints/offscreen/matcher.worker.ts', import.meta.url),
+			new URL('./matcher.worker.ts', import.meta.url),
 			{ type: 'module', name: `kaiju-deepscope-matcher-${this.#index}` },
 		);
 		worker.addEventListener('message', this.#diagnosticListener);
@@ -236,6 +254,9 @@ class Slot {
 		if (!this.#disposed) this.#worker = this.#createWorker();
 	}
 }
+
+/** Receiver for diagnostics posted by matcher workers. */
+export type DiagnosticSink = (message: DiagnosticTransportMessage) => void;
 
 /** Relay worker diagnostics through the offscreen runtime while the host is alive. */
 function forwardDiagnostic(message: DiagnosticTransportMessage): void {

@@ -16,9 +16,11 @@ import { reconcileMatcherJobRecords } from '@/lib/storage/matcher-jobs';
 export async function reconcileInterruptedMatcherJobs(
 	currentContextId: string,
 	log?: (event: string, details?: Record<string, unknown>) => void,
+	/** Confirm that an orphaned job stopped. Chrome asks the offscreen host; a background page has nothing left to stop. */
+	cancel: (jobId: string) => Promise<void> = offscreen.cancelForRecovery,
 ): Promise<MatcherJobLifecycleRecord[]> {
 	const interrupted = await reconcileMatcherJobRecords(currentContextId, {
-		cancel: offscreen.cancelForRecovery,
+		cancel,
 		reportFailure(stage, count) {
 			log?.('matcher-job-legacy-private-migration-failed', { stage, count });
 		},
