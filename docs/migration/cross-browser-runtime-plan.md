@@ -181,6 +181,53 @@ All runtime string-keyed maps use `src/utils/dictionary.ts`. See
 - Benchmarks stay on Vitest 5 `bench` with native file discovery.
 - Drop `docs/implementation/deepscope-ui-diagnostics-changes.txt`.
 
+### Milestone 7 registry design
+
+Today the build validates and compiles 8,102 catalog files, emits 30
+products, and ships 25. Five products (bootstrap, enrichment, metadata,
+relationships, manifest) have no reader. Each product embeds `generatedAt`,
+so the Chrome and Firefox packages of one commit differ. A validation
+failure returns an empty registry and the build continues, while the
+shards are still built from unvalidated data. The build reports 186
+diagnostics, some with `error` severity, without failing. `wxt dev` never
+regenerates after a catalog edit.
+
+Target: catalog -> validate -> compile -> emit `registry.runtime.json` and
+one `registry.kind.<kind>.json` per observation kind, nothing else.
+
+```text
+src/registry/catalog/<category>/<id>.ts   one technology per file
+src/registry/index.ts                     exports `technologies`
+src/lib/registry/format.ts                schema version, paths, kinds, RegExp codec
+src/lib/registry/runtime-artifact.ts      runtime payload shape
+src/lib/registry/matcher-artifact.ts      shard payload shape and hydration
+src/lib/registry/load-runtime.ts          background loader
+src/lib/registry/load-matcher.ts          worker loader
+src/lib/registry/build/{validate,compile,emit}.ts   Node-only, relative imports
+modules/registry.ts                       thin WXT module (build:publicAssets)
+src/tests/support/registry.ts             in-memory provider for tests and benchmarks
+```
+
+Steps, each green: fail the build on error diagnostics and build shards from
+validated data; drop `generatedAt` and add a byte-identical rebuild test;
+delete dead modules (`precompiled-*`, bootstrap helpers, no-op normaliser);
+stop emitting cache-only products and remove `build-provider.ts`; emit
+through `build:publicAssets` and fix dev regeneration; split
+`packaged-artifacts.ts` and move the compiler into `build/`; report or remove
+about 59 duplicate-id definitions; replace the two registry architecture
+documents with one `docs/architecture/registry.md` and a CONTRIBUTING
+section on adding a technology.
+
+### Catalog provenance (blocks public promotion)
+
+The catalog appears to be derived from Wappalyzer data: 7,624 definitions
+carry Wappalyzer icon filenames, 716 carry `cpe`, rule ids are index-numbered,
+and descriptions match upstream text. The repository has no attribution or
+license. Before promoting the repository, confirm which upstream the data
+came from (the original MIT-era Wappalyzer data and the GPL-3.0
+`enthec/webappanalyzer` fork have different terms), then add a compatible
+license and NOTICE, or rewrite the copied text.
+
 ## Dependency status
 
 WXT 0.21.5, `@wxt-dev/module-solid` 1.1.4 and `@wxt-dev/browser` 0.3.7 are the
