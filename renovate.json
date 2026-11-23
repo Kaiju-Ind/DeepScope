@@ -1,6 +1,90 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Self-contained public configuration; see docs/ci.md#dependency-updates.",
   "extends": [
-    "local>Kaiju-Ind/GitHub//packs/renovate/default"
+    "config:best-practices",
+    ":semanticCommitTypeAll(chore)",
+    "helpers:pinGitHubActionDigestsToSemver"
+  ],
+  "timezone": "UTC",
+  "schedule": ["* 0-6 * * 1"],
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "prConcurrentLimit": 5,
+  "rangeStrategy": "bump",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 0-6 1 * *"]
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": ["at any time"],
+    "minimumReleaseAge": null,
+    "labels": ["security"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "packageRules": [
+    {
+      "description": "One weekly PR for all non-major updates.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest", "pinDigest"],
+      "groupName": "non-major dependencies",
+      "groupSlug": "non-major"
+    },
+    {
+      "description": "GitHub Actions are pinned to full commit SHAs with a version comment.",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true
+    },
+    {
+      "description": "Solid 2 is held back until Kobalte, Corvu and the WXT Solid module support it (docs/migration/cross-browser-runtime-plan.md).",
+      "matchPackageNames": ["solid-js"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "npm tools pinned inside Mise file tasks (#MISE tools={\"npm:<name>\"=\"<version>\"}).",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.mise/tasks/.+$/"],
+      "matchStrings": ["\"npm:(?<depName>[^\"]+)\"=\"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "npm"
+    },
+    {
+      "description": "actionlint pinned in a Mise file task.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.mise/tasks/.+$/"],
+      "matchStrings": ["actionlint=\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "rhysd/actionlint",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "description": "oras pinned in a Mise file task.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.mise/tasks/.+$/"],
+      "matchStrings": ["oras=\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "oras-project/oras",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "description": "zizmor pinned in a Mise file task.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.mise/tasks/.+$/"],
+      "matchStrings": ["zizmor=\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "zizmor",
+      "datasourceTemplate": "pypi"
+    },
+    {
+      "description": "The Mise version pinned in workflow and composite action inputs.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/(workflows|actions)/.+\\.ya?ml$/"],
+      "matchStrings": ["version: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "depNameTemplate": "mise",
+      "packageNameTemplate": "jdx/mise",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    }
   ]
 }
