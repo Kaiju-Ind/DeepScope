@@ -1,12 +1,13 @@
 import CompareIcon from '~icons/fluent/arrow-swap-24-regular';
 import RefreshIcon from '~icons/fluent/arrow-clockwise-24-regular';
 import { createMediaQuery } from '@solid-primitives/media';
-import { For, Show, createEffect, createMemo, createResource, createSignal } from 'solid-js';
+import { For, Show, createEffect, createMemo, createSignal } from 'solid-js';
 
 import { FilterMenu } from '@/app/components/filter-menu';
 import { PageUrl } from '@/app/components/page-url';
 import { useHistory } from '@/app/context';
 import * as session from '@/app/session';
+import { createRetainedHistory } from '@/app/history';
 import * as history from '@/lib/history';
 import type { DetectionReplayTrace } from '@/lib/pipeline';
 import { Badge } from '@/ui/badge';
@@ -47,7 +48,7 @@ export function HistoryPage() {
 	const tabId = () => panel.visibleTabIdentity()?.tabId;
 	const currentUrl = () => panel.analysis()?.url ?? panel.visibleTabIdentity()?.url ?? '';
 	const initial = session.get<HistoryStateType>(tabId(), 'history') ?? defaultState;
-	const [runs, { refetch }] = createResource(currentUrl, async (value) => value ? panel.getReplayHistory(value) : []);
+	const { runs, loading, refetch } = createRetainedHistory(panel);
 	const [query, setQuery] = createSignal(initial.query);
 	const [scope, setScope] = createSignal<history.HistoryScopeType>(initial.scope);
 	const [change, setChange] = createSignal<history.HistoryChangeFilterType>(initial.change);
@@ -118,7 +119,7 @@ export function HistoryPage() {
 					<h1 class="k-page-title">History</h1>
 					<p class="k-page-description">Start with changes on this page. Expand to the rest of the origin only when you need to investigate further.</p>
 				</div>
-				<Button variant="outline" size="icon-sm" aria-label="Refresh history" disabled={runs.loading} onClick={() => void refetch()}>
+				<Button variant="outline" size="icon-sm" aria-label="Refresh history" disabled={loading()} onClick={() => void refetch()}>
 					<RefreshIcon />
 				</Button>
 			</header>
@@ -142,7 +143,7 @@ export function HistoryPage() {
 						onChange={(value) => { setChange(value); save({ change: value }); }}
 					/>
 				</div>
-				<Show when={filtered().length > 0} fallback={<NoHistory loading={runs.loading} />}>
+				<Show when={filtered().length > 0} fallback={<NoHistory loading={loading()} />}>
 					<div class="grid gap-2">
 						<For each={filtered()}>{(run) => <RunRow run={run} showUrl={scope() === 'origin'} selected={history.key(current() ?? run) === history.key(run)} onSelect={() => select(run)} />}</For>
 					</div>

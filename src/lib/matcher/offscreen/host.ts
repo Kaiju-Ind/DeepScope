@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 
 import * as logging from '../../diagnostics/logging';
+import { diagnosticErrorType } from '../../privacy/redaction';
 import {
 	MATCHER_OFFSCREEN_CHANNEL,
 	type MatcherHostIdleMessage,
@@ -108,7 +109,7 @@ class Host {
 		this.#activeJobId = next.request.job.jobId;
 		void this.#run(next.request, next.queuedAt)
 			.then(next.resolve, (error) => {
-				this.#dispose(error instanceof Error ? error : new Error('Matcher job failed.'));
+				this.#dispose(error instanceof Error ? error : new Error('Matcher job failed.'), next.request.job.incognito);
 				next.reject(error);
 			})
 			.finally(() => {
@@ -164,7 +165,7 @@ class Host {
 	}
 
 	/** Terminate the worker pool after cancellation, failure, or idle expiry. */
-	#dispose(reason: Error | string): void {
+	#dispose(reason: Error | string, incognito = false): void {
 		this.#clearIdle();
 		const pool = this.#pool;
 		if (!pool) return;
@@ -172,7 +173,9 @@ class Host {
 		this.#pool = undefined;
 		logger.debug('Disposed matcher worker pool.', {
 			event: 'matcher-worker-pool-disposed',
-			reason: reason instanceof Error ? reason.message : reason,
+			...(incognito
+				? { errorType: diagnosticErrorType(reason) }
+				: { reason: reason instanceof Error ? reason.message : reason }),
 			activeJobId: this.#activeJobId,
 			queuedJobCount: this.#queue.size,
 		});

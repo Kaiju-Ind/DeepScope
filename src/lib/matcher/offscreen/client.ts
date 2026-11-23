@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 
 import * as logging from '../../diagnostics/logging';
+import { diagnosticErrorType } from '../../privacy/redaction';
 import {
 	MATCHER_OFFSCREEN_CHANNEL,
 	type CancelMatcherJobMessage,
@@ -48,19 +49,35 @@ export async function run(request: RunMatcherJobRequest): Promise<MatcherJobRunR
 	return await runOffscreen(request);
 }
 
-/** Ask the offscreen matcher host to remove queued work or stop an active job. */
-export async function cancel(jobId: string): Promise<void> {
+/** Send the job ID to the host that owns the queue and active worker pool. */
+function requestCancellation(jobId: string): Promise<MatcherOffscreenResponse | undefined> {
 	const message: CancelMatcherJobMessage = {
 		channel: MATCHER_OFFSCREEN_CHANNEL,
 		type: 'matcher.cancel-job',
 		jobId,
 	};
+	return browser.runtime.sendMessage(message);
+}
+
+/** Ask the offscreen matcher host to remove queued work or stop an active job. */
+export async function cancel(jobId: string): Promise<void> {
 	try {
-		await browser.runtime.sendMessage(message);
+		await requestCancellation(jobId);
 	} catch {
 		// Cancellation is best-effort. Background lifecycle state still rejects stale
 		// partitions and marks the durable job terminal if the host already disappeared.
 	}
+}
+
+/**
+ * Retire an orphan's last recovery key only after the host acknowledges this ID
+ * or Chrome confirms the matcher document no longer exists.
+ */
+export async function cancelForRecovery(jobId: string): Promise<void> {
+	const response = await requestCancellation(jobId).catch(() => undefined);
+	if (response?.ok === true && 'canceled' in response && response.canceled === true && response.jobId === jobId) return;
+	if (await exists().catch(() => undefined) === false) return;
+	throw new Error('Matcher cancellation could not be confirmed.');
 }
 
 /**
@@ -154,7 +171,11 @@ async function runOffscreen(request: RunMatcherJobRequest): Promise<MatcherJobRu
 	} catch (error) {
 		if (error instanceof MatcherError && error.reason === 'canceled') throw error;
 		await cancel(request.job.jobId);
-		logger.error('Offscreen matcher job failed.', { error, jobId: request.job.jobId, mode: request.mode });
+		logger.error('Offscreen matcher job failed.', {
+			jobId: request.job.jobId,
+			mode: request.mode,
+			...(request.job.incognito ? { errorType: diagnosticErrorType(error) } : { error }),
+		});
 		throw error;
 	} finally {
 		release();
@@ -191,7 +212,7 @@ async function open(): Promise<boolean> {
 		await creating;
 		return true;
 	} catch {
-		return await exists();
+		return await exists() === true;
 	}
 }
 
@@ -206,15 +227,15 @@ function acquire(): () => void {
 	};
 }
 
-/** Query Chrome runtime contexts instead of maintaining a second host-existence flag. */
-async function exists(): Promise<boolean> {
+/** Distinguish a confirmed missing document from unavailable Chrome context discovery. */
+async function exists(): Promise<boolean | undefined> {
 	const runtime = browser.runtime;
-	if (!runtime.getContexts) return false;
+	if (!runtime.getContexts) return undefined;
 	const contexts = await runtime.getContexts({
 		contextTypes: [runtime.ContextType.OFFSCREEN_DOCUMENT],
 		documentUrls: [runtime.getURL(DOCUMENT_PATH)],
 	});
-	return contexts.length > 0;
+	return Array.isArray(contexts) ? contexts.length > 0 : undefined;
 }
 
 /**

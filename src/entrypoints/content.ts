@@ -1,5 +1,6 @@
 import { defineProxy } from "comctx";
 import { browser } from "wxt/browser";
+import type { ContentScriptContext } from "wxt/utils/content-script-context";
 
 import * as artifact from "@/lib/content/artifact";
 import { collectPageSignals } from "@/lib/content/collect-page-signals";
@@ -26,6 +27,7 @@ import {
   type ObservationBatchControllerStats,
 } from "@/lib/observations";
 import { errorResponse, extensionSuccess } from "@/lib/messaging/result";
+import { diagnosticErrorType } from "@/lib/privacy/redaction";
 import * as url from "@/utils/url";
 
 const contentLogger = logging.get("content");
@@ -105,18 +107,22 @@ function formatContentLogSummary(details?: Record<string, unknown>): string {
   return fields.length ? ` ${fields.join(" ")}` : "";
 }
 
-function summarizeCurrentDocument(): Record<string, unknown> {
+/** Keep document state available without recording the location of a private page. */
+function summarizeCurrentDocument(incognito: boolean): Record<string, unknown> {
   return {
-    url: globalThis.location?.href,
-    hostname: globalThis.location?.hostname,
+    ...(!incognito && {
+      url: globalThis.location?.href,
+      hostname: globalThis.location?.hostname,
+    }),
     readyState: globalThis.document?.readyState,
   };
 }
 
 function summarizeSnapshotTarget(
   target: ContentPageSessionSnapshotTarget | undefined,
+  incognito: boolean,
 ): Record<string, unknown> {
-  if (!target) {
+  if (incognito || !target) {
     return {};
   }
 
@@ -143,7 +149,7 @@ function summarizeObservationStats(
   };
 }
 
-function summarizeObservationBatch(batch: ObservationBatch | undefined): Record<string, unknown> {
+function summarizeObservationBatch(batch: ObservationBatch | undefined, incognito: boolean): Record<string, unknown> {
   if (!batch) {
     return { observationCount: 0 };
   }
@@ -154,34 +160,46 @@ function summarizeObservationBatch(batch: ObservationBatch | undefined): Record<
   }, {});
 
   return {
-    hostname: batch.target.hostname,
+    ...(!incognito && { hostname: batch.target.hostname }),
     observationCount: batch.observations.length,
     observedAt: batch.observedAt,
     kindCounts,
   };
 }
 
-function notifyBackgroundObservationDirty(event: observe.QueuedBatchEventType): void {
+async function notifyBackgroundObservationDirty(event: observe.QueuedBatchEventType, incognito: boolean): Promise<void> {
   const message = createObservationDirtyNotification(event.session, event.observedAt);
   if (!message) {
     return;
   }
 
-  void browser.runtime.sendMessage(message).catch((error: unknown) => {
+  try {
+    await browser.runtime.sendMessage(message);
+  } catch (error) {
     logContentEvent("observation-dirty-notify-failed", {
       sessionId: event.session.sessionId,
-      message: error instanceof Error ? error.message : "Background notification failed",
+      ...summarizeContentError(error, incognito, "Background notification failed"),
     });
-  });
+  }
 }
 
-function describeContentError(error: unknown): string {
-  return error instanceof Error ? error.message : "Unexpected content runtime failure";
+/** Keep a stable failure type in place of exception text in private diagnostics. */
+function summarizeContentError(
+  error: unknown,
+  incognito: boolean,
+  fallback = "Unexpected content runtime failure",
+): Record<string, unknown> {
+  return incognito
+    ? { errorType: diagnosticErrorType(error) }
+    : { message: error instanceof Error ? error.message : fallback };
 }
 
-function summarizeSignals(signals: Awaited<ReturnType<typeof collectPageSignals>>): Record<string, unknown> {
+function summarizeSignals(
+  signals: Awaited<ReturnType<typeof collectPageSignals>>,
+  incognito: boolean,
+): Record<string, unknown> {
   return {
-    hostname: signals.hostname,
+    ...(!incognito && { hostname: signals.hostname }),
     scriptCount: signals.scripts.length,
     stylesheetCount: signals.stylesheets.length,
     linkCount: signals.links.length,
@@ -208,18 +226,20 @@ function summarizeSignals(signals: Awaited<ReturnType<typeof collectPageSignals>
 async function collectSignals(
   input: CollectPageSignalsInput,
   observedSignals: observe.SignalsType,
+  incognito: boolean,
 ) {
   try {
     const timingContext: TimingContext = {
       traceId: input.timingTraceId,
       surface: 'content',
+      incognito,
       details: {
-        hostname: globalThis.location?.hostname,
+        ...(!incognito && { hostname: globalThis.location?.hostname }),
         tier: input.tier ?? 'initial',
       },
     };
     logContentEvent("collect-start", {
-      hostname: globalThis.location?.hostname,
+      ...(!incognito && { hostname: globalThis.location?.hostname }),
       includeHtml: Boolean(input.includeHtml),
       includeText: Boolean(input.includeText),
       includeScriptContent: Boolean(input.includeScriptContent),
@@ -247,8 +267,8 @@ async function collectSignals(
     const signals = await timeAsyncSpan(
       'content.collect-signals.collect-page-signals',
       timingContext,
-      () => collectPageSignals(input, snapshot),
-      (value) => summarizeSignals(value),
+      () => collectPageSignals(input, snapshot, incognito),
+      (value) => summarizeSignals(value, incognito),
     );
     const validationError = timeSyncSpan(
       'content.collect-signals.validate-page-signals',
@@ -259,21 +279,22 @@ async function collectSignals(
 
     if (validationError) {
       logContentEvent("collect-validation-failed", {
-        hostname: signals.hostname,
-        error: validationError,
+        code: "PAYLOAD_TOO_LARGE",
+        ...(!incognito && { hostname: signals.hostname, error: validationError }),
       });
       return errorResponse("PAYLOAD_TOO_LARGE", validationError);
     }
 
-    logContentEvent("collect-success", summarizeSignals(signals));
+    logContentEvent("collect-success", summarizeSignals(signals, incognito));
 
     return extensionSuccess(signals);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to collect page signals";
     const stack = error instanceof Error ? error.stack : undefined;
     logContentEvent("collect-failed", {
-      hostname: globalThis.location?.hostname,
-      message,
+      ...(incognito
+        ? { errorType: diagnosticErrorType(error) }
+        : { hostname: globalThis.location?.hostname, message }),
     });
     return errorResponse("DETECTION_FAILED", message, stack);
   }
@@ -289,19 +310,21 @@ async function collectSignals(
 async function collectInitialObservationBatch(
   input: CollectPageSignalsInput,
   observedSignals: observe.SignalsType,
+  incognito: boolean,
 ) {
   const timingContext: TimingContext = {
     traceId: input.timingTraceId,
     surface: 'content',
+    incognito,
     details: {
-      hostname: globalThis.location?.hostname,
+      ...(!incognito && { hostname: globalThis.location?.hostname }),
       tier: input.tier ?? 'initial',
     },
   };
   const response = await timeAsyncSpan(
     'content.collect-observation-batch.collect-signals',
     timingContext,
-    () => collectSignals(input, observedSignals),
+    () => collectSignals(input, observedSignals, incognito),
     (value) => ({ ok: value.ok }),
   );
   if (!response.ok) {
@@ -319,8 +342,8 @@ async function collectInitialObservationBatch(
     (value) => ({ observationCount: value.observations.length }),
   );
   logContentEvent("observation-batch-collected", {
-    ...summarizeCurrentDocument(),
-    ...summarizeObservationBatch(batch),
+    ...summarizeCurrentDocument(incognito),
+    ...summarizeObservationBatch(batch, incognito),
     timingTraceId: input.timingTraceId,
     tier: input.tier ?? "initial",
   });
@@ -335,8 +358,11 @@ async function collectInitialObservationBatch(
  * same path in normal RPC calls and content-script invalidation. Invalidation is
  * a browser lifecycle event, not a manual stop, so the returned `dispose` method
  * records the real stop reason on the observed-signal store.
+ *
+ * The entrypoint supplies Chrome's fixed incognito context for diagnostics and
+ * lifecycle snapshot writes. The default false applies to ordinary documents.
  */
-export function createContentRuntime(observedSignals: observe.SignalsType): ContentRuntime {
+export function createContentRuntime(observedSignals: observe.SignalsType, incognito = false): ContentRuntime {
   let observationExpiryTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
   let activeSnapshotTarget: ContentPageSessionSnapshotTarget | undefined;
   /** Serialize lifecycle writes so start and stop cannot settle out of order. */
@@ -361,7 +387,7 @@ export function createContentRuntime(observedSignals: observe.SignalsType): Cont
     details: { readonly observedAt?: number; readonly reason?: string } = {},
   ): void {
     const target = activeSnapshotTarget;
-    if (!target) return;
+    if (incognito || !target) return;
 
     snapshotWriteQueue = snapshotWriteQueue.then(async () => {
       await writeContentPageSessionSnapshot({
@@ -373,24 +399,24 @@ export function createContentRuntime(observedSignals: observe.SignalsType): Cont
     }).catch((error) => {
       logContentEvent("snapshot-write-failed", {
         status,
-        message: describeContentError(error),
+        ...summarizeContentError(error, incognito),
       });
     });
   }
 
   const contentApi: ContentApi = {
     async collectObservationBatch(input) {
-      return collectInitialObservationBatch(input, observedSignals);
+      return collectInitialObservationBatch(input, observedSignals, incognito);
     },
 
     async beginObservationSession(input) {
       clearObservationExpiry();
 
       logContentEvent("observation-start", {
-        ...summarizeCurrentDocument(),
-        ...summarizeSnapshotTarget(input.snapshotTarget),
+        ...summarizeCurrentDocument(incognito),
+        ...summarizeSnapshotTarget(input.snapshotTarget, incognito),
         sessionId: input.sessionId,
-        expectedUrl: input.expectedUrl,
+        ...(!incognito && { expectedUrl: input.expectedUrl }),
         durationMs: input.policy.durationMs,
         throttleMs: input.policy.throttleMs,
         maxPendingNodes: input.policy.maxPendingNodes,
@@ -419,7 +445,7 @@ export function createContentRuntime(observedSignals: observe.SignalsType): Cont
       observationExpiryTimer = globalThis.setTimeout(() => {
         clearObservationExpiry();
         logContentEvent("observation-expired", {
-          hostname: globalThis.location?.hostname,
+          ...(!incognito && { hostname: globalThis.location?.hostname }),
           sessionId: input.sessionId,
         });
         const expiredSession = observedSignals.stopObservationSession("expired");
@@ -431,8 +457,8 @@ export function createContentRuntime(observedSignals: observe.SignalsType): Cont
       }, input.policy.durationMs);
 
       logContentEvent("observation-active", {
-        ...summarizeCurrentDocument(),
-        ...summarizeSnapshotTarget(activeSnapshotTarget),
+        ...summarizeCurrentDocument(incognito),
+        ...summarizeSnapshotTarget(activeSnapshotTarget, incognito),
         sessionId: session.sessionId,
         status: session.status,
         expiresAt: session.expiresAt,
@@ -444,9 +470,9 @@ export function createContentRuntime(observedSignals: observe.SignalsType): Cont
     async flushObservationBatch() {
       const flush = await observedSignals.flushObservationBatch();
       logContentEvent("observation-flush", {
-        ...summarizeCurrentDocument(),
-        ...summarizeSnapshotTarget(activeSnapshotTarget),
-        ...summarizeObservationBatch(flush.batch),
+        ...summarizeCurrentDocument(incognito),
+        ...summarizeSnapshotTarget(activeSnapshotTarget, incognito),
+        ...summarizeObservationBatch(flush.batch, incognito),
         ...summarizeObservationStats(flush.stats),
         sessionId: flush.session.sessionId,
         status: flush.session.status,
@@ -472,8 +498,8 @@ export function createContentRuntime(observedSignals: observe.SignalsType): Cont
       });
       activeSnapshotTarget = undefined;
       logContentEvent("observation-stopped", {
-        ...summarizeCurrentDocument(),
-        ...summarizeSnapshotTarget(activeSnapshotTarget),
+        ...summarizeCurrentDocument(incognito),
+        ...summarizeSnapshotTarget(activeSnapshotTarget, incognito),
         sessionId: session.sessionId,
         status: session.status,
         stopReason: session.stopReason,
@@ -484,8 +510,8 @@ export function createContentRuntime(observedSignals: observe.SignalsType): Cont
     async getObservationSessionState() {
       const session = observedSignals.status();
       logContentEvent("observation-state-read", {
-        ...summarizeCurrentDocument(),
-        ...summarizeSnapshotTarget(activeSnapshotTarget),
+        ...summarizeCurrentDocument(incognito),
+        ...summarizeSnapshotTarget(activeSnapshotTarget, incognito),
         sessionId: session.sessionId,
         status: session.status,
         pendingMutationCount: session.pendingMutationCount,
@@ -500,15 +526,15 @@ export function createContentRuntime(observedSignals: observe.SignalsType): Cont
     contentApi,
     publishObservedBatchQueued(event) {
       logContentEvent("observation-batch-queued", {
-        ...summarizeCurrentDocument(),
-        ...summarizeSnapshotTarget(activeSnapshotTarget),
+        ...summarizeCurrentDocument(incognito),
+        ...summarizeSnapshotTarget(activeSnapshotTarget, incognito),
         ...summarizeObservationStats(event.stats),
         sessionId: event.session.sessionId,
         status: event.session.status,
         observedAt: event.observedAt,
         pendingMutationCount: event.session.pendingMutationCount,
       });
-      notifyBackgroundObservationDirty(event);
+      void notifyBackgroundObservationDirty(event, incognito);
     },
     dispose(reason) {
       clearObservationExpiry();
@@ -521,9 +547,11 @@ export function createContentRuntime(observedSignals: observe.SignalsType): Cont
 
 /**
  * Build only the RPC API for callers that do not need runtime disposal control.
+ * Diagnostics and snapshot writes use the supplied privacy context. False is the
+ * ordinary-document default. The RPC payload does not select that context.
  */
-export function createContentApi(observedSignals: observe.SignalsType): ContentApi {
-  return createContentRuntime(observedSignals).contentApi;
+export function createContentApi(observedSignals: observe.SignalsType, incognito = false): ContentApi {
+  return createContentRuntime(observedSignals, incognito).contentApi;
 }
 
 const [provideContentApi] = defineProxy(
@@ -535,74 +563,100 @@ const [provideContentApi] = defineProxy(
   },
 );
 
+/** Connect the observation owner and diagnostics to one WXT runtime. */
+function startContentRuntime(ctx: ContentScriptContext, incognito: boolean): void {
+  logging.configure("content");
+  const crashHooks = installDiagnosticCrashHooks("content", {
+    captureGlobalError: false,
+    includeErrorDetails: !incognito,
+  });
+  const buildId = getDiagnosticBuildId();
+  const existingRuntime = getRuntimeState();
+  if (existingRuntime?.buildId === buildId) {
+    logContentEvent("runtime-already-active", {
+      ...summarizeCurrentDocument(incognito),
+      buildId,
+    });
+    return;
+  }
+
+  if (existingRuntime) {
+    try {
+      existingRuntime.dispose();
+    } catch (error) {
+      clearRuntimeState(existingRuntime);
+      logContentEvent("stale-runtime-dispose-failed", {
+        ...summarizeCurrentDocument(incognito),
+        buildId,
+        ...summarizeContentError(error, incognito),
+      });
+    }
+  }
+
+  logContentEvent("runtime-ready", {
+    ...summarizeCurrentDocument(incognito),
+    throttleMs: DOM_MUTATION_THROTTLE_MS,
+  });
+
+  let runtime: ContentRuntime | undefined;
+  const observedSignals = observe.create({
+    throttleMs: DOM_MUTATION_THROTTLE_MS,
+    incognito,
+    onObservationBatchQueued(event) {
+      runtime?.publishObservedBatchQueued(event);
+    },
+  });
+  const contentRuntime = createContentRuntime(observedSignals, incognito);
+  runtime = contentRuntime;
+  const { contentApi } = contentRuntime;
+  artifact.publish({
+    contentApi,
+    collectPageSignals: (input) => collectPageSignals(input, undefined, incognito),
+    dispose: (reason) => contentRuntime.dispose(reason),
+  });
+
+  const state: ContentRuntimeState = {
+    buildId,
+    dispose() {
+      logContentEvent("runtime-dispose", {
+        ...summarizeCurrentDocument(incognito),
+      });
+      try {
+        contentRuntime.dispose("invalidated");
+      } finally {
+        clearRuntimeState(state);
+      }
+    },
+  };
+
+  setRuntimeState(state);
+  provideContentApi(createContentServerAdapter(), () => contentApi);
+
+  ctx.onInvalidated(() => {
+    try {
+      state.dispose();
+    } catch (error) {
+      if (!incognito) throw error;
+      logContentEvent("runtime-dispose-failed", summarizeContentError(error, incognito));
+    } finally {
+      crashHooks.dispose();
+    }
+  });
+}
+
 export default defineContentScript({
   registration: "runtime",
   runAt: "document_idle",
   noScriptStartedPostMessage: true,
   main(ctx) {
-    logging.configure("content");
-    const crashHooks = installDiagnosticCrashHooks("content", { captureGlobalError: false });
-    const buildId = getDiagnosticBuildId();
-    const existingRuntime = getRuntimeState();
-    if (existingRuntime?.buildId === buildId) {
-      logContentEvent("runtime-already-active", {
-        ...summarizeCurrentDocument(),
-        buildId,
-      });
-      return;
+    const incognito = browser.extension?.inIncognitoContext === true;
+    try {
+      startContentRuntime(ctx, incognito);
+    } catch (error) {
+      if (!incognito) throw error;
+      logContentEvent("runtime-start-failed", summarizeContentError(error, incognito));
+      // WXT logs startup exceptions before returning them to the injection caller.
+      throw new Error("DeepScope content runtime failed to start.");
     }
-
-    if (existingRuntime) {
-      try {
-        existingRuntime.dispose();
-      } catch (error) {
-        clearRuntimeState(existingRuntime);
-        logContentEvent("stale-runtime-dispose-failed", {
-          ...summarizeCurrentDocument(),
-          buildId,
-          message: describeContentError(error),
-        });
-      }
-    }
-
-    logContentEvent("runtime-ready", {
-      ...summarizeCurrentDocument(),
-      throttleMs: DOM_MUTATION_THROTTLE_MS,
-    });
-
-    let runtime: ContentRuntime | undefined;
-    const observedSignals = observe.create({
-      throttleMs: DOM_MUTATION_THROTTLE_MS,
-      onObservationBatchQueued(event) {
-        runtime?.publishObservedBatchQueued(event);
-      },
-    });
-    const contentRuntime = createContentRuntime(observedSignals);
-    runtime = contentRuntime;
-    const { contentApi } = contentRuntime;
-    artifact.publish({
-      contentApi,
-      collectPageSignals,
-      dispose: (reason) => contentRuntime.dispose(reason),
-    });
-
-    const state: ContentRuntimeState = {
-      buildId,
-      dispose() {
-        logContentEvent("runtime-dispose", {
-          ...summarizeCurrentDocument(),
-        });
-        contentRuntime.dispose("invalidated");
-        clearRuntimeState(state);
-      },
-    };
-
-    setRuntimeState(state);
-    provideContentApi(createContentServerAdapter(), () => contentApi);
-
-    ctx.onInvalidated(() => {
-      state.dispose();
-      crashHooks.dispose();
-    });
   },
 });

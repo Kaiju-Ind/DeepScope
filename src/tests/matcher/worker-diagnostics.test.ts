@@ -8,7 +8,7 @@ import {
 	renderPackagedRegistryJson,
 } from '@/lib/registry/packaged-artifacts';
 
-it('completes real worker matching while redacting page values from trace and performance logs', async () => {
+it.each([false, true])('keeps worker diagnostics within the job privacy policy: %s', async (incognito) => {
 	const registry: readonly TechnologyDefinition[] = [{
 		id: 'privacy-widget',
 		name: 'Privacy Widget',
@@ -39,7 +39,7 @@ it('completes real worker matching while redacting page values from trace and pe
 	const request: MatcherWorkerRunMessage = {
 		type: 'matcher-worker.run-partition',
 		task: {
-			job: { jobId: 'job-privacy', tabId: 7, expectedUrl: target.url },
+			job: { jobId: 'job-privacy', tabId: 7, expectedUrl: target.url, incognito },
 			partitionId: 'scriptSrc:0',
 			kind: 'scriptSrc',
 			priority: 3,
@@ -101,17 +101,25 @@ it('completes real worker matching while redacting page values from trace and pe
 				matches: [{ observationIndex: 4, match: { technologyId: 'privacy-widget' } }],
 			},
 		});
-		expect(logger.trace).toHaveBeenCalledOnce();
 		expect(logger.debug).toHaveBeenCalledOnce();
-		expect(logger.trace.mock.calls[0]?.[1]).toMatchObject({
-			matched: true,
-			observationKey: 'https://cdn.example/key?token=[redacted]&locale=[redacted]',
-			observationValuePreview: 'https://cdn.example/privacy-widget.js?api_key=[redacted]&theme=[redacted]',
-		});
-		expect(logger.debug.mock.calls[0]?.[1]).toMatchObject({
-			expectedUrlPreview: 'https://page.example/products?token=[redacted]&filter=[redacted]',
-			matchCount: 1,
-		});
+		if (incognito) {
+			expect(logger.trace).not.toHaveBeenCalled();
+			expect(logger.debug.mock.calls[0]?.[1]).toMatchObject({ matchCount: 1 });
+			expect(logger.debug.mock.calls[0]?.[1]).not.toHaveProperty('expectedUrlPreview');
+			expect(JSON.stringify(logger.debug.mock.calls)).not.toContain('page.example');
+			expect(JSON.stringify(logger.debug.mock.calls)).not.toContain('cdn.example');
+		} else {
+			expect(logger.trace).toHaveBeenCalledOnce();
+			expect(logger.trace.mock.calls[0]?.[1]).toMatchObject({
+				matched: true,
+				observationKey: 'https://cdn.example/key?token=[redacted]&locale=[redacted]',
+				observationValuePreview: 'https://cdn.example/privacy-widget.js?api_key=[redacted]&theme=[redacted]',
+			});
+			expect(logger.debug.mock.calls[0]?.[1]).toMatchObject({
+				expectedUrlPreview: 'https://page.example/products?token=[redacted]&filter=[redacted]',
+				matchCount: 1,
+			});
+		}
 		const emitted = JSON.stringify([...logger.trace.mock.calls, ...logger.debug.mock.calls]);
 		for (const secret of Object.values(secrets)) expect(emitted).not.toContain(secret);
 		expect(vi.getTimerCount()).toBe(0);

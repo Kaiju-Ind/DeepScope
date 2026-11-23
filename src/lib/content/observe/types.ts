@@ -95,6 +95,8 @@ export type QueuedBatchEventType = {
 export type OptionsType = {
 	/** Delay used to coalesce DOM mutations before scanning changed nodes. */
 	readonly throttleMs: number;
+	/** Trusted browser context used to omit private document locations from diagnostics. */
+	readonly incognito?: boolean;
 	/** Optional hook for content-owned streaming when new facts enter the batch. */
 	readonly onObservationBatchQueued?: (event: QueuedBatchEventType) => void;
 };

@@ -99,7 +99,7 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 	const shardLoadStartedAt = globalThis.performance.now();
 	const shardArtifact = await getShardArtifact(task.kind);
 	const shardReadyAt = globalThis.performance.now();
-	const profileRules = matcherWorkerLogger.isEnabledFor('trace');
+	const profileRules = !task.job.incognito && matcherWorkerLogger.isEnabledFor('trace');
 	const matchStartedAt = globalThis.performance.now();
 	const onRuleEvaluation = profileRules
 		? (event: ObservationRuleEvaluationEvent) => {
@@ -158,7 +158,7 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 				tabId: task.job.tabId,
 				jobId: task.job.jobId,
 				sessionId: task.job.sessionId,
-				expectedUrlPreview: previewLogValue(task.job.expectedUrl),
+				...(task.job.incognito ? {} : { expectedUrlPreview: previewLogValue(task.job.expectedUrl) }),
 				partitionId: task.partitionId,
 				kind: task.kind,
 				priority: task.priority,

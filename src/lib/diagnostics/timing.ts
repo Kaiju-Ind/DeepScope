@@ -1,4 +1,5 @@
 import * as logging from '../diagnostics/logging';
+import { diagnosticErrorType } from '../privacy/redaction';
 
 /** Summary-only timing context shared by background, content, collector, and pipeline code. */
 export type TimingContext = {
@@ -6,6 +7,8 @@ export type TimingContext = {
 	traceId?: string;
 	/** Short runtime surface that emitted the timing event. */
 	surface?: 'background' | 'content' | 'collector' | 'pipeline' | 'storage' | 'registry' | 'benchmark';
+	/** Private owners supply safe dimensions and omit raw exception details. */
+	incognito?: boolean;
 	/** Safe dimensions such as tier, mode, counts, hostname, or cache status. */
 	details?: Record<string, unknown>;
 };
@@ -73,6 +76,13 @@ export function endTimingSpan(
 	return durationMs;
 }
 
+/** Keep the timing failure measurable without journaling a private exception. */
+function failureDetails(error: unknown, context: TimingContext | undefined): Record<string, unknown> {
+	return context?.incognito
+		? { failed: true, errorType: diagnosticErrorType(error) }
+		: { failed: true, message: error instanceof Error ? error.message : 'Unknown timing failure' };
+}
+
 /** Measure synchronous work and log one summary-only duration. */
 export function timeSyncSpan<T>(
 	name: string,
@@ -86,10 +96,7 @@ export function timeSyncSpan<T>(
 		endTimingSpan(span, details?.(value));
 		return value;
 	} catch (error) {
-		endTimingSpan(span, {
-			failed: true,
-			message: error instanceof Error ? error.message : 'Unknown timing failure',
-		});
+		endTimingSpan(span, failureDetails(error, context));
 		throw error;
 	}
 }
@@ -107,10 +114,7 @@ export async function timeAsyncSpan<T>(
 		endTimingSpan(span, details?.(value));
 		return value;
 	} catch (error) {
-		endTimingSpan(span, {
-			failed: true,
-			message: error instanceof Error ? error.message : 'Unknown timing failure',
-		});
+		endTimingSpan(span, failureDetails(error, context));
 		throw error;
 	}
 }

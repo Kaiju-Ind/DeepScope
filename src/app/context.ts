@@ -41,7 +41,8 @@ export type PanelContextType = {
 	readonly stopObservation: () => Promise<void>;
 	readonly setAutoScanEnabled: (enabled: boolean) => Promise<void>;
 	readonly clearStoredData: () => Promise<void>;
-	readonly getReplayHistory: (url: string) => Promise<readonly DetectionReplayTrace[]>;
+	/** Read retained runs for the current ordinary tab. Private or stale identities return an empty list. */
+	readonly getReplayHistory: (identity: VisibleTabIdentity) => Promise<readonly DetectionReplayTrace[]>;
 };
 
 

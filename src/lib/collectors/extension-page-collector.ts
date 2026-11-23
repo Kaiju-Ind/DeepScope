@@ -14,6 +14,7 @@ import {
 	withTimeout,
 } from '../messaging/rpc';
 import { timeAsyncSpan, type TimingContext } from '../diagnostics/timing';
+import { diagnosticErrorType } from '../privacy/redaction';
 import { errorResponse, extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
 import * as url from '@/utils/url';
 
@@ -23,6 +24,8 @@ export type ExtensionPageCollectorInput = {
 	tabId: number;
 	/** URL the background saw before contacting the content script. */
 	expectedUrl: string;
+	/** Privacy mode of the browser tab that owns the collection. */
+	incognito: boolean;
 	/** Precompiled collection plan from the active registry artifact. */
 	collectionPlan: CollectionPlan;
 	/** Which plan tier should be collected for this request. */
@@ -49,20 +52,18 @@ export async function collectExtensionObservationBatch(
 ): Promise<ExtensionResult<ObservationBatch>> {
 	const tier = input.tier ?? input.collectionTierPlan?.tier ?? 'initial';
 	const collectionPlan = input.collectionTierPlan ?? getCollectionTierPlan(input.collectionPlan, tier);
+	const tabDetails = {
+		tabId: input.tabId,
+		...(input.incognito ? { incognito: true } : { hostname: new URL(input.expectedUrl).hostname }),
+		tier,
+	};
 	const timingContext: TimingContext = {
 		traceId: input.timingTraceId,
 		surface: 'collector',
-		details: {
-			tabId: input.tabId,
-			hostname: new URL(input.expectedUrl).hostname,
-			tier,
-		},
+		incognito: input.incognito,
+		details: tabDetails,
 	};
-	input.log?.('collect-observation-batch-start', {
-		tabId: input.tabId,
-		hostname: new URL(input.expectedUrl).hostname,
-		tier,
-	});
+	input.log?.('collect-observation-batch-start', tabDetails);
 
 	input.log?.('collection-plan-selected', {
 		tabId: input.tabId,
@@ -100,8 +101,10 @@ export async function collectExtensionObservationBatch(
 		if (validationError) {
 			input.log?.('collect-observation-batch-mismatch', {
 				tabId: input.tabId,
-				expectedUrl: input.expectedUrl,
-				actualUrl: response.value.batch.target.url,
+				...(!input.incognito && {
+					expectedUrl: input.expectedUrl,
+					actualUrl: response.value.batch.target.url,
+				}),
 			});
 			return validationError;
 		}
@@ -111,6 +114,7 @@ export async function collectExtensionObservationBatch(
 			timingContext,
 			() => collectBackgroundObservationBatch({
 				tabId: input.tabId,
+				incognito: input.incognito,
 				batch: response.value.batch,
 				collectionPlan,
 				log: input.log,
@@ -122,7 +126,7 @@ export async function collectExtensionObservationBatch(
 		input.log?.('collect-observation-batch-success', {
 			tabId: input.tabId,
 			tier,
-			hostname: enrichedBatch.target.hostname,
+			...(!input.incognito && { hostname: enrichedBatch.target.hostname }),
 			observationCount: enrichedBatch.observations.length,
 			observedAt: enrichedBatch.observedAt,
 		});
@@ -130,10 +134,10 @@ export async function collectExtensionObservationBatch(
 		return extensionSuccess(enrichedBatch);
 	} catch (error) {
 		input.log?.('collect-observation-batch-failed', {
-			tabId: input.tabId,
-			tier,
-			hostname: new URL(input.expectedUrl).hostname,
-			message: error instanceof Error ? error.message : 'Unknown content collection failure',
+			...tabDetails,
+			...(input.incognito
+				? { errorType: diagnosticErrorType(error) }
+				: { message: error instanceof Error ? error.message : 'Unknown content collection failure' }),
 		});
 		return contentScriptFailure(error);
 	}

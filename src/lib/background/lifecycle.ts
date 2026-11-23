@@ -15,7 +15,7 @@ export type BackgroundLifecycleLogger = (event: string, details?: Record<string,
 export interface RegisterBackgroundLifecycleListenersInput {
 	/** Persistence capability used to update durable tab-session lifecycle state. */
 	readonly snapshots: DetectionSnapshotLifecycleStore;
-	/** Remove volatile tab-scoped maps when Chrome reports that a document is being replaced. */
+	/** Invalidate volatile state before the same tab update can schedule an automatic scan. */
 	readonly onTabNavigation?: BackgroundTabCleanup;
 	/** Remove volatile tab-scoped maps when Chrome reports a closed tab. */
 	readonly onTabRemoved: BackgroundTabCleanup;
@@ -40,7 +40,8 @@ export function registerBackgroundLifecycleListeners(
 		}
 
 		input.onTabNavigation?.(tabId);
-		void markTabSnapshots(input.snapshots, tabId, 'stale', 'tab-navigation', input.log);
+		void markTabSnapshots(input.snapshots, tabId, 'stale', 'tab-navigation', input.log)
+			.catch((error: unknown) => logCleanupFailure(input.log, tabId, 'tab-navigation', error));
 	});
 
 	browser.tabs.onRemoved.addListener((tabId) => {
@@ -48,12 +49,7 @@ export function registerBackgroundLifecycleListeners(
 		void (async () => {
 			await markTabSnapshots(input.snapshots, tabId, 'stopped', 'tab-removed', input.log);
 			await input.snapshots.removeSessionIndex(tabId);
-		})().catch((error) => {
-			input.log?.('tab-session-cleanup-failed', {
-				tabId,
-				reason: describeLifecycleError(error),
-			});
-		});
+		})().catch((error: unknown) => logCleanupFailure(input.log, tabId, 'tab-removed', error));
 	});
 }
 
@@ -62,7 +58,7 @@ function isNavigationChange(changeInfo: { readonly status?: string; readonly url
 	return typeof changeInfo.url === 'string' || changeInfo.status === 'loading';
 }
 
-/** Update stored snapshots without letting lifecycle cleanup throw into Chrome listeners. */
+/** Publish a terminal state for stored snapshots after volatile cleanup. */
 async function markTabSnapshots(
 	snapshots: DetectionSnapshotLifecycleStore,
 	tabId: number,
@@ -83,7 +79,16 @@ async function markTabSnapshots(
 	});
 }
 
-/** Convert unknown listener failures into a stable summary for diagnostics. */
-function describeLifecycleError(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
+/** Report which lifecycle write failed without exposing URLs from the storage error. */
+function logCleanupFailure(
+	log: BackgroundLifecycleLogger | undefined,
+	tabId: number,
+	reason: BackgroundTabLifecycleReason,
+	error: unknown,
+): void {
+	log?.('tab-session-cleanup-failed', {
+		tabId,
+		reason,
+		errorType: error instanceof Error ? 'Error' : typeof error,
+	});
 }

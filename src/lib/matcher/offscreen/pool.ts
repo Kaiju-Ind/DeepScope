@@ -3,6 +3,7 @@ import { browser } from 'wxt/browser';
 import type { DiagnosticTransportMessage } from '../../diagnostics/contracts';
 import { isDiagnosticTransportMessage } from '../../diagnostics/journal';
 import * as logging from '../../diagnostics/logging';
+import { diagnosticErrorType } from '../../privacy/redaction';
 import type {
 	MatcherPartitionResult,
 	MatcherPartitionTask,
@@ -132,12 +133,11 @@ class Slot {
 			const fail = (error: Error, event: string, details: Record<string, unknown> = {}): void => {
 				cleanup();
 				logger.error(event, {
-					error,
 					workerIndex: this.#index,
 					jobId: task.job.jobId,
 					partitionId: task.partitionId,
 					kind: task.kind,
-					...details,
+					...(task.job.incognito ? { errorType: diagnosticErrorType(error) } : { error, ...details }),
 				});
 				reject(error);
 			};

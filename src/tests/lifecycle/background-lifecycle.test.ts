@@ -81,6 +81,50 @@ describe.sequential('background lifecycle listeners', () => {
 		expect(harness.snapshots.markTabSnapshots).not.toHaveBeenCalled();
 	});
 
+	it('reports a rejected navigation write without blocking the next navigation', async () => {
+		const harness = await loadLifecycleHarness();
+		const log = vi.fn();
+		const onTabNavigation = vi.fn();
+		vi.mocked(harness.snapshots.markTabSnapshots).mockRejectedValueOnce(
+			new Error('Could not write snapshot for https://example.com/private'),
+		);
+		harness.registerBackgroundLifecycleListeners({
+			snapshots: harness.snapshots,
+			onTabNavigation,
+			onTabRemoved: vi.fn(),
+			log,
+		});
+
+		harness.onUpdated.emit(7, { status: 'loading' });
+		expect(onTabNavigation).toHaveBeenCalledWith(7);
+		await vi.waitFor(() => expect(log).toHaveBeenCalledWith('tab-session-cleanup-failed', {
+			tabId: 7,
+			reason: 'tab-navigation',
+			errorType: 'Error',
+		}));
+
+		harness.onUpdated.emit(11, { url: 'https://example.com/next' });
+		expect(onTabNavigation.mock.calls).toEqual([[7], [11]]);
+		expect(harness.snapshots.markTabSnapshots).toHaveBeenLastCalledWith(11, 'stale', 'tab-navigation');
+		expect(harness.snapshots.removeSessionIndex).not.toHaveBeenCalled();
+	});
+
+	it('reports a rejected removal write after clearing volatile state', async () => {
+		const harness = await loadLifecycleHarness();
+		const log = vi.fn();
+		const onTabRemoved = vi.fn();
+		vi.mocked(harness.snapshots.markTabSnapshots).mockRejectedValueOnce(new Error('Stop write failed'));
+		harness.registerBackgroundLifecycleListeners({ snapshots: harness.snapshots, onTabRemoved, log });
+
+		harness.onRemoved.emit(7);
+		expect(onTabRemoved).toHaveBeenCalledWith(7);
+		await vi.waitFor(() => expect(log).toHaveBeenCalledWith('tab-session-cleanup-failed', {
+			tabId: 7,
+			reason: 'tab-removed',
+			errorType: 'Error',
+		}));
+	});
+
 	/**
 	 * Closed tabs should drop both volatile maps and the durable tab-session index.
 	 * Exact snapshot records may remain for storage history, but no future tab with

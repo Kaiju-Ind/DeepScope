@@ -1,6 +1,7 @@
 import { getDiagnosticBuildId } from './build';
 import type { DiagnosticSurface } from './contracts';
 import { persistDiagnosticFailure, toDiagnosticError } from './journal';
+import { diagnosticErrorType } from '@/lib/privacy/redaction';
 
 const CRASH_HOOKS_KEY = '__kaijuDeepScopeCrashHooksV2';
 
@@ -14,6 +15,12 @@ export interface DiagnosticCrashHookOptions {
 	 * useful because they originate from the isolated extension world.
 	 */
 	readonly captureGlobalError?: boolean;
+	/**
+	 * Include exception text, stack, and location for ordinary contexts by default.
+	 * Disable this using the trusted privacy context to keep only fixed event
+	 * messages and exception types.
+	 */
+	readonly includeErrorDetails?: boolean;
 }
 
 /** Owned crash-hook registration for one extension application context. */
@@ -23,16 +30,27 @@ export type DiagnosticCrashHooks = {
 	dispose(): void;
 };
 
+/** Record the effective policy so reinjection reuses only equivalent hooks. */
+type DiagnosticCrashRegistration = DiagnosticCrashHooks & {
+	readonly captureGlobalError: boolean;
+	readonly includeErrorDetails: boolean;
+};
+
 /** Install exception and rejected-promise capture for one extension context run. */
 export function installDiagnosticCrashHooks(
 	surface: DiagnosticSurface,
 	options: DiagnosticCrashHookOptions = {},
 ): DiagnosticCrashHooks {
-	type Runtime = typeof globalThis & Record<string, DiagnosticCrashHooks | undefined>;
+	type Runtime = typeof globalThis & Record<string, DiagnosticCrashRegistration | undefined>;
 	const runtime = globalThis as Runtime;
 	const buildId = getDiagnosticBuildId();
+	const captureGlobalError = options.captureGlobalError !== false;
+	const includeErrorDetails = options.includeErrorDetails !== false;
 	const existing = runtime[CRASH_HOOKS_KEY];
-	if (existing?.buildId === buildId && existing.surface === surface) return existing;
+	if (
+		existing?.buildId === buildId && existing.surface === surface &&
+		existing.captureGlobalError === captureGlobalError && existing.includeErrorDetails === includeErrorDetails
+	) return existing;
 	existing?.dispose();
 
 	const listeners: Array<{ readonly type: string; readonly listener: EventListener }> = [];
@@ -42,20 +60,20 @@ export function installDiagnosticCrashHooks(
 		listeners.push({ type, listener });
 	};
 
-	if (options.captureGlobalError !== false) {
+	if (captureGlobalError) {
 		add('error', ((event: Event) => {
 			const errorEvent = event as ErrorEvent;
-			const error = toDiagnosticError(errorEvent.error ?? errorEvent.message ?? 'Unhandled error');
+			const error = errorEvent.error ?? errorEvent.message ?? 'Unhandled error';
 			persistDiagnosticFailure({
 				surface,
 				category: ['kaiju-deepscope', surface, 'crash'],
 				message: 'Unhandled JavaScript error.',
-				error,
-				properties: {
-					filename: errorEvent.filename,
-					line: errorEvent.lineno,
-					column: errorEvent.colno,
-				},
+				...(includeErrorDetails
+					? {
+						error: toDiagnosticError(error),
+						properties: { filename: errorEvent.filename, line: errorEvent.lineno, column: errorEvent.colno },
+					}
+					: { properties: { errorType: diagnosticErrorType(error) } }),
 			});
 		}) as EventListener);
 	}
@@ -66,7 +84,9 @@ export function installDiagnosticCrashHooks(
 			surface,
 			category: ['kaiju-deepscope', surface, 'crash'],
 			message: 'Unhandled promise rejection.',
-			error: rejection.reason,
+			...(includeErrorDetails
+				? { error: rejection.reason }
+				: { properties: { errorType: diagnosticErrorType(rejection.reason) } }),
 		});
 	}) as EventListener);
 
@@ -78,9 +98,11 @@ export function installDiagnosticCrashHooks(
 		});
 	}) as EventListener);
 
-	const hooks: DiagnosticCrashHooks = {
+	const hooks: DiagnosticCrashRegistration = {
 		buildId,
 		surface,
+		captureGlobalError,
+		includeErrorDetails,
 		dispose() {
 			if (typeof globalThis.removeEventListener === 'function') {
 				for (const { type, listener } of listeners) globalThis.removeEventListener(type, listener);

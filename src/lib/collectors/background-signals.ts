@@ -5,6 +5,7 @@ import { limitStringsByTotalChars, truncate, uniqueStrings } from '../detection/
 import { SOURCE_LIMITS } from '../detection/source-limits';
 import { timeAsyncSpan, type TimingContext } from '../diagnostics/timing';
 import type { NormalizedObservation, ObservationBatch } from '../observations';
+import { diagnosticErrorType } from '../privacy/redaction';
 import * as url from '@/utils/url';
 
 /** Value shape stored for a page-owned JavaScript global. */
@@ -17,6 +18,8 @@ export type CollectorLog = (event: string, details?: Record<string, unknown>) =>
 export type BackgroundObservationCollectorInput = {
 	/** Visible tab id used when an injected script reads page-owned JavaScript globals. */
 	readonly tabId: number;
+	/** Privacy mode of the browser tab that owns the collection. */
+	readonly incognito: boolean;
 	/** Normalized facts returned by the content script for the analyzed document. */
 	readonly batch: ObservationBatch;
 	/** Rule-aware plan that tells the background which injected globals matter. */
@@ -47,9 +50,10 @@ export async function collectBackgroundObservationBatch(
 	const timingContext: TimingContext = {
 		traceId: input.timingTraceId,
 		surface: 'collector',
+		incognito: input.incognito,
 		details: {
 			tabId: input.tabId,
-			hostname: input.batch.target.hostname,
+			...(!input.incognito && { hostname: input.batch.target.hostname }),
 			tier: input.collectionPlan.tier,
 		},
 	};
@@ -57,7 +61,7 @@ export async function collectBackgroundObservationBatch(
 		timeAsyncSpan(
 			'collector.background.js-globals',
 			timingContext,
-			() => collectInjectedJsGlobals(input.tabId, input.collectionPlan.jsGlobalPropertyList, input.log),
+			() => collectInjectedJsGlobals(input.tabId, input.collectionPlan.jsGlobalPropertyList, input.log, input.incognito),
 			(values) => ({
 				requestedGlobalCount: input.collectionPlan.jsGlobalPropertyList.length,
 				matchedGlobalCount: Object.keys(values).length,
@@ -89,7 +93,7 @@ export async function collectBackgroundObservationBatch(
 
 	input.log?.('collect-background-observations-success', {
 		tabId: input.tabId,
-		hostname: input.batch.target.hostname,
+		...(!input.incognito && { hostname: input.batch.target.hostname }),
 		jsGlobalCount: Object.keys(jsGlobals).length,
 		headerCount: Object.keys(headers).length,
 		scriptContentCount: fetchedSourceContents.scriptContents.length,
@@ -112,6 +116,7 @@ export async function collectInjectedJsGlobals(
 	tabId: number,
 	propertyPaths: string[],
 	log?: CollectorLog,
+	incognito = false,
 ): Promise<Record<string, JsGlobalSignalValue>> {
 	if (!propertyPaths.length) {
 		return {};
@@ -130,7 +135,9 @@ export async function collectInjectedJsGlobals(
 	} catch (error) {
 		log?.('collect-js-globals-failed', {
 			tabId,
-			message: error instanceof Error ? error.message : 'Unknown JavaScript global collection failure',
+			...(incognito
+				? { errorType: diagnosticErrorType(error) }
+				: { message: error instanceof Error ? error.message : 'Unknown JavaScript global collection failure' }),
 		});
 		return {};
 	}

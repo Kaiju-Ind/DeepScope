@@ -1,6 +1,6 @@
 import type { MatcherJobRecord } from '@/lib/matcher';
 import * as offscreen from '@/lib/matcher/offscreen';
-import { isMatcherJobActive, listMatcherJobRecords, updateMatcherJobRecord } from '@/lib/storage/matcher-jobs';
+import { isMatcherJobActive, listMatcherJobRecordsForRecovery, updateMatcherJobRecord } from '@/lib/storage/matcher-jobs';
 
 /**
  * Resolve matcher jobs orphaned by a previous background context.
@@ -15,7 +15,10 @@ import { isMatcherJobActive, listMatcherJobRecords, updateMatcherJobRecord } fro
 export async function reconcileInterruptedMatcherJobs(
 	log?: (event: string, details?: Record<string, unknown>) => void,
 ): Promise<MatcherJobRecord[]> {
-	const active = (await listMatcherJobRecords()).filter(isMatcherJobActive);
+	const records = await listMatcherJobRecordsForRecovery(offscreen.cancelForRecovery, (stage, count) => {
+		log?.('matcher-job-legacy-private-migration-failed', { stage, count });
+	});
+	const active = records.filter(isMatcherJobActive);
 	if (!active.length) return [];
 
 	const reconciled: MatcherJobRecord[] = [];
@@ -30,7 +33,7 @@ export async function reconcileInterruptedMatcherJobs(
 		}
 
 		const interruptedAt = Date.now();
-		const updated = await updateMatcherJobRecord(record.jobId, {
+		const updated = await updateMatcherJobRecord(record, {
 			status: 'failed',
 			reason: 'context-interrupted',
 			interruptedStatus: record.status,

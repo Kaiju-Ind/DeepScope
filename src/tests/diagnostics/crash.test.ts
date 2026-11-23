@@ -86,6 +86,27 @@ describe('diagnostic crash hooks', () => {
 		});
 	});
 
+	it('keeps only the rejection type and fixed events for a private content context', async () => {
+		const previous = installDiagnosticCrashHooks('content', { captureGlobalError: false });
+		const current = installDiagnosticCrashHooks('content', { captureGlobalError: false, includeErrorDetails: false });
+		hooks.push(previous, current);
+		const reason = new Error('private failure at https://private-crash.example/page', {
+			cause: new Error('private cause'),
+		});
+		reason.name = 'private custom error name';
+		emit('error', { error: reason, filename: 'https://private-crash.example/host.js' });
+		emit('unhandledrejection', { reason });
+		emit('messageerror');
+
+		const records = await getDiagnosticRecords();
+		expect(records).toHaveLength(2);
+		expect(records).toEqual(expect.arrayContaining([
+			expect.objectContaining({ message: 'Unhandled promise rejection.', properties: { errorType: 'Error' } }),
+			expect.objectContaining({ message: 'A structured-clone message could not be decoded.', properties: {} }),
+		]));
+		expect(JSON.stringify(records)).not.toMatch(/private-crash|private cause|private custom/);
+	});
+
 	it('reuses one registration and removes all listeners when its owner disposes', async () => {
 		const registration = installDiagnosticCrashHooks('background');
 		hooks.push(registration);

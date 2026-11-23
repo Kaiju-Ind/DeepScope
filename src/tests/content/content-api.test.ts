@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ContentScriptContext } from 'wxt/utils/content-script-context';
 
+import { VALIDATION_KEY, type ArtifactRuntimeType } from '@/lib/content/artifact';
 import type * as observe from '@/lib/content/observe';
 import type { ContentPageSessionSnapshotTarget } from '@/lib/messaging/analysis';
 import type { PageSignals } from '@/lib/detection/types';
 import type { ObservationBatch } from '@/lib/observations';
+
+import { createMockBrowserStorageArea } from '../support/mock-browser';
 
 function makeSignals(overrides: Partial<PageSignals> = {}): PageSignals {
 	return {
@@ -68,15 +72,16 @@ const SNAPSHOT_TARGET: ContentPageSessionSnapshotTarget = {
 	hostname: 'example.com',
 };
 
-async function loadContentApiFactory() {
+async function loadContentApiFactory(options: { incognito?: boolean; realObserver?: boolean } = {}) {
 	vi.resetModules();
 	vi.stubGlobal('defineContentScript', (options: unknown) => options);
 	vi.doMock('@/lib/content/collect-page-signals', () => ({
 		collectPageSignals: vi.fn(() => makeSignals()),
+		collectResourceEntries: vi.fn(() => []),
+		collectResourceTimings: vi.fn(() => []),
 	}));
-	vi.doMock('@/lib/content/observe', () => ({
-		create: vi.fn(),
-	}));
+	const createObserver = vi.fn();
+	if (!options.realObserver) vi.doMock('@/lib/content/observe', () => ({ create: createObserver }));
 	vi.doMock('@/lib/detection/validate', () => ({
 		validatePageSignals: vi.fn(() => null),
 	}));
@@ -85,17 +90,24 @@ async function loadContentApiFactory() {
 		writeContentPageSessionSnapshot,
 	}));
 	const sendMessage = vi.fn(async () => undefined);
+	const debug = vi.fn();
+	vi.doMock('@/lib/diagnostics/logging', () => ({ configure: vi.fn(), get: () => ({ debug }) }));
 	vi.doMock('wxt/browser', () => ({
 		browser: {
+			extension: { inIncognitoContext: options.incognito === true },
 			runtime: { sendMessage },
 		},
 	}));
+	const provideContentApi = vi.fn();
 	vi.doMock('comctx', () => ({
-		defineProxy: vi.fn(() => [vi.fn()]),
+		defineProxy: vi.fn(() => [provideContentApi]),
 	}));
 
 	return {
 		...(await import('@/entrypoints/content')),
+		createObserver,
+		debug,
+		provideContentApi,
 		sendMessage,
 		writeContentPageSessionSnapshot,
 	};
@@ -107,11 +119,19 @@ afterEach(() => {
 	vi.doUnmock('@/lib/content/collect-page-signals');
 	vi.doUnmock('@/lib/content/observe');
 	vi.doUnmock('@/lib/detection/validate');
+	vi.doUnmock('@/lib/diagnostics/logging');
 	vi.doUnmock('@/lib/content/page-session-snapshots');
 	vi.doUnmock('wxt/browser');
 	vi.doUnmock('comctx');
 	vi.resetModules();
 });
+
+/** Capture only the WXT invalidation callback used by the actual entrypoint. */
+function contentScriptContext() {
+	const onInvalidated = vi.fn<ContentScriptContext['onInvalidated']>(() => () => undefined);
+	const context: Pick<ContentScriptContext, 'onInvalidated'> = { onInvalidated };
+	return { context: context as ContentScriptContext, onInvalidated };
+}
 
 describe.sequential('content API observation baseline', () => {
 	it('starts observation through the observed-signal store and reports the session', async () => {
@@ -301,8 +321,9 @@ describe.sequential('content API observation baseline', () => {
 		expect(observedSignals.stopObservationSession).not.toHaveBeenCalled();
 	});
 
-	it('collects the initial document through the observation batch API', async () => {
-		const { createContentApi } = await loadContentApiFactory();
+	it.each([false, true])('collects the initial document with tab privacy: %s', async (incognito) => {
+		vi.stubGlobal('location', new URL('https://example.com/products'));
+		const { createContentApi, debug } = await loadContentApiFactory();
 		const observedSignals = {
 			snapshot: vi.fn(async () => ({
 				images: [],
@@ -323,10 +344,167 @@ describe.sequential('content API observation baseline', () => {
 			disconnect: vi.fn(),
 		} satisfies observe.SignalsType;
 
-		await expect(createContentApi(observedSignals).collectObservationBatch({ includeHtml: true })).resolves.toMatchObject({
+		await expect(createContentApi(observedSignals, incognito).collectObservationBatch({ includeHtml: true })).resolves.toMatchObject({
 			ok: true,
 			value: { batch: { target: { url: 'https://example.com/products', hostname: 'example.com' } } },
 		});
+		const records = JSON.stringify(debug.mock.calls);
+		if (incognito) {
+			expect(records).not.toContain('example.com');
+		} else {
+			expect(records).toContain('example.com');
+		}
+	});
+
+	it.each([false, true])('uses the browser privacy context for startup and observer navigation: %s', async (incognito) => {
+		vi.useFakeTimers();
+		vi.stubGlobal('location', new URL(SNAPSHOT_TARGET.url));
+		vi.stubGlobal('document', { documentElement: {}, readyState: 'complete' });
+		vi.stubGlobal('MutationObserver', class {
+			observe() {}
+			disconnect() {}
+		});
+		vi.stubGlobal('PerformanceObserver', undefined);
+		const events = new EventTarget();
+		vi.stubGlobal('addEventListener', events.addEventListener.bind(events));
+		vi.stubGlobal('removeEventListener', events.removeEventListener.bind(events));
+		const storage = createMockBrowserStorageArea();
+		vi.stubGlobal('chrome', { storage: { local: storage.local } });
+		vi.stubGlobal('__kaijuDeepScopeDiagnosticJournalV3', undefined);
+		const staleError = new Error('stale-content error for https://old.example/path');
+		vi.stubGlobal('__kaijuDeepScopeContentRuntimeV1', {
+			buildId: 'old-build',
+			dispose: vi.fn(() => { throw staleError; }),
+		});
+		const publish = vi.fn<(runtime: ArtifactRuntimeType) => void>();
+		vi.stubGlobal(VALIDATION_KEY, { publish });
+		const { default: entrypoint, debug, writeContentPageSessionSnapshot } = await loadContentApiFactory({ incognito, realObserver: true });
+		const { context, onInvalidated } = contentScriptContext();
+		await entrypoint.main(context);
+		await entrypoint.main(context);
+		expect(publish).toHaveBeenCalledOnce();
+		const { contentApi } = publish.mock.calls[0]![0];
+
+		await expect(contentApi.beginObservationSession({
+			sessionId: 'session-1',
+			expectedUrl: SNAPSHOT_TARGET.url,
+			snapshotTarget: SNAPSHOT_TARGET,
+			policy: { durationMs: 60_000, throttleMs: 1_500, maxPendingNodes: 100, maxMutations: 5_000 },
+		})).resolves.toMatchObject({
+			ok: true,
+			value: { status: 'observing', expectedUrl: SNAPSHOT_TARGET.url },
+		});
+		vi.stubGlobal('location', new URL('https://next.example/secret-page'));
+		await expect(contentApi.getObservationSessionState()).resolves.toMatchObject({
+			ok: true,
+			value: { status: 'stopped', stopReason: 'navigation' },
+		});
+		const journalError = new Error('uncaught error at https://journal.example/secret');
+		events.dispatchEvent(Object.assign(new Event('unhandledrejection'), { reason: journalError }));
+		onInvalidated.mock.calls[0]![0]();
+		events.dispatchEvent(new Event('messageerror'));
+		await vi.advanceTimersByTimeAsync(1);
+		const { getDiagnosticRecords, getDiagnosticContexts } = await import('@/lib/diagnostics/journal');
+		const crashRecords = await getDiagnosticRecords();
+		expect(crashRecords).toHaveLength(1);
+		const contextRecords = await getDiagnosticContexts();
+		expect(contextRecords).toEqual([{
+			buildId: 'development',
+			id: crashRecords[0]!.contextId,
+			schemaVersion: 1,
+			startedAt: expect.any(Number),
+			surface: 'content',
+		}]);
+
+		const details = debug.mock.calls.map(([, detail]) => detail);
+		expect(details).toEqual(expect.arrayContaining([
+			expect.objectContaining({ event: 'runtime-ready', readyState: 'complete' }),
+			expect.objectContaining({ event: 'runtime-already-active', readyState: 'complete' }),
+			expect.objectContaining({ event: 'observation-start', sessionId: 'session-1' }),
+			expect.objectContaining({ event: 'session-navigation', sessionId: 'session-1' }),
+			expect.objectContaining({ event: 'runtime-dispose', readyState: 'complete' }),
+		]));
+		const staleFailure = details.find((record) => record.event === 'stale-runtime-dispose-failed');
+		const records = JSON.stringify(details);
+		if (incognito) {
+			expect(staleFailure).toMatchObject({ errorType: 'Error' });
+			expect(crashRecords[0]!.properties).toEqual({ errorType: 'Error' });
+			for (const location of ['example.com', 'next.example', 'old.example', 'origin-example', 'url-example-products']) {
+				expect(records).not.toContain(location);
+			}
+			expect(writeContentPageSessionSnapshot).not.toHaveBeenCalled();
+		} else {
+			expect(staleFailure).toMatchObject({ message: staleError.message });
+			expect(crashRecords[0]!.properties).toMatchObject({ error: { message: journalError.message } });
+			expect(records).toContain('https://next.example/secret-page');
+			expect(records).toContain('origin-example');
+			expect(writeContentPageSessionSnapshot).toHaveBeenCalledWith(expect.objectContaining({ status: 'observing' }));
+		}
+	});
+
+	it.each([false, true])('controls notification failure and expiry diagnostics for a private context: %s', async (incognito) => {
+		vi.useFakeTimers();
+		vi.stubGlobal('location', new URL(SNAPSHOT_TARGET.url));
+		const { createContentRuntime, debug, sendMessage } = await loadContentApiFactory();
+		const session = makeState({ status: 'observing', sessionId: 'session-1', expectedUrl: SNAPSHOT_TARGET.url });
+		const lateBatch: ObservationBatch = {
+			target: { url: 'https://batch.example/private', hostname: 'batch.example' },
+			interface: 'extension',
+			observedAt: 4,
+			observations: [],
+		};
+		const flush = { ...makeFlushOutput(session), batch: lateBatch };
+		const runtime = createContentRuntime({
+			snapshot: vi.fn(),
+			beginObservationSession: vi.fn(() => session),
+			stopObservationSession: vi.fn(() => makeState({ status: 'stopped', stopReason: 'expired' })),
+			flushObservationBatch: vi.fn(async () => flush),
+			status: vi.fn(() => session),
+			disconnect: vi.fn(),
+		}, incognito);
+		const notificationError = new Error('failed for https://send.example/private');
+		sendMessage.mockRejectedValueOnce(notificationError);
+
+		await runtime.contentApi.beginObservationSession({
+			sessionId: 'session-1',
+			expectedUrl: SNAPSHOT_TARGET.url,
+			policy: { durationMs: 25, throttleMs: 1_500, maxPendingNodes: 100, maxMutations: 5_000 },
+		});
+		await expect(runtime.contentApi.flushObservationBatch()).resolves.toEqual({ ok: true, value: flush });
+		runtime.publishObservedBatchQueued({ session, observedAt: 4, stats: flush.stats });
+		await vi.advanceTimersByTimeAsync(25);
+
+		expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ expectedUrl: SNAPSHOT_TARGET.url }));
+		const details = debug.mock.calls.map(([, detail]) => detail);
+		const notify = details.find((record) => record.event === 'observation-dirty-notify-failed');
+		const flushed = details.find((record) => record.event === 'observation-flush');
+		const expired = details.find((record) => record.event === 'observation-expired');
+		expect(flushed).toMatchObject({ observationCount: 0, status: 'observing' });
+		expect(expired).toMatchObject({ sessionId: 'session-1' });
+		if (incognito) {
+			expect(notify).toMatchObject({ errorType: 'Error' });
+			expect(JSON.stringify(details)).not.toMatch(/(?:batch|send)\.example|example\.com/);
+		} else {
+			expect(notify).toMatchObject({ message: notificationError.message });
+			expect(flushed).toMatchObject({ hostname: 'batch.example' });
+			expect(expired).toMatchObject({ hostname: SNAPSHOT_TARGET.hostname });
+		}
+	});
+
+	it.each([false, true])('protects startup exceptions before they reach the WXT wrapper: %s', async (incognito) => {
+		const { default: entrypoint, createObserver, debug } = await loadContentApiFactory({ incognito });
+		const startupError = new Error('startup failure for https://startup.example/private');
+		createObserver.mockImplementationOnce(() => { throw startupError; });
+		const { context } = contentScriptContext();
+		if (incognito) {
+			await expect(async () => entrypoint.main(context)).rejects.toThrow('DeepScope content runtime failed to start.');
+			expect(debug.mock.calls.map(([, detail]) => detail)).toContainEqual(expect.objectContaining({
+				event: 'runtime-start-failed', errorType: 'Error',
+			}));
+			expect(JSON.stringify(debug.mock.calls)).not.toContain('startup.example');
+		} else {
+			await expect(async () => entrypoint.main(context)).rejects.toBe(startupError);
+		}
 	});
 
 	/**

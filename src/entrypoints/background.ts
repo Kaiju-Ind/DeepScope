@@ -15,6 +15,7 @@ import {
 	persistTransportedDiagnosticMessage,
 } from '@/lib/diagnostics/journal';
 import type { SiteAnalysis } from '@/lib/detection/types';
+import { diagnosticErrorType } from '@/lib/privacy/redaction';
 import * as offscreen from '@/lib/matcher/offscreen';
 import {
 	BACKGROUND_RPC_NAMESPACE,
@@ -237,6 +238,20 @@ export default defineBackground(() => {
 
 		openSidePanelForActionTab(tab.id, tab.windowId, logBackgroundEvent);
 	});
+	// One update can carry both a replacement URL and a completed load. Invalidate
+	// the old page before the scan listener queues the completed page.
+	registerBackgroundLifecycleListeners({
+		snapshots: browserDetectionSnapshotStore,
+		onTabNavigation(tabId) {
+			autoScanController.onTabNavigation(tabId);
+			backgroundRuntime.onTabNavigation(tabId);
+		},
+		onTabRemoved(tabId) {
+			autoScanController.onTabRemoved(tabId);
+			backgroundRuntime.onTabRemoved(tabId);
+		},
+		log: logBackgroundEvent,
+	});
 	browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 		if (tab.active !== true) {
 			return;
@@ -258,7 +273,7 @@ export default defineBackground(() => {
 		backgroundRuntime.onTabActivated(tabId, windowId);
 		notifySidePanelTab(tabId, windowId, 'activated');
 		void browser.tabs.get(tabId).then((tab) => {
-			if (tab.status !== 'complete') {
+			if (tab.status !== 'complete' || tab.active !== true || tab.windowId !== windowId) {
 				return;
 			}
 
@@ -266,7 +281,7 @@ export default defineBackground(() => {
 		}).catch((error) => {
 			logBackgroundEvent('auto-scan-activation-read-failed', {
 				tabId,
-				message: error instanceof Error ? error.message : String(error),
+				errorType: diagnosticErrorType(error),
 			});
 		});
 	});
@@ -276,12 +291,6 @@ export default defineBackground(() => {
 			return;
 		}
 		backgroundRuntime.handleRuntimeMessage(message, sender);
-	});
-	registerBackgroundLifecycleListeners({
-		snapshots: browserDetectionSnapshotStore,
-		onTabNavigation: backgroundRuntime.onTabNavigation,
-		onTabRemoved: backgroundRuntime.onTabRemoved,
-		log: logBackgroundEvent,
 	});
 	provideBackgroundApi(createBackgroundServerAdapter());
 });

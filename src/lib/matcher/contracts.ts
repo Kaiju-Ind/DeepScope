@@ -18,7 +18,7 @@ import type {
  */
 export type MatcherPartitionPriority = 1 | 2 | 3 | 4;
 
-/** Current lifecycle state for a durable matcher job. */
+/** Current lifecycle state of one matcher job. */
 export type MatcherJobStatus =
 	| 'queued'
 	| 'dispatching'
@@ -64,7 +64,7 @@ export interface MatcherJobIdentity {
 	readonly incognito?: boolean;
 }
 
-/** Durable lifecycle record used by background scheduling and diagnostics. */
+/** Lifecycle metadata; only ordinary jobs may be persisted for diagnostics and recovery. */
 export interface MatcherJobRecord extends MatcherJobIdentity {
 	/** Current state of the job. */
 	readonly status: MatcherJobStatus;

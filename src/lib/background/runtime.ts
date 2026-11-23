@@ -71,6 +71,7 @@ import {
 	type RunMatcherJobRequest,
 } from '@/lib/matcher';
 import type { BackgroundDetectionPersistence } from '@/lib/persistence/ports';
+import { diagnosticErrorType } from '@/lib/privacy/redaction';
 import type { RuntimeTechnologyRegistryArtifact } from '@/lib/registry/runtime-artifact';
 import * as revision from '@/lib/background/revision';
 import * as rank from '@/lib/detection/rank';
@@ -376,8 +377,8 @@ export function createBackgroundRuntime(
 
 		for (const [jobId, context] of activeMatcherProgressByJob) {
 			if (context.tab.id === tabId) {
-				void cancelMatcherJob(jobId, reason);
 				activeMatcherProgressByJob.delete(jobId);
+				requestMatcherCancellation({ jobId, tabId, incognito: context.tab.incognito }, reason);
 			}
 		}
 
@@ -405,7 +406,7 @@ export function createBackgroundRuntime(
 			}
 
 			activeMatcherProgressByJob.delete(jobId);
-			void cancelMatcherJob(jobId, 'tab-deactivated');
+			requestMatcherCancellation({ jobId, tabId: context.tab.id, incognito: context.tab.incognito }, 'tab-deactivated');
 		}
 
 		for (const [observedTabId, baseline] of observationRefreshBaselineByTab) {
@@ -444,7 +445,7 @@ export function createBackgroundRuntime(
 					tabId,
 					windowId: baseline.windowId,
 					code: response.error.code,
-					message: response.error.message,
+					...(!baseline.incognito && { message: response.error.message }),
 				});
 			}
 		} catch (error) {
@@ -452,17 +453,38 @@ export function createBackgroundRuntime(
 			logBackgroundEvent('observation-deactivated-stop-failed', {
 				tabId,
 				windowId: baseline.windowId,
-				message: error instanceof Error ? error.message : String(error),
+				...(baseline.incognito
+					? { errorType: diagnosticErrorType(error) }
+					: { message: error instanceof Error ? error.message : String(error) }),
 			});
 		}
 	}
 
+	/** Lifecycle events that revoke a matcher's right to publish into the visible session. */
+	type MatcherCancellationReason = 'navigation' | 'tab-closed' | 'newer-job' | 'tab-deactivated';
+
+	/** Request cleanup after synchronous ownership revocation without losing a rejected Promise. */
+	function requestMatcherCancellation(
+		job: Pick<MatcherJobRecord, 'jobId' | 'tabId' | 'incognito'>,
+		reason: MatcherCancellationReason,
+	): void {
+		void cancelMatcherJob(job, reason).catch((error: unknown) => {
+			logBackgroundEvent('matcher-job-cancel-failed', {
+				jobId: job.jobId,
+				tabId: job.tabId,
+				reason,
+				errorType: error instanceof Error ? 'Error' : typeof error,
+			});
+		});
+	}
+
+	/** Await host cleanup and the ordinary durable transition when a caller owns the Promise. */
 	async function cancelMatcherJob(
-		jobId: string,
-		reason: 'navigation' | 'tab-closed' | 'newer-job' | 'tab-deactivated',
+		job: Pick<MatcherJobRecord, 'jobId' | 'incognito'>,
+		reason: MatcherCancellationReason,
 	): Promise<void> {
-		await dependencies.matcher.cancelJob(jobId);
-		await updateMatcherJobRecord(jobId, { status: 'canceled', reason });
+		await dependencies.matcher.cancelJob(job.jobId);
+		await updateMatcherJobRecord(job, { status: 'canceled', reason });
 	}
 
 	function createObservationRefreshScheduleKey(tabId: number, sessionId: string): string {
@@ -593,7 +615,7 @@ export function createBackgroundRuntime(
 					logBackgroundEvent('observation-refresh-background-failed', {
 						...details,
 						code: response.error.code,
-						message: response.error.message,
+						...(!target.incognito && { message: response.error.message }),
 					});
 					return;
 				}
@@ -602,6 +624,13 @@ export function createBackgroundRuntime(
 					...details,
 					resultCount: response.value.analysis.results.length,
 					analyzedAt: response.value.analysis.analyzedAt,
+				});
+			}, (error) => {
+				logBackgroundEvent('observation-refresh-background-failed', {
+					...details,
+					...(target.incognito
+						? { errorType: diagnosticErrorType(error) }
+						: { message: error instanceof Error ? error.message : String(error) }),
 				});
 			});
 		}, BACKGROUND_OBSERVATION_REFRESH_DELAY_MS);
@@ -617,7 +646,7 @@ export function createBackgroundRuntime(
 		return {
 			windowId: tab.windowId,
 			tabId: tab.id,
-			hostname: new globalThis.URL(tab.url).hostname,
+			...(tab.incognito ? { incognito: true } : { hostname: new globalThis.URL(tab.url).hostname }),
 		};
 	}
 
@@ -791,7 +820,8 @@ export function createBackgroundRuntime(
 		}
 	}
 
-	async function ensureContentScript(tabId: number): Promise<ExtensionResult<void>> {
+	async function ensureContentScript(tab: InspectableTab): Promise<ExtensionResult<void>> {
+		const tabId = tab.id;
 		if (await pingContentScript(tabId)) {
 			logBackgroundEvent('content-runtime-ready', { tabId });
 			return extensionSuccess(undefined);
@@ -810,7 +840,7 @@ export function createBackgroundRuntime(
 				logBackgroundEvent('content-runtime-inject-failed', {
 					tabId,
 					code: injectionResponse.error.code,
-					message: injectionResponse.error.message,
+					...(!tab.incognito && { message: injectionResponse.error.message }),
 				});
 				return injectionResponse;
 			}
@@ -844,8 +874,7 @@ export function createBackgroundRuntime(
 	 * appends privileged facts, and the event pipeline consumes the enriched batch.
 	 */
 	async function collectObservationBatchFromTab(
-		tabId: number,
-		expectedUrl: string,
+		tab: InspectableTab,
 		compiledRegistryArtifact: CompiledRegistry,
 		tier: 'initial' | 'enrichment' = 'initial',
 		timingTraceId?: string,
@@ -854,16 +883,16 @@ export function createBackgroundRuntime(
 		const timingContext: TimingContext = {
 			traceId: timingTraceId,
 			surface: 'background',
+			incognito: tab.incognito,
 			details: {
-				tabId,
-				hostname: new globalThis.URL(expectedUrl).hostname,
+				...summarizeTab(tab),
 				tier,
 			},
 		};
 		const contentScriptResponse = await timeAsyncSpan(
 			'background.content-runtime.ensure',
 			timingContext,
-			() => ensureContentScript(tabId),
+			() => ensureContentScript(tab),
 			(response) => ({ ok: response.ok }),
 		);
 		if (!contentScriptResponse.ok) {
@@ -874,12 +903,13 @@ export function createBackgroundRuntime(
 			'background.collect-extension-observation-batch',
 			timingContext,
 			() => dependencies.collectObservationBatch({
-				tabId,
-				expectedUrl,
+				tabId: tab.id,
+				expectedUrl: tab.url,
+				incognito: tab.incognito,
 				collectionPlan: compiledRegistryArtifact.collectionPlan,
 				tier,
 				...(collectionTierPlan ? { collectionTierPlan } : {}),
-				contentApi: createContentApiClient(tabId, 0),
+				contentApi: createContentApiClient(tab.id, 0),
 				log: logBackgroundEvent,
 				timingTraceId,
 			}),
@@ -963,6 +993,7 @@ export function createBackgroundRuntime(
 	 *
 	 * Snapshots are the durable channel that lets an open side panel update without a
 	 * polling loop and lets a reopened side panel recover state after background shutdown.
+	 * Matcher callbacks test ownership again immediately before starting the storage write.
 	 */
 	async function savePanelSnapshot(
 		tab: InspectableTab,
@@ -971,6 +1002,7 @@ export function createBackgroundRuntime(
 		matcherExecutor: DetectionSessionSnapshot['matcherExecutor'] = 'unknown',
 		matcherProgress?: DetectionSessionSnapshot['matcherProgress'],
 		evidence?: DetectionEvidenceState,
+		ownsPublication?: () => boolean,
 	): Promise<void> {
 		if (tab.incognito) {
 			return;
@@ -978,7 +1010,10 @@ export function createBackgroundRuntime(
 
 		const key = createDetectionSessionKeyForOutput(tab, output);
 		await queueSnapshotWrite(key, async () => {
+			// A matcher can lose ownership while this revision waits in the write queue.
+			if (ownsPublication?.() === false) return;
 			const existing = await getLatestDetectionSessionSnapshot(key);
+			if (ownsPublication?.() === false) return;
 			const replaySummary = shouldAttachReplaySummaryToSnapshot(output)
 				? createReplaySummary(output.replayTrace)
 				: undefined;
@@ -1227,6 +1262,7 @@ export function createBackgroundRuntime(
 		const timingContext: TimingContext = {
 			traceId: timingTraceId,
 			surface: 'background',
+			incognito: tab.incognito,
 			details: {
 				...summarizeTab(tab),
 			},
@@ -1376,7 +1412,7 @@ export function createBackgroundRuntime(
 			lateObservationCount: lateBatch.observations.length,
 		});
 
-		const recoveredBatch = await collectObservationBatchFromTab(tab.id, tab.url, compiledRegistryArtifact, 'initial', timingTraceId);
+		const recoveredBatch = await collectObservationBatchFromTab(tab, compiledRegistryArtifact, 'initial', timingTraceId);
 		if (!recoveredBatch.ok) {
 			return recoveredBatch;
 		}
@@ -1395,7 +1431,7 @@ export function createBackgroundRuntime(
 			policy: EXTENSION_OBSERVATION_POLICY,
 		});
 
-		const contentScriptResponse = await ensureContentScript(tab.id);
+		const contentScriptResponse = await ensureContentScript(tab);
 		if (!contentScriptResponse.ok) {
 			return contentScriptResponse;
 		}
@@ -1471,7 +1507,10 @@ export function createBackgroundRuntime(
 			...summarizeTab(tab),
 			sessionId: target.sessionId,
 			failedAt,
-			...(response.ok ? {} : { code: response.error.code, message: response.error.message }),
+			...(response.ok ? {} : {
+				code: response.error.code,
+				...(!tab.incognito && { message: response.error.message }),
+			}),
 		});
 	}
 
@@ -1484,6 +1523,7 @@ export function createBackgroundRuntime(
 		const totalSpan = startTimingSpan('background.analysis-fresh.total', {
 			traceId: timingTraceId,
 			surface: 'background',
+			incognito: tab.incognito,
 			details: {
 				...summarizeTab(tab),
 				mode: input.mode,
@@ -1504,6 +1544,7 @@ export function createBackgroundRuntime(
 		const timingContext: TimingContext = {
 			traceId: timingTraceId,
 			surface: 'background',
+			incognito: tab.incognito,
 			details: {
 				...summarizeTab(tab),
 				mode: input.mode,
@@ -1539,7 +1580,7 @@ export function createBackgroundRuntime(
 			} else {
 				dependencies.logEvent('observation-session-unavailable', {
 					code: sessionResponse.error.code,
-					message: sessionResponse.error.message,
+					...(!tab.incognito && { message: sessionResponse.error.message }),
 				});
 			}
 		}
@@ -1547,8 +1588,7 @@ export function createBackgroundRuntime(
 		let batchResponse: ExtensionResult<ObservationBatch>;
 		try {
 			batchResponse = await collectObservationBatchFromTab(
-				tab.id,
-				tab.url,
+				tab,
 				compiledRegistryArtifact,
 				initialPass.plan.tier,
 				timingTraceId,
@@ -1674,8 +1714,7 @@ export function createBackgroundRuntime(
 			}
 
 			const passBatch = await runEvidencePassWithTimeout(() => collectObservationBatchFromTab(
-				input.tab.id,
-				input.tab.url,
+				input.tab,
 				input.compiledRegistryArtifact,
 				pass.plan.tier,
 				`${input.timingTraceId}:collect:${pass.id}`,
@@ -1686,7 +1725,7 @@ export function createBackgroundRuntime(
 					...summarizeTab(input.tab),
 					passId: pass.id,
 					code: passBatch.error.code,
-					message: passBatch.error.message,
+					...(!input.tab.incognito && { message: passBatch.error.message }),
 				});
 				continue;
 			}
@@ -1902,7 +1941,7 @@ export function createBackgroundRuntime(
 		await saveMatcherJobRecord(matcherJob);
 		latestMatcherJobByTab.set(tab.id, matcherJob.jobId);
 		if (supersedesVisibleSession) latestMatcherJobByVisibleSession.set(visibleSessionId, matcherJob.jobId);
-		activeMatcherProgressByJob.set(matcherJob.jobId, {
+		const progressContext: ActiveMatcherProgressContext = {
 			visibleSessionId,
 			visibleSessionOwnerJobId: ownerJobId,
 			tab,
@@ -1916,11 +1955,13 @@ export function createBackgroundRuntime(
 			partitions: [],
 			lastVisibleRevisionAt: 0,
 			lastVisibleResultCount: 0,
-		});
+		};
+		activeMatcherProgressByJob.set(matcherJob.jobId, progressContext);
+		const ownsPublication = () => isMatcherCurrent(matcherJob.jobId, progressContext);
 
 		try {
-			await updateMatcherJobRecord(matcherJob.jobId, { status: 'dispatching' });
-			if (!isMatcherCurrent(matcherJob.jobId, visibleSessionId, ownerJobId)) {
+			await updateMatcherJobRecord(matcherJob, { status: 'dispatching' });
+			if (!ownsPublication()) {
 				return errorResponse('VALIDATION_ERROR', 'Matcher job was canceled before dispatch started.');
 			}
 
@@ -1935,15 +1976,17 @@ export function createBackgroundRuntime(
 				timingContext,
 				timingTraceId,
 			});
-			const progressContext = activeMatcherProgressByJob.get(matcherJob.jobId);
-			if (progressContext) progressContext.matcherExecutor = matcherResult.executor;
-
-			if (!isMatcherCurrent(matcherJob.jobId, visibleSessionId, ownerJobId)) {
-				await cancelMatcherJob(matcherJob.jobId, 'newer-job');
+			if (!ownsPublication()) {
+				await cancelMatcherJob(matcherJob, 'newer-job');
 				return errorResponse('VALIDATION_ERROR', 'Matcher result was superseded by a newer analysis job.');
 			}
-			if (!await canSaveMatcher(tab, batch.target.url)) {
-				await updateMatcherJobRecord(matcherJob.jobId, { status: 'stale', reason: 'navigation' });
+			progressContext.matcherExecutor = matcherResult.executor;
+			const documentIsCurrent = await canSaveMatcher(tab, batch.target.url);
+			if (!ownsPublication()) {
+				return errorResponse('VALIDATION_ERROR', 'Matcher result no longer owns the visible session.');
+			}
+			if (!documentIsCurrent) {
+				await updateMatcherJobRecord(matcherJob, { status: 'stale', reason: 'navigation' });
 				return errorResponse('VALIDATION_ERROR', 'Matcher result belongs to a document that is no longer active.');
 			}
 
@@ -1960,8 +2003,11 @@ export function createBackgroundRuntime(
 				evidence,
 				timingContext,
 				timingTraceId,
+				ownsPublication,
 			});
-			return extensionSuccess(output);
+			return output
+				? extensionSuccess(output)
+				: errorResponse('VALIDATION_ERROR', 'Matcher result no longer owns the visible session.');
 		} finally {
 			// This context owns the full observation batch and rule-free runtime registry. Every
 			// success, stale-result, cancellation, and persistence failure path must release
@@ -2023,7 +2069,7 @@ export function createBackgroundRuntime(
 			return result;
 		} catch (error) {
 			if (error instanceof MatcherError && error.reason === 'canceled') throw error;
-			await updateMatcherJobRecord(input.job.jobId, {
+			await updateMatcherJobRecord(input.job, {
 				status: 'failed',
 				reason: getMatcherFailureReason(error),
 				errorMessage: error instanceof Error ? error.message : String(error),
@@ -2057,10 +2103,12 @@ export function createBackgroundRuntime(
 		readonly evidence?: DetectionEvidenceState;
 		readonly timingContext: TimingContext;
 		readonly timingTraceId?: string;
+		/** Test the registered owner before starting the next publication. */
+		readonly ownsPublication: () => boolean;
 	};
 
 	/** Persist replay and final side-panel state after matcher computation has completed. */
-	async function saveMatcher(input: MatcherSaveType): Promise<AnalyzeVisibleTabOutput> {
+	async function saveMatcher(input: MatcherSaveType): Promise<AnalyzeVisibleTabOutput | undefined> {
 		const pipelineResult = input.result.result;
 		const analysis = timeSyncSpan(
 			'analysis.normalize-fresh-output',
@@ -2072,6 +2120,7 @@ export function createBackgroundRuntime(
 
 		try {
 			await saveRecording(input, analysis, sessionTarget);
+			if (!input.ownsPublication()) return;
 			const replayTrace = timeSyncSpan(
 				'pipeline.create-replay-trace',
 				input.timingContext,
@@ -2087,6 +2136,7 @@ export function createBackgroundRuntime(
 					() => ({ incognito: input.tab.incognito, stored: true }),
 				)
 				: replayTrace;
+			if (!input.ownsPublication()) return;
 			const replayHistory = await timeAsyncSpan(
 				'storage.get-replay-history',
 				input.timingContext,
@@ -2097,12 +2147,15 @@ export function createBackgroundRuntime(
 					storedCurrentRun: shouldStoreReplayTrace,
 				}),
 			);
+			if (!input.ownsPublication()) return;
 
-			logAnalysisSummary(analysis);
+			if (!input.tab.incognito) logAnalysisSummary(analysis);
 			void dependencies.setBadge(input.tab.id, analysis.results.length, getFinding(analysis)).catch((error) => {
 				logBackgroundEvent('toolbar-badge-update-failed', {
 					tabId: input.tab.id,
-					message: error instanceof Error ? error.message : String(error),
+					...(input.tab.incognito
+						? { errorType: diagnosticErrorType(error) }
+						: { message: error instanceof Error ? error.message : String(error) }),
 				});
 			});
 			logBackgroundEvent('analysis-event-complete', {
@@ -2126,13 +2179,23 @@ export function createBackgroundRuntime(
 				input.enrichment,
 				input.evidence,
 			);
-			await savePanelSnapshot(input.tab, output, 'background', input.result.executor, undefined, input.evidence);
-			await updateMatcherJobRecord(input.job.jobId, {
+			await savePanelSnapshot(
+				input.tab,
+				output,
+				'background',
+				input.result.executor,
+				undefined,
+				input.evidence,
+				input.ownsPublication,
+			);
+			if (!input.ownsPublication()) return;
+			await updateMatcherJobRecord(input.job, {
 				status: 'completed',
 				reason: 'completed',
 				partitionCount: input.result.partitions.length,
 				completedPartitionCount: input.result.partitions.length,
 			});
+			if (!input.ownsPublication()) return;
 			logBackgroundEvent('matcher-job-complete', {
 				...summarizeTab(input.tab),
 				jobId: input.job.jobId,
@@ -2144,11 +2207,13 @@ export function createBackgroundRuntime(
 			});
 			return output;
 		} catch (error) {
-			await updateMatcherJobRecord(input.job.jobId, {
-				status: 'failed',
-				reason: 'persistence-failed',
-				errorMessage: error instanceof Error ? error.message : String(error),
-			});
+			if (input.ownsPublication()) {
+				await updateMatcherJobRecord(input.job, {
+					status: 'failed',
+					reason: 'persistence-failed',
+					errorMessage: error instanceof Error ? error.message : String(error),
+				});
+			}
 			throw error;
 		}
 	}
@@ -2159,11 +2224,12 @@ export function createBackgroundRuntime(
 		analysis: SiteAnalysis,
 		sessionTarget: ObservationSessionTarget | undefined,
 	): Promise<void> {
-		await updateMatcherJobRecord(input.job.jobId, {
+		await updateMatcherJobRecord(input.job, {
 			status: 'recording',
 			partitionCount: input.result.partitions.length,
 			completedPartitionCount: input.result.partitions.length,
 		});
+		if (!input.ownsPublication()) return;
 		const output = createAnalysisOutput(
 			analysis,
 			input.snapshotStatus,
@@ -2182,14 +2248,14 @@ export function createBackgroundRuntime(
 			partitionCount: input.result.partitions.length,
 			resultCount: analysis.results.length,
 			updatedAt: Date.now(),
-		}, input.evidence);
+		}, input.evidence, input.ownsPublication);
 	}
 
-	/** Return whether one matcher still owns the newest visible-session generation. */
-	function isMatcherCurrent(jobId: string, visibleSessionId: VisibleSessionId, ownerJobId: string): boolean {
-		if (!activeMatcherProgressByJob.has(jobId)) return false;
-		const newestJobId = latestMatcherJobByVisibleSession.get(visibleSessionId);
-		return newestJobId === undefined || newestJobId === ownerJobId;
+	/** Check the exact registered progress owner and its visible-session generation. */
+	function isMatcherCurrent(jobId: string, context: ActiveMatcherProgressContext): boolean {
+		if (activeMatcherProgressByJob.get(jobId) !== context) return false;
+		const newestJobId = latestMatcherJobByVisibleSession.get(context.visibleSessionId);
+		return newestJobId === undefined || newestJobId === context.visibleSessionOwnerJobId;
 	}
 
 	/** Cancel older complete matcher jobs before they can publish into the same page session. */
@@ -2197,7 +2263,7 @@ export function createBackgroundRuntime(
 		for (const [activeJobId, context] of activeMatcherProgressByJob) {
 			if (context.visibleSessionId !== visibleSessionId || activeJobId === jobId) continue;
 			activeMatcherProgressByJob.delete(activeJobId);
-			void cancelMatcherJob(activeJobId, 'newer-job');
+			requestMatcherCancellation({ jobId: activeJobId, tabId: context.tab.id, incognito: context.tab.incognito }, 'newer-job');
 		}
 	}
 
@@ -2213,6 +2279,7 @@ export function createBackgroundRuntime(
 		return {
 			traceId: timingTraceId,
 			surface: 'pipeline',
+			incognito: tab.incognito,
 			details: {
 				...summarizeTab(tab),
 				snapshotStatus,
@@ -2291,6 +2358,7 @@ export function createBackgroundRuntime(
 		const timingContext: TimingContext = {
 			traceId: timingTraceId,
 			surface: 'background',
+			incognito: tab.incognito,
 			details: {
 				...summarizeTab(tab),
 				sessionId: target.sessionId,
@@ -2328,7 +2396,7 @@ export function createBackgroundRuntime(
 			logBackgroundEvent('observation-refresh-unavailable', {
 				...summarizeTab(tab),
 				reason: blockReason,
-				sessionExpectedUrl: sessionResponse.value.expectedUrl,
+				...(!tab.incognito && { sessionExpectedUrl: sessionResponse.value.expectedUrl }),
 			});
 			return errorResponse(
 				'OBSERVATION_SESSION_UNAVAILABLE',
@@ -2471,6 +2539,7 @@ export function createBackgroundRuntime(
 		const timingContext: TimingContext = {
 			traceId: timingTraceId,
 			surface: 'background',
+			incognito: tab.incognito,
 			details: summarizeTab(tab),
 		};
 		const target = createVisibleTabIdentity(tab);
@@ -2545,7 +2614,7 @@ export function createBackgroundRuntime(
 				logBackgroundEvent('analysis-queued-persist-failed', {
 					...summarizeTab(input.tab),
 					code: response.error.code,
-					message: response.error.message,
+					...(!input.tab.incognito && { message: response.error.message }),
 				});
 				return;
 			}
@@ -2557,7 +2626,9 @@ export function createBackgroundRuntime(
 		}, (error) => {
 			logBackgroundEvent('analysis-queued-persist-threw', {
 				...summarizeTab(input.tab),
-				message: error instanceof Error ? error.message : 'Queued matcher persistence failed.',
+				...(input.tab.incognito
+					? { errorType: diagnosticErrorType(error) }
+					: { message: error instanceof Error ? error.message : 'Queued matcher persistence failed.' }),
 			});
 			resolveRegistered();
 		}).finally(() => {
@@ -2594,6 +2665,7 @@ export function createBackgroundRuntime(
 					const requestTimingContext: TimingContext = {
 						traceId: requestTimingTraceId,
 						surface: 'background',
+						incognito: tab.incognito,
 						details: {
 							...summarizeTab(tab),
 							mode: input.mode,
@@ -2722,15 +2794,16 @@ export function createBackgroundRuntime(
 	async function updateMatcherState(message: MatcherJobStateMessage): Promise<void> {
 		const context = activeMatcherProgressByJob.get(message.jobId);
 		if (!context || context.tab.incognito) return;
-		const newestJobId = latestMatcherJobByVisibleSession.get(context.visibleSessionId);
-		if (newestJobId && newestJobId !== context.visibleSessionOwnerJobId) return;
+		const ownsPublication = () => isMatcherCurrent(message.jobId, context);
+		if (!ownsPublication()) return;
 
 		context.matcherExecutor = 'offscreen-worker-pool';
-		await updateMatcherJobRecord(message.jobId, {
+		await updateMatcherJobRecord({ jobId: message.jobId, incognito: context.tab.incognito }, {
 			status: message.phase === 'queued' ? 'queued' : 'running',
 			...(message.partitionCount === undefined ? {} : { partitionCount: message.partitionCount }),
 			completedPartitionCount: 0,
 		});
+		if (!ownsPublication()) return;
 		logBackgroundEvent(`matcher-job-${message.phase}`, {
 			...summarizeTab(context.tab),
 			jobId: message.jobId,
@@ -2753,6 +2826,7 @@ export function createBackgroundRuntime(
 		);
 		const key = createDetectionSessionKeyForOutput(context.tab, pending);
 		const existing = await getLatestDetectionSessionSnapshot(key);
+		if (!ownsPublication()) return;
 		const analysis = existing?.analysis ?? pending.analysis;
 		const output = createAnalysisOutput(
 			analysis,
@@ -2774,7 +2848,7 @@ export function createBackgroundRuntime(
 			partitionCount: message.partitionCount ?? 0,
 			resultCount: analysis.results.length,
 			updatedAt: Date.now(),
-		}, context.evidence);
+		}, context.evidence, ownsPublication);
 	}
 
 	function isPartitionProgress(message: unknown): message is MatcherPartitionProgressMessage {
@@ -2805,16 +2879,15 @@ export function createBackgroundRuntime(
 			return;
 		}
 
-		const newestJobId = latestMatcherJobByVisibleSession.get(context.visibleSessionId);
-		if (newestJobId && newestJobId !== context.visibleSessionOwnerJobId) {
-			return;
-		}
+		const ownsPublication = () => isMatcherCurrent(jobId, context);
+		if (!ownsPublication()) return;
 
-		await updateMatcherJobRecord(jobId, {
+		await updateMatcherJobRecord({ jobId, incognito: context.tab.incognito }, {
 			status: 'streaming',
 			partitionCount: message.partitionCount,
 			completedPartitionCount: message.completedPartitionCount,
 		});
+		if (!ownsPublication()) return;
 		logBackgroundEvent('matcher-partition-complete', {
 			...summarizeTab(context.tab),
 			jobId,
@@ -2881,7 +2954,8 @@ export function createBackgroundRuntime(
 			latestPartitionMatchCount: message.partition.matches.length,
 			resultCount: partial.analysis.results.length,
 			updatedAt: now,
-		}, context.evidence);
+		}, context.evidence, ownsPublication);
+		if (!ownsPublication()) return;
 		context.lastVisibleRevisionAt = now;
 		context.lastVisibleResultCount = partial.analysis.results.length;
 	}
@@ -2910,7 +2984,7 @@ export function createBackgroundRuntime(
 				{
 					tabId: sender.tab.id,
 					sessionId: message.sessionId,
-					hostname: new globalThis.URL(message.expectedUrl).hostname,
+					...(!sender.tab.incognito && { hostname: new globalThis.URL(message.expectedUrl).hostname }),
 					observedAt: message.observedAt,
 					pendingMutationCount: message.pendingMutationCount,
 				},

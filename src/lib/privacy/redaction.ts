@@ -5,6 +5,11 @@ const QUERY_VALUE_PATTERN = /([?&][^=&#\s"']+=)[^&#\s"']+/g;
 const SENSITIVE_QUERY_VALUE_PATTERN = /([?&](?:(?:access|refresh|id)?[-_]?token|authorization|password|passwd|secret|api[-_]?key|csrf|session|code)=)[^&#\s"']+/gi;
 const PHONE_PATTERN = /\b(?:\+?1[\s.-]?)?(?:\([0-9]{3}\)|[0-9]{3})[\s.-]?[0-9]{3}[\s.-]?[0-9]{4}\b/g;
 
+/** Classify a thrown value without reading its message, stack, or caller-controlled name. */
+export function diagnosticErrorType(error: unknown): string {
+	return error instanceof Error ? 'Error' : typeof error;
+}
+
 /** Replace sensitive-looking scalars before values reach evidence or replay storage. */
 export function redactEvidenceValue(value: string, maxVisibleChars = 160): string {
 	const trimmed = value.trim();

@@ -178,8 +178,10 @@ export function create(options: observe.OptionsType): observe.SignalsType {
 
 		logObserverEvent('session-navigation', {
 			sessionId: activeSession.sessionId,
-			expectedUrl: activeSession.expectedUrl,
-			actualUrl: globalThis.location.href,
+			...(!options.incognito && {
+				expectedUrl: activeSession.expectedUrl,
+				actualUrl: globalThis.location.href,
+			}),
 		});
 		stopSession('navigation');
 	}

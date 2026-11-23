@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createObservationMatcherIndex, matchIndexedObservationBatch } from '@/lib/detection/observation-matcher-index';
+import { createCompiledDetectionGraph } from '@/lib/detection/registry-graph';
 import {
 	MATCHER_OFFSCREEN_CHANNEL,
 	type MatcherOffscreenResponse,
@@ -76,10 +77,10 @@ class WorkerPort extends EventTarget {
 }
 
 /** One real URL observation is enough to exercise host admission and worker ownership. */
-function request(jobId = 'job'): OffscreenMatcherJobRequest {
+function request(jobId = 'job', incognito = false): OffscreenMatcherJobRequest {
 	const target = { url: 'https://example.com/', hostname: 'example.com' };
 	return {
-		job: { jobId, tabId: 7, expectedUrl: target.url },
+		job: { jobId, tabId: 7, expectedUrl: target.url, incognito },
 		mode: 'complete',
 		batch: {
 			target,
@@ -112,23 +113,31 @@ async function load() {
 	vi.resetModules();
 	vi.stubGlobal('Worker', WorkerPort);
 	let listener: ((message: unknown) => Promise<MatcherOffscreenResponse> | undefined) | undefined;
-	const sendMessage = vi.fn(async (_message: unknown) => undefined);
+	const sendMessage = vi.fn(async (_message: unknown): Promise<unknown> => undefined);
+	const logger = { debug: vi.fn(), error: vi.fn() };
 	vi.doMock('wxt/browser', () => ({
 		browser: {
+			offscreen: {},
 			runtime: {
+				ContextType: { OFFSCREEN_DOCUMENT: 'OFFSCREEN_DOCUMENT' },
+				getContexts: async () => [{}],
+				getURL: (path: string) => path,
 				sendMessage,
 				onMessage: {
 					addListener(callback: typeof listener) {
 						listener = callback;
 					},
+					removeListener() {},
 				},
 			},
 		},
 	}));
-	vi.doMock('@/lib/diagnostics/logging', () => ({ get: () => ({ debug: vi.fn(), error: vi.fn() }) }));
+	vi.doMock('@/lib/diagnostics/logging', () => ({ get: () => logger }));
 	return {
 		...(await import('@/lib/matcher/offscreen/pool')),
 		start: (await import('@/lib/matcher/offscreen/host')).start,
+		runClient: (await import('@/lib/matcher/offscreen/client')).run,
+		logger,
 		sendMessage,
 		dispatch(message: unknown) {
 			if (!listener) throw new Error('The host did not register its runtime message listener.');
@@ -221,6 +230,50 @@ describe('offscreen matcher lifecycle', () => {
 			expect(worker.listeners.get('messageerror')?.size).toBe(0);
 		},
 	);
+
+	it.each([false, true])('limits worker and host failure diagnostics by job privacy: %s', async (incognito) => {
+		vi.useFakeTimers();
+		const host = await load();
+		host.start();
+		const failureUrl = 'https://failure.example/private/source';
+		const error = new Error(`Worker failed at ${failureUrl}`);
+		const result = host.runJob(request('privacy', incognito));
+		const worker = WorkerPort.instances.find((port) => port.messages.length)!;
+
+		worker.dispatchEvent(Object.assign(new Event('error'), { error, filename: failureUrl }));
+
+		await expect(result).resolves.toMatchObject({ ok: false, reason: 'failed', message: error.message });
+		const poolFailure = host.logger.error.mock.calls.find(([event]) => event === 'Matcher worker JavaScript error.')?.[1];
+		const hostDisposal = host.logger.debug.mock.calls.find(([event]) => event === 'Disposed matcher worker pool.')?.[1];
+		if (incognito) {
+			expect(poolFailure).toMatchObject({ errorType: 'Error', jobId: 'privacy' });
+			expect(poolFailure).not.toHaveProperty('error');
+			expect(poolFailure).not.toHaveProperty('filename');
+			expect(hostDisposal).toMatchObject({ errorType: 'Error', activeJobId: 'privacy' });
+			expect(hostDisposal).not.toHaveProperty('reason');
+		} else {
+			expect(poolFailure).toMatchObject({ error, filename: failureUrl });
+			expect(hostDisposal).toMatchObject({ reason: error.message });
+		}
+	});
+
+	it.each([false, true])('limits offscreen-client failure diagnostics by job privacy: %s', async (incognito) => {
+		const harness = await load();
+		const message = 'Matcher failed at https://failure.example/private/source';
+		harness.sendMessage.mockResolvedValueOnce({ ok: false, reason: 'failed', message });
+		await expect(harness.runClient({
+			...request('privacy', incognito),
+			registry: [],
+			relationshipGraph: createCompiledDetectionGraph([], []),
+		})).rejects.toThrow(message);
+		const details = harness.logger.error.mock.calls.find(([event]) => event === 'Offscreen matcher job failed.')?.[1];
+		if (incognito) {
+			expect(details).toMatchObject({ errorType: 'Error', jobId: 'privacy' });
+			expect(details).not.toHaveProperty('error');
+		} else {
+			expect(details?.error).toMatchObject({ message });
+		}
+	});
 
 	it('cancels active work, admits a replacement, and releases idle heaps after the grace period', async () => {
 		vi.useFakeTimers();

@@ -47,15 +47,24 @@ type LinkTagInput = ParentNode | Iterable<HTMLLinkElement>;
 type MetaTagInput = ParentNode | Iterable<HTMLMetaElement>;
 type ImageSourceInput = ParentNode | Iterable<HTMLImageElement>;
 
+/**
+ * Collect the requested page signals for the current document.
+ *
+ * The content entrypoint supplies Chrome's incognito context. When true, timing
+ * diagnostics omit page identity and raw failures. Ordinary documents default to
+ * false; the returned signals retain the data needed by the in-memory matcher.
+ */
 export async function collectPageSignals(
 	input: CollectPageSignalsInput,
 	runtime: RuntimePageSignals = {},
+	incognito = false,
 ): Promise<PageSignals> {
 	const timingContext: TimingContext = {
 		traceId: input.timingTraceId,
 		surface: 'content',
+		incognito,
 		details: {
-			hostname: globalThis.location.hostname,
+			...(!incognito && { hostname: globalThis.location.hostname }),
 			tier: input.tier ?? 'initial',
 		},
 	};

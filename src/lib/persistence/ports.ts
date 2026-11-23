@@ -81,12 +81,16 @@ export interface DetectionPersistenceMaintenance {
 	getStatus(): Promise<AnalysisStatus>;
 }
 
-/** Matcher-job lifecycle persistence used by background orchestration. */
+/**
+ * Ordinary matcher-job persistence used by background orchestration.
+ * Private saves return the supplied record without persisting it; subsequent
+ * updates return null. Neither operation accesses durable storage for private jobs.
+ */
 export interface MatcherJobStore {
 	saveMatcherJob(record: MatcherJobRecord): Promise<MatcherJobRecord>;
 	updateMatcherJob(
-		jobId: string,
-		patch: Partial<Omit<MatcherJobRecord, 'jobId' | 'tabId' | 'expectedUrl' | 'target' | 'createdAt'>>,
+		job: Pick<MatcherJobRecord, 'jobId' | 'incognito'>,
+		patch: Partial<Omit<MatcherJobRecord, 'jobId' | 'tabId' | 'expectedUrl' | 'target' | 'createdAt' | 'incognito'>>,
 	): Promise<MatcherJobRecord | null>;
 }
 
