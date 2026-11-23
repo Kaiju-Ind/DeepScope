@@ -1,99 +1,153 @@
-# DeepScope CI checks
+# DeepScope CI
 
-Pull requests against any branch and pushes to `main` run the existing TypeScript command,
-`mise exec -- pnpm run compile`. This is a source check, not a test or build result.
+Two workflows live in `.github/workflows/`:
 
-Use **Actions → DeepScope checks → Run workflow**, select the branch, and start
-the workflow to run `mise exec -- pnpm run check:release`. That existing command
-checks types, runs Vitest, and builds the Chrome extension. Review the run's
-source commit before using its result. A new source commit needs a new test run.
-A passing automatic type check does not mean the manual tests passed.
+| Workflow | Trigger | Purpose |
+| --- | --- | --- |
+| `verify.yml` (**Verify**) | every pull request, pushes to `main`, manual | type checks, the full Vitest suite, Chrome/Firefox/Safari builds, Firefox add-on lint, workflow lint |
+| `release.yml` (**Release**) | `v*` tags, manual dry run | release archives, `SHA256SUMS`, provenance, GitHub Release, ghcr.io; see [release/README.md](release/README.md) |
 
-The last combined job at source `1e88a2e672fc98acaab1b219b65c39978666e231` took
-128 seconds from job start to completion in Actions run `41603619534`.
-The two-minute policy therefore moves the combined command to manual execution.
-Automatic type checks have a two-minute timeout including preparation. Manual
-execution retains its 25-minute budget and all existing checks. Hosted timing
-observations still matter: a timeout is a cost bound, not proof that a check passes.
+Both call the same Mise tasks a developer runs locally, so a CI failure can be
+reproduced with the command shown in the failing step.
+
+## Local commands
+
+Tools are pinned in the root `mise.toml` (Node, pnpm). Task files under
+`.mise/tasks/` are thin wrappers that pass arguments to the package scripts or
+native tools; `package.json` scripts stay the owner of what "compile" and
+"test" mean.
+
+| Command | Runs |
+| --- | --- |
+| `mise run check` | `pnpm run compile` (`tsc --noEmit`) |
+| `mise run test [vitest args]` | `pnpm run test:run` — Vitest discovers every test through the `runtime` and `ui` projects in `vitest.config.ts` |
+| `mise run build <chrome\|firefox\|safari>` | `wxt build -b <browser> --mv3` into `.output/<browser>-mv3` |
+| `mise run zip <chrome\|firefox\|safari>` | `wxt zip -b <browser> --mv3`; Firefox also writes a sources zip |
+| `mise run lint:firefox [dir]` | Mozilla `web-ext lint` on an unpacked Firefox build |
+| `mise run lint:workflows` | `actionlint` and `zizmor --offline` on `.github/` |
+| `mise run release:archives [browsers]` | zips each browser, then writes release-named archives and `SHA256SUMS` to `.output/release` |
+| `mise run release:check-version <tag>` | fails unless the tag equals the `package.json` version |
+| `mise run safari-project` | macOS only: wraps the Safari build in an Xcode project and builds it unsigned |
+
+`--mv3` is passed explicitly because WXT 0.21 builds Firefox and Safari as MV2
+unless `wxt.config.ts` sets `manifestVersion: 3`. It is harmless once it does.
+
+No task lists individual test, source or benchmark files. A new test under
+`src/tests/` is picked up by Vitest without editing any task or workflow.
+
+## Verify workflow
+
+```
+prepare ──┬── check (Type checks)
+          ├── test (Tests)
+          └── build [chrome, firefox, safari] ──┬── lint-firefox
+                                                ├── smoke-chrome
+                                                └── safari-xcode (opt-in, macOS)
+workflows (Workflow lint, independent)
+```
+
+- **prepare** runs `pnpm install --frozen-lockfile` once and, on trusted refs
+  only, saves the download caches. Every other job restores them read-only and
+  installs again (an install from a warm store takes seconds).
+- **build** uploads each browser's zips as the `extension-<browser>` artifact
+  (7-day retention) for review. Release archives are never taken from these;
+  the release workflow rebuilds from the tag.
+- **lint-firefox** unpacks the Firefox build and runs `web-ext lint`. It fails
+  on lint *errors* (for example a missing `browser_specific_settings.gecko.id`),
+  which is what addons.mozilla.org rejects. Until the Firefox manifest work
+  (milestone 3 of the cross-browser plan) adds the add-on id, this job fails.
+- **smoke-chrome** runs `pnpm run validate:chrome-artifact` against the CI
+  Chrome build **only if that script exists in `package.json`**. The script is
+  not on this branch yet; until it is, the job prints a notice and succeeds
+  without claiming a smoke test ran. Treat that state as *not checked*.
+- **safari-xcode** costs macOS minutes (10x Linux), so it runs only when a PR
+  carries the `ci:safari` label or a manual run sets the `safari-xcode` input.
+- **workflows** lints the workflow files. `.github/zizmor.yml` disables only the
+  `self-repository` audit: zizmor prefers `uses: $/...`, which actionlint
+  1.7.12 still rejects.
+
+Every job has a timeout, every action is pinned to a full commit SHA with its
+version in a comment, and every checkout uses `persist-credentials: false`. The
+workflow token is `contents: read` throughout.
+
+### Runners
+
+Jobs use GitHub-hosted `ubuntu-24.04`, which is free for public repositories,
+matches the Firefox reviewers' Ubuntu 24.04 build environment, and is a
+GitHub-hosted runner for attestation purposes. The previous workflow used
+Ubicloud's `ubicloud-standard-2`; to return to it, change `runs-on` in
+`verify.yml` (release jobs should stay GitHub-hosted so provenance does not
+name a third-party runner).
+
+### Concurrency
+
+Automatic runs cancel an outdated run for the same PR or branch. Manual runs
+are grouped by commit SHA and never cancel a build that already started.
 
 ## Dependency caching
 
-Mise caches the selected Node and pnpm toolchain after the job. Same-repository
-PRs may save that cache; fork PRs cannot. Application tools remain pinned in this
-repository's `mise.toml`.
+Cache layers and their owners:
 
-Public GitHub cache actions restore and save a dedicated pnpm store under the
-runner's temporary directory. `PNPM_CONFIG_STORE_DIR` makes the native installer
-use that location. The key includes operating system, architecture, actual Node
-and pnpm versions, and the tool, lock, package and workspace configuration files.
-The workflow rechecks that identity after successful work and saves only a miss
-whose inputs still match. Cache failures do not skip the frozen installation,
-WXT postinstall step or selected checks.
+| Layer | Owner | Written by | Read by |
+| --- | --- | --- | --- |
+| Node/pnpm binaries | `jdx/mise-action` | `prepare` on trusted refs | all verify jobs |
+| pnpm download store (`$RUNNER_TEMP/pnpm-store`) | `actions/cache` save/restore | `prepare` on trusted refs | all verify jobs |
+| `node_modules`, WXT output, test results | not cached | — | — |
+| release archives | release workflow artifact | release `build` job | later release jobs |
 
-Dependency cache writes are limited to this repository's main or protected
-pushes, same-repository nonfork PR merge refs, and manual branch runs. GitHub's
-branch and PR cache scopes remain enabled. The cached store excludes the
-checkout, installed `node_modules`, credentials, WXT output and test results.
-This public repository uses public actions directly because GitHub does not
-allow public consumers to use actions from a private repository. The replacement
-uses a new cache namespace, so its first run starts without the old cache.
+The pnpm key is `deepscope-pnpm-v2-<os>-<arch>-<node>-<pnpm>-<hash of mise.toml,
+mise.lock, pnpm-lock.yaml, pnpm-workspace.yaml, package.json>`. `prepare`
+recomputes it after a successful install and saves only a miss whose inputs did
+not change. A cache failure never skips the frozen install.
 
-This workflow is read-only: it does not publish the extension. Release work must
-not treat a cache hit as evidence that tests or a build ran.
+**Trusted writers** (`TRUSTED_CACHE_WRITER` in `verify.yml`): pushes to `main`
+or a protected branch, same-repository non-fork PR merge refs, and manual runs
+on branches. Fork PRs read caches but never write them. GitHub scopes PR caches
+to the PR's merge ref, so a PR cannot write a cache that `main` or a tag reads.
+The release workflow goes further and restores **no** cache at all: it installs
+cold from the lockfile so nothing a PR run produced can reach a published
+archive.
 
-### Native task-cache experiment
+A cache hit is not evidence that a test or build ran; each job executes its
+command every time. WXT output is not cached because `wxt.config.ts` embeds a
+build timestamp and fetches fonts during the build.
 
-On November 9, 2026, the same source was tested twice in
-[Actions run #42711392941](https://github.com/Kaiju-Ind/DeepScope/actions/runs/42711392941).
-Mise stored a 546-byte type-check result in the first run. GitHub restored
-that record on the second attempt, but Mise still reported `cache miss` and
-executed `tsc --noEmit` again. The completed jobs took approximately 57
-and 38 seconds, respectively. The latter also restored the pnpm download
-store and Mise binaries, so its improvement is not a task-result cache saving.
+### Native task-cache experiment (November 2026)
 
-The experimental result cache was removed. Keep type checks executing on
-every PR update until the WXT-generated input closure can produce a stable
-native cache key and a measured decrease in total job cost.
+Mise stored a 546-byte type-check result in one run and restored it in the
+next, but still reported `cache miss` and re-ran `tsc --noEmit` (Actions run
+42711392941 on the former private repository). The result cache was removed.
+Keep type checks executing on every PR update until the WXT-generated input
+closure gives a stable key and a measured saving.
+
 ## Required checks and branch settings
 
-The automatic check is **Type checks**. A manually started run is named
-**Tests and Chrome build (manual)**. The old combined check name is deliberately
-not reused for a type-only result.
+The checks a branch rule should require are **Type checks**, **Tests**,
+**Build (chrome)**, **Build (firefox)**, **Build (safari)** and **Workflow
+lint**. Add **Firefox add-on lint** once the Firefox manifest has its add-on
+id. Do not require **Chrome artifact smoke** until `validate:chrome-artifact`
+exists, because until then its success means "not run". The previous single
+check names (`Type checks` / `Tests and Chrome build (manual)`) are replaced;
+an owner must update any ruleset that names the old ones.
 
-The repository rulesets list was empty when this change was prepared. Reading
-legacy branch protection returned HTTP 403, so its required-check configuration
-could not be inspected or changed. If a rule requires the old combined name,
-the repository owner must review that rule before merging. A manually dispatched
-workflow is not a substitute for a required PR-triggered check.
+## Dependency updates
 
-The restore and save actions use the same immutable `actions/cache` revision,
-`55cc8345863c7cc4c66a329aec7e433d2d1c52a9` (v6.1.0). Mise selects Node 26.13.0
-and pnpm 12.19.0 from the local tool configuration. The workflow uses the native
-package scripts and has no private Git task packs or action dependency.
+`renovate.json` is self-contained (the repository is public and cannot extend a
+private preset):
 
-## Parallel branches and manual requests
+- `config:best-practices`, which pins GitHub Actions and Docker digests;
+- one grouped PR for minor, patch, pin and digest updates, scheduled early
+  Monday (UTC), plus monthly lock-file maintenance;
+- `minimumReleaseAge: 3 days` for ordinary updates;
+- vulnerability fixes (GitHub and OSV advisories) open immediately, outside the
+  schedule and without the release-age wait, labelled `security`;
+- the Solid 2 major is held back until its UI dependencies support it;
+- custom managers update the tool versions pinned inside `.mise/tasks/*`
+  (`#MISE tools={...}`) and the Mise version passed to `jdx/mise-action`.
 
-Type checks run on every PR layer, including PRs whose base is another branch.
-The full manual command does not use affected-file selection, so it needs no
-comparison base. Select the exact top branch to check a complete stack; select
-and check a lower prefix explicitly before landing only that prefix. These
-source checks do not certify that the manual tests or build passed. A new
-workflow must exist on the repository's default branch before GitHub offers its
-manual dispatch control.
+## Timing
 
-Automatic checks still cancel an outdated run for the same PR or branch.
-Manual requests use a concurrency group containing their exact source SHA and
-do not cancel an active build. GitHub's `single` queue keeps at most one pending
-request for that SHA, replacing excess pending requests. The remaining pending
-request still executes after the active run; this is bounded serialization,
-not proof that duplicate work has been eliminated. Different source revisions
-and parallel branches with different SHAs can proceed independently.
-
-Jobs use Ubicloud's 2-CPU x86 runner, preserving the previous private GitHub
-runner's architecture and 8 GB memory shape. Lower minute pricing does not prove
-an execution-time improvement; compare complete cold and warm hosted runs.
-
-WXT still builds fresh output on each manual run. Its configuration embeds a
-time-based build identity and consumes font-provider inputs, so this workflow
-does not cache a successful WXT result or substitute a previous extension
-artifact for the current build.
+Not yet measured on GitHub-hosted runners for this layout. Locally (Apple
+silicon, warm pnpm store): `mise run release:archives chrome firefox` took 17 s
+wall clock; `web-ext lint` 7 s. Record the first hosted run's wall clock and
+the sum of job durations here, with the run id, before tuning the job split.
