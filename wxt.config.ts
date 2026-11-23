@@ -14,9 +14,10 @@ const version = (JSON.parse(readFileSync(new URL('./package.json', import.meta.u
  * The identity must not depend on the build time. Firefox add-on review rebuilds
  * the submitted sources and requires identical output, and release checksums are
  * only meaningful when a rebuild of the same commit produces the same files.
- * CI passes the commit in `DEEPSCOPE_SOURCE_COMMIT`; local builds say `local`.
+ * CI provides the commit (`DEEPSCOPE_SOURCE_COMMIT`, else GitHub's `GITHUB_SHA`);
+ * local builds say `local`.
  */
-const buildId = `${version}+${process.env.DEEPSCOPE_SOURCE_COMMIT?.slice(0, 12) || 'local'}`;
+const buildId = `${version}+${(process.env.DEEPSCOPE_SOURCE_COMMIT || process.env.GITHUB_SHA)?.slice(0, 12) || 'local'}`;
 
 /**
  * Firefox add-on identity. AMO does not assign one for Manifest V3, and the id
@@ -75,12 +76,16 @@ export default defineConfig({
 				browser_specific_settings: {
 					gecko: {
 						id: FIREFOX_ADDON_ID,
-						// `scripting.executeScript({ world: 'MAIN' })` needs Firefox 128.
-						strict_min_version: '128.0',
+						// AMO requires `data_collection_permissions` for new add-ons, and
+						// Firefox understands it from 140 (the 2025 ESR). That also covers
+						// MAIN-world scripting (128) and `storage.session` (115).
+						strict_min_version: '140.0',
 						// Analysis runs locally. The only network requests re-fetch the
 						// inspected page's own same-origin assets.
 						data_collection_permissions: { required: ['none'] },
 					},
+					// Firefox for Android reads the same key from 142.
+					gecko_android: { strict_min_version: '142.0' },
 				},
 			}
 			: {}),

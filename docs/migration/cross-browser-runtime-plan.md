@@ -70,7 +70,7 @@ workers. Firefox and Safari can unload the background mid-scan, so a scan
 must survive losing its workers (re-collect from the live page rather than
 resume a lost batch, as the perf branch already does). Firefox needs
 `browser_specific_settings.gecko.id`, `data_collection_permissions`, and
-`strict_min_version` 128 or later. Safari needs `strict_min_version` 18.4 if
+`strict_min_version` 140 (the first release that understands `data_collection_permissions`, which AMO requires; Android 142). Safari needs `strict_min_version` 18.4 if
 `documentId` is relied on; otherwise identify documents by tab, frame and a
 navigation counter.
 
@@ -160,7 +160,7 @@ All runtime string-keyed maps use `src/utils/dictionary.ts`. See
 | 5 | Scan-job lifecycle, badge owner, scheduling settings | planned |
 | 6 | Vendor utilities from okikio/utils (MIT) with attribution | planned |
 | 7 | Simplify the registry build pipeline; deterministic output | planned |
-| 8 | CI and release workflows; archives, `SHA256SUMS`, attestations, ghcr | planned |
+| 8 | CI and release workflows; archives, `SHA256SUMS`, attestations, ghcr | merged locally; not yet run on GitHub. Rebuilds differ only by registry `generatedAt` (milestone 7). |
 | 9 | Real-browser verification and memory measurements | planned |
 
 ### Milestone 2 review findings to fix while porting

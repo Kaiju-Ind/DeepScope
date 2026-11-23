@@ -70,8 +70,10 @@ jobs:
             echo "tag=$tag"
             echo "dry-run=$dry_run"
           } >> "$GITHUB_OUTPUT"
-      # Reproducible-build input for the AMO source review. wxt.config.ts must
-      # read SOURCE_DATE_EPOCH for this to make archives byte-identical.
+      # Reproducible-build input for the AMO source review. The build id in
+      # wxt.config.ts already comes from the commit (GITHUB_SHA); this pins tools
+      # that honour SOURCE_DATE_EPOCH. Registry files still embed generatedAt
+      # until the registry milestone removes it.
       - name: Pin the build timestamp to the commit
         run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
       - name: Check types
