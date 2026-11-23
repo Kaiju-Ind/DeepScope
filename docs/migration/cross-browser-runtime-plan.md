@@ -230,6 +230,36 @@ about 59 duplicate-id definitions; replace the two registry architecture
 documents with one `docs/architecture/registry.md` and a CONTRIBUTING
 section on adding a technology.
 
+### Utilities from Kaiju Utils (owner decision, 2026-11-23)
+
+DeepScope predates most of Kaiju Utils. Copy exactly what DeepScope calls,
+from the public MIT mirror okikio/utils @ `32ecdf41` (byte-identical to
+Kaiju-Ind/Utils @ `47d2c0fc` after the package-scope rename), with an
+attribution header per file and the MIT notice in `THIRD_PARTY_NOTICES`.
+
+| Copy | Destination | Replaces |
+| --- | --- | --- |
+| `packages/result/mod.ts` | `src/utils/result/index.ts` | `src/utils/result.ts`; field `error` becomes `failure` in one commit |
+| `packages/dispose/{ponyfill,once,run,mod}.ts` | `src/utils/dispose/` | ad hoc teardown in the worker pool, executor, offscreen host, per-tab runtime scopes and panel `onCleanup` |
+| `observe` and `combineSignals` from `packages/context/mod.ts` | `src/utils/signal.ts` | the deadline path in `lib/messaging/rpc.ts:withTimeout` |
+
+Not copied, with reasons: full `context`, `duration` and `scheduler`
+(they need the Temporal polyfill), `worker/thread` (2k lines; DeepScope's pool
+terminates on deadline and cancels by tab), `hash` (FNV-1a is 64-bit and
+WebAssembly; persisted keys are 32-bit), `collection/record` (answers a
+different question than `dictionary`), storage (Postgres or localStorage).
+Existing DeepScope helpers with no Utils equivalent stay: `fence`,
+`generation`, `dictionary`. `runtime.ts:queueSnapshotWrite` duplicates
+`fence.run` and should use it.
+
+### Registry scope (owner decision, 2026-11-23)
+
+The registry (catalog, compiler, artifact formats) stays as it is. Only the
+build step that emits the registry JSON is in scope: it now loads the catalog
+with one Rolldown pass (cold build 17.9 s to 8.9 s, byte-identical output).
+The registry redesign steps above are withdrawn except where they speed up or
+tidy that build step.
+
 ### Catalog provenance (blocks public promotion)
 
 The catalog appears to be derived from Wappalyzer data: 7,624 definitions
