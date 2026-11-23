@@ -7,6 +7,7 @@ import { getAutoScanEnabled } from '@/lib/autostart/settings';
 import { createBackgroundRuntime } from '@/lib/background/runtime';
 import { reconcileInterruptedMatcherJobs } from '@/lib/background/reconcile-matcher-jobs';
 import { reconcileAndResume } from '@/lib/background/startup';
+import { openPanelFromToolbar } from '@/lib/background/toolbar';
 import { collectExtensionObservationBatch } from '@/lib/collectors/extension-page-collector';
 import { createPackagedRuntimeTechnologyRegistryProvider } from '@/lib/registry/packaged-runtime';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
@@ -30,7 +31,6 @@ import {
 	type BackgroundApi,
 	type ContentApi,
 	type SidePanelTabNotificationReason,
-	SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
 	SIDE_PANEL_TAB_NOTIFICATION_TYPE,
 } from '@/lib/messaging';
 import {
@@ -123,41 +123,6 @@ function formatBackgroundLogValue(value: unknown): string {
 	if (Array.isArray(value)) return `[${value.map(formatBackgroundLogValue).join(',')}]`;
 	if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
 	return JSON.stringify(value);
-}
-
-/**
- * Open the window-scoped side panel directly from the action-click user gesture.
- *
- * The panel belongs to the browser window, not to the tab that happened to open
- * it. The mounted panel can therefore follow later active-tab changes in that
- * same window without Chrome replacing it with a tab-specific panel instance.
- */
-function openSidePanelForActionTab(
-	tabId: number,
-	windowId: number,
-	log: (event: string, details?: Record<string, unknown>) => void,
-): void {
-	void browser.sidePanel.open({ windowId })
-		.then(() => {
-			void browser.runtime.sendMessage({
-				type: SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
-				tabId,
-				windowId,
-			}).catch((error) => {
-				log('side-panel-action-notification-failed', {
-					tabId,
-					windowId,
-					message: error instanceof Error ? error.message : String(error),
-				});
-			});
-		})
-		.catch((error) => {
-			log('side-panel-open-failed', {
-				tabId,
-				windowId,
-				message: error instanceof Error ? error.message : String(error),
-			});
-		});
 }
 
 /** Forward an active-tab lifecycle event to any mounted side panel in the same window. */
@@ -298,14 +263,8 @@ export default defineBackground(() => {
 		log: logBackgroundEvent,
 	});
 
-	browser.action.onClicked.addListener((tab) => {
-		if (typeof tab.id !== 'number') {
-			logBackgroundEvent('side-panel-open-skipped', { reason: 'missing-tab-id' });
-			return;
-		}
-
-		openSidePanelForActionTab(tab.id, tab.windowId, logBackgroundEvent);
-	});
+	// Firefox opens its sidebar only during this click, so the handler stays synchronous.
+	browser.action.onClicked.addListener((tab) => openPanelFromToolbar(tab, logBackgroundEvent));
 	// One update can carry both a replacement URL and a completed load. Invalidate
 	// the old page before the scan listener queues the completed page.
 	registerBackgroundLifecycleListeners({

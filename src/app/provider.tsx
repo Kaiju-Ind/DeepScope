@@ -253,6 +253,11 @@ export function PanelProvider(props: {
   readonly policy?: TargetPolicy;
 }) {
   const policy: TargetPolicy = props.policy ?? { kind: "follow-window" };
+  /**
+   * A pinned full page is itself the active tab, so the tab it describes is
+   * inactive. Tell the background to accept that tab instead of rejecting it.
+   */
+  const targetFollow = policy.kind === "pinned" ? { follow: "pinned" as const } : {};
   const [status, setStatus] = createStore<AnalysisStatus>({
     totalAnalyses: 0,
     trackedOrigins: 0,
@@ -898,6 +903,7 @@ export function PanelProvider(props: {
       const response = await backgroundApi.analyzeVisibleTab({
         ...options.input,
         target: identity,
+        ...targetFollow,
       });
       await waitForCurrentTab(identity);
       if (disposed) {
@@ -1197,7 +1203,11 @@ export function PanelProvider(props: {
         return;
       }
 
-      const identityResponse = await backgroundApi.getVisibleTabIdentity({ tabId: target.tabId, windowId: target.windowId });
+      const identityResponse = await backgroundApi.getVisibleTabIdentity({
+        tabId: target.tabId,
+        windowId: target.windowId,
+        ...targetFollow,
+      });
       if (disposed) return;
       if (!identityResponse.ok) {
         const message = formatError(identityResponse.error);

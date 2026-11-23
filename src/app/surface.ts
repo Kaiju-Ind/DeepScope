@@ -1,5 +1,7 @@
 import { browser } from 'wxt/browser';
 
+import { panelPageTabId, panelPageUrl } from '@/lib/panel/page';
+
 /**
  * Where the DeepScope application is mounted.
  *
@@ -23,24 +25,10 @@ export type TargetPolicy =
 	| { readonly kind: 'follow-window' }
 	| { readonly kind: 'pinned'; readonly tabId: number };
 
-/** Query parameter that names the tab a full page describes. */
-const TAB_PARAMETER = 'tab';
-
-/** Published path of the full-page entrypoint (`src/entrypoints/panel/index.html`). */
-const PAGE_PATH = '/panel.html';
-
 /** Read the target policy for a mounted document from its own URL. */
 export function policyFromLocation(href: string): TargetPolicy {
-	const raw = new URL(href).searchParams.get(TAB_PARAMETER);
-	const tabId = raw === null ? Number.NaN : Number(raw);
-	return Number.isSafeInteger(tabId) && tabId >= 0 ? { kind: 'pinned', tabId } : { kind: 'follow-window' };
-}
-
-/** Build the extension URL of a full page pinned to one tab. */
-export function pageUrl(tabId: number): string {
-	const url = new URL(browser.runtime.getURL(PAGE_PATH));
-	url.searchParams.set(TAB_PARAMETER, String(tabId));
-	return url.href;
+	const tabId = panelPageTabId(href);
+	return tabId === undefined ? { kind: 'follow-window' } : { kind: 'pinned', tabId };
 }
 
 /**
@@ -51,7 +39,7 @@ export function pageUrl(tabId: number): string {
 export async function openPage(tab: { readonly tabId: number; readonly windowId: number }): Promise<void> {
 	const source = await browser.tabs.get(tab.tabId);
 	await browser.tabs.create({
-		url: pageUrl(tab.tabId),
+		url: panelPageUrl(tab.tabId),
 		windowId: tab.windowId,
 		...(typeof source.index === 'number' ? { index: source.index + 1 } : {}),
 		openerTabId: tab.tabId,
