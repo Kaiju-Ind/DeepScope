@@ -72,6 +72,7 @@ const batch = createBenchmarkBatch();
 const job = {
 	jobId: 'benchmark-job',
 	tabId: 1,
+	windowId: 1,
 	expectedUrl: batch.target.url,
 } as const;
 

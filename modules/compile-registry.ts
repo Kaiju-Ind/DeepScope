@@ -9,6 +9,7 @@ import {
 	PACKAGED_REGISTRY_ASSET_PATHS,
 	PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
 	PACKAGED_REGISTRY_OBSERVATION_KINDS,
+	countTechnologyPatterns,
 	countTechnologyRules,
 	createBootstrapTechnologyRegistry,
 	createObservationKindTechnologyRegistry,
@@ -18,6 +19,7 @@ import {
 	type PackagedRegistryObservationKind,
 } from '../src/lib/registry/packaged-artifacts';
 import type { CompiledTechnologyRegistryArtifact } from '../src/lib/registry/index';
+import { packageMatcherIndex } from '../src/lib/registry/matcher-artifact';
 import { createRuntimeTechnologyRegistryArtifact } from '../src/lib/registry/runtime-artifact';
 import type { TechnologyDefinition } from '../src/lib/detection/types';
 
@@ -34,6 +36,8 @@ interface RegistryShardSummary {
 	readonly path: string;
 	readonly ruleCount: number;
 	readonly technologyCount: number;
+	readonly patternCount: number;
+	readonly encodedPayloadBytes: number;
 	readonly priority: number;
 }
 
@@ -184,11 +188,19 @@ function createRegistryShardAssets(
 		const shardTechnologies = createObservationKindTechnologyRegistry(technologies, observationKind);
 		const path = getPackagedRegistryShardAssetPath(observationKind);
 		const ruleCount = countTechnologyRules(shardTechnologies);
+		const patternCount = countTechnologyPatterns(shardTechnologies);
+		const matcherIndex = packageMatcherIndex(shardTechnologies);
+		const encodedPayloadBytes = new TextEncoder().encode(renderPackagedRegistryJson({
+			technologies: shardTechnologies,
+			matcherIndex,
+		})).byteLength;
 		const summary: RegistryShardSummary = {
 			observationKind,
 			path,
 			ruleCount,
 			technologyCount: shardTechnologies.length,
+			patternCount,
+			encodedPayloadBytes,
 			priority: getPackagedRegistryShardPriority(observationKind),
 		};
 
@@ -202,6 +214,9 @@ function createRegistryShardAssets(
 				technologies: shardTechnologies,
 				ruleCount,
 				technologyCount: shardTechnologies.length,
+				matcherIndex,
+				patternCount,
+				encodedPayloadBytes,
 				priority: summary.priority,
 				generatedAt,
 			}),

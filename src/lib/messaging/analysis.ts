@@ -53,11 +53,35 @@ export const SNAPSHOT_REUSE_STATUSES = ['hit', 'miss', 'bypassed'] as const;
 export type SnapshotReuseStatus = typeof SNAPSHOT_REUSE_STATUSES[number];
 
 /**
+ * How a panel surface's tab target relates to tab activation.
+ *
+ * - `active` (default): the surface follows the active tab of its window, so the
+ *   background rejects a target that is no longer active with `NO_ACTIVE_TAB`.
+ * - `pinned`: the surface was opened for one specific tab (for example a full
+ *   page that is itself the active tab). The target may be inactive; window, URL,
+ *   inspectability and private-tab rules are still validated.
+ *
+ * Activation only decides whether a request is accepted. Once admitted, work for
+ * an inactive tab keeps running; activation changes its priority, not its life.
+ */
+export type TabTargetFollow = 'active' | 'pinned';
+
+/** Tab lookup sent by a panel surface before it chooses a cached snapshot. */
+export type VisibleTabIdentityInput = {
+	readonly tabId: number;
+	readonly windowId: number;
+	/** Defaults to `active`. */
+	readonly follow?: TabTargetFollow;
+};
+
+/**
  * Request sent by the side panel when it asks the background to synchronize a visible tab target.
  */
 export type AnalyzeVisibleTabInput = {
 	/** Visible tab target captured before the side panel requested analysis. */
 	readonly target: VisibleTabIdentity;
+	/** Whether the target must still be the active tab. Defaults to `active`. */
+	readonly follow?: TabTargetFollow;
 	/** Whether the background may reuse a stored snapshot for the target origin. */
 	readonly mode: AnalyzeVisibleTabMode;
 	/** Whether the content script should watch the page after a fresh analysis. */
@@ -274,8 +298,11 @@ export type CollectPageSignalsInput = {
 export interface BackgroundApi {
 	/** Return aggregate cache status for the extension. */
 	getAnalysisStatus(): Promise<ExtensionResult<AnalysisStatus>>;
-	/** Return identity for the supplied active browser tab without collecting or analyzing page data. */
-	getVisibleTabIdentity(input: { readonly tabId: number; readonly windowId: number }): Promise<ExtensionResult<VisibleTabIdentity>>;
+	/**
+	 * Return identity for the supplied browser tab without collecting or analyzing page data.
+	 * The tab must be active unless `follow` is `pinned`.
+	 */
+	getVisibleTabIdentity(input: VisibleTabIdentityInput): Promise<ExtensionResult<VisibleTabIdentity>>;
 	/** Synchronize the side-panel-visible tab target and optionally start a content-script observation session. */
 	analyzeVisibleTab(input: AnalyzeVisibleTabInput): Promise<ExtensionResult<AnalyzeVisibleTabOutput>>;
 	/** Re-analyze a known observation session when its queued page facts are dirty. */

@@ -1,1 +1,10 @@
-export { cancel, cancelForRecovery, run, start } from './client';
+export {
+	capacity,
+	cancel,
+	cancelForRecovery,
+	cancelTab,
+	releaseLifecycle,
+	runPartition,
+	start,
+	touchLifecycle,
+} from './client';

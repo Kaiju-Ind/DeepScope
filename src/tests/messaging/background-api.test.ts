@@ -20,7 +20,9 @@ import type { ObservationBatch } from '@/lib/observations';
 import {
 	createMatcherPartitionTasks,
 	createMatcherPipelineResult,
-	MATCHER_OFFSCREEN_CHANNEL,
+	type MatcherJobLifecycleRecord,
+	type MatcherJobExecutorResult,
+	type MatcherJobObserver,
 	type MatcherJobRecord,
 	type MatcherJobRunResult,
 	type MatcherPartitionResult,
@@ -76,6 +78,7 @@ type BackgroundApiHarnessOptions = {
 	collectionPlan?: CollectionPlan;
 	/** Exercise matcher persistence through the production browser adapter. */
 	matcherPersistence?: 'browser';
+	getRuntimeRegistry?: () => Promise<RuntimeTechnologyRegistryArtifact>;
 	updateMatcherJobRecord?: MatcherJobStore['updateMatcherJob'];
 	saveSnapshot?: (snapshot: DetectionSessionSnapshot) => Promise<{
 		readonly accepted: boolean;
@@ -216,6 +219,20 @@ function makeMatcherRunResult(request: RunMatcherJobRequest): MatcherJobRunResul
 		executor: 'offscreen-worker-pool',
 		completedAt: request.analyzedAt ?? request.batch.observedAt,
 	};
+}
+
+/**
+ * Snapshot writes other than streamed partition progress, in write order.
+ *
+ * The matcher scheduler streams each completed partition, so a run publishes
+ * `matching` progress revisions before its `recording` and final revisions. How
+ * many depends on partition count and coalescing; these tests assert the
+ * recording/final lifecycle, not that count.
+ */
+function terminalSnapshots(save: { readonly mock: { readonly calls: readonly (readonly unknown[])[] } }): DetectionSessionSnapshot[] {
+	return save.mock.calls
+		.map(([snapshot]) => snapshot as DetectionSessionSnapshot)
+		.filter((snapshot) => snapshot.matcherProgress?.phase !== 'matching');
 }
 
 function makeDeferred<T = void>(): {
@@ -397,7 +414,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		collectionPlan: input.collectionPlan ?? buildPlan([]),
 		diagnosticCount: 0,
 	};
-	const getRuntimeRegistry = vi.fn(async () => runtimeRegistryArtifact);
+	const getRuntimeRegistry = vi.fn(input.getRuntimeRegistry ?? (async () => runtimeRegistryArtifact));
 
 	const getCachedReplayTrace = vi.fn(async () => input.cachedReplayTrace ?? null);
 	const getCachedReplayTraceHistory = vi.fn(async () =>
@@ -408,7 +425,21 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	const matcherStore = input.matcherPersistence === 'browser'
 		? (await import('@/lib/persistence/browser')).browserMatcherJobStore
 		: undefined;
-	const saveMatcherJobRecord = vi.fn(matcherStore?.saveMatcherJob ?? (async (record: MatcherJobRecord) => record));
+	const saveMatcherJobRecord = vi.fn(matcherStore?.saveMatcherJob ?? (async (record: MatcherJobRecord): Promise<MatcherJobLifecycleRecord> => ({
+		schemaVersion: 2,
+		jobId: record.jobId,
+		tabId: record.tabId,
+		windowId: record.windowId,
+		...(record.sessionId ? { sessionId: record.sessionId } : {}),
+		contextId: record.contextId,
+		status: record.status,
+		mode: record.mode,
+		createdAt: record.createdAt,
+		updatedAt: record.updatedAt,
+		observationCount: record.observationCount,
+		partitionCount: record.partitionCount,
+		completedPartitionCount: record.completedPartitionCount,
+	})));
 	const updateMatcherJobRecord = vi.fn(matcherStore?.updateMatcherJob ?? input.updateMatcherJobRecord ?? (async () => null));
 	const getBestVisibleDetectionSessionSnapshot = vi.fn(async () => input.cachedAnalysis
 		? makeDetectionSnapshotFromAnalysis(input.cachedAnalysis)
@@ -425,7 +456,28 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	vi.doMock('@/lib/diagnostics/logging', () => ({ get: () => ({ debug: timingDebug }) }));
 	const { collectExtensionObservationBatch } = await import('@/lib/collectors/extension-page-collector');
 	const cancelMatcherJob = vi.fn(async () => undefined);
-	const runMatcherJob = vi.fn(async (request: RunMatcherJobRequest) => makeMatcherRunResult(request));
+	const cancelMatcherTab = vi.fn(async () => undefined);
+	const touchMatcherLifecycle = vi.fn(async () => undefined);
+	const releaseMatcherLifecycle = vi.fn(async () => undefined);
+	const runMatcherJob = vi.fn(async (request: RunMatcherJobRequest, _observer?: MatcherJobObserver) => makeMatcherRunResult(request));
+	/**
+	 * Behave like the background scheduler: stream every partition to the observer
+	 * before resolving with the small executor summary. Tests still control the
+	 * matcher outcome through `runMatcherJob`.
+	 */
+	const runScheduledMatcherJob = async (request: RunMatcherJobRequest, observer?: MatcherJobObserver): Promise<MatcherJobExecutorResult> => {
+		const result = await runMatcherJob(request, observer);
+		for (const [index, partition] of result.partitions.entries()) {
+			await observer?.onPartition?.({ partition, completedPartitionCount: index + 1, partitionCount: result.partitions.length });
+		}
+		return {
+			job: result.job,
+			mode: result.mode,
+			partitionCount: result.partitions.length,
+			executor: result.executor,
+			completedAt: result.completedAt,
+		};
+	};
 	const logEvent = vi.fn();
 	const logAnalysisSummary = vi.fn();
 	const setBadge = vi.fn(async () => undefined);
@@ -440,7 +492,10 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		registryProvider: { getRuntimeRegistry },
 		matcher: {
 			cancelJob: cancelMatcherJob,
-			runJob: runMatcherJob,
+			cancelTab: cancelMatcherTab,
+			touchLifecycle: touchMatcherLifecycle,
+			releaseLifecycle: releaseMatcherLifecycle,
+			runJob: runScheduledMatcherJob,
 		},
 		persistence: {
 			getBestVisibleSnapshot: getBestVisibleDetectionSessionSnapshot,
@@ -475,6 +530,9 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 			analyzeSite,
 			executeScript,
 			cancelMatcherJob,
+			cancelMatcherTab,
+			touchMatcherLifecycle,
+			releaseMatcherLifecycle,
 			getCachedReplayTrace,
 			getCachedReplayTraceHistory,
 			getBestVisibleDetectionSessionSnapshot,
@@ -532,6 +590,110 @@ describe('background visible-tab identity', { concurrent: false }, () => {
 		});
 	});
 
+	it('resolves persisted hashed scheduler identity against an inactive exact document', async () => {
+		const harness = await loadBackgroundApiHarness({ tab: { ...HTTP_TAB, active: false } });
+
+		await expect(harness.runtime.resolveScheduledTab({
+			windowId: 3,
+			tabId: 7,
+			frameId: 0,
+			urlHash: createDetectionStorageHash(HTTP_TAB.url!),
+		})).resolves.toMatchObject({
+			ok: true,
+			value: { url: HTTP_TAB.url, tabId: 7 },
+		});
+	});
+
+	it('rejects persisted scheduler identity after navigation changes its URL hash', async () => {
+		const harness = await loadBackgroundApiHarness({ tab: { ...HTTP_TAB, active: false, url: 'https://example.com/other' } });
+
+		await expect(harness.runtime.resolveScheduledTab({
+			windowId: 3,
+			tabId: 7,
+			frameId: 0,
+			urlHash: createDetectionStorageHash(HTTP_TAB.url!),
+		})).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'VALIDATION_ERROR' },
+		});
+	});
+
+	it('keeps public analysis visibility-scoped while scheduler work can continue on the exact inactive document', async () => {
+		const cachedAnalysis = makeAnalysis();
+		const harness = await loadBackgroundApiHarness({
+			tab: { ...HTTP_TAB, active: false },
+			cachedAnalysis,
+		});
+		const input = { target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'none' } as const;
+
+		await expect(harness.api.analyzeVisibleTab(input)).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'NO_ACTIVE_TAB' },
+		});
+		await expect(harness.runtime.analyzeScheduledTab(input)).resolves.toMatchObject({
+			ok: true,
+			value: { analysis: cachedAnalysis, snapshot: { status: 'hit' } },
+		});
+	});
+
+	// A full-page surface pinned to one tab is itself the active tab, so the tab it
+	// inspects is inactive. Only an explicit `pinned` request may target it.
+	it('accepts an inactive target only when the surface is pinned to that tab', async () => {
+		const cachedAnalysis = makeAnalysis();
+		const harness = await loadBackgroundApiHarness({ tab: { ...HTTP_TAB, active: false }, cachedAnalysis });
+
+		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 3 })).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'NO_ACTIVE_TAB' },
+		});
+		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 3, follow: 'pinned' })).resolves.toMatchObject({
+			ok: true,
+			value: { tabId: 7, windowId: 3, urlHash: VISIBLE_TAB_TARGET.urlHash },
+		});
+		await expect(harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'none', follow: 'pinned' }))
+			.resolves.toMatchObject({ ok: true, value: { analysis: cachedAnalysis, snapshot: { status: 'hit' } } });
+	});
+
+	it('still validates window and document identity for a pinned target', async () => {
+		const harness = await loadBackgroundApiHarness({ tab: { ...HTTP_TAB, active: false, url: 'https://example.com/other' } });
+
+		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 9, follow: 'pinned' })).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'NO_ACTIVE_TAB' },
+		});
+		await expect(harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'none', follow: 'pinned' }))
+			.resolves.toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
+	});
+
+	it('keeps a pinned private target out of durable storage', async () => {
+		const harness = await loadBackgroundApiHarness({
+			tab: { ...HTTP_TAB, active: false, incognito: true }, matcherPersistence: 'browser',
+		});
+
+		await expect(harness.api.analyzeVisibleTab({
+			target: { ...VISIBLE_TAB_TARGET, incognito: true }, mode: 'refresh', observe: 'none', follow: 'pinned',
+		})).resolves.toMatchObject({ ok: true });
+		await vi.waitFor(() => expect(harness.mocks.logEvent).toHaveBeenCalledWith('matcher-job-complete', expect.anything()));
+		expect(harness.storage.local.set).not.toHaveBeenCalled();
+		expect(harness.mocks.saveDetectionSessionSnapshot).not.toHaveBeenCalled();
+	});
+
+	it('rejects scheduler work after the tab navigates away from its durable document identity', async () => {
+		const harness = await loadBackgroundApiHarness({
+			tab: { ...HTTP_TAB, active: false, url: 'https://example.com/other' },
+			cachedAnalysis: makeAnalysis(),
+		});
+
+		await expect(harness.runtime.analyzeScheduledTab({
+			target: VISIBLE_TAB_TARGET,
+			mode: 'snapshot-first',
+			observe: 'none',
+		})).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'VALIDATION_ERROR' },
+		});
+	});
+
 	it('rejects a tab that moved out of the side-panel window', async () => {
 		const harness = await loadBackgroundApiHarness({ tab: { ...HTTP_TAB, windowId: 4 } });
 
@@ -574,25 +736,6 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			expect(harness.mocks.logAnalysisSummary).not.toHaveBeenCalled();
 		} else {
 			expect(harness.mocks.logAnalysisSummary).toHaveBeenCalledWith(expect.objectContaining({ hostname: 'example.com' }));
-		}
-	});
-
-	it.each([false, true])('keeps observer deactivation errors within tab privacy: %s', async (incognito) => {
-		const message = 'Observer stop failed for https://failure.example/private/page';
-		const stopObservationSession = vi.fn(async () => { throw new Error(message); });
-		const harness = await loadBackgroundApiHarness({ tab: { ...HTTP_TAB, incognito }, contentApi: { stopObservationSession } });
-		await expect(harness.api.analyzeVisibleTab({
-			target: { ...VISIBLE_TAB_TARGET, incognito }, mode: 'refresh', observe: 'while-panel-open',
-		})).resolves.toMatchObject({ ok: true, value: { sessionTarget: { sessionId: 'session-1' } } });
-		harness.runtime.onTabActivated(8, 3);
-		await vi.waitFor(() => expect(harness.mocks.logEvent).toHaveBeenCalledWith(
-			'observation-deactivated-stop-failed', expect.objectContaining({ code: 'CONTENT_SCRIPT_UNAVAILABLE' }),
-		));
-		const failure = harness.mocks.logEvent.mock.calls.find(([event]) => event === 'observation-deactivated-stop-failed')?.[1];
-		if (incognito) {
-			expect(failure).not.toHaveProperty('message');
-		} else {
-			expect(failure).toHaveProperty('message', message);
 		}
 	});
 
@@ -703,6 +846,41 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 		});
 	});
 
+	it('releases fresh-analysis ownership when registry loading throws', async () => {
+		vi.useFakeTimers();
+		const registryFailure = new Error('registry load failed');
+		const harness = await loadBackgroundApiHarness({
+			tab: HTTP_TAB,
+			getRuntimeRegistry: vi.fn(async () => {
+				throw registryFailure;
+			}),
+			contentApi: {
+				getObservationSessionState: vi.fn(async () => extensionSuccess({
+					status: 'dirty' as const,
+					throttleMs: 1_500,
+					pendingMutationCount: 1,
+					sessionId: 'session-1',
+					expectedUrl: HTTP_TAB.url!,
+				})),
+			},
+		});
+
+		await expect(
+			harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-panel-open' }),
+		).rejects.toBe(registryFailure);
+
+		harness.runtime.handleRuntimeMessage({
+			type: 'kaiju-deepscope.observation-dirty.v1',
+			sessionId: 'session-1',
+			expectedUrl: HTTP_TAB.url!,
+			observedAt: 1_700_000_000_250,
+			pendingMutationCount: 1,
+		}, { tab: { id: HTTP_TAB.id!, incognito: false } });
+		await vi.advanceTimersByTimeAsync(250);
+
+		expect(harness.contentApi.getObservationSessionState).toHaveBeenCalledOnce();
+	});
+
 	it('returns stored snapshot analysis without probing content runtime in snapshot-first mode', async () => {
 		const collectObservationBatch = vi.fn(async () => extensionSuccess({ batch: makeObservationBatch() }));
 		const cachedAnalysis = { ...makeAnalysis(), source: 'cache' as const };
@@ -785,14 +963,10 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 		expect(harness.contentApi.collectObservationBatch).toHaveBeenCalledOnce();
 		expect(harness.mocks.getRuntimeRegistry).toHaveBeenCalledOnce();
 		expect(harness.mocks.analyzeSite).not.toHaveBeenCalled();
-		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledWith(expect.objectContaining({
-			analysis: expect.objectContaining({ source: 'fresh' }),
-		})));
-		expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(2);
-		expect(harness.mocks.saveDetectionSessionSnapshot.mock.calls[0]?.[0]).toMatchObject({
-			matcherProgress: { phase: 'recording' },
-		});
-		expect(harness.mocks.saveDetectionSessionSnapshot.mock.calls[1]?.[0]).not.toHaveProperty('matcherProgress');
+		await vi.waitFor(() => expect(terminalSnapshots(harness.mocks.saveDetectionSessionSnapshot)).toHaveLength(2));
+		const [recording, final] = terminalSnapshots(harness.mocks.saveDetectionSessionSnapshot);
+		expect(recording).toMatchObject({ analysis: { source: 'fresh' }, matcherProgress: { phase: 'recording' } });
+		expect(final).not.toHaveProperty('matcherProgress');
 		expect(harness.mocks.saveReplayTrace).toHaveBeenCalledWith(expect.objectContaining({
 			completedMode: 'event',
 		}));
@@ -901,11 +1075,9 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 
 		await vi.waitFor(() => expect(collectObservationBatch).toHaveBeenCalledTimes(3));
 		await vi.waitFor(() => expect(harness.mocks.saveMatcherJobRecord).toHaveBeenCalledTimes(2));
-		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(4));
+		await vi.waitFor(() => expect(terminalSnapshots(harness.mocks.saveDetectionSessionSnapshot)).toHaveLength(4));
 		expect(harness.mocks.saveReplayTrace).toHaveBeenCalledOnce();
-		const savedSnapshots = harness.mocks.saveDetectionSessionSnapshot.mock.calls.map(([snapshot]) =>
-			snapshot as DetectionSessionSnapshot
-		);
+		const savedSnapshots = terminalSnapshots(harness.mocks.saveDetectionSessionSnapshot);
 		expect(savedSnapshots.map((snapshot) => snapshot.enrichment.status)).toEqual([
 			'pending', 'pending', 'complete', 'complete',
 		]);
@@ -978,6 +1150,51 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 		expect(completedJobIds).not.toContain(canceledJobId);
 	});
 
+	it('supersedes matcher work from an older observation session on the same tab', async () => {
+		const firstDispatchRegistered = makeDeferred();
+		let dispatchingUpdateCount = 0;
+		let observationSession = 0;
+		const updateMatcherJobRecord = vi.fn<MatcherJobStore['updateMatcherJob']>(async (_job, patch) => {
+			if (patch.status === 'dispatching') {
+				dispatchingUpdateCount += 1;
+				if (dispatchingUpdateCount === 1) await firstDispatchRegistered.promise;
+			}
+			return null;
+		});
+		const beginObservationSession = vi.fn(async () => {
+			observationSession += 1;
+			return extensionSuccess({
+				status: 'observing' as const,
+				sessionId: `session-${observationSession}`,
+				expectedUrl: HTTP_TAB.url!,
+				startedAt: 1_700_000_000_000 + observationSession,
+				expiresAt: Number.MAX_SAFE_INTEGER,
+				throttleMs: 1_500,
+				pendingMutationCount: 0,
+			});
+		});
+		const harness = await loadBackgroundApiHarness({
+			tab: HTTP_TAB,
+			contentApi: { beginObservationSession },
+			updateMatcherJobRecord,
+		});
+		const request = { target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-panel-open' } as const;
+
+		await expect(harness.api.analyzeVisibleTab(request)).resolves.toMatchObject({ ok: true });
+		await vi.waitFor(() => expect(updateMatcherJobRecord).toHaveBeenCalledWith(
+			expect.objectContaining({ jobId: expect.any(String) }),
+			expect.objectContaining({ status: 'dispatching' }),
+		));
+
+		await expect(harness.api.analyzeVisibleTab(request)).resolves.toMatchObject({ ok: true });
+		await vi.waitFor(() => expect(updateMatcherJobRecord).toHaveBeenCalledWith(
+			expect.objectContaining({ jobId: expect.any(String) }),
+			expect.objectContaining({ status: 'canceled', reason: 'newer-job' }),
+		));
+
+		firstDispatchRegistered.resolve(undefined);
+	});
+
 	it('skips persistent analysis and replay writes for incognito visible tabs', async () => {
 		const harness = await loadBackgroundApiHarness({
 			tab: { ...HTTP_TAB, incognito: true },
@@ -1045,10 +1262,12 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			expect(harness.mocks.saveReplayTrace).not.toHaveBeenCalled();
 		} else {
 			expect(writes.map(([, value]) => (value as MatcherJobRecord).status))
-				.toEqual(['queued', 'dispatching', 'recording', 'completed']);
+				.toEqual(['queued', 'dispatching', 'streaming', 'recording', 'completed']);
 			expect(records).toEqual([[expect.stringMatching(/^matcher-job:/), expect.objectContaining({
-				expectedUrl: scanUrl, status: 'completed', reason: 'completed',
+				status: 'completed', reason: 'completed',
 			})]]);
+			// Ordinary records keep only the lifecycle projection, never the document URL.
+			expect(JSON.stringify(records)).not.toContain(scanUrl);
 		}
 	});
 
@@ -1111,7 +1330,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 		expect([...harness.storage.values]).toEqual([]);
 	});
 
-	it.each(['navigation', 'tab-deactivated', 'newer-job'] as const)(
+	it.each(['navigation', 'newer-job'] as const)(
 		'releases matcher ownership when detached %s cancellation fails', async (reason) => {
 			const matching = makeDeferred<MatcherJobRunResult>();
 			const harness = await loadBackgroundApiHarness({ tab: { ...HTTP_TAB, incognito: true }, matcherPersistence: 'browser' });
@@ -1125,7 +1344,6 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 
 			try {
 				if (reason === 'navigation') harness.runtime.onTabNavigation(7);
-				else if (reason === 'tab-deactivated') harness.runtime.onTabActivated(8, 3);
 				else await harness.api.analyzeVisibleTab({ target, mode: 'refresh', observe: 'none' });
 
 				await vi.waitFor(() => expect(harness.mocks.logEvent).toHaveBeenCalledWith('matcher-job-cancel-failed', {
@@ -1189,15 +1407,20 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			if (stage === 'tab validation' || stage === 'current job') {
 				mocks.getTab.mockImplementationOnce(() => pause({ ...HTTP_TAB, active: true }));
 			} else if (stage === 'recording status') {
-				harness.storage.local.get.mockImplementationOnce(() => pause({ [jobKey]: harness.storage.values.get(jobKey) }));
+				// The first read belongs to the streamed partition's `streaming` update.
+				harness.storage.local.get
+					.mockImplementationOnce(async () => ({ [jobKey]: harness.storage.values.get(jobKey) }))
+					.mockImplementationOnce(() => pause({ [jobKey]: harness.storage.values.get(jobKey) }));
 			} else if (stage === 'recording revision') {
-				mocks.getLatestDetectionSessionSnapshot.mockImplementationOnce(() => pause(null));
+				// The first read belongs to the streamed partition's progress revision.
+				mocks.getLatestDetectionSessionSnapshot.mockResolvedValueOnce(null)
+					.mockImplementationOnce(() => pause(null));
 			} else if (stage === 'replay save') {
 				mocks.saveReplayTrace.mockImplementationOnce(pause);
 			} else if (stage === 'replay history') {
 				mocks.getCachedReplayTraceHistory.mockImplementationOnce(() => pause([]));
 			} else {
-				mocks.getLatestDetectionSessionSnapshot.mockResolvedValueOnce(null)
+				mocks.getLatestDetectionSessionSnapshot.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
 					.mockImplementationOnce(() => pause(null));
 			}
 
@@ -1217,7 +1440,8 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			expect(mocks.saveReplayTrace).toHaveBeenCalledTimes(replayStarted ? 1 : 0);
 			expect(mocks.getCachedReplayTraceHistory).toHaveBeenCalledTimes(replayStarted && stage !== 'replay save' ? 1 : 0);
 			expect(mocks.setBadge).toHaveBeenCalledTimes(completed || stage === 'final revision' ? 1 : 0);
-			expect(mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(completed ? 2 : replayStarted ? 1 : 0);
+			// One streamed partition revision precedes every stage, then recording and final revisions.
+			expect(mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(1 + (completed ? 2 : replayStarted ? 1 : 0));
 			const event = mocks.logEvent.mock.calls.find(([name, details]) =>
 				name === 'matcher-job-complete' && details.jobId === request.job.jobId
 			);
@@ -1252,22 +1476,10 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 				mocks.getLatestDetectionSessionSnapshot.mockImplementationOnce(() => pause(null));
 			}
 
-			harness.runtime.handleRuntimeMessage(isPartition ? {
-				channel: MATCHER_OFFSCREEN_CHANNEL,
-				type: 'matcher.partition-complete',
-				partition: result.partitions[0],
-				partitionCount: 1,
-				completedPartitionCount: 1,
-			} : {
-				channel: MATCHER_OFFSCREEN_CHANNEL,
-				type: 'matcher.job-state',
-				jobId: request.job.jobId,
-				phase: 'running',
-				queueDepth: 1,
-				queuedAt: 1,
-				startedAt: 2,
-				partitionCount: 1,
-			}, {});
+			const observer = mocks.runMatcherJob.mock.calls[0]![1]!;
+			void (isPartition
+				? observer.onPartition!({ partition: result.partitions[0]!, partitionCount: 1, completedPartitionCount: 1 })
+				: observer.onState!({ jobId: request.job.jobId, phase: 'running', queueDepth: 1, queuedAt: 1, startedAt: 2, partitionCount: 1 }));
 			try {
 				await waiting.promise;
 				if (!staysCurrent) harness.runtime.onTabNavigation(7);
@@ -1284,7 +1496,8 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			await vi.waitFor(() => expect(mocks.logEvent.mock.calls).toEqual(expect.arrayContaining([
 				[expect.stringMatching(/^analysis-queued-persist-(failed|complete)$/), expect.any(Object)],
 			])));
-			expect(mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(staysCurrent ? 3 : 0);
+			// Current owners publish this progress, the streamed final partition, recording and final revisions.
+			expect(mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(staysCurrent ? 4 : 0);
 		},
 	);
 
@@ -1317,7 +1530,8 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 				[expect.stringMatching(/^analysis-queued-persist-(failed|complete)$/), expect.any(Object)],
 			])));
 			expect(mocks.setBadge).not.toHaveBeenCalled();
-			expect(mocks.saveDetectionSessionSnapshot).toHaveBeenCalledOnce();
+			// The first job's partition and recording revisions; never its final one.
+			expect(mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(2);
 			expect(mocks.logEvent).not.toHaveBeenCalledWith('matcher-job-complete', expect.objectContaining({ jobId: first.job.jobId }));
 		} finally {
 			secondMatch.resolve(makeMatcherRunResult(second));
@@ -1326,7 +1540,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			));
 		}
 		expect(mocks.setBadge).toHaveBeenCalledOnce();
-		expect(mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(3);
+		expect(mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(5);
 	});
 
 	it('queues a refresh while returning the latest stored output when one exists', async () => {
@@ -1354,7 +1568,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 
 		expect(harness.mocks.getBestVisibleDetectionSessionSnapshot).toHaveBeenCalledWith(VISIBLE_TAB_TARGET);
 		expect(harness.contentApi.collectObservationBatch).toHaveBeenCalledOnce();
-		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(2));
+		await vi.waitFor(() => expect(terminalSnapshots(harness.mocks.saveDetectionSessionSnapshot)).toHaveLength(2));
 	});
 
 	it('routes fresh analysis through the event pipeline', async () => {
@@ -1381,16 +1595,17 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 
 		expect(harness.contentApi.collectObservationBatch).toHaveBeenCalledOnce();
 		expect(harness.mocks.analyzeSite).not.toHaveBeenCalled();
-		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledWith(expect.objectContaining({
+		// Wait for the terminal revision; partition progress revisions come first.
+		await vi.waitFor(() => expect(harness.mocks.saveReplayTrace).toHaveBeenCalledWith(expect.objectContaining({
+			completedMode: 'event',
+		})));
+		expect(terminalSnapshots(harness.mocks.saveDetectionSessionSnapshot)).toContainEqual(expect.objectContaining({
 			analysis: expect.objectContaining({
 				url: HTTP_TAB.url,
 				hostname: 'example.com',
 				source: 'fresh',
 				results: [],
 			}),
-		})));
-		expect(harness.mocks.saveReplayTrace).toHaveBeenCalledWith(expect.objectContaining({
-			completedMode: 'event',
 		}));
 		expect(harness.contentApi.beginObservationSession).not.toHaveBeenCalled();
 	});
@@ -1582,7 +1797,17 @@ describe('background observation session baseline', { concurrent: false }, () =>
 		expect(harness.contentApi.flushObservationBatch).toHaveBeenCalledOnce();
 		expect(harness.contentApi.beginObservationSession).toHaveBeenCalledOnce();
 		expect(harness.mocks.getRuntimeRegistry).toHaveBeenCalledTimes(2);
-		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(4));
+		// The refresh matcher runs over the merged batch. It may supersede the initial
+		// job before that job's final revision, so assert on the refresh's own output.
+		await vi.waitFor(() => expect(harness.mocks.runMatcherJob).toHaveBeenCalledTimes(2));
+		expect(harness.mocks.runMatcherJob.mock.calls[1]![0].batch.observations).toContainEqual(
+			expect.objectContaining({ value: 'https://example.com/late.js' }),
+		);
+		const refreshJobId = harness.mocks.runMatcherJob.mock.calls[1]![0].job.jobId;
+		await vi.waitFor(() => expect(harness.mocks.logEvent).toHaveBeenCalledWith(
+			'matcher-job-complete', expect.objectContaining({ jobId: refreshJobId }),
+		));
+		expect(terminalSnapshots(harness.mocks.saveDetectionSessionSnapshot).at(-1)).not.toHaveProperty('matcherProgress');
 		expect(harness.mocks.analyzeSite).not.toHaveBeenCalled();
 	});
 
@@ -1637,7 +1862,7 @@ describe('background observation session baseline', { concurrent: false }, () =>
 		expect(harness.contentApi.collectObservationBatch).toHaveBeenCalledOnce();
 		expect(harness.contentApi.flushObservationBatch).toHaveBeenCalledOnce();
 		expect(harness.contentApi.beginObservationSession).not.toHaveBeenCalled();
-		await vi.waitFor(() => expect(harness.mocks.saveDetectionSessionSnapshot).toHaveBeenCalledTimes(2));
+		await vi.waitFor(() => expect(terminalSnapshots(harness.mocks.saveDetectionSessionSnapshot)).toHaveLength(2));
 	});
 
 	it('rejects observation refresh when the session belongs to a previous page path', async () => {
@@ -1680,7 +1905,9 @@ describe('background observation session baseline', { concurrent: false }, () =>
 		expect(harness.mocks.saveDetectionSessionSnapshot).not.toHaveBeenCalled();
 	});
 
-	it('does not refresh a live observation after its browser tab becomes inactive', async () => {
+	// Owner decision: activation is a priority signal, not cancellation. A live
+	// observation in a background tab keeps refreshing its own document.
+	it('keeps refreshing a live observation after its browser tab becomes inactive', async () => {
 		const harness = await loadBackgroundApiHarness({
 			tab: { ...HTTP_TAB, active: false },
 			contentApi: {
@@ -1694,16 +1921,10 @@ describe('background observation session baseline', { concurrent: false }, () =>
 			},
 		});
 
-		await expect(harness.api.refreshObservationSession(OBSERVATION_TARGET)).resolves.toMatchObject({
-			ok: false,
-			error: {
-				code: 'OBSERVATION_SESSION_UNAVAILABLE',
-			},
-		});
+		await expect(harness.api.refreshObservationSession(OBSERVATION_TARGET)).resolves.toMatchObject({ ok: true });
 
-		expect(harness.contentApi.getObservationSessionState).not.toHaveBeenCalled();
-		expect(harness.contentApi.flushObservationBatch).not.toHaveBeenCalled();
-		expect(harness.mocks.saveDetectionSessionSnapshot).not.toHaveBeenCalled();
+		expect(harness.contentApi.getObservationSessionState).toHaveBeenCalled();
+		expect(harness.contentApi.flushObservationBatch).toHaveBeenCalled();
 	});
 
 	it('forwards stop requests to the targeted content script session', async () => {

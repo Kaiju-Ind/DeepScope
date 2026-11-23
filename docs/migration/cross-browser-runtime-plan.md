@@ -154,7 +154,7 @@ All runtime string-keyed maps use `src/utils/dictionary.ts`. See
 | --- | --- | --- |
 | 0 | Merge `main` into the PR #5 stack; split Vitest into runtime and UI projects | done |
 | 1 | Prototype-safe page keys and regression guard | done |
-| 2 | Port the perf scheduler, worker pool and build-routed shards; fix review findings | next |
+| 2 | Port the perf scheduler, worker pool and build-routed shards; fix review findings | done (branch `port/perf-scheduler`) |
 | 3 | Local executor, per-browser background and manifests (Firefox, Safari) | planned |
 | 4 | Panel surfaces: side panel, sidebar, popup, full page | planned |
 | 5 | Scan-job lifecycle, badge owner, scheduling settings | planned |
@@ -180,6 +180,18 @@ All runtime string-keyed maps use `src/utils/dictionary.ts`. See
 - Keep the rule-performance budget gate or record why it was removed.
 - Benchmarks stay on Vitest 5 `bench` with native file discovery.
 - Drop `docs/implementation/deepscope-ui-diagnostics-changes.txt`.
+
+Milestone 2 notes:
+
+- PR #5's autostart controller was kept as is (it already coalesces one active
+  and one pending scan per tab). The perf branch's controller, and with it the
+  shadowing `generation` parameter, was not brought over.
+- The perf branch's `src/benchmarks/registry-json-hydration.bench.ts` deletion
+  was not taken; the APIs it measures still exist.
+- Panel requests may set `follow: 'pinned'` to target an inactive tab (for the
+  full-page surface). The default still requires the active tab.
+- `validate:chrome-artifact` is a separate optional script; it needs a local
+  Chromium and is not part of `build:chrome` or `check:release`.
 
 ## Dependency status
 

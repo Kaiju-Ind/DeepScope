@@ -1,8 +1,12 @@
 import type { CompiledTechnologyRegistryArtifact } from './compiler';
 import { compileMatcherRegistry } from './matcher-artifact';
-import { createObservationKindTechnologyRegistry } from './packaged-artifacts';
+import {
+	countTechnologyPatterns,
+	countTechnologyRules,
+	createObservationKindTechnologyRegistry,
+} from './packaged-artifacts';
 import { createRuntimeTechnologyRegistryArtifact } from './runtime-artifact';
-import type { TechnologyRegistryProvider } from '../detection/registry-provider';
+import type { BuildTechnologyRegistryProvider } from '../detection/registry-provider';
 
 /**
  * Runtime provider backed by an already-loaded build-generated registry artifact.
@@ -13,8 +17,9 @@ import type { TechnologyRegistryProvider } from '../detection/registry-provider'
  */
 export function createPrecompiledTechnologyRegistryProvider(
 	artifact: CompiledTechnologyRegistryArtifact,
-): TechnologyRegistryProvider {
+): BuildTechnologyRegistryProvider {
 	const runtime = createRuntimeTechnologyRegistryArtifact(artifact);
+	const matcherByKind = new Map<string, ReturnType<typeof compileMatcherRegistry>>();
 	return {
 		async listTechnologies() {
 			return artifact.technologies;
@@ -37,7 +42,25 @@ export function createPrecompiledTechnologyRegistryProvider(
 		},
 
 		async getCompiledObservationKindRegistry(kind) {
-			return compileMatcherRegistry(createObservationKindTechnologyRegistry(artifact.technologies, kind));
+			let compiled = matcherByKind.get(kind);
+			if (!compiled) {
+				compiled = compileMatcherRegistry(createObservationKindTechnologyRegistry(artifact.technologies, kind));
+				matcherByKind.set(kind, compiled);
+			}
+			return compiled;
+		},
+
+		getCacheState(kind) {
+			const compiled = matcherByKind.get(kind);
+			return {
+				cached: compiled !== undefined,
+				retainedBytes: 0,
+				retainedShardCount: matcherByKind.size,
+				budgetBytes: Number.POSITIVE_INFINITY,
+				shardRetainedBytes: 0,
+				shardPatternCount: compiled ? countTechnologyPatterns(compiled.technologies) : 0,
+				shardRuleCount: compiled ? countTechnologyRules(compiled.technologies) : 0,
+			};
 		},
 	};
 }

@@ -6,12 +6,13 @@ import { createMockBrowserStorageArea } from '../support/mock-browser';
 
 /** Exercise both recovery and the real offscreen client with only browser I/O replaced. */
 async function recoveryFixture(getContexts?: () => Promise<unknown>) {
-	const record: MatcherJobRecord = {
+	// Rows from builds before private jobs stayed in memory carry no window or context id.
+	const record = {
 		jobId: 'interrupted-private-job', tabId: 7, incognito: true, status: 'running', mode: 'complete',
 		expectedUrl: 'https://fixture.invalid/private',
 		target: { url: 'https://fixture.invalid/private', hostname: 'fixture.invalid' },
 		createdAt: 1, updatedAt: 2, observationCount: 3, partitionCount: 1, completedPartitionCount: 0,
-	};
+	} satisfies Omit<MatcherJobRecord, 'windowId' | 'contextId'>;
 	const key = getMatcherJobCacheKey(record.jobId);
 	const storage = createMockBrowserStorageArea({ [key]: record });
 	const sendMessage = vi.fn();
@@ -21,7 +22,7 @@ async function recoveryFixture(getContexts?: () => Promise<unknown>) {
 		storage: { local: storage.local },
 	} }));
 	const { reconcileInterruptedMatcherJobs } = await import('@/lib/background/reconcile-matcher-jobs');
-	return { record, key, storage, sendMessage, log, reconcile: () => reconcileInterruptedMatcherJobs(log) };
+	return { record, key, storage, sendMessage, log, reconcile: () => reconcileInterruptedMatcherJobs('context-current', log) };
 }
 
 afterEach(() => { vi.doUnmock('wxt/browser'); vi.resetModules(); });

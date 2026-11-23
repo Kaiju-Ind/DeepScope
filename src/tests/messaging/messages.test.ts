@@ -52,6 +52,55 @@ describe('messaging contract helpers', () => {
 		}
 	});
 
+	it('aborts a cancelable operation when its deadline expires', async () => {
+		vi.useFakeTimers();
+		try {
+			let abortedWith: unknown;
+			const operation = withTimeout(
+				(signal) => new Promise<string>((_resolve, reject) => {
+					signal.addEventListener('abort', () => {
+						abortedWith = signal.reason;
+						reject(signal.reason);
+					}, { once: true });
+				}),
+				100,
+				'Cancelable operation timed out.',
+			);
+			const assertion = expect(operation).rejects.toMatchObject({
+				name: 'RpcTimeoutError',
+				message: 'Cancelable operation timed out.',
+			});
+
+			await vi.advanceTimersByTimeAsync(100);
+			await assertion;
+			expect(abortedWith).toMatchObject({ name: 'RpcTimeoutError' });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('relays parent cancellation into a cancelable operation', async () => {
+		const controller = new AbortController();
+		let childSignal: AbortSignal | undefined;
+		const operation = withTimeout(
+			(signal) => {
+				childSignal = signal;
+				return new Promise<string>((_resolve, reject) => {
+					signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+				});
+			},
+			1_000,
+			'Operation timed out.',
+			{ signal: controller.signal },
+		);
+		const reason = new DOMException('Tab closed.', 'AbortError');
+		controller.abort(reason);
+
+		await expect(operation).rejects.toBe(reason);
+		expect(childSignal?.aborted).toBe(true);
+		expect(childSignal?.reason).toBe(reason);
+	});
+
 	it('maps content RPC failures into typed unavailable errors', () => {
 		expect(contentScriptFailure(new RpcTimeoutError('Timed out'))).toMatchObject({
 			ok: false,

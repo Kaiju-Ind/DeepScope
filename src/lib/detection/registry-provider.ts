@@ -2,88 +2,101 @@ import { compileValidatedTechnologyRegistry, type CompiledTechnologyRegistryArti
 import { compileMatcherRegistry, type CompiledMatcherRegistryArtifact } from '../registry/matcher-artifact';
 import { createObservationKindTechnologyRegistry } from '../registry/packaged-artifacts';
 import { createRuntimeTechnologyRegistryArtifact, type RuntimeTechnologyRegistryArtifact } from '../registry/runtime-artifact';
-import { createPackagedRuntimeTechnologyRegistryProvider } from '../registry/packaged-provider';
 import type { TechnologyDefinition } from './types';
 import type { NormalizedObservationKind } from '../observations';
 
-/**
- * Read-only source of technology definitions for detector calls and collection planning.
- *
- * Registry access is asynchronous because the production extension loads the
- * large generated registry from packaged JSON only when analysis needs it. Tests
- * and small tools can still use the static provider to avoid browser fetches.
- */
-export interface TechnologyRegistryProvider {
-	/** Return the enrichment technology definitions in detector order. */
-	listTechnologies(): Promise<readonly TechnologyDefinition[]>;
-	/** Return the cheap first-pass technology definitions in detector order. */
-	listBootstrapTechnologies(): Promise<readonly TechnologyDefinition[]>;
-	/**
-	 * Return the compiled artifact for the active registry.
-	 *
-	 * The provider owns caching so callers do not rebuild matcher indexes, graphs,
-	 * and collection plans during every visible-tab analysis.
-	 */
-	getCompiledRegistry(): Promise<CompiledTechnologyRegistryArtifact>;
-	/** Return the rule-free product used by background collection and finalization. */
+/** Rule-free registry capability allowed in the background service worker. */
+export interface RuntimeTechnologyRegistryProvider {
+	/** Return collection planning, relationships, and lightweight technology profiles without matcher rules. */
 	getRuntimeRegistry(): Promise<RuntimeTechnologyRegistryArtifact>;
-	/** Return the compiled bootstrap artifact kept for compatibility and benchmark baselines. */
-	getCompiledBootstrapRegistry(): Promise<CompiledTechnologyRegistryArtifact>;
-	/** Return a compiled matcher shard for one normalized observation kind. */
+}
+
+/** One matcher worker's narrow shard-loading capability. */
+export interface MatcherTechnologyRegistryProvider {
+	/** Return the build-routed matcher shard for one normalized observation kind. */
 	getCompiledObservationKindRegistry(kind: NormalizedObservationKind): Promise<CompiledMatcherRegistryArtifact>;
+	/** Report whether a kind is warm and the current weighted cache cost without exposing cache internals. */
+	getCacheState(kind: NormalizedObservationKind): MatcherRegistryCacheState;
+}
+
+/** Lightweight cache telemetry used for performance diagnostics, never matching semantics. */
+export interface MatcherRegistryCacheState {
+	readonly cached: boolean;
+	/** Total encoded bytes retained by all completed worker-local shards. */
+	readonly retainedBytes: number;
+	readonly retainedShardCount: number;
+	readonly budgetBytes: number;
+	/** Encoded bytes retained by the requested shard when it is loaded. */
+	readonly shardRetainedBytes: number;
+	readonly shardPatternCount: number;
+	readonly shardRuleCount: number;
 }
 
 /**
- * Build a provider around an existing technology list.
+ * Complete registry capability reserved for build tooling, tests, and benchmarks.
  *
- * Tests and future build steps can use this to pass a tiny registry without
- * reading packaged assets or importing the generated bundled rule tree.
+ * Browser production modules intentionally accept the focused runtime or matcher
+ * interfaces above. That makes it impossible for the background to regain an API
+ * that can materialize the complete executable registry by accident.
  */
+export interface BuildTechnologyRegistryProvider extends RuntimeTechnologyRegistryProvider, MatcherTechnologyRegistryProvider {
+	readonly listTechnologies: () => Promise<readonly TechnologyDefinition[]>;
+	readonly listBootstrapTechnologies: () => Promise<readonly TechnologyDefinition[]>;
+	readonly getCompiledRegistry: () => Promise<CompiledTechnologyRegistryArtifact>;
+	readonly getCompiledBootstrapRegistry: () => Promise<CompiledTechnologyRegistryArtifact>;
+}
+
+/** Build a complete provider around an in-memory registry for tests and build-only tools. */
 export function createStaticTechnologyRegistryProvider(
 	registry: readonly TechnologyDefinition[],
-): TechnologyRegistryProvider {
+): BuildTechnologyRegistryProvider {
 	let compiledRegistry: CompiledTechnologyRegistryArtifact | undefined;
 	let runtimeRegistry: RuntimeTechnologyRegistryArtifact | undefined;
+	const matcherByKind = new Map<NormalizedObservationKind, CompiledMatcherRegistryArtifact>();
+
+	const getCompiled = (): CompiledTechnologyRegistryArtifact => {
+		compiledRegistry ??= compileValidatedTechnologyRegistry({
+			technologies: registry,
+			sourceKind: 'typescript-definition',
+		});
+		return compiledRegistry;
+	};
 
 	return {
 		async listTechnologies() {
 			return registry;
 		},
-
 		async listBootstrapTechnologies() {
 			return registry;
 		},
-
 		async getCompiledRegistry() {
-			compiledRegistry ??= compileValidatedTechnologyRegistry({
-				technologies: registry,
-				sourceKind: 'typescript-definition',
-			});
-			return compiledRegistry;
+			return getCompiled();
 		},
-
 		async getRuntimeRegistry() {
-			compiledRegistry ??= compileValidatedTechnologyRegistry({
-				technologies: registry,
-				sourceKind: 'typescript-definition',
-			});
-			runtimeRegistry ??= createRuntimeTechnologyRegistryArtifact(compiledRegistry);
+			runtimeRegistry ??= createRuntimeTechnologyRegistryArtifact(getCompiled());
 			return runtimeRegistry;
 		},
-
 		async getCompiledBootstrapRegistry() {
-			compiledRegistry ??= compileValidatedTechnologyRegistry({
-				technologies: registry,
-				sourceKind: 'typescript-definition',
-			});
-			return compiledRegistry;
+			return getCompiled();
 		},
-
 		async getCompiledObservationKindRegistry(kind) {
-			return compileMatcherRegistry(createObservationKindTechnologyRegistry(registry, kind));
+			let artifact = matcherByKind.get(kind);
+			if (!artifact) {
+				artifact = compileMatcherRegistry(createObservationKindTechnologyRegistry(registry, kind));
+				matcherByKind.set(kind, artifact);
+			}
+			return artifact;
+		},
+		getCacheState(kind) {
+			return {
+				cached: matcherByKind.has(kind),
+				retainedBytes: 0,
+				retainedShardCount: matcherByKind.size,
+				budgetBytes: Number.POSITIVE_INFINITY,
+				shardRetainedBytes: 0,
+				shardPatternCount: 0,
+				shardRuleCount: 0,
+			};
 		},
 	};
 }
-
-/** Rule-free packaged provider owned by the background service worker. */
-export const bundledRuntimeTechnologyRegistryProvider = createPackagedRuntimeTechnologyRegistryProvider();

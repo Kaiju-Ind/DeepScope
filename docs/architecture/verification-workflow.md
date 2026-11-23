@@ -18,6 +18,7 @@ The package scripts finish at WXT output generation. Runtime checks of that outp
 | `pnpm build:chrome` | Runs TypeScript, then builds through WXT for Chrome. | Side-panel, WXT, manifest, content, background, or build-sensitive changes. | Both stages exit successfully and `.output/chrome-mv3` is produced. |
 | `pnpm check:release` | Runs TypeScript, the full Vitest suite, then a Chrome WXT build. | Every release candidate. | All three stages exit successfully. |
 | `pnpm zip:chrome` | Runs TypeScript and Vitest, then creates the Chrome zip through WXT. | Release packaging. | All three stages exit successfully and the Chrome package is created. |
+| `pnpm validate:chrome-artifact` | Optional. Checks an existing `.output/chrome-mv3` build: registry/HTML surfaces statically, then loads the side-panel and options pages in a local Chromium. Not part of `build:chrome` or `check:release`. | Build-sensitive changes when a Chromium binary is available (`CHROME_BIN`). | Every check in its JSON report passes, including the browser check; a missing browser is a failure, not a pass. |
 
 When a command cannot be run or cannot complete, record the exact reason. Do not describe a partial command as passed.
 
@@ -61,7 +62,7 @@ Run this checklist after changes that touch side panel, background, content, lif
 11. Open Technologies, a technology detail, History, Diagnostics, and Settings. Confirm route changes do not restart analysis or replace the visible-tab state owner.
 12. Open Diagnostics, copy the report, and confirm it contains build identity, current extension contexts, recent context runs, matcher jobs, and recent warnings/failures without raw page bodies or cookie/header values.
 13. Use **Open full page** from Diagnostics. Confirm the options page opens in its own tab and works without the side-panel detector state.
-14. Interrupt or reload the background service worker while matcher work is non-terminal. Reopen Diagnostics and confirm the orphaned job is marked `context-interrupted` with its previous status retained.
+14. Interrupt or reload the background service worker while matcher work is non-terminal. Reopen Diagnostics and confirm the orphaned lifecycle record is marked `context-interrupted` with its previous status kept only as diagnostic history. If the exact tab and document still exist, confirm DeepScope recollects it as new recovery work rather than resuming the lost in-memory batch.
 15. Exercise a page with many or repeatedly changing stylesheets. Confirm source collection stays within aggregate script/stylesheet limits and does not surface `PAYLOAD_TOO_LARGE` from cumulative observation snapshots.
 16. Switch tabs while analysis is in flight, including onto a newly loading HTTP/HTTPS tab. Confirm the previous result cannot win after the active target changes.
 17. Open every filter menu in Technologies, History, and Diagnostics. Repeatedly search, filter, sort, scroll, select records, and switch away from and back to Timeline. Confirm no Kobalte context errors are logged, no `Cannot read properties of undefined (reading 'index')` failure occurs, no TanStack `data-index` measurement warning appears, and extension HTML emits no unused/cross-world preload warnings.

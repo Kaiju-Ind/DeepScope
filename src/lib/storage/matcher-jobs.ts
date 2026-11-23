@@ -1,144 +1,175 @@
-import type { MatcherJobRecord } from '../matcher';
+import type { MatcherJobLifecycleRecord, MatcherJobRecord } from '../matcher';
 
 import { browser } from 'wxt/browser';
 
 import { getMatcherJobCacheKey, MATCHER_JOB_CACHE_PREFIX } from './contracts';
+import * as dictionary from '@/utils/dictionary';
 
 const MAX_MATCHER_JOB_RECORDS = 80;
 const MAX_TERMINAL_JOB_AGE_MS = 1000 * 60 * 60 * 24 * 7;
+const MATCHER_JOB_LIFECYCLE_SCHEMA_VERSION = 2 as const;
 
 /**
- * Save ordinary matcher jobs for restart recovery and diagnostics.
+ * Window id recorded for legacy rows written before jobs carried one.
  *
- * Private jobs remain owned by the background's in-memory execution context.
- * Return their record without accessing local storage. Startup owns removal of
- * records left by earlier extension versions.
+ * Matches `chrome.windows.WINDOW_ID_NONE`. Without this fallback those rows would
+ * fail the record guard and never be migrated, including legacy private rows
+ * that startup must delete.
  */
-export async function saveMatcherJobRecord(record: MatcherJobRecord): Promise<MatcherJobRecord> {
-	if (record.incognito) {
-		return record;
-	}
+const UNKNOWN_WINDOW_ID = -1;
 
-	const key = getMatcherJobCacheKey(record.jobId);
-	await browser.storage.local.set({ [key]: record });
-	if (record.status === 'queued') void trimMatcherJobRecords().catch(() => undefined);
-	return record;
+type MatcherJobLifecyclePatch = Partial<Omit<
+	MatcherJobLifecycleRecord,
+	'schemaVersion' | 'jobId' | 'tabId' | 'windowId' | 'contextId' | 'createdAt'
+>>;
+
+/**
+ * Persist the privacy-safe lifecycle projection for one matcher job.
+ *
+ * Raw document URLs and observation targets belong to transient matcher work and
+ * are deliberately omitted. Incognito matcher jobs never enter durable storage.
+ */
+export async function saveMatcherJobRecord(
+	record: MatcherJobRecord | MatcherJobLifecycleRecord,
+): Promise<MatcherJobLifecycleRecord> {
+	const lifecycle = toMatcherJobLifecycleRecord(record);
+	if ('incognito' in record && record.incognito === true) return lifecycle;
+
+	await browser.storage.local.set({ [getMatcherJobCacheKey(record.jobId)]: lifecycle });
+	if (lifecycle.status === 'queued') void trimMatcherJobRecords().catch(() => undefined);
+	return lifecycle;
 }
 
-/** Read an ordinary job by ID without exposing an older private record. */
-export async function getMatcherJobRecord(jobId: string): Promise<MatcherJobRecord | null> {
+/** Read one privacy-safe matcher lifecycle record by id. */
+export async function getMatcherJobRecord(jobId: string): Promise<MatcherJobLifecycleRecord | null> {
 	const key = getMatcherJobCacheKey(jobId);
 	const stored = await browser.storage.local.get(key);
 	const value = stored[key];
-	return isMatcherJobRecord(value) && !value.incognito ? value : null;
+	if (!isMatcherJobRecordSource(value) || isIncognitoLegacyRecord(value)) return null;
+	return toMatcherJobLifecycleRecord(value);
 }
 
-/** Update a durable job; private or missing jobs have no stored state to update. */
+/**
+ * Merge lifecycle changes into an existing ordinary matcher record.
+ *
+ * Private jobs were never stored, so their updates return null without touching
+ * extension storage at all (not even a read).
+ */
 export async function updateMatcherJobRecord(
 	job: Pick<MatcherJobRecord, 'jobId' | 'incognito'>,
-	patch: Partial<Omit<MatcherJobRecord, 'jobId' | 'tabId' | 'expectedUrl' | 'target' | 'createdAt' | 'incognito'>>,
-): Promise<MatcherJobRecord | null> {
+	patch: MatcherJobLifecyclePatch,
+): Promise<MatcherJobLifecycleRecord | null> {
 	if (job.incognito) return null;
 	const existing = await getMatcherJobRecord(job.jobId);
-	if (!existing) {
-		return null;
-	}
+	if (!existing) return null;
 
 	const next = Object.assign({}, existing, patch, { updatedAt: Date.now() });
 	await saveMatcherJobRecord(next);
 	return next;
 }
 
-/** Runtime guard for records read from extension storage. */
-function isMatcherJobRecord(value: unknown): value is MatcherJobRecord {
-	return Boolean(
-		value &&
-		typeof value === 'object' &&
-		'jobId' in value &&
-		typeof value.jobId === 'string' &&
-		'tabId' in value &&
-		typeof value.tabId === 'number' &&
-		'status' in value &&
-		typeof value.status === 'string' &&
-		'target' in value &&
-		value.target &&
-		typeof value.target === 'object',
-	);
-}
-
-/** Return whether a local-storage entry contains one durable matcher job. */
-function isMatcherJobRecordEntry(entry: [string, unknown]): entry is [string, MatcherJobRecord] {
-	return entry[0].startsWith(MATCHER_JOB_CACHE_PREFIX) && isMatcherJobRecord(entry[1]);
-}
-
-/** Read the durable records that match the existing matcher storage format. */
-async function getStoredMatcherJobEntries(): Promise<[string, MatcherJobRecord][]> {
+/** Read all matcher lifecycle records, newest first, without exposing legacy raw document fields. */
+export async function listMatcherJobRecords(): Promise<MatcherJobLifecycleRecord[]> {
 	const all = await browser.storage.local.get(null);
-	return Object.entries(all).filter(isMatcherJobRecordEntry);
-}
-
-/** Read ordinary durable jobs newest first. Only startup migrates old private rows. */
-export async function listMatcherJobRecords(): Promise<MatcherJobRecord[]> {
-	return ordinaryMatcherJobRecords(await getStoredMatcherJobEntries());
-}
-
-/**
- * Recover ordinary jobs while retiring records written by the old private policy.
- *
- * Startup can cancel active offscreen work before deleting its last durable ID.
- * Only the ID reaches the cancel callback. Failed cleanup keeps its row available
- * for another startup attempt without including it in ordinary recovery.
- */
-export async function listMatcherJobRecordsForRecovery(
-	cancelLegacyPrivateJob: (jobId: string) => Promise<void>,
-	reportMigrationFailure: (stage: 'cancel' | 'remove', count: number) => void,
-): Promise<MatcherJobRecord[]> {
-	const entries = await getStoredMatcherJobEntries();
-	const keysToRemove: string[] = [];
-	let failedCancellationCount = 0;
-	for (const [key, record] of entries) {
-		if (!record.incognito) continue;
-		if (isMatcherJobActive(record)) {
-			try {
-				await cancelLegacyPrivateJob(record.jobId);
-			} catch {
-				failedCancellationCount += 1;
-				continue;
-			}
-		}
-		keysToRemove.push(key);
-	}
-
-	if (failedCancellationCount) reportMigrationFailure('cancel', failedCancellationCount);
-	if (keysToRemove.length) {
-		try {
-			await browser.storage.local.remove(keysToRemove);
-		} catch {
-			reportMigrationFailure('remove', keysToRemove.length);
-		}
-	}
-	return ordinaryMatcherJobRecords(entries);
-}
-
-/** Keep private rows out of every ordinary listing, including after cleanup fails. */
-function ordinaryMatcherJobRecords(entries: [string, MatcherJobRecord][]): MatcherJobRecord[] {
-	return entries
-		.filter(([, value]) => !value.incognito)
-		.map(([, value]) => value)
+	return Object.entries(all)
+		.filter(isMatcherJobRecordEntry)
+		.filter(([, value]) => !isIncognitoLegacyRecord(value))
+		.map(([, value]) => toMatcherJobLifecycleRecord(value))
 		.sort((left, right) => right.updatedAt - left.updatedAt);
 }
 
-/** Return whether a durable job still represents unfinished matcher work. */
-export function isMatcherJobActive(record: MatcherJobRecord): boolean {
-	return record.status === 'queued' || record.status === 'dispatching' || record.status === 'running' || record.status === 'streaming' || record.status === 'recording';
+/** Return whether a durable diagnostic record still describes unfinished matcher work. */
+export function isMatcherJobActive(record: MatcherJobLifecycleRecord): boolean {
+	return record.status === 'queued'
+		|| record.status === 'dispatching'
+		|| record.status === 'running'
+		|| record.status === 'streaming'
+		|| record.status === 'recording';
 }
 
+/** Hooks that let startup retire private rows written by builds before private jobs stayed in memory. */
+export interface LegacyPrivateMigration {
+	/**
+	 * Confirm that an active legacy private job no longer runs. Resolve only after the
+	 * host acknowledged this id or the host document is confirmed gone; reject otherwise.
+	 */
+	readonly cancel: (jobId: string) => Promise<void>;
+	/** Report rows kept for another startup attempt. Receives counts only, never record fields. */
+	readonly reportFailure: (stage: 'cancel' | 'remove', count: number) => void;
+}
 
-/** Remove old terminal matcher records without deleting work that can still be reconciled. */
+/**
+ * Sanitize historical matcher records and classify work orphaned by a previous background context.
+ *
+ * The execution scheduler owns recovery. This store is diagnostic observation only: an orphaned
+ * lifecycle record becomes terminal `context-interrupted`, while scheduler recovery recollects the
+ * still-open document as a new job. Legacy raw URL/target fields are removed during the same pass.
+ *
+ * Legacy private rows are removed, never rewritten. An active one is removed only after
+ * `migration.cancel` confirms it stopped; an unconfirmed row stays untouched for the next
+ * startup and is excluded from every ordinary listing meanwhile.
+ */
+export async function reconcileMatcherJobRecords(
+	currentContextId: string,
+	migration?: LegacyPrivateMigration,
+): Promise<MatcherJobLifecycleRecord[]> {
+	const all = await browser.storage.local.get(null);
+	const entries = Object.entries(all).filter(isMatcherJobRecordEntry);
+	const updates = dictionary.create<MatcherJobLifecycleRecord>();
+	const remove: string[] = [];
+	const interrupted: MatcherJobLifecycleRecord[] = [];
+	const now = Date.now();
+	let failedCancellationCount = 0;
+
+	for (const [key, source] of entries) {
+		if (isIncognitoLegacyRecord(source)) {
+			if (isMatcherJobActive(toMatcherJobLifecycleRecord(source)) && migration) {
+				try {
+					await migration.cancel(source.jobId);
+				} catch {
+					failedCancellationCount += 1;
+					continue;
+				}
+			}
+			remove.push(key);
+			continue;
+		}
+
+		let lifecycle = toMatcherJobLifecycleRecord(source);
+		if (isMatcherJobActive(lifecycle) && lifecycle.contextId !== currentContextId) {
+			lifecycle = {
+				...lifecycle,
+				status: 'failed',
+				reason: 'context-interrupted',
+				interruptedStatus: lifecycle.status,
+				interruptedAt: now,
+				updatedAt: now,
+			};
+			interrupted.push(lifecycle);
+		}
+		updates[key] = lifecycle;
+	}
+
+	if (failedCancellationCount) migration?.reportFailure('cancel', failedCancellationCount);
+	if (Object.keys(updates).length) await browser.storage.local.set(updates);
+	if (remove.length) {
+		try {
+			await browser.storage.local.remove(remove);
+		} catch {
+			migration?.reportFailure('remove', remove.length);
+		}
+	}
+	await trimMatcherJobRecords();
+	return interrupted;
+}
+
+/** Remove old terminal matcher records without deleting current-context active work. */
 async function trimMatcherJobRecords(): Promise<void> {
-	const entries = (await getStoredMatcherJobEntries())
-		.filter(([, value]) => !value.incognito)
-		.map(([key, value]) => ({ key, value }))
+	const all = await browser.storage.local.get(null);
+	const entries = Object.entries(all)
+		.filter(isMatcherJobRecordEntry)
+		.filter(([, value]) => !isIncognitoLegacyRecord(value))
+		.map(([key, value]) => ({ key, value: toMatcherJobLifecycleRecord(value) }))
 		.sort((left, right) => right.value.updatedAt - left.value.updatedAt);
 	const active = entries.filter(({ value }) => isMatcherJobActive(value));
 	const terminal = entries.filter(({ value }) => !isMatcherJobActive(value));
@@ -148,4 +179,79 @@ async function trimMatcherJobRecords(): Promise<void> {
 		.filter(({ value }, index) => index >= keepTerminalCount || now - value.updatedAt > MAX_TERMINAL_JOB_AGE_MS)
 		.map(({ key }) => key);
 	if (remove.length) await browser.storage.local.remove(remove);
+}
+
+/** Convert a runtime or legacy matcher record into the only shape allowed in durable diagnostics. */
+function toMatcherJobLifecycleRecord(source: MatcherJobRecord | MatcherJobLifecycleRecord | Record<string, unknown>): MatcherJobLifecycleRecord {
+	const record = source as MatcherJobRecord & MatcherJobLifecycleRecord;
+	return {
+		schemaVersion: MATCHER_JOB_LIFECYCLE_SCHEMA_VERSION,
+		jobId: record.jobId,
+		tabId: record.tabId,
+		// Records from builds before window-aware scheduling have no window id.
+		windowId: typeof record.windowId === 'number' ? record.windowId : UNKNOWN_WINDOW_ID,
+		...(record.sessionId ? { sessionId: record.sessionId } : {}),
+		...(record.contextId ? { contextId: record.contextId } : {}),
+		status: record.status,
+		mode: record.mode,
+		createdAt: record.createdAt,
+		updatedAt: record.updatedAt,
+		observationCount: record.observationCount,
+		partitionCount: record.partitionCount,
+		completedPartitionCount: record.completedPartitionCount,
+		...(record.reason ? { reason: record.reason } : {}),
+		...(record.interruptedStatus ? { interruptedStatus: record.interruptedStatus } : {}),
+		...(record.interruptedAt === undefined ? {} : { interruptedAt: record.interruptedAt }),
+		...(record.errorMessage ? { errorMessage: record.errorMessage } : {}),
+	};
+}
+
+/** Runtime guard for current and legacy matcher records read from extension storage. */
+function isMatcherJobRecordSource(value: unknown): value is Record<string, unknown> & {
+	jobId: string;
+	tabId: number;
+	windowId?: number;
+	status: MatcherJobLifecycleRecord['status'];
+	mode: MatcherJobLifecycleRecord['mode'];
+	createdAt: number;
+	updatedAt: number;
+	observationCount: number;
+	partitionCount: number;
+	completedPartitionCount: number;
+} {
+	if (!value || typeof value !== 'object') return false;
+	const record = value as Record<string, unknown>;
+	return typeof record.jobId === 'string'
+		&& typeof record.tabId === 'number'
+		&& (record.windowId === undefined || typeof record.windowId === 'number')
+		&& typeof record.status === 'string'
+		&& typeof record.mode === 'string'
+		&& typeof record.createdAt === 'number'
+		&& typeof record.updatedAt === 'number'
+		&& typeof record.observationCount === 'number'
+		&& typeof record.partitionCount === 'number'
+		&& typeof record.completedPartitionCount === 'number';
+}
+
+/** Return whether a storage entry contains a matcher lifecycle record. */
+function isMatcherJobRecordEntry(entry: [string, unknown]): entry is [string, ReturnTypeGuard] {
+	return entry[0].startsWith(MATCHER_JOB_CACHE_PREFIX) && isMatcherJobRecordSource(entry[1]);
+}
+
+type ReturnTypeGuard = Record<string, unknown> & {
+	jobId: string;
+	tabId: number;
+	windowId?: number;
+	status: MatcherJobLifecycleRecord['status'];
+	mode: MatcherJobLifecycleRecord['mode'];
+	createdAt: number;
+	updatedAt: number;
+	observationCount: number;
+	partitionCount: number;
+	completedPartitionCount: number;
+};
+
+/** Legacy builds could persist incognito matcher records before this store became privacy-safe. */
+function isIncognitoLegacyRecord(value: Record<string, unknown>): boolean {
+	return value.incognito === true;
 }

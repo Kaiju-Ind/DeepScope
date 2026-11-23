@@ -2,12 +2,13 @@ import { defineProxy } from 'comctx';
 import { browser } from 'wxt/browser';
 
 import { registerBackgroundLifecycleListeners } from '@/lib/background/lifecycle';
-import { reconcileInterruptedMatcherJobs } from '@/lib/background/reconcile-matcher-jobs';
 import { createAutoScanController } from '@/lib/autostart/controller';
 import { getAutoScanEnabled } from '@/lib/autostart/settings';
 import { createBackgroundRuntime } from '@/lib/background/runtime';
+import { reconcileInterruptedMatcherJobs } from '@/lib/background/reconcile-matcher-jobs';
+import { reconcileAndResume } from '@/lib/background/startup';
 import { collectExtensionObservationBatch } from '@/lib/collectors/extension-page-collector';
-import { bundledRuntimeTechnologyRegistryProvider } from '@/lib/detection/registry-provider';
+import { createPackagedRuntimeTechnologyRegistryProvider } from '@/lib/registry/packaged-runtime';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import * as logging from '@/lib/diagnostics/logging';
 import {
@@ -17,12 +18,15 @@ import {
 import type { SiteAnalysis } from '@/lib/detection/types';
 import { diagnosticErrorType } from '@/lib/privacy/redaction';
 import * as offscreen from '@/lib/matcher/offscreen';
+import * as analysisScheduler from '@/lib/scheduler/analysis';
+import * as matcherScheduler from '@/lib/scheduler/matcher';
 import {
 	BACKGROUND_RPC_NAMESPACE,
 	CONTENT_RPC_NAMESPACE,
 	createBackgroundServerAdapter,
 	createContentClientAdapter,
 	isSidePanelTabUpdateChange,
+	type BackgroundApi,
 	type ContentApi,
 	type SidePanelTabNotificationReason,
 	SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
@@ -196,40 +200,93 @@ export default defineBackground(() => {
 	installDiagnosticCrashHooks('background');
 	offscreen.start();
 	const { logBackgroundEvent, logAnalysisSummary } = createBackgroundLoggers();
+	const matcherContextId = crypto.randomUUID();
+
+	const registryProvider = createPackagedRuntimeTechnologyRegistryProvider();
+	const matcherQueue = matcherScheduler.create({
+		capacity: offscreen.capacity,
+		runPartition: offscreen.runPartition,
+		cancelJob: offscreen.cancel,
+		cancelTab: offscreen.cancelTab,
+		touchLifecycle: offscreen.touchLifecycle,
+		releaseLifecycle: offscreen.releaseLifecycle,
+	}, logBackgroundEvent);
 
 	const backgroundRuntime = createBackgroundRuntime({
 		getTab: (tabId) => browser.tabs.get(tabId),
 		executeContentScript,
 		createContentApiClient,
 		collectObservationBatch: collectExtensionObservationBatch,
-		registryProvider: bundledRuntimeTechnologyRegistryProvider,
-		matcher: {
-			cancelJob: offscreen.cancel,
-			runJob: offscreen.run,
-		},
+		registryProvider,
+		matcherContextId,
+		matcher: matcherQueue,
 		persistence: browserDetectionPersistence,
+		// Called only after startup returns, so `analysisQueue` is initialized by then.
+		scheduleBackgroundWork: (task) => analysisQueue.runBackground(task),
 		logEvent: logBackgroundEvent,
 		logAnalysisSummary,
 		setBadge,
 	});
+	const analysisQueue = analysisScheduler.create({
+		resolveTarget: (work) => backgroundRuntime.resolveScheduledTab({
+			windowId: work.windowId,
+			tabId: work.tabId,
+			frameId: work.frameId,
+			urlHash: work.urlHash,
+		}),
+		analyze: (input) => backgroundRuntime.analyzeScheduledTab(input),
+		log: logBackgroundEvent,
+	});
+	const scheduledBackgroundApi: BackgroundApi = {
+		...backgroundRuntime.api,
+		async analyzeVisibleTab(input) {
+			// Activation gates admission only. A surface following the active tab must
+			// still be looking at it now; once admitted, the work keeps running even if
+			// the tab is later deactivated.
+			if (input.follow !== 'pinned') {
+				const current = await backgroundRuntime.api.getVisibleTabIdentity({
+					tabId: input.target.tabId,
+					windowId: input.target.windowId,
+				});
+				if (!current.ok) return current;
+			}
+			return await analysisQueue.analyze(input, 'interactive');
+		},
+	};
+
 	const autoScanController = createAutoScanController({
 		getEnabled: getAutoScanEnabled,
 		getVisibleTabIdentity: (input) => backgroundRuntime.api.getVisibleTabIdentity(input),
-		analyzeVisibleTab: (input) => backgroundRuntime.api.analyzeVisibleTab(input),
+		analyzeVisibleTab: (input) => analysisQueue.analyze(input, 'automatic'),
 		log: logBackgroundEvent,
 	});
-	const [provideBackgroundApi] = defineProxy(() => backgroundRuntime.api, {
+	const matcherRecoveryTabs = new Set<number>();
+	const [provideBackgroundApi] = defineProxy(() => scheduledBackgroundApi, {
 		namespace: BACKGROUND_RPC_NAMESPACE,
 		heartbeatCheck: false,
 		transfer: false,
 	});
 
-	void reconcileInterruptedMatcherJobs(logBackgroundEvent)
-		.catch((error) => {
-			logBackgroundEvent('matcher-job-reconciliation-failed', {
-				message: error instanceof Error ? error.message : String(error),
-			});
-		});
+	void reconcileAndResume({
+		schedulers: { analysis: analysisQueue, matcher: matcherQueue },
+		reconcileRecords: async () => (await reconcileInterruptedMatcherJobs(matcherContextId, logBackgroundEvent)).length,
+		recover(recovery) {
+			matcherRecoveryTabs.add(recovery.tabId);
+			void backgroundRuntime.resolveScheduledTab({
+				windowId: recovery.windowId,
+				tabId: recovery.tabId,
+				frameId: 0,
+				urlHash: recovery.documentKey,
+			}).then((target) => {
+				if (!target.ok) return;
+				return analysisQueue.analyze({ target: target.value, mode: 'refresh', observe: 'none' }, 'recovery');
+			}).catch((error: unknown) => {
+				logBackgroundEvent('scheduler-recovery-failed', { tabId: recovery.tabId, errorType: diagnosticErrorType(error) });
+			}).finally(() => matcherRecoveryTabs.delete(recovery.tabId));
+		},
+		log: logBackgroundEvent,
+	});
+
 	browser.action.onClicked.addListener((tab) => {
 		if (typeof tab.id !== 'number') {
 			logBackgroundEvent('side-panel-open-skipped', { reason: 'missing-tab-id' });
@@ -244,13 +301,26 @@ export default defineBackground(() => {
 		snapshots: browserDetectionSnapshotStore,
 		onTabNavigation(tabId) {
 			autoScanController.onTabNavigation(tabId);
+			matcherRecoveryTabs.delete(tabId);
 			backgroundRuntime.onTabNavigation(tabId);
+			void analysisQueue.cancelTab(tabId);
 		},
 		onTabRemoved(tabId) {
 			autoScanController.onTabRemoved(tabId);
+			matcherRecoveryTabs.delete(tabId);
 			backgroundRuntime.onTabRemoved(tabId);
+			void analysisQueue.cancelTab(tabId);
 		},
 		log: logBackgroundEvent,
+	});
+	// A prerendered or restored page can replace a tab id. The old id never
+	// receives another event, so release its work as if the tab closed.
+	browser.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
+		autoScanController.onTabRemoved(removedTabId);
+		matcherRecoveryTabs.delete(removedTabId);
+		backgroundRuntime.onTabRemoved(removedTabId);
+		void analysisQueue.cancelTab(removedTabId);
+		logBackgroundEvent('tab-replaced', { addedTabId, removedTabId });
 	});
 	browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 		if (tab.active !== true) {
@@ -270,10 +340,13 @@ export default defineBackground(() => {
 		void autoScanController.scanVisibleTab(tabId, tab.windowId, 'refresh', 'page-load');
 	});
 	browser.tabs.onActivated.addListener(({ tabId, windowId }) => {
-		backgroundRuntime.onTabActivated(tabId, windowId);
+		void analysisQueue.activateTab(tabId, windowId);
+		void matcherQueue.activateTab(tabId, windowId);
 		notifySidePanelTab(tabId, windowId, 'activated');
 		void browser.tabs.get(tabId).then((tab) => {
-			if (tab.status !== 'complete' || tab.active !== true || tab.windowId !== windowId) {
+			// A recovery recollection for this tab is already queued; activation only
+			// raises its priority (above) instead of starting a second scan.
+			if (tab.status !== 'complete' || tab.active !== true || tab.windowId !== windowId || matcherRecoveryTabs.has(tabId)) {
 				return;
 			}
 

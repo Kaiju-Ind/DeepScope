@@ -1,9 +1,10 @@
 import type { DetectionRule, MatcherTechnologyType, RuntimeDetectionKind, TechnologyDefinition } from '../detection/types';
+import type { PackagedMatcherIndex } from './matcher-artifact';
 import type { PackagedRuntimeTechnologyRegistryData } from './runtime-artifact';
 import type { NormalizedObservationKind } from '../observations';
 
 /** Current JSON registry asset schema version. */
-export const PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION = 2;
+export const PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION = 3;
 
 /** Literal JSON registry asset schema version used by runtime guards. */
 export type PackagedRegistryAssetSchemaVersion = typeof PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION;
@@ -83,6 +84,12 @@ export interface PackagedTechnologyRegistryShardAsset {
 	readonly ruleCount: number;
 	/** Number of technologies that still own at least one rule in the shard. */
 	readonly technologyCount: number;
+	/** Build-time matcher routes encoded as compact references into `technologies`. */
+	readonly matcherIndex: PackagedMatcherIndex;
+	/** Number of regex descriptors available to compile lazily in this shard. */
+	readonly patternCount: number;
+	/** Approximate JSON payload bytes used as the worker cache retention cost. */
+	readonly encodedPayloadBytes: number;
 	/** Scheduler priority assigned to this observation kind. */
 	readonly priority: number;
 	/** Millisecond timestamp from the build that generated the asset. */
@@ -99,6 +106,10 @@ export interface PackagedRegistryShardManifestEntry {
 	readonly ruleCount: number;
 	/** Number of technologies represented in the shard. */
 	readonly technologyCount: number;
+	/** Number of regex descriptors in the shard. */
+	readonly patternCount: number;
+	/** Approximate generated JSON payload cost used for worker retention budgets. */
+	readonly encodedPayloadBytes: number;
 	/** Scheduler priority assigned to this observation kind. */
 	readonly priority: number;
 }
@@ -257,6 +268,30 @@ export function countTechnologyRules(technologies: readonly { readonly rules: re
 	return count;
 }
 
+/** Count regular-expression descriptors without compiling them into native `RegExp` objects. */
+export function countTechnologyPatterns(
+	technologies: readonly { readonly rules: readonly DetectionRule[] }[],
+): number {
+	let count = 0;
+	for (const technology of technologies) {
+		for (const rule of technology.rules) count += countPatterns(rule);
+	}
+	return count;
+}
+
+/** Recursively count pattern-shaped values while avoiding duplicate traversal through primitives. */
+function countPatterns(value: unknown): number {
+	if (value instanceof RegExp) return 1;
+	if (!value || typeof value !== 'object') return 0;
+	if (!Array.isArray(value)) {
+		const candidate = value as { readonly source?: unknown; readonly flags?: unknown };
+		if (typeof candidate.source === 'string' && typeof candidate.flags === 'string') return 1;
+	}
+	let count = 0;
+	for (const entry of Array.isArray(value) ? value : Object.values(value)) count += countPatterns(entry);
+	return count;
+}
+
 /** Encode a value so `RegExp` rules survive JSON serialization. */
 export function encodeRegistryJsonValue(value: unknown): unknown {
 	if (value instanceof RegExp) {
@@ -328,6 +363,9 @@ export function isPackagedTechnologyRegistryShardAsset(
 		candidate.technologies.every(isPackagedMatcherTechnology) &&
 		typeof candidate.ruleCount === 'number' &&
 		typeof candidate.technologyCount === 'number' &&
+		typeof candidate.matcherIndex === 'object' && candidate.matcherIndex !== null &&
+		typeof candidate.patternCount === 'number' &&
+		typeof candidate.encodedPayloadBytes === 'number' &&
 		typeof candidate.priority === 'number' &&
 		typeof candidate.generatedAt === 'number'
 	);

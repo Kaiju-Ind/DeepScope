@@ -60,7 +60,7 @@ The current permission model supports both automatic and manual analysis:
 - `host_permissions` for `http://*/*` and `https://*/*` allow automatic page-load analysis without requiring a toolbar click first.
 - `activeTab` remains available for explicit toolbar-driven interaction and compatibility with the manual flow.
 - `scripting` is used for runtime content-script injection and MAIN-world JavaScript-global probing.
-- `storage` persists normalized analysis, redacted replay traces, matcher lifecycle state, the bounded diagnostic journal, and extension preferences.
+- `storage` persists normalized analysis, redacted replay traces, privacy-safe matcher lifecycle summaries (no page URL; never for private tabs), the bounded diagnostic journal, and extension preferences. Small scheduler control records (hashed document identity, priority, claim state; no page content) live in the extension's IndexedDB.
 - `sidePanel` hosts one persistent window-scoped analysis UI. The mounted panel follows active-tab changes in its own browser window instead of creating a different panel instance for each tab.
 - `offscreen` owns the local matcher host so heavier registry matching does not block the panel or depend on service-worker memory.
 - `clipboardWrite` is used only after the user presses **Copy report** on Diagnostics. The extension does not read clipboard contents.
@@ -83,7 +83,8 @@ Run the extension in Chrome and verify:
 - Open a technology result and confirm raw evidence is available on its detail route instead of being repeated across every result row.
 - Open **Diagnostics**, copy a report, and confirm it includes build identity, current extension contexts, recent context runs, matcher lifecycle state, and recent warnings/errors.
 - Open the extension options page and confirm Diagnostics works without mounting the detector state owner.
-- End a background context during non-terminal matcher work, then reopen the extension and confirm the job is reconciled as `context-interrupted` with its previous matcher state retained.
+- End a background context during non-terminal matcher work, then reopen the extension. Confirm the orphaned lifecycle record becomes `context-interrupted`, the previous matcher status is retained only as diagnostic history, and an exact still-open document is recollected as new recovery work instead of resuming the lost in-memory batch.
+- Start analysis in one tab, then activate another tab. Confirm the first tab's analysis still finishes (activation changes priority, not lifetime).
 - Dirty refresh does not append final results blindly. Existing and late observations are evaluated together, so `implies`, `requires`, and `excludes` are recalculated as one candidate graph.
 
 ## Tooling
@@ -119,6 +120,8 @@ pnpm bench:rules:gate
 ```
 
 `pnpm build` checks types before WXT emits the default browser build. `pnpm build:chrome` selects Chrome. `pnpm check:release` runs TypeScript, the complete Vitest suite, then the Chrome WXT build. `pnpm zip:chrome` runs the same source checks before packaging Chrome output.
+
+`pnpm validate:chrome-artifact` is a separate, optional check of an existing `.output/chrome-mv3` build. It inspects the emitted registry and HTML surfaces and loads the side-panel and options pages in a local Chromium (set `CHROME_BIN` when discovery fails). It is not part of `build:chrome` or `check:release` because it needs a browser binary that CI and most machines do not provide.
 
 Inspect the generated assets and load the output in Chrome to check actual extension behavior. The [verification workflow](docs/architecture/verification-workflow.md) lists the generated-output and browser scenarios. Record those results separately from package command results.
 

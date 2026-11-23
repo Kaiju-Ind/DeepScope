@@ -9,6 +9,8 @@ function privateJob(status: MatcherJobStatus = 'queued'): MatcherJobRecord {
 	return {
 		jobId: 'private-job',
 		tabId: 7,
+		windowId: 3,
+		contextId: 'context-old',
 		expectedUrl: 'https://example.com/private-matcher-sentinel?visit=private',
 		incognito: true,
 		status,
@@ -24,6 +26,9 @@ function privateJob(status: MatcherJobStatus = 'queued'): MatcherJobRecord {
 		completedPartitionCount: status === 'completed' ? 1 : 0,
 	};
 }
+
+/** Background context performing startup reconciliation in these tests. */
+const CURRENT_CONTEXT = 'context-current';
 
 /** Load the production storage adapter with only the browser I/O replaced. */
 async function loadMatcherStore(initialValues: Record<string, unknown> = {}) {
@@ -63,7 +68,10 @@ describe('matcher job privacy and recovery', { concurrent: false }, () => {
 			status: 'completed', reason: 'completed',
 		});
 
-		expect(result).toBe(record);
+		// The returned projection is in-memory only and carries no document URL.
+		expect(result).toMatchObject({ jobId: record.jobId, status });
+		expect(result).not.toHaveProperty('expectedUrl');
+		expect(result).not.toHaveProperty('target');
 		expect(updated).toBeNull();
 		expect(harness.storage.local.get).not.toHaveBeenCalled();
 		expect(harness.storage.local.remove).not.toHaveBeenCalled();
@@ -118,7 +126,9 @@ describe('matcher job privacy and recovery', { concurrent: false }, () => {
 			preference: true,
 		});
 
-		expect(await harness.listMatcherJobRecords()).toEqual([normal]);
+		expect(await harness.listMatcherJobRecords()).toEqual([
+			expect.objectContaining({ jobId: normal.jobId, status: normal.status }),
+		]);
 		expect(harness.storage.values.size).toBe(4);
 		expect(harness.storage.local.remove).not.toHaveBeenCalled();
 		expect(harness.storage.local.set).not.toHaveBeenCalled();
@@ -129,13 +139,18 @@ describe('matcher job privacy and recovery', { concurrent: false }, () => {
 		const record = { ...privateJob('running'), jobId: 'normal-job', incognito: false };
 		await harness.browserMatcherJobStore.saveMatcherJob(record);
 
-		const reconciled = await harness.reconcileInterruptedMatcherJobs();
+		const reconciled = await harness.reconcileInterruptedMatcherJobs(CURRENT_CONTEXT);
 		const stored = await harness.getMatcherJobRecord(record.jobId);
 
-		expect(harness.cancel).toHaveBeenCalledExactlyOnceWith(record.jobId);
+		// Ordinary orphaned work is stopped by the matcher scheduler's reconcile;
+		// this pass only records the interruption.
+		expect(harness.cancel).not.toHaveBeenCalled();
 		expect(reconciled).toEqual([stored]);
+		expect(stored).not.toHaveProperty('expectedUrl');
 		expect(stored).toMatchObject({
-			...record,
+			jobId: record.jobId,
+			tabId: record.tabId,
+			mode: record.mode,
 			status: 'failed',
 			reason: 'context-interrupted',
 			interruptedStatus: 'running',
@@ -150,7 +165,7 @@ describe('matcher job privacy and recovery', { concurrent: false }, () => {
 		const harness = await loadMatcherStore({ [getMatcherJobCacheKey(record.jobId)]: record });
 		const log = vi.fn();
 
-		expect(await harness.reconcileInterruptedMatcherJobs(log)).toEqual([]);
+		expect(await harness.reconcileInterruptedMatcherJobs(CURRENT_CONTEXT, log)).toEqual([]);
 		expect([...harness.storage.values]).toEqual([]);
 		expect(harness.cancel).not.toHaveBeenCalled();
 		expect(log).not.toHaveBeenCalled();
@@ -163,7 +178,7 @@ describe('matcher job privacy and recovery', { concurrent: false }, () => {
 		const terminalKey = getMatcherJobCacheKey(terminal.jobId);
 		const harness = await loadMatcherStore({ [activeKey]: active, [terminalKey]: terminal });
 
-		expect(await harness.reconcileInterruptedMatcherJobs()).toEqual([]);
+		expect(await harness.reconcileInterruptedMatcherJobs(CURRENT_CONTEXT)).toEqual([]);
 		expect(harness.cancel).toHaveBeenCalledExactlyOnceWith(active.jobId);
 		expect(harness.storage.local.remove).toHaveBeenCalledExactlyOnceWith([activeKey, terminalKey]);
 		expect(harness.cancel.mock.invocationCallOrder[0])
@@ -180,7 +195,7 @@ describe('matcher job privacy and recovery', { concurrent: false }, () => {
 		harness.storage.local.remove.mockRejectedValueOnce(new Error('Storage unavailable https://private.example/'));
 		const log = vi.fn();
 
-		const reconciled = await harness.reconcileInterruptedMatcherJobs(log);
+		const reconciled = await harness.reconcileInterruptedMatcherJobs(CURRENT_CONTEXT, log);
 
 		expect(reconciled).toEqual([expect.objectContaining({ jobId: ordinary.jobId, status: 'failed' })]);
 		expect(await harness.listMatcherJobRecords()).toEqual(reconciled);
@@ -198,7 +213,7 @@ describe('matcher job privacy and recovery', { concurrent: false }, () => {
 		harness.cancel.mockRejectedValueOnce(new Error('Cancel failed https://private.example/'));
 		const log = vi.fn();
 
-		expect(await harness.reconcileInterruptedMatcherJobs(log)).toEqual([]);
+		expect(await harness.reconcileInterruptedMatcherJobs(CURRENT_CONTEXT, log)).toEqual([]);
 		expect([...harness.storage.values]).toEqual([[activeKey, active]]);
 		expect(harness.storage.local.remove).toHaveBeenCalledExactlyOnceWith([terminalKey]);
 		expect(log).toHaveBeenCalledWith('matcher-job-legacy-private-migration-failed', { stage: 'cancel', count: 1 });
@@ -212,5 +227,93 @@ describe('matcher job privacy and recovery', { concurrent: false }, () => {
 
 		await expect(harness.saveMatcherJobRecord(record)).rejects.toThrow('Storage unavailable');
 		expect(harness.storage.values.size).toBe(0);
+	});
+});
+
+/** An ordinary job for the current lifecycle projection tests. */
+function matcherJob(overrides: Partial<MatcherJobRecord> = {}): MatcherJobRecord {
+	return {
+		jobId: 'matcher-1',
+		tabId: 7,
+		windowId: 3,
+		contextId: CURRENT_CONTEXT,
+		expectedUrl: 'https://example.com/products?token=secret',
+		status: 'queued',
+		mode: 'complete',
+		target: {
+			url: 'https://example.com/products?token=secret',
+			hostname: 'example.com',
+		},
+		createdAt: 100,
+		updatedAt: 100,
+		observationCount: 10,
+		partitionCount: 0,
+		completedPartitionCount: 0,
+		...overrides,
+	};
+}
+
+describe('matcher lifecycle diagnostics', { concurrent: false }, () => {
+	it('persists only the privacy-safe matcher lifecycle projection', async () => {
+		const harness = await loadMatcherStore();
+		const job = matcherJob();
+
+		await harness.saveMatcherJobRecord(job);
+
+		const stored = harness.storage.values.get(getMatcherJobCacheKey(job.jobId));
+		expect(stored).toMatchObject({
+			schemaVersion: 2,
+			jobId: job.jobId,
+			tabId: job.tabId,
+			windowId: job.windowId,
+			contextId: job.contextId,
+			status: 'queued',
+		});
+		expect(stored).not.toHaveProperty('expectedUrl');
+		expect(stored).not.toHaveProperty('target');
+		expect(stored).not.toHaveProperty('incognito');
+	});
+
+	it('sanitizes legacy records and marks only previous-context active jobs interrupted', async () => {
+		const old = matcherJob({
+			jobId: 'matcher-old',
+			contextId: 'context-old',
+			status: 'running',
+			partitionCount: 4,
+			completedPartitionCount: 2,
+		});
+		const current = matcherJob({ jobId: 'matcher-current' });
+		const harness = await loadMatcherStore({
+			[getMatcherJobCacheKey(old.jobId)]: old,
+			[getMatcherJobCacheKey(current.jobId)]: current,
+		});
+
+		const interrupted = await harness.reconcileMatcherJobRecords(CURRENT_CONTEXT);
+
+		expect(interrupted).toHaveLength(1);
+		expect(interrupted[0]).toMatchObject({
+			jobId: 'matcher-old',
+			status: 'failed',
+			reason: 'context-interrupted',
+			interruptedStatus: 'running',
+		});
+		const storedOld = harness.storage.values.get(getMatcherJobCacheKey(old.jobId));
+		expect(storedOld).not.toHaveProperty('expectedUrl');
+		expect(storedOld).not.toHaveProperty('target');
+		expect(storedOld).toMatchObject({ status: 'failed', interruptedStatus: 'running' });
+		expect(harness.storage.values.get(getMatcherJobCacheKey(current.jobId))).toMatchObject({
+			status: 'queued',
+			contextId: CURRENT_CONTEXT,
+		});
+	});
+
+	it('migrates a legacy row written before jobs carried a window id', async () => {
+		const { windowId: _windowId, contextId: _contextId, ...legacy } = privateJob('completed');
+		const ordinary = { ...legacy, jobId: 'legacy-ordinary', incognito: false };
+		const harness = await loadMatcherStore({ [getMatcherJobCacheKey(ordinary.jobId)]: ordinary });
+
+		expect(await harness.listMatcherJobRecords()).toEqual([
+			expect.objectContaining({ jobId: ordinary.jobId, windowId: -1 }),
+		]);
 	});
 });

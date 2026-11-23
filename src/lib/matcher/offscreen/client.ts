@@ -5,29 +5,34 @@ import { diagnosticErrorType } from '../../privacy/redaction';
 import {
 	MATCHER_OFFSCREEN_CHANNEL,
 	type CancelMatcherJobMessage,
-	type MatcherJobRunResult,
+	type CancelMatcherTabMessage,
 	type MatcherHostIdleMessage,
-	type MatcherJobStateMessage,
 	type MatcherOffscreenResponse,
-	type MatcherPartitionProgressMessage,
+	type QueryMatcherHostIdleMessage,
 	type MatcherPartitionResult,
-	type OffscreenMatcherJobRequest,
-	type RunMatcherJobMessage,
-	type RunMatcherJobRequest,
+	type MatcherJobTerminalReason,
+	type ReleaseMatcherLifecycleMessage,
+	type RunMatcherPartitionMessage,
+	type RunMatcherPartitionRequest,
+	type TouchMatcherLifecycleMessage,
 } from '../contracts';
 import { MatcherError } from '../error';
-import { createMatcherPipelineResult } from '../partition';
+import { MATCHER_PARTITION_CONCURRENCY, MATCHER_PARTITION_TRANSPORT_DEADLINE_MS } from '../policy';
 
 const logger = logging.get('background', 'matcher-offscreen');
 
 /** Static WXT output path for the hidden matcher host document. */
 const DOCUMENT_PATH = '/offscreen.html';
 
-/** Maximum time a job may wait for offscreen matcher capacity. */
-const QUEUE_DEADLINE_MS = 120_000;
 
-/** Maximum execution time after the offscreen host starts matching a job. */
-const RUN_DEADLINE_MS = 120_000;
+/** Bounded close attempts for transient Chrome offscreen teardown races. */
+const CLOSE_ATTEMPTS = 3;
+
+/** Short retry delay keeps close recovery bounded without leaving the document resident for another idle cycle. */
+const CLOSE_RETRY_DELAY_MS = 150;
+
+/** Matcher partitions that the offscreen host can execute at the same time. */
+export const capacity = MATCHER_PARTITION_CONCURRENCY;
 
 /** Promise shared by concurrent requests creating the same offscreen document. */
 let creating: Promise<void> | undefined;
@@ -38,18 +43,52 @@ let closing: Promise<void> | undefined;
 /** Runtime messages that still depend on the offscreen host remaining alive. */
 let activeRequests = 0;
 
-/**
- * Run one matcher job through its production runtime.
- *
- * Matching always uses the offscreen dedicated-worker pool so development and
- * production exercise the same ownership, cancellation, memory, and failure path.
- * A host failure is surfaced to the caller and is never repeated as background work.
- */
-export async function run(request: RunMatcherJobRequest): Promise<MatcherJobRunResult> {
-	return await runOffscreen(request);
+/** Whether the host has declared itself disposable and still needs a successful close. */
+let idleRequested = false;
+
+/** Host activity generation carried by the latest `host-idle` notice. */
+let idleGeneration = 0;
+
+/** Whether the current background service-worker instance installed its lifecycle listener. */
+let started = false;
+
+/** Execute one scheduler-selected matcher partition in the hidden two-worker host. */
+export async function runPartition(request: RunMatcherPartitionRequest): Promise<MatcherPartitionResult> {
+	const release = acquire();
+	try {
+		if (!await open()) throw new MatcherError('offscreen-unavailable', 'Matcher offscreen document is unavailable.');
+		const message: RunMatcherPartitionMessage = {
+			channel: MATCHER_OFFSCREEN_CHANNEL,
+			type: 'matcher.run-partition',
+			request,
+		};
+		const response = await withDeadline(
+			browser.runtime.sendMessage(message) as Promise<MatcherOffscreenResponse>,
+			MATCHER_PARTITION_TRANSPORT_DEADLINE_MS,
+		);
+		if (response.ok && 'value' in response) return response.value;
+		if (!response.ok) {
+			if (response.reason === 'canceled') throw new MatcherError('canceled', response.message);
+			if (response.reason === 'timeout') throw new MatcherError('run-timeout', response.message);
+			throw new MatcherError('host-failed', response.message);
+		}
+		throw new MatcherError('host-failed', 'Offscreen matcher returned no partition result.');
+	} catch (error) {
+		if (error instanceof MatcherError && error.reason === 'canceled') throw error;
+		logger.error('Offscreen matcher partition failed.', {
+			jobId: request.task.job.jobId,
+			partitionId: request.task.partitionId,
+			kind: request.task.kind,
+			// Private-tab errors can quote page URLs or values; keep only their type.
+			...(request.task.job.incognito ? { errorType: diagnosticErrorType(error) } : { error }),
+		});
+		throw error;
+	} finally {
+		release();
+	}
 }
 
-/** Send the job ID to the host that owns the queue and active worker pool. */
+/** Send the job ID to the host that owns the active worker slots. */
 function requestCancellation(jobId: string): Promise<MatcherOffscreenResponse | undefined> {
 	const message: CancelMatcherJobMessage = {
 		channel: MATCHER_OFFSCREEN_CHANNEL,
@@ -59,13 +98,13 @@ function requestCancellation(jobId: string): Promise<MatcherOffscreenResponse | 
 	return browser.runtime.sendMessage(message);
 }
 
-/** Ask the offscreen matcher host to remove queued work or stop an active job. */
+/** Ask the offscreen matcher host to stop worker slots currently executing one job. */
 export async function cancel(jobId: string): Promise<void> {
 	try {
 		await requestCancellation(jobId);
 	} catch {
-		// Cancellation is best-effort. Background lifecycle state still rejects stale
-		// partitions and marks the durable job terminal if the host already disappeared.
+		// Cancellation is best-effort. The background scheduler already dropped the
+		// job, so a late partition result from a vanished host is ignored.
 	}
 }
 
@@ -80,116 +119,109 @@ export async function cancelForRecovery(jobId: string): Promise<void> {
 	throw new Error('Matcher cancellation could not be confirmed.');
 }
 
-/**
- * Register the background listener that owns final offscreen-document disposal.
- *
- * The offscreen host owns the one idle grace period because service-worker timers
- * can disappear when Chrome suspends the background. When that grace period
- * expires, the host sends `matcher.host-idle`, which wakes the background and lets
- * it call the privileged `offscreen.closeDocument()` API immediately.
- */
+/** Cancel running matcher partitions by tab even when this service worker lost its local job map. */
+export async function cancelTab(tabId: number, reason: MatcherJobTerminalReason): Promise<void> {
+	const message: CancelMatcherTabMessage = {
+		channel: MATCHER_OFFSCREEN_CHANNEL,
+		type: 'matcher.cancel-tab',
+		tabId,
+		reason,
+	};
+	await sendBestEffort(message);
+}
+
+/** Refresh the host watchdog while staged collection is still expected to queue another matcher pass. */
+export async function touchLifecycle(lifecycleId: string, tabId: number): Promise<void> {
+	if (await exists() !== true) return;
+	const message: TouchMatcherLifecycleMessage = {
+		channel: MATCHER_OFFSCREEN_CHANNEL,
+		type: 'matcher.lifecycle-touch',
+		lifecycleId,
+		tabId,
+	};
+	await sendBestEffort(message);
+}
+
+/** Release a completed analysis lifecycle so expensive worker heaps can be terminated immediately. */
+export async function releaseLifecycle(lifecycleId: string): Promise<void> {
+	if (await exists() !== true) return;
+	const message: ReleaseMatcherLifecycleMessage = {
+		channel: MATCHER_OFFSCREEN_CHANNEL,
+		type: 'matcher.lifecycle-release',
+		lifecycleId,
+	};
+	await sendBestEffort(message);
+}
+
+/** Register the background listener that owns privileged offscreen-document disposal. */
 export function start(): void {
 	if (started) return;
 	started = true;
 	browser.runtime.onMessage.addListener((message: unknown): undefined => {
 		if (!isHostIdle(message)) return undefined;
+		idleRequested = true;
+		idleGeneration = message.generation;
 		if (activeRequests === 0 && !creating) void close();
 		return undefined;
 	});
 }
 
-/** Whether the current background service-worker instance installed its lifecycle listener. */
-let started = false;
-
-/**
- * Close the offscreen document only when no matcher request still depends on it.
- *
- * This operation is immediate. Idle timing belongs to the offscreen host so Chrome
- * can suspend and later wake the background without losing the cleanup deadline.
- */
+/** Close the offscreen document with bounded recovery for transient Chrome teardown failures. */
 async function close(): Promise<void> {
 	if (activeRequests > 0 || creating) return;
 	if (closing) return closing;
 	const offscreen = browser.offscreen;
 	if (!offscreen?.closeDocument) return;
 
-	closing = (async () => {
-		if (!await exists() || activeRequests > 0 || creating) return;
-		await offscreen.closeDocument();
-		logger.debug('Closed matcher offscreen document after host idle.', {
-			event: 'matcher-offscreen-document-closed',
-			reason: 'host-idle',
-		});
-	})()
-		.catch((error) => logger.warning('Failed to close idle matcher offscreen document.', { error }))
+	closing = closeWithRetry(offscreen)
+		.catch((error) => logger.warning('Failed to close idle matcher offscreen document after bounded retries.', { error }))
 		.finally(() => {
 			closing = undefined;
 		});
 	return closing;
 }
 
-/** Run one production job with separate queue-wait and execution deadlines. */
-async function runOffscreen(request: RunMatcherJobRequest): Promise<MatcherJobRunResult> {
-	const release = acquire();
-	try {
-		if (!await open()) throw new MatcherError('offscreen-unavailable', 'Matcher offscreen document is unavailable.');
-		const message: RunMatcherJobMessage = {
-			channel: MATCHER_OFFSCREEN_CHANNEL,
-			type: 'matcher.run-job',
-			request: compact(request),
-		};
-		const waited = await wait(
-			request.job.jobId,
-			() => browser.runtime.sendMessage(message) as Promise<MatcherOffscreenResponse>,
-		);
-		const { response, partitions } = waited;
-		if (response.ok && 'value' in response) {
-			const result = createMatcherPipelineResult({
-				batch: request.batch,
-				registry: request.registry,
-				relationshipGraph: request.relationshipGraph,
-				partitions,
-				...(request.analyzedAt !== undefined ? { analyzedAt: request.analyzedAt } : {}),
-				...(request.source !== undefined ? { source: request.source } : {}),
+/** Retry only while a document still exists and no new matcher request acquired it. */
+async function closeWithRetry(offscreen: NonNullable<typeof browser.offscreen>): Promise<void> {
+	for (let attempt = 1; attempt <= CLOSE_ATTEMPTS; attempt += 1) {
+		if (activeRequests > 0 || creating) return;
+		if (await exists() === false) {
+			idleRequested = false;
+			return;
+		}
+		// A host-idle notice can arrive after the host accepted new work (for example a
+		// lifecycle touch for the next staged pass). Only close a host that confirms it
+		// is still idle at the generation the notice reported.
+		if (!await isStillIdle(idleGeneration)) {
+			idleRequested = false;
+			logger.debug('Kept matcher offscreen document after a stale idle notice.', {
+				event: 'matcher-offscreen-stale-idle',
+				generation: idleGeneration,
 			});
-			return {
-				job: response.value.job,
-				mode: response.value.mode,
-				result,
-				partitions,
-				executor: 'offscreen-worker-pool',
-				completedAt: Date.now(),
-			};
+			return;
 		}
-		if (!response.ok) {
-			const reason = response.reason === 'queue-full'
-				? 'queue-full'
-				: response.reason === 'canceled' ? 'canceled' : 'host-failed';
-			throw new MatcherError(reason, response.message);
+		if (activeRequests > 0 || creating) return;
+		try {
+			await offscreen.closeDocument();
+			idleRequested = false;
+			logger.debug('Closed matcher offscreen document.', {
+				event: 'matcher-offscreen-document-closed',
+				attempt,
+			});
+			return;
+		} catch (error) {
+			if (await exists() === false) {
+				idleRequested = false;
+				return;
+			}
+			if (attempt >= CLOSE_ATTEMPTS) throw error;
+			logger.debug('Retrying matcher offscreen document close.', {
+				event: 'matcher-offscreen-document-close-retry',
+				attempt,
+			});
+			await delay(CLOSE_RETRY_DELAY_MS * attempt);
 		}
-		throw new MatcherError('host-failed', 'Offscreen matcher returned no job result.');
-	} catch (error) {
-		if (error instanceof MatcherError && error.reason === 'canceled') throw error;
-		await cancel(request.job.jobId);
-		logger.error('Offscreen matcher job failed.', {
-			jobId: request.job.jobId,
-			mode: request.mode,
-			...(request.job.incognito ? { errorType: diagnosticErrorType(error) } : { error }),
-		});
-		throw error;
-	} finally {
-		release();
 	}
-}
-
-/** Remove registry-scale data before the request crosses extension contexts. */
-function compact(request: RunMatcherJobRequest): OffscreenMatcherJobRequest {
-	return {
-		job: request.job,
-		mode: request.mode,
-		batch: request.batch,
-		...(request.options ? { options: request.options } : {}),
-	};
 }
 
 /** Create or reuse the one offscreen matcher document available to this extension profile. */
@@ -197,7 +229,7 @@ async function open(): Promise<boolean> {
 	const offscreen = browser.offscreen;
 	if (!offscreen) return false;
 	if (closing) await closing;
-	if (await exists()) return true;
+	if (await exists() === true) return true;
 
 	if (!creating) {
 		creating = offscreen.createDocument({
@@ -219,16 +251,34 @@ async function open(): Promise<boolean> {
 /** Hold one local lease while a runtime message still depends on the offscreen host. */
 function acquire(): () => void {
 	activeRequests += 1;
+	idleRequested = false;
 	let released = false;
 	return () => {
 		if (released) return;
 		released = true;
 		activeRequests = Math.max(0, activeRequests - 1);
+		if (activeRequests === 0 && idleRequested && !creating) void close();
 	};
 }
 
-/** Distinguish a confirmed missing document from unavailable Chrome context discovery. */
+/**
+ * Query the platform for the offscreen document without maintaining a second existence flag.
+ *
+ * Returns `undefined` when discovery itself is unavailable, so recovery can tell
+ * a confirmed missing document apart from an unknown state.
+ */
 async function exists(): Promise<boolean | undefined> {
+	const offscreen = browser.offscreen as typeof browser.offscreen & {
+		hasDocument?: () => Promise<boolean>;
+	};
+	if (typeof offscreen?.hasDocument === 'function') {
+		try {
+			return await offscreen.hasDocument();
+		} catch {
+			// Continue to the Chrome 119-compatible context query.
+		}
+	}
+
 	const runtime = browser.runtime;
 	if (!runtime.getContexts) return undefined;
 	const contexts = await runtime.getContexts({
@@ -239,90 +289,67 @@ async function exists(): Promise<boolean | undefined> {
 }
 
 /**
- * Wait for one runtime response while timing queue wait and execution separately.
+ * Ask the host whether it is still idle at `generation`.
  *
- * The old single timeout started before the job acquired matcher capacity, so a
- * healthy job could consume its complete execution allowance while merely waiting
- * behind another tab. A `matcher.job-state` running event now resets the deadline
- * when the host actually starts the job.
+ * A host that does not answer is treated as idle: either the document is already
+ * gone or it cannot receive work anyway, and `closeDocument` is then harmless.
  */
-function wait(
-	jobId: string,
-	send: () => Promise<MatcherOffscreenResponse>,
-): Promise<{ readonly response: MatcherOffscreenResponse; readonly partitions: readonly MatcherPartitionResult[] }> {
+async function isStillIdle(generation: number): Promise<boolean> {
+	const message: QueryMatcherHostIdleMessage = {
+		channel: MATCHER_OFFSCREEN_CHANNEL,
+		type: 'matcher.idle-query',
+		generation,
+	};
+	try {
+		const response = await browser.runtime.sendMessage(message) as MatcherOffscreenResponse | undefined;
+		if (!response || !response.ok || !('idle' in response)) return true;
+		return response.idle && response.generation === generation;
+	} catch {
+		return true;
+	}
+}
+
+/**
+ * Backstop for a host that stopped answering. The pool owns the real partition
+ * deadline and reports it as `timeout`; this only covers a vanished document.
+ */
+function withDeadline<T>(request: Promise<T>, timeoutMs: number): Promise<T> {
 	return new Promise((resolve, reject) => {
-		let phase: 'queued' | 'running' = 'queued';
 		let settled = false;
-		const partitions: MatcherPartitionResult[] = [];
-		let timer: ReturnType<typeof globalThis.setTimeout>;
-
-		const cleanup = (): void => {
-			globalThis.clearTimeout(timer);
-			browser.runtime.onMessage.removeListener(onMessage);
-		};
-		const fail = (): void => {
+		const timer = globalThis.setTimeout(() => {
 			if (settled) return;
 			settled = true;
-			cleanup();
-			reject(new MatcherError(
-				phase === 'queued' ? 'queue-timeout' : 'run-timeout',
-				phase === 'queued'
-					? 'Matcher job did not acquire offscreen capacity before the queue timeout.'
-					: 'Matcher job did not complete before the execution timeout.',
-			));
-		};
-		const arm = (deadlineMs: number): void => {
-			globalThis.clearTimeout(timer);
-			timer = globalThis.setTimeout(fail, deadlineMs);
-		};
-		const onMessage = (message: unknown): undefined => {
-			if (isPartitionProgress(message) && message.partition.job.jobId === jobId) {
-				const existingIndex = partitions.findIndex((partition) => partition.partitionId === message.partition.partitionId);
-				if (existingIndex >= 0) partitions[existingIndex] = message.partition;
-				else partitions.push(message.partition);
-				return undefined;
-			}
-			if (!isJobState(message) || message.jobId !== jobId || message.phase !== 'running' || phase === 'running') {
-				return undefined;
-			}
-			phase = 'running';
-			arm(RUN_DEADLINE_MS);
-			return undefined;
-		};
-
-		// Register before dispatch. A newly empty host can start immediately, and a
-		// running-state event emitted before this listener exists would otherwise leave
-		// the caller on the queue deadline for the complete execution.
-		browser.runtime.onMessage.addListener(onMessage);
-		arm(QUEUE_DEADLINE_MS);
-		let response: Promise<MatcherOffscreenResponse>;
-		try {
-			response = send();
-		} catch (error) {
-			settled = true;
-			cleanup();
-			reject(error);
-			return;
-		}
-		response.then((value) => {
+			reject(new MatcherError('run-timeout', 'Matcher partition did not complete before the execution timeout.'));
+		}, timeoutMs);
+		request.then((value) => {
 			if (settled) return;
 			settled = true;
-			cleanup();
-			if (value.ok && 'value' in value && value.value.partitionCount !== partitions.length) {
-				reject(new MatcherError('host-failed', `Matcher streamed ${partitions.length} of ${value.value.partitionCount} partitions.`));
-				return;
-			}
-			resolve({ response: value, partitions });
+			globalThis.clearTimeout(timer);
+			resolve(value);
 		}, (error) => {
 			if (settled) return;
 			settled = true;
-			cleanup();
+			globalThis.clearTimeout(timer);
 			reject(error);
 		});
 	});
 }
 
-/** Narrow runtime traffic to the offscreen host's one idle-lifecycle event. */
+/** Send a lifecycle/cancellation command without converting a missing host into a new failure. */
+async function sendBestEffort(message: object): Promise<void> {
+	try {
+		await browser.runtime.sendMessage(message);
+	} catch {
+		// The host may already be closed. Background state remains authoritative.
+	}
+}
+
+/** Delay one bounded close retry without introducing a persistent service-worker timer. */
+function delay(timeoutMs: number): Promise<void> {
+	return new Promise((resolve) => globalThis.setTimeout(resolve, timeoutMs));
+}
+
+/** Narrow runtime traffic to the offscreen host's disposable-lifecycle event. */
 function isHostIdle(message: unknown): message is MatcherHostIdleMessage {
 	return Boolean(
 		message &&
@@ -330,30 +357,8 @@ function isHostIdle(message: unknown): message is MatcherHostIdleMessage {
 		'channel' in message &&
 		message.channel === MATCHER_OFFSCREEN_CHANNEL &&
 		'type' in message &&
-		message.type === 'matcher.host-idle',
-	);
-}
-
-/** Narrow runtime traffic to matcher queue/execution state for the awaited job. */
-function isJobState(message: unknown): message is MatcherJobStateMessage {
-	return Boolean(
-		message &&
-		typeof message === 'object' &&
-		'channel' in message &&
-		message.channel === MATCHER_OFFSCREEN_CHANNEL &&
-		'type' in message &&
-		message.type === 'matcher.job-state',
-	);
-}
-
-/** Narrow runtime traffic to one streamed matcher partition. */
-function isPartitionProgress(message: unknown): message is MatcherPartitionProgressMessage {
-	return Boolean(
-		message &&
-		typeof message === 'object' &&
-		'channel' in message &&
-		message.channel === MATCHER_OFFSCREEN_CHANNEL &&
-		'type' in message &&
-		message.type === 'matcher.partition-complete',
+		message.type === 'matcher.host-idle' &&
+		'generation' in message &&
+		typeof message.generation === 'number',
 	);
 }

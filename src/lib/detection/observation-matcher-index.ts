@@ -2,7 +2,8 @@ import type { MatchObservationBatchInput, ObservationPatternMatch, ObservationPa
 import type { DetectionPatternType, DetectionRule, DetectionRunOptions, MatcherTechnologyType, PatternDetectionRule } from './types';
 import type { NormalizedObservation, NormalizedObservationKind } from '../observations';
 import { matchObservationRule } from './observation-matcher';
-import * as dictionary from '@/utils/dictionary';
+// Relative, not `@/`: the build-time registry module loads this file outside Vite's alias resolution.
+import * as dictionary from '../../utils/dictionary';
 
 /**
  * Registry rule prepared for observation-kind and exact-key routing.
