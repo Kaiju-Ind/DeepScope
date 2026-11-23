@@ -155,12 +155,12 @@ All runtime string-keyed maps use `src/utils/dictionary.ts`. See
 | 0 | Merge `main` into the PR #5 stack; split Vitest into runtime and UI projects | done |
 | 1 | Prototype-safe page keys and regression guard | done |
 | 2 | Port the perf scheduler, worker pool and build-routed shards; fix review findings | done |
-| 3 | Local executor, per-browser background and manifests (Firefox, Safari) | manifests done; local executor next |
-| 4 | Panel surfaces: side panel, sidebar, popup, full page | UI and pinned-tab background support done; toolbar wiring next |
-| 5 | Scan-job lifecycle, badge owner, scheduling settings | planned |
+| 3 | Local executor, per-browser background and manifests (Firefox, Safari) | done; real-browser check in milestone 9 |
+| 4 | Panel surfaces: side panel, sidebar, popup, full page | done, including toolbar wiring per browser |
+| 5 | Scan-job lifecycle, badge owner, scheduling settings | badge done; scheduling settings next |
 | 6 | Vendor utilities from okikio/utils (MIT) with attribution | planned |
-| 7 | Simplify the registry build pipeline; deterministic output | planned |
-| 8 | CI and release workflows; archives, `SHA256SUMS`, attestations, ghcr | merged locally; not yet run on GitHub. Rebuilds differ only by registry `generatedAt` (milestone 7). |
+| 7 | Simplify the registry build pipeline; deterministic output | `generatedAt` removed with a rebuild test; remaining steps planned |
+| 8 | CI and release workflows; archives, `SHA256SUMS`, attestations, ghcr | merged locally; not yet run on GitHub. Firefox archives rebuild identically; Chrome varies because Fontless orders `@font-face` rules by download completion (fix: install fonts from pinned npm packages) |
 | 9 | Real-browser verification and memory measurements | planned |
 
 ### Milestone 2 review findings to fix while porting
