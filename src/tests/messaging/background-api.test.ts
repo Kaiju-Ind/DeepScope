@@ -501,7 +501,7 @@ afterEach(() => {
 	vi.resetModules();
 });
 
-describe.sequential('background visible-tab identity', () => {
+describe('background visible-tab identity', { concurrent: false }, () => {
 	it('returns the visible tab identity without contacting the content script', async () => {
 		const collectObservationBatch = vi.fn(async (_input: unknown) => extensionSuccess({ batch: makeObservationBatch() }));
 		const harness = await loadBackgroundApiHarness({ tab: HTTP_TAB, contentApi: { collectObservationBatch } });
@@ -542,7 +542,7 @@ describe.sequential('background visible-tab identity', () => {
 	});
 });
 
-describe.sequential('background analyzeVisibleTab messaging hardening', () => {
+describe('background analyzeVisibleTab messaging hardening', { concurrent: false }, () => {
 	it.each([false, true])('keeps collection failure details within tab privacy: %s', async (incognito) => {
 		const message = 'Collection failed for https://failure.example/private/page';
 		const collectObservationBatch = vi.fn(async (_input: Parameters<ContentApi['collectObservationBatch']>[0]) => {
@@ -1495,7 +1495,7 @@ describe.sequential('background analyzeVisibleTab messaging hardening', () => {
 	});
 });
 
-describe.sequential('background observation session baseline', () => {
+describe('background observation session baseline', { concurrent: false }, () => {
 	it('recovers dirty observation sessions with a fresh event analysis when no late batch is queued', async () => {
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,

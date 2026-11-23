@@ -133,7 +133,7 @@ function contentScriptContext() {
 	return { context: context as ContentScriptContext, onInvalidated };
 }
 
-describe.sequential('content API observation baseline', () => {
+describe('content API observation baseline', { concurrent: false }, () => {
 	it('starts observation through the observed-signal store and reports the session', async () => {
 		vi.useFakeTimers();
 		const { createContentApi, writeContentPageSessionSnapshot } = await loadContentApiFactory();

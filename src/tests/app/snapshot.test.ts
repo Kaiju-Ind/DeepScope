@@ -48,7 +48,7 @@ afterEach(() => {
 	vi.resetModules();
 });
 
-describe.sequential('side panel snapshot state', () => {
+describe('side panel snapshot state', { concurrent: false }, () => {
 	it('reads a same-tab origin snapshot as the startup source', async () => {
 		const snapshot = makeDetectionSessionSnapshot({
 			key: { tabId: ACTIVE_IDENTITY.tabId, frameId: ACTIVE_IDENTITY.frameId, documentId: 'document-1', originHash: ACTIVE_IDENTITY.originHash },

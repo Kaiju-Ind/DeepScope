@@ -1,4 +1,4 @@
-import { afterAll, bench, describe } from 'vitest';
+import { afterAll, describe, test } from 'vitest';
 
 import {
 	createCuratedRuleProfileCases,
@@ -50,23 +50,29 @@ const slowestByKey = new Map<string, RuleTimingRecord>();
 describe('rule detection profile', () => {
 	describe('curated passing and failing samples', () => {
 		for (const profileCase of curatedCases) {
-			bench(profileCase.scenario, () => {
-				consumeProfiledCase(profileCase);
-			}, BENCHMARK_OPTIONS);
+			test(profileCase.scenario, async ({ bench }) => {
+				await bench(profileCase.scenario, () => {
+					consumeProfiledCase(profileCase);
+				}).run(BENCHMARK_OPTIONS);
+			});
 		}
 	});
 
 	describe('registry-wide generated misses', () => {
-		bench(`generated miss coverage across ${generatedMissCases.length} registry rules`, () => {
-			consumeProfiledCases(generatedMissCases);
-		}, BENCHMARK_OPTIONS);
+		test(`generated miss coverage across ${generatedMissCases.length} registry rules`, async ({ bench }) => {
+			await bench(`generated miss coverage across ${generatedMissCases.length} registry rules`, () => {
+				consumeProfiledCases(generatedMissCases);
+			}).run(BENCHMARK_OPTIONS);
+		});
 	});
 
 	if (ENABLE_GENERATED_PASS_SCAN) {
 		describe('registry-wide generated passes', () => {
-			bench(`generated pass coverage across ${generatedPassCases.length} structural registry rules`, () => {
-				consumeProfiledCases(generatedPassCases);
-			}, BENCHMARK_OPTIONS);
+			test(`generated pass coverage across ${generatedPassCases.length} structural registry rules`, async ({ bench }) => {
+				await bench(`generated pass coverage across ${generatedPassCases.length} structural registry rules`, () => {
+					consumeProfiledCases(generatedPassCases);
+				}).run(BENCHMARK_OPTIONS);
+			});
 		});
 	}
 
@@ -83,13 +89,17 @@ describe('rule detection profile', () => {
 				payload: makeNextHydrationPayload(),
 			});
 
-			bench(`React Router hydration miss across ${reactRouterHydrationMissCases.length} content rules`, () => {
-				consumeProfiledCases(reactRouterHydrationMissCases);
-			}, BENCHMARK_OPTIONS);
+			test(`React Router hydration miss across ${reactRouterHydrationMissCases.length} content rules`, async ({ bench }) => {
+				await bench(`React Router hydration miss across ${reactRouterHydrationMissCases.length} content rules`, () => {
+					consumeProfiledCases(reactRouterHydrationMissCases);
+				}).run(BENCHMARK_OPTIONS);
+			});
 
-			bench(`Next hydration miss across ${nextHydrationMissCases.length} content rules`, () => {
-				consumeProfiledCases(nextHydrationMissCases);
-			}, BENCHMARK_OPTIONS);
+			test(`Next hydration miss across ${nextHydrationMissCases.length} content rules`, async ({ bench }) => {
+				await bench(`Next hydration miss across ${nextHydrationMissCases.length} content rules`, () => {
+					consumeProfiledCases(nextHydrationMissCases);
+				}).run(BENCHMARK_OPTIONS);
+			});
 		});
 	}
 });

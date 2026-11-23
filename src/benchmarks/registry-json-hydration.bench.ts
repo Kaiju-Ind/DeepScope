@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { describe, test } from 'vitest';
 
 import type { DetectionRule, TechnologyDefinition } from '@/lib/detection/types';
 import { compileTechnologyRegistry } from '@/lib/registry';
@@ -94,15 +94,21 @@ function compileInMemoryRegistry(): number {
  * see the cost of moving registry data out of the background startup bundle.
  */
 describe('registry json hydration', () => {
-	bench('parse hydrate and compile packaged json', () => {
-		consumeRegistrySize(parseHydrateAndCompileRegistry());
-	}, BENCHMARK_OPTIONS);
+	test('parse hydrate and compile packaged json', async ({ bench }) => {
+		await bench('parse hydrate and compile packaged json', () => {
+			consumeRegistrySize(parseHydrateAndCompileRegistry());
+		}).run(BENCHMARK_OPTIONS);
+	});
 
-	bench('hydrate and compile parsed json', () => {
-		consumeRegistrySize(hydrateAndCompileParsedRegistry());
-	}, BENCHMARK_OPTIONS);
+	test('hydrate and compile parsed json', async ({ bench }) => {
+		await bench('hydrate and compile parsed json', () => {
+			consumeRegistrySize(hydrateAndCompileParsedRegistry());
+		}).run(BENCHMARK_OPTIONS);
+	});
 
-	bench('compile in-memory registry baseline', () => {
-		consumeRegistrySize(compileInMemoryRegistry());
-	}, BENCHMARK_OPTIONS);
+	test('compile in-memory registry baseline', async ({ bench }) => {
+		await bench('compile in-memory registry baseline', () => {
+			consumeRegistrySize(compileInMemoryRegistry());
+		}).run(BENCHMARK_OPTIONS);
+	});
 });

@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { describe, test } from 'vitest';
 
 import { createEvidenceCandidateBatch, refineEvidenceCandidateBatch } from '@/lib/candidates';
 import { matchIndexedObservationBatch } from '@/lib/detection/observation-matcher-index';
@@ -174,15 +174,21 @@ function runKindShardedPartitionedMatcher(): number {
  * can compare browser timings against a stable in-process baseline.
  */
 describe('partitioned matcher', () => {
-	bench('whole indexed matcher baseline', () => {
-		consumeResultCount(runWholeIndexedMatcher());
-	}, BENCHMARK_OPTIONS);
+	test('whole indexed matcher baseline', async ({ bench }) => {
+		await bench('whole indexed matcher baseline', () => {
+			consumeResultCount(runWholeIndexedMatcher());
+		}).run(BENCHMARK_OPTIONS);
+	});
 
-	bench('partitioned matcher merge', () => {
-		consumeResultCount(runPartitionedMatcherMerge());
-	}, BENCHMARK_OPTIONS);
+	test('partitioned matcher merge', async ({ bench }) => {
+		await bench('partitioned matcher merge', () => {
+			consumeResultCount(runPartitionedMatcherMerge());
+		}).run(BENCHMARK_OPTIONS);
+	});
 
-	bench('kind-sharded partitioned matcher merge', () => {
-		consumeResultCount(runKindShardedPartitionedMatcher());
-	}, BENCHMARK_OPTIONS);
+	test('kind-sharded partitioned matcher merge', async ({ bench }) => {
+		await bench('kind-sharded partitioned matcher merge', () => {
+			consumeResultCount(runKindShardedPartitionedMatcher());
+		}).run(BENCHMARK_OPTIONS);
+	});
 });

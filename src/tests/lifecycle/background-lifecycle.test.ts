@@ -46,7 +46,7 @@ afterEach(() => {
 	vi.resetModules();
 });
 
-describe.sequential('background lifecycle listeners', () => {
+describe('background lifecycle listeners', { concurrent: false }, () => {
 	/**
 	 * Navigation events can arrive after the service worker has lost all in-memory
 	 * observer handles. Stored session indexes let the lightweight listener mark

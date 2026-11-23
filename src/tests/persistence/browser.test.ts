@@ -31,7 +31,7 @@ afterEach(() => {
 	vi.resetModules();
 });
 
-describe.sequential('browser detection persistence adapters', () => {
+describe('browser detection persistence adapters', { concurrent: false }, () => {
 	it('publishes only valid snapshots from the requested origin storage key', async () => {
 		const harness = await loadBrowserPersistenceHarness();
 		const originHash = 'origin-example';

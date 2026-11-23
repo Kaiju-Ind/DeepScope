@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { describe, test } from 'vitest';
 
 import type { DetectionRule, TechnologyDefinition } from '@/lib/detection/types';
 import { matchObservationBatch } from '@/lib/detection/observation-matcher';
@@ -128,29 +128,35 @@ const scenarios = OBSERVATION_MATCHER_WORKLOADS.map(createObservationMatcherScen
 describe('observation matcher', () => {
 	for (const scenario of scenarios) {
 		describe(`${scenario.workload} large registry`, () => {
-			bench('sequential', () => {
-				consumeMatchCount(matchObservationBatch({
-					registry: scenario.registry,
-					batch: scenario.batch,
-				}).matches.length);
-			}, BENCHMARK_OPTIONS);
+			test('sequential', async ({ bench }) => {
+				await bench('sequential', () => {
+					consumeMatchCount(matchObservationBatch({
+						registry: scenario.registry,
+						batch: scenario.batch,
+					}).matches.length);
+				}).run(BENCHMARK_OPTIONS);
+			});
 
-			bench('indexed', () => {
-				consumeMatchCount(matchIndexedObservationBatch({
-					registry: scenario.registry,
-					batch: scenario.batch,
-					index: scenario.index,
-				}).matches.length);
-			}, BENCHMARK_OPTIONS);
+			test('indexed', async ({ bench }) => {
+				await bench('indexed', () => {
+					consumeMatchCount(matchIndexedObservationBatch({
+						registry: scenario.registry,
+						batch: scenario.batch,
+						index: scenario.index,
+					}).matches.length);
+				}).run(BENCHMARK_OPTIONS);
+			});
 
-			bench('indexed initial-pass disabled URL surfaces', () => {
-				consumeMatchCount(matchIndexedObservationBatch({
-					registry: scenario.registry,
-					batch: scenario.batch,
-					index: scenario.index,
-					options: { disabledKinds: INITIAL_DISABLED_KINDS },
-				}).matches.length);
-			}, BENCHMARK_OPTIONS);
+			test('indexed initial-pass disabled URL surfaces', async ({ bench }) => {
+				await bench('indexed initial-pass disabled URL surfaces', () => {
+					consumeMatchCount(matchIndexedObservationBatch({
+						registry: scenario.registry,
+						batch: scenario.batch,
+						index: scenario.index,
+						options: { disabledKinds: INITIAL_DISABLED_KINDS },
+					}).matches.length);
+				}).run(BENCHMARK_OPTIONS);
+			});
 		});
 	}
 });

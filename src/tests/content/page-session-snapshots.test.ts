@@ -39,7 +39,7 @@ afterEach(() => {
 	vi.resetModules();
 });
 
-describe.sequential('content page-session snapshots', () => {
+describe('content page-session snapshots', { concurrent: false }, () => {
 	/**
 	 * Content can publish the first visible lifecycle state before background
 	 * enrichment has produced detector results. The placeholder analysis keeps

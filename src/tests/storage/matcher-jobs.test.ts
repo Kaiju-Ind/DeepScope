@@ -48,7 +48,7 @@ afterEach(() => {
 	vi.resetModules();
 });
 
-describe.sequential('matcher job privacy and recovery', () => {
+describe('matcher job privacy and recovery', { concurrent: false }, () => {
 	it.each<MatcherJobStatus>([
 		'queued', 'dispatching', 'running', 'streaming', 'recording',
 		'completed', 'stale', 'canceled', 'failed',
