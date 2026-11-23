@@ -71,9 +71,9 @@ Private collection, matcher, automatic scan, content lifecycle, and panel comman
 
 This policy applies to matcher-job persistence and the named diagnostic producers. Snapshot and replay retention have separate owners. Private scans still use a queued analysis response without a final-result delivery channel to the panel. The complete private side-panel journey and background restart behavior still need packaged-extension verification.
 
-## Registry startup note
+## Registry startup
 
-The WXT registry generation module is now registered so builds prepare the compiled registry artifact consistently. The generated artifact is still consumed by the current registry provider, so a deeper packaged-data split remains a separate build/runtime follow-up. That follow-up should move large registry data behind packaged asset loading rather than adding dynamic code imports to the service worker.
+During prepare and build, `modules/compile-registry.ts` writes the registry products and selects the assets shipped with the extension. Fresh analysis loads `registry.runtime.json` for collection planning and relationship refinement. Dedicated matcher workers load observation-kind shards when they need rules. The complete authored registry stays in the build process. See [Registry JSON artifacts](registry-json-artifacts.md) for the generated files and their consumers.
 
 ## Validation points
 
