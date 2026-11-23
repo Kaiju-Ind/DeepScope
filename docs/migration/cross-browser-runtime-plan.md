@@ -154,9 +154,9 @@ All runtime string-keyed maps use `src/utils/dictionary.ts`. See
 | --- | --- | --- |
 | 0 | Merge `main` into the PR #5 stack; split Vitest into runtime and UI projects | done |
 | 1 | Prototype-safe page keys and regression guard | done |
-| 2 | Port the perf scheduler, worker pool and build-routed shards; fix review findings | next |
-| 3 | Local executor, per-browser background and manifests (Firefox, Safari) | planned |
-| 4 | Panel surfaces: side panel, sidebar, popup, full page | planned |
+| 2 | Port the perf scheduler, worker pool and build-routed shards; fix review findings | in progress (branch `port/perf-scheduler`) |
+| 3 | Local executor, per-browser background and manifests (Firefox, Safari) | manifests done; executor after milestone 2 |
+| 4 | Panel surfaces: side panel, sidebar, popup, full page | UI done; toolbar wiring and pinned-tab background support after milestone 2 |
 | 5 | Scan-job lifecycle, badge owner, scheduling settings | planned |
 | 6 | Vendor utilities from okikio/utils (MIT) with attribution | planned |
 | 7 | Simplify the registry build pipeline; deterministic output | planned |
