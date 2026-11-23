@@ -80,6 +80,17 @@ observation batch merging to `lib/observations/merge.ts`, log summaries to
   `lib/storage` or `lib/persistence/browser`. `app/model/**` stays pure.
 - Names are concrete; no new `runtime`, `helper` or `manager` modules.
   Persisted values, storage keys and log event names stay byte-identical.
+- Names are short (owner decision, 2026-11-23). A dash in a file or folder
+  name usually hides a subfolder: `detection-snapshots.ts` becomes
+  `snapshots/…`, `observation-matcher-index.ts` becomes `matcher/index.ts`.
+  Identifiers are short too; the module namespace carries the context, so
+  `createBrowserContentPageSessionSnapshotStore` becomes
+  `snapshots.store.create` and
+  `clearScheduledObservationRefreshesForTab` becomes `refresh.clear(tabId)`.
+  Today there are 110 dashed file names outside `src/registry` and `src/ui`,
+  and dozens of identifiers of 38 or more characters. Renames happen inside
+  the moves of each lane, not as a separate sweep, so each file is touched
+  once.
 - Stateful factories expose `dispose()` and `forgetTab()` so they can adopt
   the vendored `dispose` utilities.
 
