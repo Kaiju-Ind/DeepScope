@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { mkdirSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 
@@ -73,11 +74,9 @@ async function generateRegistryJsonAssets(
 	cacheRegistryDir: string,
 	publicRegistryDir: string,
 ): Promise<void> {
-	const root = wxt.config.root;
-	const [{ technologies }, { compileTechnologyRegistry }] = await Promise.all([
-		import(resolve(root, 'src/registry/technologies.ts')) as Promise<{ readonly technologies: readonly TechnologyDefinition[] }>,
-		import(resolve(root, 'src/lib/registry/compiler.ts')) as Promise<{ compileTechnologyRegistry(input: { readonly technologies: readonly TechnologyDefinition[]; readonly sourceKind: 'typescript-definition' }): CompiledTechnologyRegistryArtifact }>,
-	]);
+	const startedAt = performance.now();
+	const { technologies, compileTechnologyRegistry } = await loadRegistrySources(wxt.config.root, wxt.config.wxtDir);
+	const loadedAt = performance.now();
 	const { fullArtifact, assets } = buildRegistryAssets(technologies, compileTechnologyRegistry);
 
 	await Promise.all([
@@ -89,8 +88,48 @@ async function generateRegistryJsonAssets(
 		writeRegistryAssets(publicRegistryDir, assets.filter(isPublicRegistryAsset)),
 	]);
 	wxt.logger.info(
-		`Generated registry build cache with ${fullArtifact.technologies.length} technologies and ${fullArtifact.matcherIndex.ruleCount} rules; packaged runtime contains one rule-free background artifact and ${assets.filter((asset) => asset.path.includes('/registry.kind.')).length} matcher shards.`,
+		`Generated registry build cache with ${fullArtifact.technologies.length} technologies and ${fullArtifact.matcherIndex.ruleCount} rules; packaged runtime contains one rule-free background artifact and ${assets.filter((asset) => asset.path.includes('/registry.kind.')).length} matcher shards (loaded in ${Math.round(loadedAt - startedAt)}ms, compiled and written in ${Math.round(performance.now() - loadedAt)}ms).`,
 	);
+}
+
+/** What `modules/registry-sources.ts` exports once bundled. */
+interface RegistrySources {
+	readonly technologies: readonly TechnologyDefinition[];
+	compileTechnologyRegistry(input: {
+		readonly technologies: readonly TechnologyDefinition[];
+		readonly sourceKind: 'typescript-definition';
+	}): CompiledTechnologyRegistryArtifact;
+}
+
+/**
+ * Load the technology catalog and the registry compiler in one bundling pass.
+ *
+ * WXT loads this module through jiti, which transforms each imported TypeScript
+ * file separately. The catalog is about 8,000 files, so importing it that way
+ * took about 19 seconds on a fresh machine. Rolldown (already used by Vite)
+ * bundles the same sources in about one second and resolves the project's `@/`
+ * alias, which jiti cannot. The bundle is written to WXT's own `.wxt` folder
+ * because it creates `require` from its own file URL for CommonJS dependencies.
+ */
+async function loadRegistrySources(root: string, wxtDir: string): Promise<RegistrySources> {
+	const { rolldown } = await import('rolldown');
+	const bundle = await rolldown({
+		input: resolve(root, 'modules/registry-sources.ts'),
+		platform: 'node',
+		logLevel: 'silent',
+		resolve: { alias: { '@': resolve(root, 'src'), '~': resolve(root, 'src') } },
+	});
+	try {
+		const { output } = await bundle.generate({ format: 'esm' });
+		const [chunk] = output;
+		if (!chunk || chunk.type !== 'chunk') throw new Error('Registry source bundle produced no JavaScript.');
+		const file = resolve(wxtDir, 'registry-sources.mjs');
+		await writeFile(file, chunk.code);
+		// A query string forces a fresh module when `wxt dev` regenerates in the same process.
+		return await import(`${pathToFileURL(file).href}?t=${Date.now()}`) as RegistrySources;
+	} finally {
+		await bundle.close();
+	}
 }
 
 /**

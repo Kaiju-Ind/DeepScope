@@ -284,6 +284,9 @@ importers:
       oxc-parser:
         specifier: 0.158.0
         version: 0.158.0
+      rolldown:
+        specifier: 1.2.18
+        version: 1.2.18
       tailwindcss:
         specifier: ^4.3.5
         version: 4.3.5
