@@ -14,6 +14,7 @@ import {
 } from '../../observations';
 import * as scan from './scan';
 import type * as observe from './types';
+import * as dictionary from '@/utils/dictionary';
 
 const MAX_PENDING_MUTATION_NODES = 100;
 const observerLogger = logging.get('content', 'observer');
@@ -646,7 +647,7 @@ export function create(options: observe.OptionsType): observe.SignalsType {
 
 	/** Materialize bounded meta evidence for an explicit page snapshot. */
 	function getMeta(): Record<string, string[]> {
-		return Object.fromEntries(
+		return dictionary.fromEntries(
 			[...metaEntries.entries()].map(([key, values]) => [
 				key,
 				[...values].slice(0, SOURCE_LIMITS.metaValuesPerKey),
@@ -786,7 +787,7 @@ export function create(options: observe.OptionsType): observe.SignalsType {
 				scriptContents: content.includeScriptContent ? scriptContents : [],
 				stylesheetContents: content.includeStylesheetContent ? stylesheetContents : [],
 				meta: getMeta(),
-				dom: { selectors: Object.fromEntries(domSelectorEntries) },
+				dom: { selectors: dictionary.fromEntries(domSelectorEntries) },
 			};
 		},
 

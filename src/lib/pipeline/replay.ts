@@ -6,6 +6,7 @@ import type {
 	DetectionPipelineRuntimeResult,
 	DetectionPipelineStage,
 } from './runtime';
+import * as dictionary from '@/utils/dictionary';
 
 /** Schema version for serialized replay traces produced by this module. */
 export const DETECTION_REPLAY_TRACE_SCHEMA_VERSION = 1 as const;
@@ -265,7 +266,7 @@ function createReasonSummaries(
 
 /** Clone scalar event details so callers cannot mutate stored trace diagnostics. */
 function cloneEventDetails(details: DetectionPipelineEventDetails): DetectionPipelineEventDetails {
-	return Object.fromEntries(Object.entries(details));
+	return dictionary.from(details) as DetectionPipelineEventDetails;
 }
 
 

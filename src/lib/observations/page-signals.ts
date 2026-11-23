@@ -14,6 +14,7 @@ import type {
 	ObservationTarget,
 	ObservationValue,
 } from './types';
+import * as dictionary from '@/utils/dictionary';
 
 const DNS_RECORD_ORDER: DnsRecordType[] = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'SOA', 'TXT'];
 
@@ -272,7 +273,7 @@ function toObservationValue(value: unknown): ObservationValue {
 function compactAttributes(
 	attributes: Readonly<Record<string, ObservationValue | undefined>>,
 ): ObservationAttributes {
-	const compacted: Record<string, ObservationValue> = {};
+	const compacted = dictionary.create<ObservationValue>();
 	for (const [key, value] of Object.entries(attributes)) {
 		if (value !== undefined && value !== '') {
 			compacted[key] = value;

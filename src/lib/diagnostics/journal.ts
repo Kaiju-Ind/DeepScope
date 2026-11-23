@@ -11,6 +11,7 @@ import type {
 	DiagnosticValue,
 } from './contracts';
 import { DIAGNOSTIC_TRANSPORT_CHANNEL } from './contracts';
+import * as dictionary from '@/utils/dictionary';
 
 const DIAGNOSTIC_RECORD_PREFIX = 'diagnostics:record:';
 const DIAGNOSTIC_CONTEXT_PREFIX = 'diagnostics:context:';
@@ -386,7 +387,7 @@ async function flushDiagnosticJournal(journal: DiagnosticJournalState): Promise<
 	const batch = journal.pending.splice(0);
 	const storage = getStorageArea();
 	if (!storage) return;
-	const values: Record<string, unknown> = {};
+	const values = dictionary.create<unknown>();
 	for (const record of batch) values[getDiagnosticRecordKey(record)] = record;
 
 	journal.flushPromise = journal.flushPromise
@@ -480,7 +481,7 @@ async function trimDiagnosticJournal(): Promise<void> {
 }
 
 function sanitizeDiagnosticProperties(properties: Readonly<Record<string, unknown>>): Record<string, DiagnosticValue> {
-	const result: Record<string, DiagnosticValue> = {};
+	const result = dictionary.create<DiagnosticValue>();
 	for (const [key, value] of Object.entries(properties).slice(0, MAX_OBJECT_KEYS)) {
 		result[key] = sanitizeDiagnosticValue(value, 0, key);
 	}
@@ -502,7 +503,7 @@ function sanitizeDiagnosticValue(value: unknown, depth: number, key?: string): D
 		return value.slice(0, MAX_ARRAY_ITEMS).map((item) => sanitizeDiagnosticValue(item, depth + 1));
 	}
 	if (typeof value === 'object') {
-		const result: Record<string, DiagnosticValue> = {};
+		const result = dictionary.create<DiagnosticValue>();
 		for (const [childKey, childValue] of Object.entries(value as Record<string, unknown>).slice(0, MAX_OBJECT_KEYS)) {
 			result[childKey] = sanitizeDiagnosticValue(childValue, depth + 1, childKey);
 		}

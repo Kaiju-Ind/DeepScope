@@ -9,6 +9,7 @@ import type {
 	ObservationTarget,
 	ObservationValue,
 } from './types';
+import * as dictionary from '@/utils/dictionary';
 
 /**
  * Metadata needed to turn late observer data into shared observation events.
@@ -152,7 +153,7 @@ function addRequestObservation(addObservation: ObservationAppender, request: Req
 function compactAttributes(
 	attributes: Readonly<Record<string, ObservationValue | undefined>>,
 ): ObservationAttributes {
-	const compacted: Record<string, ObservationValue> = {};
+	const compacted = dictionary.create<ObservationValue>();
 	for (const [key, value] of Object.entries(attributes)) {
 		if (value !== undefined && value !== '') compacted[key] = value;
 	}

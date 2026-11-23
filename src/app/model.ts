@@ -24,6 +24,7 @@ import {
 	type DetectionReplayTrace,
 } from '@/lib/pipeline';
 import type { ExtensionError } from '@/lib/messaging/failure';
+import * as dictionary from '@/utils/dictionary';
 
 /**
  * Panel observation states that are meaningful to the user interface.
@@ -823,7 +824,7 @@ export function buildExplanationLookup(
 		return {};
 	}
 
-	return Object.fromEntries(
+	return dictionary.fromEntries(
 		trace.explanations.map((explanation) => [
 			explanation.technologyId,
 			createExplanationSummary(explanation),

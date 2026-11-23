@@ -7,6 +7,7 @@ import { timeAsyncSpan, type TimingContext } from '../diagnostics/timing';
 import type { NormalizedObservation, ObservationBatch } from '../observations';
 import { diagnosticErrorType } from '../privacy/redaction';
 import * as url from '@/utils/url';
+import * as dictionary from '@/utils/dictionary';
 
 /** Value shape stored for a page-owned JavaScript global. */
 export type JsGlobalSignalValue = string | boolean | number;
@@ -404,7 +405,7 @@ function headersToSignalRecord(headers: Headers): Record<string, string> {
 		]);
 	}
 
-	return Object.fromEntries(entries);
+	return dictionary.fromEntries(entries);
 }
 
 function isFetchableSameOriginUrl(value: string, allowedOrigin: string): boolean {
@@ -430,7 +431,10 @@ function collectInjectedJsGlobalsFromPageContext(
 	propertyPaths: string[],
 	maxValueChars: number,
 ): Record<string, JsGlobalSignalValue> {
-	const values: Record<string, JsGlobalSignalValue> = {};
+	// This function is serialized into the page's MAIN world and cannot import
+	// modules. Global paths come from the registry, but the record still has no
+	// prototype so a path such as `constructor` stays ordinary data.
+	const values = Object.create(null) as Record<string, JsGlobalSignalValue>;
 	const root = globalThis as Record<string, unknown>;
 
 	/** Get one injected page-global value without invoking unrelated global properties. */

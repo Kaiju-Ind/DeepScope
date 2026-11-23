@@ -14,6 +14,7 @@ import type {
 } from '@/lib/matcher/contracts';
 import type { NormalizedObservationKind, ObservationValue } from '@/lib/observations';
 import { redactEvidenceValue } from '@/lib/privacy/redaction';
+import * as dictionary from '@/utils/dictionary';
 
 /** Log individual rule checks that are slow enough to explain visible matcher stalls. */
 const SLOW_RULE_EVALUATION_MS = 25;
@@ -383,7 +384,7 @@ function roundDuration(durationMs: number): number {
 }
 
 function withoutUndefined<T extends Record<string, unknown>>(value: T): T {
-	return Object.fromEntries(
+	return dictionary.fromEntries(
 		Object.entries(value).filter((entry) => entry[1] !== undefined),
 	) as T;
 }

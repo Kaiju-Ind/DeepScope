@@ -2,6 +2,7 @@ import type { MatchObservationBatchInput, ObservationPatternMatch, ObservationPa
 import type { DetectionPatternType, DetectionRule, DetectionRunOptions, MatcherTechnologyType, PatternDetectionRule } from './types';
 import type { NormalizedObservation, NormalizedObservationKind } from '../observations';
 import { matchObservationRule } from './observation-matcher';
+import * as dictionary from '@/utils/dictionary';
 
 /**
  * Registry rule prepared for observation-kind and exact-key routing.
@@ -690,7 +691,7 @@ function findKeyedObservationRules(
 	}
 
 	const keys = getObservationRouteKeys(observation);
-	return mergeRuleBucketList(keys.map((key) => kindBuckets[key] ?? []));
+	return mergeRuleBucketList(keys.map((key) => dictionary.get(kindBuckets, key) ?? []));
 }
 
 /** Lowercase header-like keys because matching treats those names case-insensitively. */
@@ -828,5 +829,5 @@ function freezeDiagnostics(diagnostics: MutableObservationMatcherDiagnostics): O
 }
 
 function incrementCount(counts: Record<string, number>, key: string, amount = 1): void {
-	counts[key] = (counts[key] ?? 0) + amount;
+	counts[key] = (dictionary.get(counts, key) ?? 0) + amount;
 }

@@ -1,4 +1,5 @@
 import { SOURCE_LIMITS } from './source-limits';
+import * as dictionary from '@/utils/dictionary';
 
 export function uniqueStrings(values: string[]): string[] {
 	return Array.from(new Set(values.filter(Boolean)));
@@ -70,7 +71,7 @@ export function normalizeMetaMap(meta: Record<string, string[]>): Record<string,
 		return [key.toLowerCase(), normalizedValues] as const;
 	});
 
-	return Object.fromEntries(entries);
+	return dictionary.fromEntries(entries);
 }
 
 /** Estimate serialized message size before sending signals across extension boundaries. */

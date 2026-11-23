@@ -1,4 +1,5 @@
 import type { RuntimeDetectionKind } from '../detection/types';
+import * as dictionary from '@/utils/dictionary';
 
 /**
  * Describes whether the browser extension can collect a rule source today.
@@ -179,7 +180,7 @@ const CAPABILITIES: readonly ExtensionCollectorCapability[] = [
 export const EXTENSION_COLLECTOR_CAPABILITIES = CAPABILITIES;
 
 const CAPABILITY_BY_KIND: Readonly<Record<RuntimeDetectionKind, ExtensionCollectorCapability>> = Object.freeze(
-	Object.fromEntries(CAPABILITIES.map((capability) => [capability.kind, capability])) as Record<RuntimeDetectionKind, ExtensionCollectorCapability>,
+	dictionary.fromEntries(CAPABILITIES.map((capability) => [capability.kind, capability])) as Record<RuntimeDetectionKind, ExtensionCollectorCapability>,
 );
 
 /** Return the browser-extension collector support record for one detector rule kind. */

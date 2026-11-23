@@ -11,6 +11,7 @@ import type {
 } from '../detection/types';
 import type { CollectPageSignalsInput, HtmlProbe } from '../messaging';
 import * as dom from '../dom';
+import * as dictionary from '@/utils/dictionary';
 
 /**
  * Collects only bounded, rule-oriented page signals. The content script may read
@@ -311,7 +312,7 @@ function collectHtmlProbeMatches(
 	html: string,
 	probes: HtmlProbe[],
 ): Record<string, HtmlMatchSignal> {
-	const matches: Record<string, HtmlMatchSignal> = {};
+	const matches = dictionary.create<HtmlMatchSignal>();
 
 	for (const probe of probes) {
 		const pattern = safeProbePattern(probe);
@@ -460,7 +461,7 @@ export function collectResourceTimings(): ResourceSignal[] {
 }
 
 export function collectCookieNames(cookieString: string): CookieSignals {
-	return Object.fromEntries(
+	return dictionary.fromEntries(
 		cookieString
 			.split(';')
 			.map((part) => part.trim())
@@ -468,7 +469,7 @@ export function collectCookieNames(cookieString: string): CookieSignals {
 			.map((part) => {
 				const index = part.indexOf('=');
 				const name = index === -1 ? part : part.slice(0, index);
-				return [safeDecode(name), true];
+				return [safeDecode(name), true] as const;
 			})
 			.slice(0, SOURCE_LIMITS.cookieNames),
 	);
@@ -523,9 +524,9 @@ function collectStorageAreaKeys(getStorage: () => Storage): Record<string, true>
 				keys.push([key, true]);
 			}
 		}
-		return Object.fromEntries(keys);
+		return dictionary.fromEntries(keys);
 	} catch {
-		return {};
+		return dictionary.create();
 	}
 }
 

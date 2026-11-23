@@ -14,6 +14,7 @@ import { SOURCE_LIMITS } from '../../detection/source-limits';
 import * as dom from '../../dom';
 import type { DomPlanType, MatchStatsType } from '../../dom';
 import type { SnapshotOptionsType, SnapshotType } from './types';
+import * as dictionary from '@/utils/dictionary';
 
 /** Inputs for one bounded live-DOM scan. */
 export type ScanType = {
@@ -44,8 +45,8 @@ export function empty(): SnapshotType {
 		requests: [],
 		scriptContents: [],
 		stylesheetContents: [],
-		meta: {},
-		dom: { selectors: {} },
+		meta: dictionary.create<string[]>(),
+		dom: { selectors: dictionary.create<boolean>() },
 	};
 }
 
@@ -145,7 +146,11 @@ function append<T>(target: T[], values: readonly T[], limit: number): void {
 /** Merge bounded per-element metadata into one temporary mutation snapshot. */
 function mergeMeta(target: Record<string, string[]>, source: Record<string, string[]>): void {
 	for (const [key, values] of Object.entries(source)) {
-		const bucket = target[key] ?? (target[key] = []);
+		let bucket = dictionary.get(target, key);
+		if (!bucket) {
+			bucket = [];
+			target[key] = bucket;
+		}
 		for (const value of values) {
 			if (bucket.length >= SOURCE_LIMITS.metaValuesPerKey) break;
 			if (!bucket.includes(value)) bucket.push(value);
