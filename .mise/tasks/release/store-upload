@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+#MISE description="Upload a release archive to a browser store (chrome: upload only; firefox: listed submission with sources)"
+#MISE tools={"npm:chrome-webstore-upload-cli"="4.0.2", "npm:web-ext"="10.8.0"}
+#USAGE arg "<store>" help="Target store" {
+#USAGE   choices "chrome" "firefox"
+#USAGE }
+#USAGE arg "<dir>" help="Directory holding the release archives"
+#USAGE arg "<version>" help="Release version"
+# Credentials are read from the environment only:
+#   chrome:  EXTENSION_ID PUBLISHER_ID CLIENT_ID CLIENT_SECRET REFRESH_TOKEN
+#   firefox: WEB_EXT_API_KEY WEB_EXT_API_SECRET
+# The Chrome upload is left unpublished so a person submits it for review.
+set -euo pipefail
+dir="${usage_dir:?}"
+version="${usage_version:?}"
+case "${usage_store:?}" in
+  chrome)
+    : "${EXTENSION_ID:?}" "${PUBLISHER_ID:?}" "${CLIENT_ID:?}" "${CLIENT_SECRET:?}" "${REFRESH_TOKEN:?}"
+    exec chrome-webstore-upload upload --source "$dir/deepscope-$version-chrome.zip"
+    ;;
+  firefox)
+    : "${WEB_EXT_API_KEY:?}" "${WEB_EXT_API_SECRET:?}"
+    unpacked="$(mktemp -d)"
+    unzip -q "$dir/deepscope-$version-firefox.zip" -d "$unpacked"
+    exec web-ext sign --channel listed --source-dir "$unpacked" \
+      --upload-source-code "$dir/deepscope-$version-firefox-sources.zip" \
+      --approval-timeout 0 --no-input
+    ;;
+esac

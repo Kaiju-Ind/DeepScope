@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+#MISE description="Push release archives and SHA256SUMS to ghcr.io as one OCI artifact"
+#MISE tools={oras="1.3.6"}
+#USAGE flag "--version <version>" required=#true help="Release version (the OCI tag)"
+#USAGE flag "--repository <ref>" help="Registry repository; default ghcr.io/<lowercased owner>/deepscope"
+#USAGE arg "<dir>" help="Directory holding the archives and SHA256SUMS"
+# Credentials come from GHCR_USER and GHCR_TOKEN (GITHUB_TOKEN with
+# packages: write in CI). When GITHUB_OUTPUT is set, the pushed repository name
+# and manifest digest are written there for the attestation step.
+set -euo pipefail
+version="${usage_version:?}"
+repository="${usage_repository:-}"
+if [ -z "$repository" ]; then
+  owner="${GITHUB_REPOSITORY_OWNER:?set GITHUB_REPOSITORY_OWNER or pass --repository}"
+  # OCI repository names must be lowercase (OpenArsenal -> openarsenal).
+  repository="ghcr.io/$(tr '[:upper:]' '[:lower:]' <<< "$owner")/deepscope"
+fi
+source_url="${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-}"
+
+printf '%s' "${GHCR_TOKEN:?}" | oras login "${repository%%/*}" -u "${GHCR_USER:?}" --password-stdin
+
+cd "${usage_dir:?}"
+(sha256sum -c SHA256SUMS 2>/dev/null || shasum -a 256 -c SHA256SUMS) > /dev/null
+files=()
+for file in deepscope-*.zip; do files+=("$file:application/zip"); done
+files+=("SHA256SUMS:text/plain")
+
+result=$(oras push "$repository:$version" "${files[@]}" \
+  --artifact-type application/vnd.deepscope.release.v1 \
+  --annotation "org.opencontainers.image.source=$source_url" \
+  --annotation "org.opencontainers.image.version=$version" \
+  --annotation "org.opencontainers.image.revision=${GITHUB_SHA:-unknown}" \
+  --annotation "org.opencontainers.image.title=DeepScope $version" \
+  --format json)
+digest=$(jq -r .digest <<< "$result")
+echo "pushed $repository:$version@$digest"
+if [ -n "${GITHUB_OUTPUT:-}" ]; then
+  { echo "name=$repository"; echo "digest=$digest"; } >> "$GITHUB_OUTPUT"
+fi

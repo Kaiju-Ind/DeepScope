@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#MISE description="Build and zip the extension for one browser (Firefox also emits a sources zip)"
+#USAGE arg "<browser>" help="Target browser" {
+#USAGE   choices "chrome" "firefox" "safari"
+#USAGE }
+# --mv3 is explicit because WXT 0.21 defaults Firefox and Safari to MV2 unless
+# wxt.config.ts sets manifestVersion: 3.
+set -euo pipefail
+browser="${usage_browser:?}"
+# Remove this browser's previous archives so the release collector never picks
+# up a stale zip from an earlier build.
+rm -f .output/*-"$browser".zip
+if [ "$browser" = firefox ]; then rm -f .output/*-sources.zip; fi
+exec pnpm exec wxt zip -b "$browser" --mv3

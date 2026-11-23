@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Lint a built Firefox extension with Mozilla's web-ext (addons-linter)"
+#MISE tools={"npm:web-ext"="10.8.0"}
+#USAGE arg "[source_dir]" default=".output/firefox-mv3" help="Unpacked Firefox build"
+set -euo pipefail
+exec web-ext lint --source-dir "${usage_source_dir:?}" --no-input

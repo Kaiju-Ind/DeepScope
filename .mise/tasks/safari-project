@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+#MISE description="macOS only: wrap a built Safari extension in an Xcode project and build it unsigned"
+#USAGE flag "--source <dir>" default=".output/safari-mv3" help="Unpacked Safari build"
+#USAGE flag "--out <dir>" default=".output/safari-xcode" help="Xcode project location (replaced)"
+#USAGE flag "--bundle-id <id>" default="local.deepscope.DeepScope" help="App bundle id ending in .DeepScope (the packager derives the extension id from it); the default is only for unsigned CI builds"
+#USAGE flag "--no-build" help="Generate the project without running xcodebuild"
+# Store submission needs a real bundle id, an Apple Developer team and signing;
+# see docs/release/README.md. This task proves the project generates and compiles.
+set -euo pipefail
+source_dir="${usage_source:?}"
+out="${usage_out:?}"
+rm -rf "$out"
+xcrun safari-web-extension-packager "$source_dir" \
+  --project-location "$out" \
+  --app-name DeepScope \
+  --bundle-identifier "${usage_bundle_id:?}" \
+  --macos-only --swift --copy-resources --no-open --no-prompt --force
+if [ "${usage_no_build:-false}" = true ]; then exit 0; fi
+exec xcodebuild -project "$out/DeepScope/DeepScope.xcodeproj" -scheme DeepScope \
+  -configuration Release -derivedDataPath "$out/DerivedData" \
+  CODE_SIGNING_ALLOWED=NO build

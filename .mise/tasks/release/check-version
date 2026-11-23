@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Fail unless a release tag (vX.Y.Z) matches the package.json version"
+#USAGE arg "<tag>" help="Tag or version, e.g. v0.2.0"
+set -euo pipefail
+exec node scripts/release/archives.mjs check-version "${usage_tag:?}"
