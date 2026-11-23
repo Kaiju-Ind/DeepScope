@@ -1,5 +1,7 @@
 export type {
 	VisibleTabIdentity,
+	VisibleTabIdentityInput,
+	TabTargetFollow,
 	VisibleTabObservationMode,
 	SnapshotReuseStatus,
 	AnalysisEnrichmentState,

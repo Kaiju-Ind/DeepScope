@@ -1,55 +1,37 @@
-import type { MatcherJobRecord } from '@/lib/matcher';
+import type { MatcherJobLifecycleRecord } from '@/lib/matcher';
 import * as offscreen from '@/lib/matcher/offscreen';
-import { isMatcherJobActive, listMatcherJobRecordsForRecovery, updateMatcherJobRecord } from '@/lib/storage/matcher-jobs';
+import { reconcileMatcherJobRecords } from '@/lib/storage/matcher-jobs';
 
 /**
- * Resolve matcher jobs orphaned by a previous background context.
+ * Classify durable matcher diagnostics orphaned by a previous background context.
  *
- * A new MV3 service-worker context cannot recover the Promise/callback ownership
- * of work dispatched by the previous context. Any non-terminal durable record is
- * therefore interrupted work, even when Chrome suspended the old context rather
- * than crashing it. The offscreen host is asked to stop the orphan before the
- * record is marked failed. Cancellation terminates active matcher workers; the
- * host's single idle lifecycle later closes the now-idle offscreen document.
+ * A new MV3 service-worker context cannot recover the Promise ownership of work
+ * dispatched by the previous context. The matcher scheduler cancels orphaned
+ * offscreen work and recollects still-open documents; this pass only marks the
+ * matching diagnostic records `context-interrupted` and strips legacy raw
+ * fields. Rows written by older builds for private tabs are removed, and an
+ * active one only after the offscreen host confirms the job stopped (or the
+ * host document is confirmed gone), so a failed cancel is retried next start.
  */
 export async function reconcileInterruptedMatcherJobs(
+	currentContextId: string,
 	log?: (event: string, details?: Record<string, unknown>) => void,
-): Promise<MatcherJobRecord[]> {
-	const records = await listMatcherJobRecordsForRecovery(offscreen.cancelForRecovery, (stage, count) => {
-		log?.('matcher-job-legacy-private-migration-failed', { stage, count });
+): Promise<MatcherJobLifecycleRecord[]> {
+	const interrupted = await reconcileMatcherJobRecords(currentContextId, {
+		cancel: offscreen.cancelForRecovery,
+		reportFailure(stage, count) {
+			log?.('matcher-job-legacy-private-migration-failed', { stage, count });
+		},
 	});
-	const active = records.filter(isMatcherJobActive);
-	if (!active.length) return [];
-
-	const reconciled: MatcherJobRecord[] = [];
-	for (const record of active) {
-		try {
-			await offscreen.cancel(record.jobId);
-		} catch (error) {
-			log?.('matcher-job-interruption-cancel-failed', {
+	if (interrupted.length) {
+		log?.('matcher-jobs-reconciled-after-context-start', {
+			count: interrupted.length,
+			jobs: interrupted.map((record) => ({
 				jobId: record.jobId,
-				message: error instanceof Error ? error.message : String(error),
-			});
-		}
-
-		const interruptedAt = Date.now();
-		const updated = await updateMatcherJobRecord(record, {
-			status: 'failed',
-			reason: 'context-interrupted',
-			interruptedStatus: record.status,
-			interruptedAt,
-			errorMessage: 'Matcher work was interrupted when its owning background context ended.',
+				interruptedStatus: record.interruptedStatus,
+				interruptedAt: record.interruptedAt,
+			})),
 		});
-		if (updated) reconciled.push(updated);
 	}
-
-	log?.('matcher-jobs-reconciled-after-context-start', {
-		count: reconciled.length,
-		jobs: reconciled.map((record) => ({
-			jobId: record.jobId,
-			interruptedStatus: record.interruptedStatus,
-			interruptedAt: record.interruptedAt,
-		})),
-	});
-	return reconciled;
+	return interrupted;
 }

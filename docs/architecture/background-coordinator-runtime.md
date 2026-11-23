@@ -33,6 +33,12 @@ The runtime module imports no `wxt/browser` or `comctx` implementation. This kee
 
 The background still owns work that needs privileged extension APIs: visible-tab identity, content-script injection, page-main-world probes, same-origin enrichment fetches, response-header collection, and detector promotion. Those operations happen after a popup command or a refresh request. They do not become background startup work.
 
+## Scheduler ownership
+
+The entrypoint composes two schedulers in front of the runtime (`src/lib/scheduler/`). The analysis scheduler admits panel, automatic and recovery analyses as small IndexedDB intent records, deduplicates equivalent requests, and runs them one at a time by priority (interactive, foreground, background, maintenance) with a bounded foreground burst so background tabs keep progressing. Live observation refreshes run on the same lane as in-memory `background` work, so a page that mutates constantly cannot starve an interactive request; their failures are logged, never thrown into the lane. The matcher scheduler admits at most eight jobs and 12 MiB of estimated transient observations and selects partitions for the offscreen executor (see [partitioned offscreen matcher](partitioned-offscreen-matcher.md)). Work for private tabs never gets a durable record.
+
+Activation gates only whether a request that follows the active tab is accepted. A panel surface pinned to one tab sends `follow: 'pinned'`, which accepts an inactive target while still validating its window, document and inspectability. Once admitted, work continues when its tab becomes inactive; activation raises the new tab's priority.
+
 The background does not own snapshot storage as a subsystem. The background entrypoint is a composition root that receives the browser persistence adapter, while lifecycle code depends only on a snapshot-lifecycle capability. Popup and content compose the same infrastructure independently for their read/write roles.
 
 The background also owns tab lifecycle cleanup. A saved snapshot now refreshes a small tab-session index in storage. When Chrome reports navigation or tab closure, the lifecycle listener can mark old session snapshots `stale` or `stopped` even if the service worker has already lost the in-memory observer maps.
@@ -41,7 +47,7 @@ Navigation first clears volatile state and invalidates the automatic scan for th
 
 Snapshot cleanup can fail after the volatile state has been cleared. The background reports the tab ID and lifecycle reason and can still handle later tab events.
 
-Matcher ownership is also revoked before navigation, tab deactivation, or a replacement analysis requests cancellation. The live offscreen adapter sends cancellation on a best-effort basis. If the cancellation capability or an ordinary matcher-record update rejects, the runtime reports the job ID, tab ID, lifecycle reason, and error type. A rejected cleanup request does not restore the old job's publication rights.
+Matcher ownership is also revoked before navigation, tab closure, or a replacement analysis requests cancellation. Tab activation is only a priority signal: it reprioritizes scheduled work and never revokes ownership, so analysis in an inactive tab still publishes into its own document. The live offscreen adapter sends cancellation on a best-effort basis. If the cancellation capability or an ordinary matcher-record update rejects, the runtime reports the job ID, tab ID, lifecycle reason, and error type. A rejected cleanup request does not restore the old job's publication rights.
 
 Registered matchers check that they still own the visible session after tab validation and storage waits, before starting the next snapshot, replay, or badge publication. Queued snapshot writes check again when their turn arrives and after reading the previous revision. These checks cannot cancel a storage or badge write already submitted to its adapter. They also do not add a browser document ID or change how a job acquires its first owner.
 

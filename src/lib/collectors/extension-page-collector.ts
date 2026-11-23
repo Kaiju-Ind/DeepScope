@@ -38,6 +38,8 @@ export type ExtensionPageCollectorInput = {
 	log?: CollectorLog;
 	/** Optional debug id used only to correlate summary timing logs. */
 	timingTraceId?: string;
+	/** Document-work cancellation owned by the background tab lifecycle. */
+	signal?: AbortSignal;
 };
 
 /**
@@ -79,6 +81,7 @@ export async function collectExtensionObservationBatch(
 	});
 
 	try {
+		input.signal?.throwIfAborted();
 		const response = await timeAsyncSpan(
 			'collector.content-rpc.collect-observation-batch',
 			timingContext,
@@ -86,6 +89,7 @@ export async function collectExtensionObservationBatch(
 				input.contentApi.collectObservationBatch(toCollectPageSignalsInput(collectionPlan, tier, input.timingTraceId)),
 				CONTENT_SCRIPT_TIMEOUT_MS,
 				'Content script did not respond before the messaging timeout.',
+				{ signal: input.signal },
 			),
 			(result) => ({
 				ok: result.ok,
@@ -109,6 +113,7 @@ export async function collectExtensionObservationBatch(
 			return validationError;
 		}
 
+		input.signal?.throwIfAborted();
 		const enrichedBatch = await timeAsyncSpan(
 			'collector.background-enrichment.collect',
 			timingContext,
@@ -119,6 +124,7 @@ export async function collectExtensionObservationBatch(
 				collectionPlan,
 				log: input.log,
 				timingTraceId: input.timingTraceId,
+				...(input.signal ? { signal: input.signal } : {}),
 			}),
 			(batch) => ({ observationCount: batch.observations.length }),
 		);

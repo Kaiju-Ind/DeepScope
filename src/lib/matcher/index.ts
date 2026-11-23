@@ -3,32 +3,33 @@ export type { MatcherFailureType } from './error';
 export type {
 	CancelMatcherJobMessage,
 	MatcherHostFailure,
-	MatcherHostPhase,
+	MatcherJobExecutorResult,
 	MatcherJobIdentity,
 	MatcherJobMode,
+	MatcherJobObserver,
+	MatcherJobLifecycleRecord,
 	MatcherJobRecord,
 	MatcherJobRunResult,
-	MatcherJobStateMessage,
+	MatcherJobPhase,
+	MatcherJobState,
 	MatcherJobStatus,
 	MatcherJobTerminalReason,
 	MatcherOffscreenRequestMessage,
 	MatcherOffscreenResponse,
-	OffscreenMatcherJobRequest,
-	OffscreenMatcherJobResult,
 	MatcherPartitionMatch,
 	MatcherPartitionPriority,
-	MatcherPartitionProgressMessage,
+	MatcherPartitionProgress,
 	MatcherPartitionResult,
 	MatcherPartitionTask,
 	MatcherWorkerResponseMessage,
 	MatcherWorkerRunMessage,
 	PingMatcherHostMessage,
-	RunMatcherJobMessage,
 	RunMatcherJobRequest,
+	RunMatcherPartitionMessage,
+	RunMatcherPartitionRequest,
 } from './contracts';
-export {
-	MATCHER_OFFSCREEN_CHANNEL,
-} from './contracts';
+export { MATCHER_OFFSCREEN_CHANNEL } from './contracts';
+export { MATCHER_PARTITION_CONCURRENCY } from './policy';
 export type {
 	CreateMatcherPartitionTasksInput,
 	CreateMatcherPipelineResultInput,

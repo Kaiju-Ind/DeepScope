@@ -20,6 +20,9 @@ registry.manifest.json
 
 registry.kind.<kind>.json
   Matcher shard for one observation kind, such as scriptSrc, resourceUrl, meta, dom, htmlMatch, or header.
+  Contains the narrowed technology/rule records plus a build-generated route index
+  (fallback, exact-key and literal buckets) whose entries are numeric references
+  into those records, and the shard's pattern count and encoded byte size.
 
 registry.bootstrap.json
   Compatibility artifact retained for tests and benchmarks that compare the older fast-path model.
@@ -31,13 +34,17 @@ registry.relationships.json
   Relationship edges used to inspect graph shape without loading full rules.
 ```
 
-The encoder stores each regular expression as its source and flags. A matcher worker reconstructs those expressions when it compiles an observation-kind shard.
+The encoder stores each regular expression as its source and flags. A matcher worker compiles an expression lazily, only after routing admits the rule that owns it.
 
 ## Runtime path
 
 When a cache miss or refresh requires fresh analysis, the background calls `getRuntimeRegistry()` to fetch and hydrate `registry.runtime.json`. It uses the collection plan to gather observations and the relationship graph to refine the results. The provider reuses the runtime artifact for subsequent requests in the same background context.
 
-The offscreen host dispatches partitions by observation kind. Each worker calls `getCompiledObservationKindRegistry(kind)` to fetch and compile the matching `registry.kind.<kind>.json` shard. That keeps rule parsing in the worker that needs those rules. The background receives partition progress and merges the results.
+The background matcher scheduler splits observations into kind partitions and sends one selected partition at a time to the offscreen host. Each worker calls `getCompiledObservationKindRegistry(kind)` to fetch `registry.kind.<kind>.json` and reconnect its packaged route references to the shard's records (`hydrateMatcherIndex`). The worker does not walk every rule to rebuild route tables; the build-time index is the executable routing decision. The background accumulates partition results and emits snapshot revisions.
+
+Each worker keeps loaded shards in a least-recently-used cache weighted by the shard's encoded byte size (6 MiB by default), so a large shard such as `scriptSrc` can evict several small ones.
+
+Route buckets are keyed by page-observable names (meta, header and cookie names). Hydration rebuilds them as prototype-free records through `src/utils/dictionary.ts`, because `JSON.parse` returns ordinary objects whose inherited members (`constructor`, `__proto__`) must never answer a lookup. `src/tests/security/page-controlled-keys.test.ts` covers a JSON round trip with those keys.
 
 ## Validation targets
 
@@ -50,7 +57,10 @@ A healthy build should prove these facts:
 background entrypoint no longer imports #/compiled-registry
 packaged registry hydration preserves detector order and regular expressions
 observation-kind shards only contain rules that can receive that kind
+build-routed shards match exactly like a runtime-built index for every kind
 visible-tab analysis uses the collection plan from registry.runtime.json
 ```
 
-The benchmark `src/benchmarks/registry-json-hydration.bench.ts` measures parsing, hydration and compilation with a synthetic registry. Measuring extension startup requires a separate run of the packaged extension.
+`src/tests/registry/build-route-equivalence.test.ts` checks the routing claim for every packaged observation kind against the real registry: each shard is rendered, parsed and hydrated as the worker receives it, then matched against generated pass observations and prototype-named keys, and compared with an index built at runtime from the same records.
+
+The benchmark `src/benchmarks/registry-json-hydration.bench.ts` measures parsing, hydration and compilation with a synthetic registry. `src/benchmarks/matcher-shard-hydration.bench.ts` compares build-routed shard hydration with rebuilding routes in the worker; it measures route setup only, not fetch or regular-expression compilation. Neither is a measurement of extension memory or startup, which needs a separate run of the packaged extension.

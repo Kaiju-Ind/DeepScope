@@ -6,7 +6,7 @@ import type {
 import type { AnalysisStatus } from '../detection/types';
 import type { VisibleTabIdentity } from '../messaging/analysis';
 import type { DetectionReplayTrace } from '../pipeline/replay';
-import type { MatcherJobRecord } from '../matcher';
+import type { MatcherJobLifecycleRecord, MatcherJobRecord } from '../matcher';
 
 /** Pointer from a browser tab to one known page-session snapshot. */
 export interface DetectionSessionIndexEntry {
@@ -83,15 +83,17 @@ export interface DetectionPersistenceMaintenance {
 
 /**
  * Ordinary matcher-job persistence used by background orchestration.
- * Private saves return the supplied record without persisting it; subsequent
+ *
+ * Only the privacy-safe lifecycle projection is stored (no URL or target).
+ * Private saves return that projection without persisting it; subsequent
  * updates return null. Neither operation accesses durable storage for private jobs.
  */
 export interface MatcherJobStore {
-	saveMatcherJob(record: MatcherJobRecord): Promise<MatcherJobRecord>;
+	saveMatcherJob(record: MatcherJobRecord): Promise<MatcherJobLifecycleRecord>;
 	updateMatcherJob(
 		job: Pick<MatcherJobRecord, 'jobId' | 'incognito'>,
-		patch: Partial<Omit<MatcherJobRecord, 'jobId' | 'tabId' | 'expectedUrl' | 'target' | 'createdAt' | 'incognito'>>,
-	): Promise<MatcherJobRecord | null>;
+		patch: Partial<Omit<MatcherJobLifecycleRecord, 'schemaVersion' | 'jobId' | 'tabId' | 'windowId' | 'contextId' | 'createdAt'>>,
+	): Promise<MatcherJobLifecycleRecord | null>;
 }
 
 /** Persistence capabilities required by the background analysis runtime. */

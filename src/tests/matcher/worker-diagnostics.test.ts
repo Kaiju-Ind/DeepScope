@@ -7,6 +7,7 @@ import {
 	PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
 	renderPackagedRegistryJson,
 } from '@/lib/registry/packaged-artifacts';
+import { packageMatcherIndex } from '@/lib/registry/matcher-artifact';
 
 it.each([false, true])('keeps worker diagnostics within the job privacy policy: %s', async (incognito) => {
 	const registry: readonly TechnologyDefinition[] = [{
@@ -16,13 +17,17 @@ it.each([false, true])('keeps worker diagnostics within the job privacy policy: 
 		categories: ['framework'],
 		rules: [{ kind: 'scriptSrc', pattern: /privacy-widget\.js/, confidence: 90 }],
 	}];
+	const technologies = createObservationKindTechnologyRegistry(registry, 'scriptSrc');
 	const shard = renderPackagedRegistryJson({
 		schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
 		kind: 'kind-shard',
 		observationKind: 'scriptSrc',
-		technologies: createObservationKindTechnologyRegistry(registry, 'scriptSrc'),
+		technologies,
 		ruleCount: 1,
 		technologyCount: 1,
+		matcherIndex: packageMatcherIndex(technologies),
+		patternCount: 1,
+		encodedPayloadBytes: 1,
 		priority: 3,
 		generatedAt: 1,
 	});
@@ -39,7 +44,7 @@ it.each([false, true])('keeps worker diagnostics within the job privacy policy: 
 	const request: MatcherWorkerRunMessage = {
 		type: 'matcher-worker.run-partition',
 		task: {
-			job: { jobId: 'job-privacy', tabId: 7, expectedUrl: target.url, incognito },
+			job: { jobId: 'job-privacy', tabId: 7, windowId: 3, expectedUrl: target.url, incognito },
 			partitionId: 'scriptSrc:0',
 			kind: 'scriptSrc',
 			priority: 3,

@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
 	onTabNavigation: vi.fn(),
 	getVisibleTabIdentity: vi.fn(),
 	analyzeVisibleTab: vi.fn(),
+	reconcileAnalysis: vi.fn(async () => undefined),
+	resumeAnalysis: vi.fn(),
+	resumeMatcher: vi.fn(),
 }));
 
 vi.mock('comctx', () => ({ defineProxy: () => [vi.fn(), vi.fn()] }));
@@ -27,20 +30,41 @@ vi.mock('wxt/browser', () => ({
 			get: mocks.getTab,
 			onActivated: { addListener: mocks.onActivated },
 			onRemoved: { addListener: vi.fn() },
+			onReplaced: { addListener: vi.fn() },
 		},
 		runtime: { onMessage: { addListener: vi.fn() }, sendMessage: vi.fn(async () => undefined) },
 	},
 }));
 vi.mock('@/lib/background/reconcile-matcher-jobs', () => ({
-	reconcileInterruptedMatcherJobs: vi.fn(async () => undefined),
+	reconcileInterruptedMatcherJobs: vi.fn(async () => []),
 }));
+// Schedulers pass analysis straight through so these tests observe entrypoint wiring only.
+vi.mock('@/lib/scheduler/analysis', () => ({
+	create: () => ({
+		analyze: (input: AnalyzeVisibleTabInput) => mocks.analyzeVisibleTab(input),
+		activateTab: vi.fn(async () => undefined),
+		cancelTab: vi.fn(async () => undefined),
+		runBackground: vi.fn(async () => undefined),
+		reconcile: mocks.reconcileAnalysis,
+		resume: mocks.resumeAnalysis,
+	}),
+}));
+vi.mock('@/lib/scheduler/matcher', () => ({
+	create: () => ({
+		activateTab: vi.fn(async () => undefined),
+		reconcile: vi.fn(async () => []),
+		resume: mocks.resumeMatcher,
+	}),
+}));
+vi.mock('@/lib/registry/packaged-runtime', () => ({ createPackagedRuntimeTechnologyRegistryProvider: () => ({}) }));
 vi.mock('@/lib/autostart/settings', () => ({ getAutoScanEnabled: async () => true }));
 vi.mock('@/lib/background/runtime', () => ({
 	createBackgroundRuntime: () => ({
 		api: { getVisibleTabIdentity: mocks.getVisibleTabIdentity, analyzeVisibleTab: mocks.analyzeVisibleTab },
 		onTabNavigation: mocks.onTabNavigation,
-		onTabActivated: vi.fn(),
 		onTabRemoved: vi.fn(),
+		resolveScheduledTab: vi.fn(),
+		analyzeScheduledTab: vi.fn(),
 	}),
 }));
 vi.mock('@/lib/collectors/extension-page-collector', () => ({ collectExtensionObservationBatch: vi.fn() }));
@@ -54,7 +78,15 @@ vi.mock('@/lib/diagnostics/journal', () => ({
 	isDiagnosticTransportMessage: vi.fn(),
 	persistTransportedDiagnosticMessage: vi.fn(),
 }));
-vi.mock('@/lib/matcher/offscreen', () => ({ start: vi.fn(), cancel: vi.fn(), run: vi.fn() }));
+vi.mock('@/lib/matcher/offscreen', () => ({
+	start: vi.fn(),
+	capacity: 2,
+	cancel: vi.fn(),
+	cancelTab: vi.fn(),
+	runPartition: vi.fn(),
+	touchLifecycle: vi.fn(),
+	releaseLifecycle: vi.fn(),
+}));
 vi.mock('@/lib/persistence', () => ({
 	browserDetectionPersistence: {},
 	browserDetectionSnapshotStore: { markTabSnapshots: vi.fn(async () => []) },
@@ -63,6 +95,7 @@ vi.mock('@/lib/persistence', () => ({
 afterEach(() => {
 	vi.unstubAllGlobals();
 	vi.resetAllMocks();
+	mocks.reconcileAnalysis.mockImplementation(async () => undefined);
 	vi.resetModules();
 });
 
@@ -118,5 +151,20 @@ describe('background entrypoint navigation wiring', () => {
 
 		await vi.waitFor(() => expect(mocks.analyzeVisibleTab).toHaveBeenCalledTimes(2));
 		expect(mocks.analyzeVisibleTab).toHaveBeenLastCalledWith({ target: replacement, mode: 'refresh', observe: 'none' });
+	});
+
+	it('resumes both schedulers in degraded mode when startup reconciliation fails', async () => {
+		mocks.reconcileAnalysis.mockRejectedValueOnce(new Error('IndexedDB unavailable'));
+		vi.stubGlobal('defineBackground', (setup: () => void) => setup());
+		await import('@/entrypoints/background');
+
+		await vi.waitFor(() => {
+			expect(mocks.resumeMatcher).toHaveBeenCalledOnce();
+			expect(mocks.resumeAnalysis).toHaveBeenCalledOnce();
+		});
+		await vi.waitFor(() => expect(mocks.debug).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+			event: 'scheduler-reconciliation-degraded',
+			failures: ['analysis: Error'],
+		})));
 	});
 });

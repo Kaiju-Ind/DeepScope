@@ -9,6 +9,7 @@ import { normalizeMetaMap } from '@/lib/detection/normalizers';
 import { createObservationMatcherIndex, matchIndexedObservationBatch } from '@/lib/detection/observation-matcher-index';
 import type { TechnologyDefinition } from '@/lib/detection/types';
 import { normalizePageSignals } from '@/lib/observations';
+import { hydrateMatcherIndex, packageMatcherIndex } from '@/lib/registry/matcher-artifact';
 import * as dictionary from '@/utils/dictionary';
 import { makePageSignals } from '../support/factories';
 
@@ -69,6 +70,45 @@ describe('page-controlled keys', () => {
 		const result = matchIndexedObservationBatch({ registry, batch, index: createObservationMatcherIndex(registry) });
 
 		expect(result.matches.map((match) => match.technologyId)).toEqual(['generator']);
+	});
+
+	it('matches prototype-named keys through a build-routed index after a JSON round trip', () => {
+		// Packaged shards reach the worker as JSON. JSON.parse turns every bucket back
+		// into an ordinary object, so hydration must rebuild them prototype-free.
+		const registry: TechnologyDefinition[] = [
+			{
+				id: 'constructor-meta',
+				name: 'Constructor Meta',
+				website: 'https://constructor.example',
+				categories: ['platform-cms-builder'],
+				rules: [{ kind: 'meta', key: 'constructor', valuePattern: /Builder/, confidence: 90 }],
+			},
+			{
+				id: 'proto-meta',
+				name: 'Proto Meta',
+				website: 'https://proto.example',
+				categories: ['platform-cms-builder'],
+				rules: [{ kind: 'meta', key: '__proto__', valuePattern: /Proto/, confidence: 90 }],
+			},
+		];
+		const packaged = JSON.parse(JSON.stringify(packageMatcherIndex(registry)));
+		const index = hydrateMatcherIndex(registry, packaged);
+		const metaBuckets = index.keyedRules.meta!;
+		expect(Object.getPrototypeOf(metaBuckets)).toBeNull();
+		expect(dictionary.get(metaBuckets, 'constructor')).toHaveLength(1);
+		expect(dictionary.get(metaBuckets, '__proto__')).toHaveLength(1);
+		expect(dictionary.get(metaBuckets, 'toString')).toBeUndefined();
+
+		const meta = hostileRecord(['unrelated']);
+		// Bracket access with a widened key: `.constructor` would be typed as Object's member.
+		meta['constructor' as string] = ['Builder 2'];
+		const matching = matchIndexedObservationBatch({ registry, batch: normalizePageSignals(makePageSignals({ meta })), index });
+		expect(matching.matches.map((match) => match.technologyId)).toEqual(['constructor-meta']);
+
+		// With both prototype-named keys present as page data, each routes to its own rule.
+		const both = normalizePageSignals(makePageSignals({ meta: hostileRecord(['Proto Builder']) }));
+		const bothMatched = matchIndexedObservationBatch({ registry, batch: both, index });
+		expect(bothMatched.matches.map((match) => match.technologyId).sort()).toEqual(['constructor-meta', 'proto-meta']);
 	});
 });
 
