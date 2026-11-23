@@ -7,7 +7,7 @@ import { timeAsyncSpan, type TimingContext } from '../diagnostics/timing';
 import type { NormalizedObservation, ObservationBatch } from '../observations';
 import { diagnosticErrorType } from '../privacy/redaction';
 import * as url from '@/utils/url';
-import * as dictionary from '@/utils/dictionary';
+import * as dictionary from '../../utils/dictionary';
 
 /** Value shape stored for a page-owned JavaScript global. */
 export type JsGlobalSignalValue = string | boolean | number;

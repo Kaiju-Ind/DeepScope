@@ -11,7 +11,7 @@ import type {
 	DiagnosticValue,
 } from './contracts';
 import { DIAGNOSTIC_TRANSPORT_CHANNEL } from './contracts';
-import * as dictionary from '@/utils/dictionary';
+import * as dictionary from '../../utils/dictionary';
 
 const DIAGNOSTIC_RECORD_PREFIX = 'diagnostics:record:';
 const DIAGNOSTIC_CONTEXT_PREFIX = 'diagnostics:context:';

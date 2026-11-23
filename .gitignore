@@ -28,3 +28,6 @@ web-ext.config.ts
 .tmp
 *.zip
 repomix-output.xml
+
+# Local agent worktrees
+.claude/worktrees/

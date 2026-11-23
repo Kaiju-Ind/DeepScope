@@ -1,5 +1,5 @@
 import { SOURCE_LIMITS } from './source-limits';
-import * as dictionary from '@/utils/dictionary';
+import * as dictionary from '../../utils/dictionary';
 
 export function uniqueStrings(values: string[]): string[] {
 	return Array.from(new Set(values.filter(Boolean)));

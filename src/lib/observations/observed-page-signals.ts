@@ -9,7 +9,7 @@ import type {
 	ObservationTarget,
 	ObservationValue,
 } from './types';
-import * as dictionary from '@/utils/dictionary';
+import * as dictionary from '../../utils/dictionary';
 
 /**
  * Metadata needed to turn late observer data into shared observation events.

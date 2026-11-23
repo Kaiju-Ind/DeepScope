@@ -2,7 +2,7 @@ import type { MatchObservationBatchInput, ObservationPatternMatch, ObservationPa
 import type { DetectionPatternType, DetectionRule, DetectionRunOptions, MatcherTechnologyType, PatternDetectionRule } from './types';
 import type { NormalizedObservation, NormalizedObservationKind } from '../observations';
 import { matchObservationRule } from './observation-matcher';
-import * as dictionary from '@/utils/dictionary';
+import * as dictionary from '../../utils/dictionary';
 
 /**
  * Registry rule prepared for observation-kind and exact-key routing.

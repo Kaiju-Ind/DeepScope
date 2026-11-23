@@ -24,7 +24,7 @@ import {
 	type DetectionReplayTrace,
 } from '@/lib/pipeline';
 import type { ExtensionError } from '@/lib/messaging/failure';
-import * as dictionary from '@/utils/dictionary';
+import * as dictionary from '../utils/dictionary';
 
 /**
  * Panel observation states that are meaningful to the user interface.

@@ -14,7 +14,7 @@ import {
 } from '../../observations';
 import * as scan from './scan';
 import type * as observe from './types';
-import * as dictionary from '@/utils/dictionary';
+import * as dictionary from '../../../utils/dictionary';
 
 const MAX_PENDING_MUTATION_NODES = 100;
 const observerLogger = logging.get('content', 'observer');

@@ -6,7 +6,7 @@ import type {
 	DetectionPipelineRuntimeResult,
 	DetectionPipelineStage,
 } from './runtime';
-import * as dictionary from '@/utils/dictionary';
+import * as dictionary from '../../utils/dictionary';
 
 /** Schema version for serialized replay traces produced by this module. */
 export const DETECTION_REPLAY_TRACE_SCHEMA_VERSION = 1 as const;

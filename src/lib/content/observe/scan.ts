@@ -14,7 +14,7 @@ import { SOURCE_LIMITS } from '../../detection/source-limits';
 import * as dom from '../../dom';
 import type { DomPlanType, MatchStatsType } from '../../dom';
 import type { SnapshotOptionsType, SnapshotType } from './types';
-import * as dictionary from '@/utils/dictionary';
+import * as dictionary from '../../../utils/dictionary';
 
 /** Inputs for one bounded live-DOM scan. */
 export type ScanType = {

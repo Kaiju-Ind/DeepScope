@@ -11,7 +11,7 @@ import type {
 } from '../detection/types';
 import type { CollectPageSignalsInput, HtmlProbe } from '../messaging';
 import * as dom from '../dom';
-import * as dictionary from '@/utils/dictionary';
+import * as dictionary from '../../utils/dictionary';
 
 /**
  * Collects only bounded, rule-oriented page signals. The content script may read

@@ -1,5 +1,5 @@
 import type { RuntimeDetectionKind } from '../detection/types';
-import * as dictionary from '@/utils/dictionary';
+import * as dictionary from '../../utils/dictionary';
 
 /**
  * Describes whether the browser extension can collect a rule source today.

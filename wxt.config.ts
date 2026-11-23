@@ -5,8 +5,27 @@ import { fontless } from 'fontless';
 import Icons from 'unplugin-icons/vite';
 import { defineConfig } from 'wxt';
 
-/** Build identity embedded into diagnostic records and support bundles. */
-const buildId = `0.1.0-${new Date().toISOString()}`;
+/** Release version shared by `package.json` and every browser manifest. */
+const version = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version;
+
+/**
+ * Build identity embedded into diagnostic records and support bundles.
+ *
+ * The identity must not depend on the build time. Firefox add-on review rebuilds
+ * the submitted sources and requires identical output, and release checksums are
+ * only meaningful when a rebuild of the same commit produces the same files.
+ * CI passes the commit in `DEEPSCOPE_SOURCE_COMMIT`; local builds say `local`.
+ */
+const buildId = `${version}+${process.env.DEEPSCOPE_SOURCE_COMMIT?.slice(0, 12) || 'local'}`;
+
+/**
+ * Firefox add-on identity. AMO does not assign one for Manifest V3, and the id
+ * cannot change after the first signed release, so confirm it before then.
+ */
+const FIREFOX_ADDON_ID = 'deepscope@openarsenal.github.io';
+
+/** Browsers whose extension platform provides offscreen documents. */
+const OFFSCREEN_BROWSERS = new Set(['chrome', 'edge', 'opera']);
 
 /**
  * Local logo font source owned by Fontless during the Vite build.
@@ -23,12 +42,51 @@ const kestrelSource = existsSync(kestrelPath)
 export default defineConfig({
 	srcDir: 'src',
 	modules: ['@wxt-dev/module-solid'],
-	manifest: {
+	// WXT defaults Firefox and Safari to Manifest V2. DeepScope targets V3 everywhere.
+	manifestVersion: 3,
+	hooks: {
+		/**
+		 * Give Safari a background page instead of a service worker.
+		 *
+		 * WXT emits `background.service_worker` for every V3 target except Firefox.
+		 * A service worker cannot construct a `Worker`, and Safari has no offscreen
+		 * documents, so the matcher workers could not run anywhere. Safari accepts a
+		 * non-persistent background page with the same script, which can own them.
+		 */
+		'build:manifestGenerated': (wxt, manifest) => {
+			if (wxt.config.browser !== 'safari' || !manifest.background) return;
+			const background = manifest.background as { service_worker?: string; type?: 'module' };
+			if (!background.service_worker) return;
+			manifest.background = {
+				scripts: [background.service_worker],
+				...(background.type ? { type: background.type } : {}),
+				persistent: false,
+			} as typeof manifest.background;
+		},
+	},
+	manifest: ({ browser }) => ({
 		name: 'Kaiju DeepScope',
 		description: 'Detect web technologies automatically on active web pages and show the evidence behind each result.',
-		version: '0.1.0',
-		// comctx 1.7.5 calls Promise.withResolvers() in the extension startup path.
-		minimum_chrome_version: '119',
+		version,
+		// comctx calls Promise.withResolvers() during startup (Chrome 119, Firefox 121, Safari 17.4).
+		...(browser === 'firefox' || browser === 'safari' ? {} : { minimum_chrome_version: '119' }),
+		...(browser === 'firefox'
+			? {
+				browser_specific_settings: {
+					gecko: {
+						id: FIREFOX_ADDON_ID,
+						// `scripting.executeScript({ world: 'MAIN' })` needs Firefox 128.
+						strict_min_version: '128.0',
+						// Analysis runs locally. The only network requests re-fetch the
+						// inspected page's own same-origin assets.
+						data_collection_permissions: { required: ['none'] },
+					},
+				},
+			}
+			: {}),
+		...(browser === 'safari'
+			? { browser_specific_settings: { safari: { strict_min_version: '18.4' } } }
+			: {}),
 		icons: {
 			16: '/icons/icon-16.png',
 			32: '/icons/icon-32.png',
@@ -44,9 +102,15 @@ export default defineConfig({
 				128: '/icons/icon-128.png',
 			},
 		},
-		permissions: ['activeTab', 'scripting', 'storage', 'offscreen', 'clipboardWrite'],
+		permissions: [
+			'activeTab',
+			'scripting',
+			'storage',
+			'clipboardWrite',
+			...(OFFSCREEN_BROWSERS.has(browser) ? ['offscreen'] : []),
+		],
 		host_permissions: ['http://*/*', 'https://*/*'],
-	},
+	}),
 	vite: () => ({
 		build: { modulePreload: false },
 		plugins: [
