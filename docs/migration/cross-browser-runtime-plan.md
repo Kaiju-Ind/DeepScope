@@ -230,27 +230,36 @@ about 59 duplicate-id definitions; replace the two registry architecture
 documents with one `docs/architecture/registry.md` and a CONTRIBUTING
 section on adding a technology.
 
-### Utilities from Kaiju Utils (owner decision, 2026-11-23)
+### Utilities from Kaiju Utils (owner decision, 2026-11-23; measured)
 
-DeepScope predates most of Kaiju Utils. Copy exactly what DeepScope calls,
-from the public MIT mirror okikio/utils @ `32ecdf41` (byte-identical to
-Kaiju-Ind/Utils @ `47d2c0fc` after the package-scope rename), with an
-attribution header per file and the MIT notice in `THIRD_PARTY_NOTICES`.
+DeepScope predates most of Kaiju Utils. Copy exactly what it uses from the
+public MIT mirror okikio/utils (Kaiju-Ind/Utils `47d2c0f`), with the MIT
+notice and source commit kept beside the copies. Temporal is native in
+Chrome 144+ and Firefox 139+; Safari ships it from 27.3. Only
+`duration/temporal.ts` imports the polyfill, so a one-file patch selects
+native Temporal and gives Safari `temporal-polyfill/implementation`. MV3
+service workers cannot use dynamic `import()`, so Chrome either raises its
+minimum to 144 or ships the polyfill statically (+22.8 KB gzipped).
 
-| Copy | Destination | Replaces |
-| --- | --- | --- |
-| `packages/result/mod.ts` | `src/utils/result/index.ts` | `src/utils/result.ts`; field `error` becomes `failure` in one commit |
-| `packages/dispose/{ponyfill,once,run,mod}.ts` | `src/utils/dispose/` | ad hoc teardown in the worker pool, executor, offscreen host, per-tab runtime scopes and panel `onCleanup` |
-| `observe` and `combineSignals` from `packages/context/mod.ts` | `src/utils/signal.ts` | the deadline path in `lib/messaging/rpc.ts:withTimeout` |
+Measured with Rolldown, minified, gzipped, native Temporal:
 
-Not copied, with reasons: full `context`, `duration` and `scheduler`
-(they need the Temporal polyfill), `worker/thread` (2k lines; DeepScope's pool
-terminates on deadline and cancels by tab), `hash` (FNV-1a is 64-bit and
-WebAssembly; persisted keys are 32-bit), `collection/record` (answers a
-different question than `dictionary`), storage (Postgres or localStorage).
-Existing DeepScope helpers with no Utils equivalent stay: `fence`,
-`generation`, `dictionary`. `runtime.ts:queueSnapshotWrite` duplicates
-`fence.run` and should use it.
+| Package | Verdict | Cost | Replaces |
+| --- | --- | --- | --- |
+| result, dispose | adopt | 1.6 KB | `utils/result.ts`, ad hoc teardown |
+| scheduler/capacity | adopt | 1.5 KB | `scheduler/budget.ts`, reserve/release in `scheduler/matcher.ts` |
+| context (+ duration) | adopt with Temporal patch | 3.7 KB | per-tab AbortController scopes in the runtime, `rpc.ts:withTimeout` |
+| pool + worker/thread | adopt with adapter | 10.5 KB host, 8.8 KB worker | `matcher/workers/pool.ts`, slot logic in `executor.ts`, the worker message loop |
+| scheduler/queue | later | 9 KB | blocked on an IndexedDB store with tab/window filtering |
+| workflow, activity | later | 28-50 KB | durable only through Postgres; no browser store |
+| task, concurrency | reject | 4-12 KB | not needed; context covers cancellation |
+| query | reject | 14.3 KB | validates search vocabularies; does not fetch or filter |
+| storage | reject for now | - | Postgres or synchronous localStorage only |
+
+None of these load in the content script. `fence`, `generation` and
+`dictionary` stay (no Utils equivalent; `generation` partly retires once
+scopes are contexts). New npm dependencies: `@okikio/observables`,
+`@std/async` (via `npm:@jsr/std__async`), `@standard-schema/spec`,
+`temporal-polyfill` (Safari, and Chrome only if its minimum stays below 144).
 
 ### Registry scope (owner decision, 2026-11-23)
 
