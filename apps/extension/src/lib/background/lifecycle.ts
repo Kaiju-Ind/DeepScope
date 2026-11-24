@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 
 import type { DetectionSnapshotLifecycleStore } from '../persistence';
+import type { TabWrites } from './writes';
 
 /** Reason recorded when a tab lifecycle event updates stored snapshots. */
 type BackgroundTabLifecycleReason = 'tab-navigation' | 'tab-removed';
@@ -19,6 +20,8 @@ export interface RegisterBackgroundLifecycleListenersInput {
 	readonly onTabNavigation?: BackgroundTabCleanup;
 	/** Remove volatile tab-scoped maps when a tab closes or its id is replaced. */
 	readonly onTabRemoved: BackgroundTabCleanup;
+	/** Snapshot writes a closed tab refuses and its cleanup waits for before a second pass. */
+	readonly writes?: Pick<TabWrites, 'close' | 'settled'>;
 	/** Optional summary logger for lifecycle events and cleanup failures. */
 	readonly log?: BackgroundLifecycleLogger;
 }
@@ -44,11 +47,21 @@ export function registerBackgroundLifecycleListeners(
 			.catch((error: unknown) => logCleanupFailure(input.log, tabId, 'tab-navigation', error));
 	});
 
-	/** Release everything a tab id owns: volatile state first, then its stored sessions. */
+	/**
+	 * Release everything a tab id owns: volatile state first, then its stored sessions.
+	 *
+	 * A scan that was saving when the tab closed can land after the first pass
+	 * and recreate the index, so the sessions are removed again once the tab's
+	 * in-flight writes have settled.
+	 */
 	function forgetTab(tabId: number): void {
+		input.writes?.close(tabId);
 		input.onTabRemoved(tabId);
 		void (async () => {
 			await markTabSnapshots(input.snapshots, tabId, 'stopped', 'tab-removed', input.log);
+			await input.snapshots.removeSessionIndex(tabId);
+			if (!input.writes) return;
+			await input.writes.settled(tabId);
 			await input.snapshots.removeSessionIndex(tabId);
 		})().catch((error: unknown) => logCleanupFailure(input.log, tabId, 'tab-removed', error));
 	}

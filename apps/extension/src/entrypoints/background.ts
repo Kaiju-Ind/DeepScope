@@ -9,6 +9,7 @@ import { reconcileInterruptedMatcherJobs } from '@/lib/background/reconcile-matc
 import { reconcileAndResume } from '@/lib/background/startup';
 import { openPanelFromToolbar } from '@/lib/background/toolbar';
 import { badgeText, createBadgeWriter, type BadgeState } from '@/lib/background/badge';
+import * as writes from '@/lib/background/writes';
 import { collectExtensionObservationBatch } from '@/lib/collectors/extension-page-collector';
 import { createPackagedRuntimeTechnologyRegistryProvider } from '@/lib/registry/packaged-runtime';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
@@ -176,6 +177,7 @@ export default defineBackground(() => {
 
 	const registryProvider = createPackagedRuntimeTechnologyRegistryProvider();
 	const matcherQueue = matcherScheduler.create(matcherExecutor, logBackgroundEvent);
+	const tabWrites = writes.create();
 
 	const backgroundRuntime = createBackgroundRuntime({
 		getTab: (tabId) => browser.tabs.get(tabId),
@@ -185,7 +187,7 @@ export default defineBackground(() => {
 		registryProvider,
 		matcherContextId,
 		matcher: matcherQueue,
-		persistence: browserDetectionPersistence,
+		persistence: tabWrites.guard(browserDetectionPersistence),
 		// Called only after startup returns, so `analysisQueue` is initialized by then.
 		scheduleBackgroundWork: (task) => analysisQueue.runBackground(task),
 		logEvent: logBackgroundEvent,
@@ -258,6 +260,7 @@ export default defineBackground(() => {
 	// the old page before the scan listener queues the completed page.
 	registerBackgroundLifecycleListeners({
 		snapshots: browserDetectionSnapshotStore,
+		writes: tabWrites,
 		onTabNavigation(tabId) {
 			autoScanController.onTabNavigation(tabId);
 			matcherRecoveryTabs.delete(tabId);

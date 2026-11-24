@@ -52,6 +52,7 @@ export interface DetectionSnapshotLifecycleStore {
 		status: Extract<DetectionSessionStatus, 'stale' | 'stopped'>,
 		reason: string,
 	): Promise<readonly DetectionSessionSnapshot[]>;
+	/** Remove the tab's session index and every stored session the tab owned. */
 	removeSessionIndex(tabId: number): Promise<void>;
 }
 

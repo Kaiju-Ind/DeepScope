@@ -315,6 +315,7 @@ export {
 	removeDetectionSessionIndex,
 	saveDetectionSessionSnapshot,
 } from './detection-snapshots';
+export { removeTabSessions } from './sweep';
 
 export {
 	getMatcherJobRecord,

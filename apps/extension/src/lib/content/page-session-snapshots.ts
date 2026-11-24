@@ -59,6 +59,12 @@ export async function writeContentPageSessionSnapshot(
 
 	const updatedAt = input.observedAt ?? Date.now();
 	const existing = await store.getLatestSessionSnapshot(input.target.key);
+	// A stop with nothing stored to stop means the session no longer owns
+	// publication: its tab closed and the background removed it, or it never
+	// published. Writing would recreate a record no cleanup will visit again.
+	if (!existing && input.status === 'stopped') {
+		return null;
+	}
 	const analysis = existing && existing.analysis.url === input.target.url
 		? existing.analysis
 		: createContentBootstrapAnalysis(input.target, updatedAt);

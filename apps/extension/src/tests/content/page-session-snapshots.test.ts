@@ -119,4 +119,19 @@ describe('content page-session snapshots', { concurrent: false }, () => {
 			source: 'content',
 		});
 	});
+
+	// Found by the Firefox stress run: a content-session record outlived its
+	// closed tab because the page's last stop landed after the tab's cleanup.
+	it('does not recreate a stopped record for a session that has nothing stored', async () => {
+		const harness = await loadPageSessionSnapshotHarness();
+
+		const snapshot = await harness.writeContentPageSessionSnapshot({
+			target: SNAPSHOT_TARGET,
+			status: 'stopped',
+			reason: 'invalidated',
+		});
+
+		expect(snapshot).toBeNull();
+		expect(harness.storage.values.size).toBe(0);
+	});
 });

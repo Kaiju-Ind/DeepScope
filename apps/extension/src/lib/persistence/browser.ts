@@ -11,7 +11,7 @@ import {
 	getStatus,
 	isDetectionSessionSnapshot,
 	markDetectionSessionSnapshotsForTab,
-	removeDetectionSessionIndex,
+	removeTabSessions,
 	saveDetectionSessionSnapshot,
 	saveMatcherJobRecord,
 	saveReplayTrace,
@@ -34,7 +34,7 @@ export const browserDetectionSnapshotStore: DetectionSnapshotStore = {
 	getLatestSessionSnapshot: getLatestDetectionSessionSnapshot,
 	saveSnapshot: saveDetectionSessionSnapshot,
 	markTabSnapshots: markDetectionSessionSnapshotsForTab,
-	removeSessionIndex: removeDetectionSessionIndex,
+	removeSessionIndex: removeTabSessions,
 };
 
 /** Browser-storage implementation of replay persistence. */
