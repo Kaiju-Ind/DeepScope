@@ -31,13 +31,6 @@ export const infernoTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 		{
-			id: 'inferno:scriptContent:modern:3',
-			kind: 'scriptContent',
-			pattern: new RegExp('normalizeProps\\(\\{[^}]+\\}\\)|normalizeChildren\\([^)]+\\)'),
-			confidence: 45,
-			description: 'Bundled script content matches a modern tooling marker.',
-		},
-		{
 			id: 'inferno:scriptContent:modern:4',
 			kind: 'scriptContent',
 			pattern: new RegExp('__render\\(\\w+,\\w+,(?:!0|!1)\\)'),

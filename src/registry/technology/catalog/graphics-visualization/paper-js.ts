@@ -14,7 +14,7 @@ export const paperJsTechnologyDefinition: TechnologyDefinition = {
 			id: 'paper-js:scriptSrc:0',
 			kind: 'scriptSrc',
 			pattern: new RegExp(
-				'(?:((?:\\d{1,9}\\.){1,12}\\d+)\\/)?paper(?:-full)?(?:-core)?(?:\\.min)?(?:-[\\d\\w]{0,64})?\\.js',
+				'(?<![\\w-])(?:((?:\\d{1,9}\\.){1,12}\\d+)\\/)?paper(?:-full)?(?:-core)?(?:\\.min)?(?:-[\\d\\w]{0,64})?\\.js',
 			),
 			version: {
 				source: 'match',
@@ -37,7 +37,7 @@ export const paperJsTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'paper-js:scriptSrc:3',
 			kind: 'scriptSrc',
-			pattern: new RegExp('paper(?:-full)?\\.js(?:\\/|$|\\?|\\#)|\\/paper\\.js'),
+			pattern: new RegExp('(?<![\\w-])paper(?:-full)?\\.js(?:\\/|$|\\?|\\#)|\\/paper\\.js'),
 			description: 'Script source URL matches a known technology marker.',
 		},
 	],

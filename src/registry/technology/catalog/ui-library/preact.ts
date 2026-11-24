@@ -70,13 +70,6 @@ export const preactTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 		{
-			id: 'preact:scriptContent:modern:6',
-			kind: 'scriptContent',
-			pattern: new RegExp('(?:\\.|\\[["\']|\\[)__(?:v|k|e|b|u|i|d|h|P|m|s|f)\\b'),
-			confidence: 45,
-			description: 'Bundled script content matches a modern tooling marker.',
-		},
-		{
 			id: 'preact:scriptContent:modern:7',
 			kind: 'scriptContent',
 			pattern: new RegExp('(?:\\.|\\[["\']|\\[)__(?:H|h|N|P|u|f)\\b'),

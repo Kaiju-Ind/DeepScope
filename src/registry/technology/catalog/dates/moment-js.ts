@@ -15,7 +15,7 @@ export const momentJsTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'moment-js:scriptSrc:0',
 			kind: 'scriptSrc',
-			pattern: new RegExp('moment(?:\\.min)?\\.js'),
+			pattern: new RegExp('(?<![\\w-])moment(?:\\.min)?\\.js'),
 			description: 'Script source URL matches a known technology marker.',
 		},
 		{

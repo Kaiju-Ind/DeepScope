@@ -14,7 +14,7 @@ export const snowplowAnalyticsTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'snowplow-analytics:scriptSrc:0',
 			kind: 'scriptSrc',
-			pattern: new RegExp('sp\\.js'),
+			pattern: new RegExp('(?<![\\w-])sp\\.js'),
 			confidence: 50,
 			description: 'Script source URL matches a known technology marker.',
 		},

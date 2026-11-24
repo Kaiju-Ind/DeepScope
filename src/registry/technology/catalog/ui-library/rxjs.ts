@@ -14,7 +14,7 @@ export const rxjsTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'rxjs:scriptSrc:0',
 			kind: 'scriptSrc',
-			pattern: new RegExp('rx(?:\\.\\w+)?(?:\\.compat|\\.global)?(?:\\.min)?\\.js'),
+			pattern: new RegExp('(?<![\\w-])rx(?:\\.\\w+)?(?:\\.compat|\\.global)?(?:\\.min)?\\.js'),
 			description: 'Script source URL matches a known technology marker.',
 		},
 		{

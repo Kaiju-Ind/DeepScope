@@ -13,7 +13,7 @@ export const magentoTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'magento:scriptSrc:0',
 			kind: 'scriptSrc',
-			pattern: new RegExp('js\\/mage'),
+			pattern: new RegExp('js\\/mage\\/'),
 			description: 'Script source URL matches a known technology marker.',
 		},
 		{

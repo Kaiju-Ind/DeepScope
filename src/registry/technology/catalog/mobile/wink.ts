@@ -14,7 +14,7 @@ export const winkTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'wink:scriptSrc:0',
 			kind: 'scriptSrc',
-			pattern: new RegExp('(?:_base\\/js\\/base|wink).*\\.js'),
+			pattern: new RegExp('(?<![\\w-])(?:_base\\/js\\/base|wink).*\\.js'),
 			description: 'Script source URL matches a known technology marker.',
 		},
 		{

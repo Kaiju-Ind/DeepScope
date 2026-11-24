@@ -31,7 +31,7 @@ export const spinJsTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'spin-js:scriptSrc:2',
 			kind: 'scriptSrc',
-			pattern: new RegExp('spin(?:\\.min)?\\.js(?:\\?ver=([\\d.]+))?'),
+			pattern: new RegExp('(?<![\\w-])spin(?:\\.min)?\\.js(?:\\?ver=([\\d.]+))?'),
 			version: {
 				source: 'match',
 				group: 1,

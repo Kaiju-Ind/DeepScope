@@ -14,7 +14,7 @@ export const wowTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'wow:scriptSrc:0',
 			kind: 'scriptSrc',
-			pattern: new RegExp('wow(?:\\.min)?\\.js(?:\\?ver=((?:\\d+\\.)+\\d+))?'),
+			pattern: new RegExp('(?<![\\w-])wow(?:\\.min)?\\.js(?:\\?ver=((?:\\d+\\.)+\\d+))?'),
 			version: {
 				source: 'match',
 				group: 1,

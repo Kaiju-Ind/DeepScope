@@ -87,13 +87,6 @@ export const luxonTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 		{
-			id: 'luxon:scriptContent:modern:11',
-			kind: 'scriptContent',
-			pattern: new RegExp('inheritsLoose\\([^,]+,\\s*_Error\\)'),
-			confidence: 65,
-			description: 'Bundled script content matches a modern tooling marker.',
-		},
-		{
 			id: 'luxon:scriptContent:modern:12',
 			kind: 'scriptContent',
 			pattern: new RegExp('Info\\.features\\(\\)\\.zones'),

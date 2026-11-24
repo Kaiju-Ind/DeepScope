@@ -14,7 +14,7 @@ export const onsenUiTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'onsen-ui:scriptSrc:0',
 			kind: 'scriptSrc',
-			pattern: new RegExp('onsen[\\w./-]{0,80}min\\.js|angular-onsenui\\.min\\.js'),
+			pattern: new RegExp('(?<![\\w-])onsen[\\w./-]{0,80}min\\.js|angular-onsenui\\.min\\.js'),
 			description: 'Script source URL matches a known technology marker.',
 		},
 	],
