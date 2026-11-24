@@ -160,7 +160,7 @@ All runtime string-keyed maps use `src/utils/dictionary.ts`. See
 | 5 | Scan-job lifecycle, badge owner, scheduling settings | badge done; scheduling settings next |
 | 6 | Vendor utilities from okikio/utils (MIT) with attribution | planned |
 | 7 | Simplify the registry build pipeline; deterministic output | `generatedAt` removed with a rebuild test; remaining steps planned |
-| 8 | CI and release workflows; archives, `SHA256SUMS`, attestations, ghcr | merged locally; not yet run on GitHub. Firefox archives rebuild identically; Chrome varies because Fontless orders `@font-face` rules by download completion (fix: install fonts from pinned npm packages) |
+| 8 | CI and release workflows; archives, `SHA256SUMS`, attestations, ghcr | merged locally; not yet run on GitHub. Archives for every browser rebuild identically: fonts come from pinned npm packages via a hand-written `fonts.css` (Fontless, which ordered `@font-face` rules by CDN download completion, is removed) |
 | 9 | Real-browser verification and memory measurements | planned |
 
 ### Milestone 2 review findings to fix while porting

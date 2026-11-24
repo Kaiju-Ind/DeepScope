@@ -1,18 +1,20 @@
 @import 'tailwindcss' source('../');
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+@import './fonts.css';
 @import './base.css';
 @import './zaidan-fixes.css';
 @import './zaidan-density.css';
 
-/* Fontless resolves and emits every UI font at build time. The extension never requests a runtime font CDN. */
+/* fonts.css declares every UI face from local files. The extension never requests a font CDN, at build or run time. */
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-	/* Literal provider families let Fontless discover the same faces used by the website. */
-	--font-space-grotesk: 'Space Grotesk';
-	--font-space-mono: 'Space Mono';
-	--font-american-kestrel: 'American Kestrel';
+	/* Each family is followed by its metric-adjusted fallback faces from fonts.css. */
+	--font-space-grotesk: 'Space Grotesk', 'Space Grotesk Fallback: Arial', 'Space Grotesk Fallback: Helvetica Neue';
+	--font-space-mono: 'Space Mono', 'Space Mono Fallback: Courier New', 'Space Mono Fallback: Roboto Mono',
+		'Space Mono Fallback: Noto Sans Mono', 'Space Mono Fallback: Liberation Mono';
+	--font-american-kestrel: 'American Kestrel', 'American Kestrel Fallback: Space Grotesk';
 	--breakpoint-xs: 20rem;
 }
 

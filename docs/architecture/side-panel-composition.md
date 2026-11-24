@@ -124,7 +124,7 @@ KAIJU      American Kestrel
 DeepScope  Space Grotesk on the cyan brand surface
 ```
 
-The licensed American Kestrel face is copied into the extension at `public/fonts/american-kestrel/americankestral.ttf`. The regular UI keeps package-contained Space Grotesk, Inter, and Space Mono assets. Fontless runs in the WXT/Vite build so font CSS remains build-owned, with no runtime remote-font requirement.
+`src/styles/fonts.css` declares every UI face by hand: Space Grotesk (variable) and Space Mono from exact-pinned Fontsource npm packages, and the licensed American Kestrel face from `src/assets/fonts/american-kestrel/americankestral.ttf`. Vite emits the files as content-hashed assets, so builds need no network and two builds of one commit produce identical CSS. The metric-adjusted `<Family> Fallback: <font>` faces carry the overrides Fontless used to compute; recompute them if a font package version changes.
 
 ## Review rules
 

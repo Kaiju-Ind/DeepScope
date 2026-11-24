@@ -1,7 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
-import { fontless } from 'fontless';
 import Icons from 'unplugin-icons/vite';
 import { defineConfig } from 'wxt';
 
@@ -38,18 +37,6 @@ const OFFSCREEN_BROWSERS = new Set(['chrome', 'edge', 'opera']);
  */
 const NATIVE_TEMPORAL_BROWSERS = new Set(['chrome', 'edge', 'opera', 'firefox']);
 const nativeTemporal = fileURLToPath(new URL('./utils/duration/temporal.native.ts', import.meta.url));
-
-/**
- * Local logo font source owned by Fontless during the Vite build.
- *
- * A data URL lets Fontless hash and emit the licensed local font through the
- * same asset pipeline as provider fonts. A public `/fonts/...` URL would make
- * Fontless attempt to fetch an extension-relative URL while Node owns the build.
- */
-const kestrelPath = fileURLToPath(new URL('./src/assets/fonts/american-kestrel/americankestral.ttf', import.meta.url));
-const kestrelSource = existsSync(kestrelPath)
-	? `data:font/ttf;base64,${readFileSync(kestrelPath).toString('base64')}`
-	: undefined;
 
 export default defineConfig({
 	srcDir: 'src',
@@ -140,45 +127,6 @@ export default defineConfig({
 				: [],
 		},
 		plugins: [
-			fontless({
-				provider: 'fontsource',
-				processCSSVariables: 'font-prefixed-only',
-				defaults: {
-					preload: false,
-					formats: ['woff2'],
-					weights: [400, 700],
-					styles: ['normal'],
-					fallbacks: { 'sans-serif': ['Arial', 'Helvetica Neue'] },
-				},
-				families: [
-					kestrelSource
-						? {
-							name: 'American Kestrel',
-							src: [{ url: kestrelSource, format: 'truetype' }],
-							weight: 400,
-							style: 'normal',
-							fallbacks: ['Space Grotesk'],
-							preload: false,
-						}
-						: { name: 'American Kestrel', provider: 'none' },
-					{
-						name: 'Space Grotesk',
-						provider: 'fontsource',
-						weights: ['300 700'],
-						styles: ['normal'],
-						preload: false,
-					},
-					{
-						name: 'Space Mono',
-						provider: 'fontsource',
-						weights: ['400 700'],
-						styles: ['normal'],
-						preload: false,
-					},
-				],
-				assets: { prefix: '/assets/_fonts' },
-				experimental: { disableLocalFallbacks: false },
-			}),
 			tailwindcss(),
 			Icons({ compiler: 'solid' }),
 		],

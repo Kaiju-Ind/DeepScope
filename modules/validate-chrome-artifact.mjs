@@ -112,11 +112,11 @@ async function validateRegistry(assertions, artifactDirectory, files) {
 	assertion(assertions, 'packaged matcher Registry files are observation-kind shards', invalidShards.length === 0, { invalidShards });
 }
 
-/** Verify Fontless owns generated font assets and legacy public paths stay absent. */
+/** Verify the build emits the UI font files and legacy public paths stay absent. */
 async function validateFonts(assertions, files) {
-	const generated = files.filter((path) => path.startsWith('assets/_fonts/'));
+	const generated = files.filter((path) => /^assets\/[^/]+\.(?:woff2|ttf)$/u.test(path));
 	const legacy = files.filter((path) => path.startsWith('fonts/american-kestrel/'));
-	assertion(assertions, 'generated artifact contains Fontless-owned font assets', generated.length > 0, { generatedCount: generated.length });
+	assertion(assertions, 'generated artifact contains bundled font assets', generated.length > 0, { generatedCount: generated.length });
 	assertion(assertions, 'generated artifact excludes legacy public American Kestrel font paths', legacy.length === 0, { legacy });
 }
 
