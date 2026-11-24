@@ -117,6 +117,9 @@ async function loadRegistrySources(root: string, wxtDir: string): Promise<Regist
 		input: resolve(root, 'modules/registry-sources.ts'),
 		platform: 'node',
 		logLevel: 'silent',
+		// The root tsconfig extends .wxt/tsconfig.json, which a fresh clone only has
+		// after this module runs. The alias below is all the resolution needed.
+		tsconfig: false,
 		resolve: { alias: { '@': resolve(root, 'src'), '~': resolve(root, 'src') } },
 	});
 	try {
