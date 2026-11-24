@@ -249,17 +249,17 @@ Measured with Rolldown, minified, gzipped, native Temporal:
 | scheduler/capacity | adopt | 1.5 KB | `scheduler/budget.ts`, reserve/release in `scheduler/matcher.ts` |
 | context (+ duration) | adopt with Temporal patch | 3.7 KB | per-tab AbortController scopes in the runtime, `rpc.ts:withTimeout` |
 | pool + worker/thread | adopt with adapter | 10.5 KB host, 8.8 KB worker | `matcher/workers/pool.ts`, slot logic in `executor.ts`, the worker message loop |
-| scheduler/queue | later | 9 KB | blocked on an IndexedDB store with tab/window filtering |
-| workflow, activity | later | 28-50 KB | durable only through Postgres; no browser store |
+| scheduler/queue | adopt with a browser store (owner decision) | 9 KB | `scheduler/database.ts` claims, fencing and recovery; needs a browser store and tab/window filtering |
+| workflow, activity | adopt with a browser store (owner decision) | 28-50 KB | the analysis and matcher job lifecycles in `scheduler/analysis.ts` and `scheduler/matcher.ts` |
 | task, concurrency | reject | 4-12 KB | not needed; context covers cancellation |
 | query | reject | 14.3 KB | validates search vocabularies; does not fetch or filter |
 | storage | reject for now | - | Postgres or synchronous localStorage only |
 
-None of these load in the content script. `fence`, `generation` and
+A browser store (IndexedDB first, behind a narrow port so an OPFS backend can replace it) is being designed for queue and workflow; storage gaps are not a reason to reject a utility. None of these load in the content script. `fence`, `generation` and
 `dictionary` stay (no Utils equivalent; `generation` partly retires once
 scopes are contexts). New npm dependencies: `@okikio/observables`,
 `@std/async` (via `npm:@jsr/std__async`), `@standard-schema/spec`,
-`temporal-polyfill` (Safari, and Chrome only if its minimum stays below 144).
+`temporal-polyfill` for Safari only (Chrome's minimum is now 144).
 
 ### Registry scope (owner decision, 2026-11-23)
 
