@@ -22,6 +22,13 @@ const { values: options } = parseArgs({
 		only: { type: 'string' },
 		'idle-timeout': { type: 'string', default: '30000' },
 		'stress-rounds': { type: 'string', default: '12' },
+		seed: { type: 'string' },
+		minutes: { type: 'string' },
+		quick: { type: 'boolean', default: false },
+		tabs: { type: 'string' },
+		windows: { type: 'string' },
+		'no-real': { type: 'boolean', default: false },
+		'no-idle': { type: 'boolean', default: false },
 		out: { type: 'string' },
 		port: { type: 'string', default: '4444' },
 	},
@@ -124,6 +131,27 @@ function backgroundState() {
 	}`, ADDON_ID);
 }
 
+/** Toggle DeepScope's sidebar in the `index`-th browser window (WebDriver cannot click the toolbar). */
+function toggleSidebar(index) {
+	return chrome(`async (index, id) => {
+		const wins = [...Services.wm.getEnumerator('navigator:browser')];
+		const win = wins[index % wins.length];
+		const controller = win.SidebarController ?? win.SidebarUI;
+		await controller.toggle(id);
+	}`, index, `${ADDON_ID.toLowerCase().replace(/[^a-z0-9_-]/g, '_')}-sidebar-action`);
+}
+
+/** Reopen the most recently closed tab, like Ctrl+Shift+T. */
+function undoCloseTab() {
+	return chrome(`async () => {
+		const win = Services.wm.getMostRecentWindow('navigator:browser');
+		const { SessionStore } = win;
+		if (SessionStore.getClosedTabCountForWindow(win) > 0) SessionStore.undoCloseTab(win, 0);
+		else if (SessionStore.getClosedWindowCount() > 0) SessionStore.undoCloseWindow(0);
+		else throw new Error('nothing to restore');
+	}`);
+}
+
 function extensionProcessMemory() {
 	return chrome(`async () => {
 		const info = await ChromeUtils.requestProcInfo();
@@ -133,7 +161,17 @@ function extensionProcessMemory() {
 
 const harness = createHarness(ext);
 const { results, record } = harness;
-const want = (name) => !options.only || options.only.split(',').includes(name);
+// `stress` runs for minutes, so it runs only when named.
+const want = (name) => (options.only ? options.only.split(',').includes(name) : name !== 'stress');
+const stressOptions = {
+	seed: options.seed,
+	minutes: options.minutes,
+	quick: options.quick,
+	tabs: options.tabs,
+	windows: options.windows,
+	real: !options['no-real'],
+	...(options['no-idle'] ? { idle: false } : {}),
+};
 
 try {
 	mainHandle = await session.handle();
@@ -147,7 +185,7 @@ try {
 	await session.switchTo(mainHandle);
 
 	const installedAt = Date.now();
-	await session.cmd('POST', '/moz/addon/install', { addon: readFileSync(xpi).toString('base64'), temporary: true });
+	await session.cmd('POST', '/moz/addon/install', { addon: readFileSync(xpi).toString('base64'), temporary: true, allowPrivateBrowsing: true });
 	await delay(1500);
 	await openControlWindow();
 
@@ -168,14 +206,19 @@ try {
 		want,
 		idleMs: Number(options['idle-timeout']),
 		stressRounds: Number(options['stress-rounds']),
+		stress: stressOptions,
 		hooks: {
 			backgroundState,
 			memory: extensionProcessMemory,
+			toggleSidebar,
+			undoCloseTab,
+			// Installed with allowPrivateBrowsing, so the stress scenario can use private windows.
+			privateWindows: true,
 			openExtensionTab,
 			ensureControl,
 			async reinstall() {
 				// Upgrade in place (what `web-ext run` reload and an AMO update do).
-				await session.cmd('POST', '/moz/addon/install', { addon: readFileSync(xpi).toString('base64'), temporary: true });
+				await session.cmd('POST', '/moz/addon/install', { addon: readFileSync(xpi).toString('base64'), temporary: true, allowPrivateBrowsing: true });
 				await delay(2000);
 				// The upgrade closes extension tabs (and so the control window),
 				// sometimes after this point; reopen in a fresh window.
@@ -189,6 +232,10 @@ try {
 } catch (error) {
 	record('driver', false, { error: String(error.stack ?? error) });
 } finally {
+	if (process.env.VERIFY_VERBOSE) {
+		const errors = await harness.errorRecords().catch((error) => [String(error)]);
+		console.log('journal errors and warnings (newest first):', JSON.stringify(errors, null, 1).slice(0, 12_000));
+	}
 	const out = options.out ?? join(workDir, 'results.json');
 	writeFileSync(out, JSON.stringify(results, null, 2));
 	console.log(`results: ${out}\ngeckodriver/firefox log: ${join(workDir, 'geckodriver.log')}`);

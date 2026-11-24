@@ -12,6 +12,7 @@ import type {
 } from './contracts';
 import { DIAGNOSTIC_TRANSPORT_CHANNEL } from './contracts';
 import * as dictionary from '../../utils/dictionary';
+import { readStorageEntries, readStorageKeys } from '../../utils/storage-entries';
 
 const DIAGNOSTIC_RECORD_PREFIX = 'diagnostics:record:';
 const DIAGNOSTIC_CONTEXT_PREFIX = 'diagnostics:context:';
@@ -34,6 +35,7 @@ const MAX_PENDING_RECORDS = 12;
 
 type StorageArea = {
 	get(keys?: null | string | readonly string[]): Promise<Record<string, unknown>>;
+	getKeys?: () => Promise<string[]>;
 	set(items: Record<string, unknown>): Promise<void>;
 	remove(keys: string | readonly string[]): Promise<void>;
 };
@@ -146,7 +148,7 @@ export async function getDiagnosticRecords(limit = 200): Promise<DiagnosticRecor
 	}
 	const storage = getStorageArea();
 	if (!storage) return [];
-	const all = await storage.get(null);
+	const all = dictionary.fromEntries(await readStorageEntries(storage, (key) => key.startsWith(DIAGNOSTIC_RECORD_PREFIX)));
 	return Object.entries(all)
 		.filter(isDiagnosticRecordEntry)
 		.map(([, value]) => value)
@@ -160,7 +162,7 @@ export async function getDiagnosticContexts(limit = MAX_CONTEXTS): Promise<Diagn
 	if (current) await flushDiagnosticJournal(current);
 	const storage = getStorageArea();
 	if (!storage) return [];
-	const all = await storage.get(null);
+	const all = dictionary.fromEntries(await readStorageEntries(storage, (key) => key.startsWith(DIAGNOSTIC_CONTEXT_PREFIX)));
 	return Object.entries(all)
 		.filter(isDiagnosticContextEntry)
 		.map(([, value]) => value)
@@ -182,8 +184,7 @@ export async function clearDiagnosticJournal(): Promise<number> {
 	}
 	const storage = getStorageArea();
 	if (!storage) return 0;
-	const all = await storage.get(null);
-	const keys = Object.keys(all).filter(isDiagnosticStorageKey);
+	const keys = await readStorageKeys(storage, isDiagnosticStorageKey);
 	if (keys.length) await storage.remove(keys);
 	if (current) await persistContext(current.context);
 	return keys.length;
@@ -448,7 +449,7 @@ export function isDiagnosticTransportMessage(value: unknown): value is Diagnosti
 async function trimDiagnosticJournal(): Promise<void> {
 	const storage = getStorageArea();
 	if (!storage) return;
-	const all = await storage.get(null);
+	const all = dictionary.fromEntries(await readStorageEntries(storage, (key) => key.startsWith(DIAGNOSTIC_RECORD_PREFIX) || key.startsWith(DIAGNOSTIC_CONTEXT_PREFIX)));
 	const now = Date.now();
 	const records = Object.entries(all)
 		.filter(([key, value]) => key.startsWith(DIAGNOSTIC_RECORD_PREFIX) && isDiagnosticRecord(value))

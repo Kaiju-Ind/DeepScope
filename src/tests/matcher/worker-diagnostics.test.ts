@@ -74,7 +74,7 @@ it.each([false, true])('keeps worker diagnostics within the job privacy policy: 
 	vi.resetModules();
 	vi.doMock('@/lib/diagnostics/logging', () => ({ configure: vi.fn(), get: () => logger }));
 	vi.doMock('wxt/browser', () => ({ browser: {} }));
-	vi.stubGlobal('location', { origin: 'chrome-extension://privacy-test' });
+	vi.stubGlobal('location', { origin: 'chrome-extension://privacy-test', href: 'chrome-extension://privacy-test/assets/matcher.worker.js' });
 	vi.stubGlobal('fetch', fetchAsset);
 	vi.stubGlobal('postMessage', (message: MatcherWorkerResponseMessage) => messages.push(message));
 	// A real event target owns the simulated worker context, including crash hooks.
