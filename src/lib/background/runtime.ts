@@ -11,7 +11,6 @@ import type { ContentPageSessionSnapshotTarget } from '@/lib/messaging/analysis'
 import type {
 	DetectionEnrichmentState,
 	DetectionEvidenceState,
-	DetectionReplaySummary,
 	DetectionSessionKey,
 	DetectionSessionSnapshot,
 	DetectionSessionSnapshotSource,
@@ -24,7 +23,7 @@ import {
 	filterReplayHistoryForAnalysis,
 	isDetectionReplayTraceForAnalysis,
 } from '@/lib/pipeline';
-import type { DetectionPipelineStage, DetectionReplayTrace } from '@/lib/pipeline';
+import type { DetectionReplayTrace } from '@/lib/pipeline';
 import {
 	createTimingTraceId,
 	endTimingSpan,
@@ -60,6 +59,7 @@ import {
 	shouldStartObservationForAnalysis,
 } from '@/lib/lifecycle/observation';
 import * as tabIdentity from '@/lib/messaging/identity';
+import * as replay from '@/lib/pipeline/replay';
 import { errorResponse, ok, type ExtensionResult } from '@/lib/messaging/result';
 import {
 	MatcherError,
@@ -1079,7 +1079,7 @@ export function createBackgroundRuntime(
 			const existing = await getLatestDetectionSessionSnapshot(key);
 			if (ownsPublication?.() === false) return;
 			const replaySummary = shouldAttachReplaySummaryToSnapshot(output)
-				? createReplaySummary(output.replayTrace)
+				? replay.summarize(output.replayTrace)
 				: undefined;
 			const snapshot: DetectionSessionSnapshot = {
 				key,
@@ -1259,22 +1259,6 @@ export function createBackgroundRuntime(
 		analysis: SiteAnalysis,
 	): DetectionReplayTrace[] {
 		return filterReplayHistoryForAnalysis(history, analysis);
-	}
-
-	/** Keep only public-safe replay progress inside the visible snapshot record. */
-	function createReplaySummary(trace: DetectionReplayTrace): DetectionReplaySummary {
-		const stages: DetectionPipelineStage[] = [];
-		for (const event of trace.events) {
-			if (!stages.includes(event.stage)) stages.push(event.stage);
-		}
-		return {
-			...(trace.runId ? { runId: trace.runId } : {}),
-			analyzedAt: trace.analyzedAt,
-			eventCount: trace.events.length,
-			explanationCount: trace.explanations.length,
-			resultCount: trace.resultCount,
-			stages,
-		};
 	}
 
 	function validateObservationSessionTarget(

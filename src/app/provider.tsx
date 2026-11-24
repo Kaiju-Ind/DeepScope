@@ -32,10 +32,10 @@ import {
   createBackgroundClientAdapter,
 } from "@/lib/messaging";
 import { same as sameTab } from "@/lib/messaging/identity";
+import * as replay from "@/lib/pipeline/replay";
 import {
   buildAnalysisUpdate,
   createVisibleRevisionFromAnalysisResponse,
-  createReplaySummaryFromTrace,
   formatError,
   getAnalysisActivity,
   getMatcherStatusFromSnapshot,
@@ -744,7 +744,7 @@ export function PanelProvider(props: {
       !applyReplay
         ? null
         : revision.replayTrace
-        ? createReplaySummaryFromTrace(revision.replayTrace)
+        ? replay.summarize(revision.replayTrace)
         : revision.replaySummary ?? preservedReplaySummary,
     );
     setEvidenceState(revision.evidence ?? null);

@@ -23,6 +23,7 @@ import {
 	type DetectionExplanationEvidenceSummary,
 	type DetectionReplayTrace,
 } from '@/lib/pipeline';
+import * as replay from '@/lib/pipeline/replay';
 import type { ExtensionError } from '@/lib/messaging/failure';
 import * as dictionary from '../utils/dictionary';
 
@@ -462,14 +463,6 @@ export function isVisibleRevisionPending(revision: VisibleRevision): boolean {
 }
 
 
-/** Return whether a compact replay summary belongs to the supplied analysis. */
-export function isReplaySummaryForAnalysis(
-	summary: DetectionReplaySummary,
-	analysis: SiteAnalysis,
-): boolean {
-	return summary.resultCount === analysis.results.length && summary.analyzedAt === analysis.analyzedAt;
-}
-
 /** Return only replay history entries that explain the visible analysis. */
 export function getReplayHistoryForVisibleAnalysis(
 	history: readonly DetectionReplayTrace[] | undefined,
@@ -491,7 +484,7 @@ export function getReplaySummaryForVisibleAnalysis(
 	summary: DetectionReplaySummary | undefined,
 	analysis: SiteAnalysis,
 ): DetectionReplaySummary | undefined {
-	return summary && isReplaySummaryForAnalysis(summary, analysis) ? summary : undefined;
+	return replay.describes(summary, analysis) ? summary : undefined;
 }
 
 /** Returns whether replay details belong to the current visible revision. */
@@ -504,7 +497,7 @@ export function shouldApplyReplayState(revision: VisibleRevision): boolean {
 		return false;
 	}
 
-	if (revision.replaySummary && !isReplaySummaryForAnalysis(revision.replaySummary, revision.analysis)) {
+	if (revision.replaySummary && !replay.describes(revision.replaySummary, revision.analysis)) {
 		return false;
 	}
 
@@ -535,7 +528,7 @@ export function getReplayState(revision: VisibleRevision): ReplayState {
 	const history = getReplayHistoryForVisibleAnalysis(revision.replayHistory, revision.analysis);
 	if (history.length) {
 		const summary = getReplaySummaryForVisibleAnalysis(revision.replaySummary, revision.analysis)
-			?? createReplaySummaryFromTrace(history[0]!);
+			?? replay.summarize(history[0]!);
 		return { kind: 'history', summary, history };
 	}
 
@@ -546,27 +539,10 @@ export function getReplayState(revision: VisibleRevision): ReplayState {
 
 	const replayTrace = getReplayTraceForVisibleAnalysis(revision.replayTrace, revision.analysis);
 	if (replayTrace) {
-		return { kind: 'summary', summary: createReplaySummaryFromTrace(replayTrace) };
+		return { kind: 'summary', summary: replay.summarize(replayTrace) };
 	}
 
 	return { kind: 'none' };
-}
-
-/** Convert a full trace into the compact replay summary shape used by snapshots. */
-export function createReplaySummaryFromTrace(trace: DetectionReplayTrace): DetectionReplaySummary {
-	const stages: DetectionReplayTrace['events'][number]['stage'][] = [];
-	for (const event of trace.events) {
-		if (!stages.includes(event.stage)) stages.push(event.stage);
-	}
-
-	return {
-		...(trace.runId ? { runId: trace.runId } : {}),
-		analyzedAt: trace.analyzedAt,
-		eventCount: trace.events.length,
-		explanationCount: trace.explanations.length,
-		resultCount: trace.resultCount,
-		stages,
-	};
 }
 
 /**
