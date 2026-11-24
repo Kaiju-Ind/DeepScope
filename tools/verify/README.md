@@ -33,10 +33,11 @@ Options:
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `--only a,b` | all | scenarios (`scenarios.mjs`): `preinstall`, `active-load`, `background-tab`, `spa`, `real-sites`, `busy-page`, `navigate-mid-scan`, `close-mid-scan`, `idle-wake`, `panel-page`, `reinstall`, `restricted`, `heavy`, `history`, `permission-revoked`, `stress` |
+| `--only a,b` | all | scenarios (`scenarios.mjs`): `preinstall`, `active-load`, `background-tab`, `spa`, `real-sites`, `busy-page`, `navigate-mid-scan`, `close-mid-scan`, `idle-wake`, `panel-page`, `reinstall`, `restricted`, `heavy`, `history`, `nav-loop`, `permission-revoked`; `stress` only when named |
 | `--headed` | off | show the browser window |
 | `--idle-timeout ms` | 30000 | `extensions.background.idle.timeout` |
-| `--stress-rounds n` | 12 | navigations in the `stress` scenario |
+| `--stress-rounds n` | 12 | navigations in the `nav-loop` scenario |
+| `--seed n`, `--minutes m`, `--quick`, `--tabs n`, `--windows n`, `--no-real`, `--no-idle` | see below | the `stress` scenario |
 | `--out file` | temp dir | JSON results |
 | `--extension dir` | `.output/firefox-mv3` | build to install |
 
@@ -44,6 +45,45 @@ Options:
 full event timeline to every result (failures always include it). Scenarios
 marked "informational" always pass and record what happened. The exit code is
 non-zero when any scenario fails. Real-site scenarios need network access.
+
+## Stress
+
+```sh
+mise run verify firefox -- --only stress --seed 42 --minutes 10
+mise run verify firefox -- --only stress --quick --seed 1      # CI-sized, about 3 minutes in all
+mise run verify safari -- --stp --only stress --seed 42 --minutes 5
+```
+
+`stress.mjs` uses DeepScope like a careless heavy user. A seeded schedule
+(`--seed`; the run prints it) opens up to `--tabs` tabs (default 24; 10 with
+`--quick`) across `--windows` windows (4; 2), and for `--minutes` (5; 1.5)
+switches tabs in bursts faster than scans finish, focuses windows, moves and
+reorders tabs, closes tabs (preferring ones mid-scan) and windows, reopens
+closed tabs (Firefox session restore), navigates, `location.replace`s, goes
+back and forward, reloads in storms, `pushState`s, rewrites whole documents,
+duplicates and pins tabs, opens `panel.html?tab=` and the Firefox sidebar, and
+uses a private window (Firefox; the add-on is installed with private browsing
+allowed). Halfway through (and at 80% in runs over 8 minutes) it leaves the
+extension alone until the background unloads, then hammers it again.
+`--no-real` keeps it to the local fixtures; `--no-idle` skips the idle wait.
+
+The fixtures each carry one distinct generator (`STRESS_FIXTURES` in
+`fixtures.mjs`), so a result naming another page's generator is a result
+published for the wrong document. Results go to `--out` as `stress <invariant>`
+records plus a `stress summary` with the action log; each failure carries the
+seed, time, tab, the tab's last actions and its journal lines.
+
+| Invariant | Checked |
+| --- | --- |
+| `inv1-current-document-results` | every 5 s, and at the end by visiting each tab: the stored result for the tab's current URL has the fixture's `must` names and no other fixture's marker |
+| `inv2-badge` | every 5 s and in a final sweep: a non-blank badge equals the tab's current-URL result count |
+| `inv3-closed-tab-cleanup`, `inv3-work-after-close` | no `rd:session*` keys, scheduler work or running matcher jobs for closed tabs; no scan events for a tab 8 s after it closed |
+| `inv4-stuck-work`, `inv4-journal-errors` | the IndexedDB `work` store drains within 60 s; no error records; warnings and lost content scripts only right after the harness disturbed that tab |
+| `inv5-memory` | Firefox only: extension process memory 20-50 s after activity stops is below 3x (or +400 MiB over) the start and not still growing |
+| `inv6-private-not-persisted` | no stored key or value refers to a private tab |
+
+A violation seen while running counts only if the next sample still shows it
+and the harness has not touched the tab since.
 
 ## Shared scenarios
 
@@ -105,14 +145,20 @@ missing step.
 
 Once the settings are on, the driver:
 
-1. Installs `.output/safari-mv3` through WebDriver.
-2. Opens `safari-web-extension://<id>/options.html` as the control page. If
-   Safari refuses that navigation (WebKit bug 252112), the driver stops with
-   an error that says so.
-3. Checks host access before running the scenarios. Safari can withhold
-   website access even when the manifest lists `host_permissions`. If this
-   check fails, go to Settings > Extensions and set DeepScope to "Always
-   Allow on Every Website".
+1. Installs a copy of `.output/safari-mv3` through WebDriver. The copy adds
+   one background script, `verify-probe-bg.js`, that opens
+   `options.html?verify-probe=1` once per session. WebDriver returns Safari's
+   composed identifier, not the UUID in `safari-web-extension://` URLs, and
+   refuses to navigate to those URLs (WebKit bug 252112), so that tab is how
+   the driver finds the UUID and its control page.
+2. Records `safari-worker-fetch`: whether a worker can fetch the packaged
+   registry shards. Safari lowercases the host in `location.origin`, and a
+   fetch under that host fails, so workers must resolve against
+   `location.href`.
+3. Records host access (informational). Safari Technology Preview reports no
+   granted origins for a WebDriver install but still scans. If scans fail, go
+   to Settings > Extensions and set DeepScope to "Always Allow on Every
+   Website".
 
 Options:
 

@@ -6,6 +6,7 @@ import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import * as logging from '@/lib/diagnostics/logging';
 import { getDetectionPatternCacheStats } from '@/lib/detection/pattern';
 import type { DetectionPatternType } from '@/lib/detection/types';
+import { resolvePackagedAssetUrl } from '@/lib/registry/asset-fetch';
 import { createPackagedMatcherTechnologyRegistryProvider } from '@/lib/registry/packaged-matcher';
 import type {
 	MatcherPartitionMatch,
@@ -59,8 +60,7 @@ const workerScope = globalThis as Partial<MatcherWorkerGlobal>;
 const registryProvider = createPackagedMatcherTechnologyRegistryProvider({
 	maxShardCacheBytes: MATCHER_SHARD_CACHE_BYTES,
 	resolveUrl(path) {
-		const workerOrigin = workerScope.location?.origin ?? globalThis.location.origin;
-		return new globalThis.URL(path, `${workerOrigin}/`).toString();
+		return resolvePackagedAssetUrl(path, workerScope.location ?? globalThis.location);
 	},
 });
 

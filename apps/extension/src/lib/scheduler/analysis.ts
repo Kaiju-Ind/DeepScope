@@ -228,7 +228,10 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 				? await options.analyze({ target: target.value, mode: work.mode, observe: work.observe })
 				: target;
 			const cleanup = await removeClaim(work.id, claimToken);
-			if (!canPublish(work, executionGeneration, cleanup, 'completion')) return;
+			if (!canPublish(work, executionGeneration, cleanup, 'completion')) {
+				releaseSuperseded(work, cleanup);
+				return;
+			}
 			resolveCompletion(work.id, result);
 			options.log?.('scheduler-analysis-complete', {
 				workId: work.id,
@@ -243,7 +246,10 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 				error instanceof Error ? error.stack : undefined,
 			);
 			const cleanup = await removeClaim(work.id, claimToken);
-			if (!canPublish(work, executionGeneration, cleanup, 'failure')) return;
+			if (!canPublish(work, executionGeneration, cleanup, 'failure')) {
+				releaseSuperseded(work, cleanup);
+				return;
+			}
 			resolveCompletion(work.id, result);
 			options.log?.('scheduler-analysis-failed', {
 				workId: work.id,
@@ -272,6 +278,21 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 			});
 		}
 		return true;
+	}
+
+	/**
+	 * Settle the callers of an execution whose tab changed while it ran.
+	 *
+	 * Its result must not be published, but its callers still have to settle.
+	 * When this execution removed its own record, `cancelTab` can no longer find
+	 * it, so nothing else would ever resolve the completion and every caller
+	 * (including the automatic-scan controller, which runs one scan per tab at a
+	 * time) would wait forever. A `stale` cleanup means a newer admission owns the
+	 * id and will resolve the shared completion itself.
+	 */
+	function releaseSuperseded(work: AnalysisWorkType, cleanup: ClaimCleanupResult): void {
+		if (cleanup.kind === 'stale') return;
+		resolveCompletion(work.id, canceled('Analysis canceled because its tab changed while it ran.'));
 	}
 
 	function resolveCompletion(id: string, result: ExtensionResult<AnalyzeVisibleTabOutput>): void {
