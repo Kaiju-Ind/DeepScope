@@ -12,7 +12,7 @@ export interface DiagnosticCrashHookOptions {
 	 * Content scripts disable this listener because their global object is attached
 	 * to the host page. We must not persist unrelated website failures as Kaiju
 	 * extension crashes. Rejected promises and structured-clone failures remain
-	 * useful because they originate from the isolated extension world.
+	 * useful; a rejection is kept only when its promise belongs to this realm.
 	 */
 	readonly captureGlobalError?: boolean;
 	/**
@@ -35,6 +35,23 @@ type DiagnosticCrashRegistration = DiagnosticCrashHooks & {
 	readonly captureGlobalError: boolean;
 	readonly includeErrorDetails: boolean;
 };
+
+/**
+ * Whether a rejected promise belongs to this context's own realm.
+ *
+ * Firefox delivers the host page's unhandled rejections to a content script's
+ * window listeners as well; their promises come from the page's realm (and
+ * reach the script as cross-compartment wrappers), and they are the page's
+ * failures, not DeepScope's. An event without a promise is kept.
+ */
+function isOwnPromise(promise: unknown): boolean {
+	if (promise === undefined) return true;
+	try {
+		return promise instanceof Promise;
+	} catch {
+		return false;
+	}
+}
 
 /** Install exception and rejected-promise capture for one extension context run. */
 export function installDiagnosticCrashHooks(
@@ -80,6 +97,7 @@ export function installDiagnosticCrashHooks(
 
 	add('unhandledrejection', ((event: Event) => {
 		const rejection = event as PromiseRejectionEvent;
+		if (!isOwnPromise(rejection.promise)) return;
 		persistDiagnosticFailure({
 			surface,
 			category: ['kaiju-deepscope', surface, 'crash'],

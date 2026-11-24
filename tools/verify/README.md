@@ -69,7 +69,9 @@ extension alone until the background unloads, then hammers it again.
 
 The fixtures each carry one distinct generator (`STRESS_FIXTURES` in
 `fixtures.mjs`), so a result naming another page's generator is a result
-published for the wrong document. Results go to `--out` as `stress <invariant>`
+published for the wrong document. The Hugo fixture also rejects a promise of
+its own every 1.5 s, so a page's failure journaled as DeepScope's shows up as an
+`inv4-journal-errors` failure. Results go to `--out` as `stress <invariant>`
 records plus a `stress summary` with the action log; each failure carries the
 seed, time, tab, the tab's last actions and its journal lines.
 

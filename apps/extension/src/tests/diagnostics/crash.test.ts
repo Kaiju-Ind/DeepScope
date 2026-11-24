@@ -1,3 +1,5 @@
+import { runInNewContext } from 'node:vm';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { type DiagnosticCrashHooks, installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
@@ -84,6 +86,26 @@ describe('diagnostic crash hooks', () => {
 			surface: 'content',
 			properties: { error: { message: 'content promise failed' } },
 		});
+	});
+
+	/**
+	 * Found by the Firefox stress run: a content script's window also hears the
+	 * host page's unhandled rejections, and each one was journaled as a
+	 * DeepScope crash, with the page's URL in its stack.
+	 */
+	it('ignores a rejection whose promise the host page created', async () => {
+		hooks.push(installDiagnosticCrashHooks('content', { captureGlobalError: false }));
+		const pagePromise = runInNewContext('Promise.reject(new Error("page-owned rejection"))') as Promise<never>;
+		pagePromise.catch(() => undefined);
+		emit('unhandledrejection', { promise: pagePromise, reason: new Error('page-owned rejection') });
+		expect(await getDiagnosticRecords()).toEqual([]);
+
+		const ownPromise = Promise.reject(new Error('content promise failed'));
+		ownPromise.catch(() => undefined);
+		emit('unhandledrejection', { promise: ownPromise, reason: new Error('content promise failed') });
+		expect(await getDiagnosticRecords()).toEqual([
+			expect.objectContaining({ surface: 'content', properties: { error: expect.objectContaining({ message: 'content promise failed' }) } }),
+		]);
 	});
 
 	it('keeps only the rejection type and fixed events for a private content context', async () => {

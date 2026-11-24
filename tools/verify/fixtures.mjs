@@ -20,7 +20,9 @@ const pages = {
 	'/plain.html': () => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Plain</title></head><body>plain</body></html>`,
 	// One generator each, so a result naming another page's generator is a
 	// result published for the wrong document (see STRESS_FIXTURES).
-	'/hugo.html': () => generatorPage('Hugo 0.120.4', 'Hugo fixture'),
+	// The page's own unhandled rejection. Firefox delivers it to the content
+	// script's window listeners too; it is not a DeepScope failure.
+	'/hugo.html': () => generatorPage('Hugo 0.120.4', 'Hugo fixture', undefined, `setInterval(() => Promise.reject(new Error('page-owned rejection')), 1500);`),
 	'/ghost.html': () => generatorPage('Ghost 5.75', 'Ghost fixture'),
 	'/drupal.html': () => generatorPage('Drupal 10', 'Drupal fixture'),
 	'/joomla.html': () => generatorPage('Joomla! 4.4', 'Joomla fixture'),
