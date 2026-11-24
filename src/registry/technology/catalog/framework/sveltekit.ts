@@ -143,7 +143,6 @@ export const sveltekitTechnologyDefinition: TechnologyDefinition = {
 		cpe: 'cpe:2.3:a:svelte:sveltekit:*:*:*:*:*:*:*:*',
 	},
 	implies: [
-		'node-js',
 		'svelte',
 		'vite',
 	],

@@ -65,7 +65,6 @@ export const nuxtJsTechnologyDefinition: TechnologyDefinition = {
 		cpe: 'cpe:2.3:a:nuxt:nuxt:*:*:*:*:*:*:*:*',
 	},
 	implies: [
-		'node-js',
 		'vue-js',
 	],
 } as const satisfies TechnologyDefinition;

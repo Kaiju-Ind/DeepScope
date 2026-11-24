@@ -35,6 +35,5 @@ export const vikeTechnologyDefinition: TechnologyDefinition = {
 	},
 	implies: [
 		'vite',
-		'typescript',
 	],
 } as const satisfies TechnologyDefinition;

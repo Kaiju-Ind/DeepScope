@@ -28,7 +28,6 @@ export const vikeTechnologyDefinition: TechnologyDefinition = {
 		oss: true,
 	},
 	implies: [
-		'typescript',
 		'vite',
 	],
 } as const satisfies TechnologyDefinition;

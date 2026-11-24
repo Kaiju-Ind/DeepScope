@@ -48,4 +48,9 @@ export const tanstackStartTechnologyDefinition: TechnologyDefinition = {
 	metadata: {
 		oss: true,
 	},
+	// TanStack Start always routes with TanStack Router. It supports both React
+	// and Solid, so neither UI library is implied.
+	implies: [
+		'tanstack-router',
+	],
 } as const satisfies TechnologyDefinition;
