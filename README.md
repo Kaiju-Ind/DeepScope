@@ -2,7 +2,7 @@
 
 A Chrome-first Manifest V3 technology detector built with WXT, TypeScript, Solid, and `comctx`.
 
-**Browser baseline:** Chrome 119 or newer. The current `comctx` runtime uses `Promise.withResolvers()`, which is part of the extension startup path.
+**Browser baseline:** Chrome 144, Firefox 140 and Safari 18.4 or newer. Chrome 144 and Firefox 139 are the first releases with native Temporal, which the vendored utilities use.
 
 The extension analyzes active `http` or `https` pages locally, turns collected page facts into normalized observations, runs the shared event pipeline, and caches normalized `SiteAnalysis` output with an optional redacted replay trace. Automatic page-load scanning is enabled by default and can be turned off from Settings. Raw page payloads are used only during local analysis and are not stored as cache records.
 

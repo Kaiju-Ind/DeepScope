@@ -11,7 +11,7 @@ Use this checklist against the final zip, not only the source tree.
 - `permissions` contains only `activeTab`, `scripting`, `storage`, `offscreen`,
   `sidePanel`, and `clipboardWrite` for the first release.
 - `host_permissions` contains only `http://*/*` and `https://*/*` for automatic normal-page scanning.
-- `minimum_chrome_version` is `119` or newer.
+- `minimum_chrome_version` is `144` or newer (native Temporal).
 - `action` has no `default_popup`; `side_panel.default_path` points to `sidepanel.html`.
 - `options_page` or `options_ui` points to the independently built Diagnostics page.
 

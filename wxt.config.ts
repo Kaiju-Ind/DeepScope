@@ -69,8 +69,10 @@ export default defineConfig({
 		name: 'Kaiju DeepScope',
 		description: 'Detect web technologies automatically on active web pages and show the evidence behind each result.',
 		version,
-		// comctx calls Promise.withResolvers() during startup (Chrome 119, Firefox 121, Safari 17.4).
-		...(browser === 'firefox' || browser === 'safari' ? {} : { minimum_chrome_version: '119' }),
+		// Temporal is native from Chrome 144 (Firefox 139). Chrome's background is a
+		// service worker, which cannot load a polyfill lazily, so the minimum is the
+		// first version with native Temporal.
+		...(browser === 'firefox' || browser === 'safari' ? {} : { minimum_chrome_version: '144' }),
 		...(browser === 'firefox'
 			? {
 				browser_specific_settings: {
