@@ -4,6 +4,7 @@ import { browser } from 'wxt/browser';
 
 import { getMatcherJobCacheKey, MATCHER_JOB_CACHE_PREFIX } from './contracts';
 import * as dictionary from '@/utils/dictionary';
+import { readStorageEntries } from '@/utils/storage-entries';
 
 const MAX_MATCHER_JOB_RECORDS = 80;
 const MAX_TERMINAL_JOB_AGE_MS = 1000 * 60 * 60 * 24 * 7;
@@ -70,7 +71,7 @@ export async function updateMatcherJobRecord(
 
 /** Read all matcher lifecycle records, newest first, without exposing legacy raw document fields. */
 export async function listMatcherJobRecords(): Promise<MatcherJobLifecycleRecord[]> {
-	const all = await browser.storage.local.get(null);
+	const all = dictionary.fromEntries(await readStorageEntries(browser.storage.local, (key) => key.startsWith(MATCHER_JOB_CACHE_PREFIX)));
 	return Object.entries(all)
 		.filter(isMatcherJobRecordEntry)
 		.filter(([, value]) => !isIncognitoLegacyRecord(value))
@@ -113,7 +114,7 @@ export async function reconcileMatcherJobRecords(
 	currentContextId: string,
 	migration?: LegacyPrivateMigration,
 ): Promise<MatcherJobLifecycleRecord[]> {
-	const all = await browser.storage.local.get(null);
+	const all = dictionary.fromEntries(await readStorageEntries(browser.storage.local, (key) => key.startsWith(MATCHER_JOB_CACHE_PREFIX)));
 	const entries = Object.entries(all).filter(isMatcherJobRecordEntry);
 	const updates = dictionary.create<MatcherJobLifecycleRecord>();
 	const remove: string[] = [];
@@ -165,7 +166,7 @@ export async function reconcileMatcherJobRecords(
 
 /** Remove old terminal matcher records without deleting current-context active work. */
 async function trimMatcherJobRecords(): Promise<void> {
-	const all = await browser.storage.local.get(null);
+	const all = dictionary.fromEntries(await readStorageEntries(browser.storage.local, (key) => key.startsWith(MATCHER_JOB_CACHE_PREFIX)));
 	const entries = Object.entries(all)
 		.filter(isMatcherJobRecordEntry)
 		.filter(([, value]) => !isIncognitoLegacyRecord(value))

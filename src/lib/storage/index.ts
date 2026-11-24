@@ -1,4 +1,6 @@
 import { browser } from 'wxt/browser';
+import * as dictionary from '@/utils/dictionary';
+import { readStorageEntries, readStorageKeys } from '@/utils/storage-entries';
 
 import type {
 	DetectionOriginSummary,
@@ -43,8 +45,7 @@ const DETECTION_STORAGE_PREFIXES = [
 
 /** Remove detector-owned cache, replay, snapshot, and matcher job records. */
 export async function clearStoredDetectionData(): Promise<number> {
-	const all = await browser.storage.local.get(null);
-	const keys = Object.keys(all).filter(isDetectorStorageKey);
+	const keys = await readStorageKeys(browser.storage.local, isDetectorStorageKey);
 
 	if (keys.length > 0) {
 		await browser.storage.local.remove(keys);
@@ -164,7 +165,8 @@ export async function getStatus(): Promise<AnalysisStatus> {
 		return toAnalysisStatus(storedStatus);
 	}
 
-	const all = await browser.storage.local.get(null);
+	const all = dictionary.fromEntries(await readStorageEntries(browser.storage.local, (key) =>
+		key.startsWith(DETECTION_ORIGIN_SUMMARY_PREFIX) || key.startsWith(DETECTION_ORIGIN_SNAPSHOT_PREFIX)));
 	const originSummaries = Object.entries(all)
 		.filter((entry): entry is [string, DetectionOriginSummary] =>
 			entry[0].startsWith(DETECTION_ORIGIN_SUMMARY_PREFIX) && isDetectionOriginSummary(entry[1])
@@ -208,7 +210,8 @@ function toAnalysisStatus(status: DetectionStorageStatusSnapshot): AnalysisStatu
 
 /** Remove stale and overflow replay records without touching analysis records. */
 async function trimReplayTraceCache(): Promise<void> {
-	const all = await browser.storage.local.get(null);
+	const all = dictionary.fromEntries(await readStorageEntries(browser.storage.local, (key) =>
+		key.startsWith(REPLAY_TRACE_CACHE_PREFIX) || key.startsWith(REPLAY_TRACE_HISTORY_CACHE_PREFIX)));
 	const traces = Object.entries(all)
 		.filter(([key, value]) => key.startsWith(REPLAY_TRACE_CACHE_PREFIX) && isDetectionReplayTrace(value))
 		.map(([key, value]) => ({ key, trace: value as DetectionReplayTrace }))

@@ -20,6 +20,8 @@ import type {
 	DetectionSessionSnapshotWriteResult,
 } from '../persistence/ports';
 import { browser } from 'wxt/browser';
+import * as dictionary from '@/utils/dictionary';
+import { readStorageEntries } from '@/utils/storage-entries';
 
 import {
 	DETECTION_ENRICHMENT_STATUSES,
@@ -490,7 +492,7 @@ async function saveDetectionOriginSummary(summary: DetectionOriginSummary): Prom
 
 /** Recompute and persist the compact aggregate status from origin summaries. */
 export async function refreshDetectionStorageStatusSnapshot(): Promise<DetectionStorageStatusSnapshot> {
-	const all = await browser.storage.local.get(null);
+	const all = dictionary.fromEntries(await readStorageEntries(browser.storage.local, (key) => key.startsWith(DETECTION_ORIGIN_SUMMARY_PREFIX)));
 	const summaries = Object.entries(all)
 		.filter((entry): entry is [string, DetectionOriginSummary] =>
 			entry[0].startsWith(DETECTION_ORIGIN_SUMMARY_PREFIX) && isDetectionOriginSummary(entry[1])
