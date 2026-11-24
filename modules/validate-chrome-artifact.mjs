@@ -38,7 +38,7 @@ async function validateArtifact(input) {
 		assertion(assertions, 'Chrome artifact manifest is MV3', manifest.manifest_version === 3, {
 			manifestVersion: manifest.manifest_version,
 		});
-		assertion(assertions, 'Chrome artifact keeps the declared Chrome 119 minimum', manifest.minimum_chrome_version === '119', {
+		assertion(assertions, 'Chrome artifact declares the Chrome 144 minimum (native Temporal)', manifest.minimum_chrome_version === '144', {
 			minimumChromeVersion: manifest.minimum_chrome_version,
 		});
 		const hostPermissions = Array.isArray(manifest.host_permissions) ? manifest.host_permissions : [];
