@@ -334,7 +334,7 @@ content script was alive but busy. Its DOM scan on Wikipedia made about 430
 `Element.matches` calls per element (9.4 million, 17.9 s); the background gave
 up after 10 s. Stopgap merged: a busy-but-alive script is waited for up to
 60 s, and pages Firefox refuses to script now report `PERMISSION_DENIED`. The
-real fix, cheaper selector routing in `src/lib/dom/match.ts`, is in progress.
+real fix is merged: selectors are routed by the conditions of their right-most compound (`src/lib/dom/route.ts`). On the same Wikipedia page in Firefox 160 the scan went from 9,438,348 `matches()` calls and 18.9 s to 4,730 calls and 0.41 s, and observation collection from 19.0 s to 0.59 s, with the matched selector set proven equal to DOM ground truth (`src/tests/dom/match.test.ts`).
 
 Open: the later evidence passes still time out at 10 s each on huge pages;
 with site access revoked Firefox hides `tab.url` and the user sees the wrong
