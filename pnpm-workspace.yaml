@@ -1,3 +1,7 @@
+# Vendored Kaiju Utils packages (@utils/*); see utils/README.md.
+packages:
+  - utils/*
+
 allowBuilds:
   esbuild: true
   spawn-sync: false

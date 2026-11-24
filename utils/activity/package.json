@@ -1,0 +1,34 @@
+{
+	"name": "@utils/activity",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/activity @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		".": "./mod.ts",
+		"./engine": "./engine.ts",
+		"./local": "./local.ts",
+		"./types": "./types.ts",
+		"./worker": "./worker.ts",
+		"./selection": "./selection.ts"
+	},
+	"dependencies": {
+		"@utils/authz": "workspace:*",
+		"@utils/capability": "workspace:*",
+		"@utils/collection": "workspace:*",
+		"@utils/context": "workspace:*",
+		"@utils/duration": "workspace:*",
+		"@utils/pool": "workspace:*",
+		"@utils/result": "workspace:*",
+		"@utils/schema": "workspace:*",
+		"@utils/worker": "workspace:*",
+		"@utils/workflow": "workspace:*",
+		"@standard-schema/spec": "1.1.0"
+	},
+	"devDependencies": {
+		"@utils/dispose": "workspace:*",
+		"@std/expect": "npm:@jsr/std__expect@1.0.20"
+	}
+}

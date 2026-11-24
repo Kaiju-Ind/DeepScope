@@ -1,0 +1,41 @@
+{
+	"name": "@utils/capability",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/capability @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		"./effect": "./effect/mod.ts",
+		"./effect/types": "./effect/types.ts",
+		"./effect/observe": "./effect/observe.ts",
+		"./requirement": "./requirement/mod.ts",
+		"./requirement/types": "./requirement/types.ts",
+		"./requirement/definition": "./requirement/definition.ts",
+		"./resilience": "./resilience/mod.ts",
+		"./resilience/types": "./resilience/types.ts",
+		"./resilience/poll": "./resilience/poll.ts",
+		"./resource": "./resource/mod.ts",
+		"./resource/types": "./resource/types.ts",
+		"./execution": "./execution.ts",
+		"./resilience/attempt": "./resilience/attempt.ts"
+	},
+	"dependencies": {
+		"@utils/collection": "workspace:*",
+		"@utils/context": "workspace:*",
+		"@utils/dispose": "workspace:*",
+		"@utils/duration": "workspace:*",
+		"@utils/env": "workspace:*",
+		"@utils/scheduler": "workspace:*",
+		"@utils/schema": "workspace:*",
+		"@utils/telemetry": "workspace:*",
+		"@okikio/observables": "1.4.0",
+		"@std/encoding": "npm:@jsr/std__encoding@1.0.11"
+	},
+	"devDependencies": {
+		"@utils/authz": "workspace:*",
+		"@standard-schema/spec": "1.1.0",
+		"@std/expect": "npm:@jsr/std__expect@1.0.20"
+	}
+}

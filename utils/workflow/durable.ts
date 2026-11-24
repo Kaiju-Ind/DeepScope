@@ -1,0 +1,120 @@
+// Vendored from Kaiju-Ind/Utils packages/workflow/durable.ts @ 47d2c0f.
+// MIT (c) 2026 Okikio, see utils/LICENSE. Local changes: none. Resync: scripts/utils/sync.ts.
+import * as schema from '@utils/schema';
+/**
+ * Durable workflow value snapshots.
+ *
+ * Workflow history and activity-job stores ultimately persist JSON-shaped data.
+ * This module creates that representation before storage so instruction identity,
+ * retries, and replay do not depend on caller-owned mutation or property access.
+ *
+ * @module
+ */
+import type { HistoryValueType, WorkflowDurableValue } from './types.ts';
+
+/**
+ * Snapshot one JSON-shaped value without executing caller-owned accessors.
+ *
+ * @internal
+ */
+export function snapshot(value: unknown, label: string): WorkflowDurableValue {
+	return snapshotValue(value, label, new Set<object>());
+}
+
+/**
+ * Encode explicit undefined without weakening the JSON-only durable value contract.
+ *
+ * @internal
+ */
+export function value(input: unknown, label: string): HistoryValueType {
+	if (input === undefined) return Object.freeze({ kind: 'undefined' });
+	return Object.freeze({ kind: 'value', value: snapshot(input, label) });
+}
+
+/**
+ * Restore the explicit undefined marker used by workflow history and activity dispatch.
+ *
+ * @internal
+ */
+export function restore(value: HistoryValueType): unknown {
+	return value.kind === 'undefined' ? undefined : value.value;
+}
+
+/** Recursively snapshot one durable value while tracking only the active parent chain. */
+function snapshotValue(value: unknown, path: string, parents: Set<object>): WorkflowDurableValue {
+	if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+	if (typeof value === 'number') {
+		if (!Number.isFinite(value)) schema.reject(`${path} contains a non-finite number.`);
+		// JSON persistence cannot distinguish -0 from 0. Normalize before hashing or
+		// replay identity can describe a value that storage cannot reproduce.
+		return Object.is(value, -0) ? 0 : value;
+	}
+	if (typeof value !== 'object') schema.reject(`${path} must contain only JSON-safe durable values.`);
+	if (parents.has(value)) schema.reject(`${path} contains a cycle.`);
+
+	parents.add(value);
+	try {
+		return Array.isArray(value) ? snapshotArray(value, path, parents) : snapshotRecord(value, path, parents);
+	} finally {
+		parents.delete(value);
+	}
+}
+
+/** Snapshot a dense array without dropping caller-visible enumerable properties. */
+function snapshotArray(value: readonly unknown[], path: string, parents: Set<object>): readonly WorkflowDurableValue[] {
+	const descriptors = Object.getOwnPropertyDescriptors(value);
+	assertNoSymbols(value, path);
+
+	for (const [key, descriptor] of Object.entries(descriptors)) {
+		if (key === 'length' || isArrayIndex(key, value.length) || !descriptor.enumerable) continue;
+		schema.reject(`${path} contains extra enumerable array property ${JSON.stringify(key)}.`);
+	}
+
+	const output: WorkflowDurableValue[] = [];
+	for (let index = 0; index < value.length; index += 1) {
+		const descriptor = descriptors[String(index)];
+		if (descriptor === undefined) schema.reject(`${path} contains a sparse array element at index ${index}.`);
+		if (!descriptor.enumerable || !('value' in descriptor)) {
+			schema.reject(`${path}[${index}] must be an enumerable data property.`);
+		}
+		output.push(snapshotValue(descriptor.value, `${path}[${index}]`, parents));
+	}
+	return Object.freeze(output);
+}
+
+/** Return whether one own property name is a canonical index inside the current array length. */
+function isArrayIndex(key: string, length: number): boolean {
+	if (key.length === 0) return false;
+	const index = Number(key);
+	return Number.isInteger(index) && index >= 0 && index < length && String(index) === key;
+}
+
+/** Snapshot enumerable string data from one plain object in stable key order. */
+function snapshotRecord(
+	value: object,
+	path: string,
+	parents: Set<object>,
+): Readonly<Record<string, WorkflowDurableValue>> {
+	const prototype = Object.getPrototypeOf(value);
+	if (prototype !== Object.prototype && prototype !== null) schema.reject(`${path} contains a non-plain object.`);
+	assertNoSymbols(value, path);
+
+	const descriptors = Object.getOwnPropertyDescriptors(value);
+	const output: Record<string, WorkflowDurableValue> = Object.create(null);
+	for (const key of Object.keys(descriptors).sort()) {
+		const descriptor = descriptors[key];
+		if (descriptor === undefined || !descriptor.enumerable) continue;
+		if (!('value' in descriptor)) schema.reject(`${path}.${key} must be an enumerable data property.`);
+		output[key] = snapshotValue(descriptor.value, `${path}.${key}`, parents);
+	}
+	return Object.freeze(output);
+}
+
+/** Reject enumerable symbol data because string-keyed durable state cannot preserve it. */
+function assertNoSymbols(value: object, path: string): void {
+	for (const symbol of Object.getOwnPropertySymbols(value)) {
+		if (Object.getOwnPropertyDescriptor(value, symbol)?.enumerable) {
+			schema.reject(`${path} contains an enumerable symbol property.`);
+		}
+	}
+}

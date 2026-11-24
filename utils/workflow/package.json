@@ -1,0 +1,38 @@
+{
+	"name": "@utils/workflow",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/workflow @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		".": "./mod.ts",
+		"./dispatch": "./dispatch.ts",
+		"./history": "./history.ts",
+		"./types": "./types.ts",
+		"./execution": "./execution.ts",
+		"./testing": "./testing.ts",
+		"./replay": "./replay/check.ts"
+	},
+	"dependencies": {
+		"@utils/authz": "workspace:*",
+		"@utils/capability": "workspace:*",
+		"@utils/collection": "workspace:*",
+		"@utils/context": "workspace:*",
+		"@utils/dispose": "workspace:*",
+		"@utils/duration": "workspace:*",
+		"@utils/result": "workspace:*",
+		"@utils/schema": "workspace:*",
+		"@utils/task": "workspace:*",
+		"@utils/telemetry": "workspace:*",
+		"@okikio/observables": "1.4.0",
+		"@std/encoding": "npm:@jsr/std__encoding@1.0.11"
+	},
+	"devDependencies": {
+		"@utils/activity": "workspace:*",
+		"@standard-schema/spec": "1.1.0",
+		"@std/expect": "npm:@jsr/std__expect@1.0.20",
+		"fast-check": "4.11.0"
+	}
+}

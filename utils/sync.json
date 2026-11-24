@@ -1,0 +1,105 @@
+{
+	"$comment": "Read by scripts/utils/sync.ts. See utils/README.md for what each field means and why.",
+	"upstream": "https://github.com/Kaiju-Ind/Utils",
+	"base": "47d2c0fca0df98562d23169d00a67e5832ac1fec",
+	"overlays": [
+		{
+			"source": "PR #29 perf/quadratic",
+			"ref": "9f2f0a455578e555dafcf7dc05b574b7a58cd6fa",
+			"files": [
+				"packages/collection/record/json.ts",
+				"packages/collection/record/mod.ts",
+				"packages/collection/record/capabilities.test.ts",
+				"packages/scheduler/queue/mod.ts",
+				"packages/workflow/dispatch.ts"
+			]
+		}
+	],
+	"entries": [
+		"result",
+		"result/async",
+		"result/failure",
+		"result/failure/types",
+		"result/fault",
+		"result/fault/types",
+		"result/failure/migrate",
+		"dispose",
+		"dispose/once",
+		"dispose/run",
+		"dispose/polyfill",
+		"dispose/ponyfill",
+		"scheduler/capacity",
+		"scheduler/capacity/standard",
+		"scheduler/capacity/types",
+		"scheduler/queue",
+		"scheduler/queue/types",
+		"scheduler/queue/fifo",
+		"scheduler/queue/policy",
+		"context",
+		"context/types",
+		"context/state",
+		"context/events",
+		"context/testing",
+		"duration",
+		"duration/arithmetic",
+		"duration/format",
+		"duration/units",
+		"duration/conversion",
+		"duration/instant",
+		"duration/types",
+		"duration/temporal",
+		"duration/polyfill",
+		"pool",
+		"pool/types",
+		"worker/thread",
+		"worker/thread/types",
+		"worker/protocol",
+		"workflow",
+		"workflow/dispatch",
+		"workflow/history",
+		"workflow/types",
+		"workflow/execution",
+		"workflow/testing",
+		"workflow/replay",
+		"activity",
+		"activity/engine",
+		"activity/local",
+		"activity/types",
+		"activity/worker",
+		"activity/selection"
+	],
+	"testExternals": [
+		"node:test",
+		"node:assert(/strict)?",
+		"node:timers/promises",
+		"@std/expect",
+		"fast-check",
+		"zod(/.*)?",
+		"@standard-schema/spec",
+		"@okikio/observables(/.*)?",
+		"@std/async(/.*)?",
+		"@std/encoding(/.*)?",
+		"temporal-polyfill(/.*)?"
+	],
+	"dependencies": {
+		"@okikio/observables": "1.4.0",
+		"@standard-schema/spec": "1.1.0",
+		"@std/async": "npm:@jsr/std__async@1.5.1",
+		"@std/encoding": "npm:@jsr/std__encoding@1.0.11",
+		"temporal-polyfill": "1.0.8"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@1.0.20",
+		"fast-check": "4.11.0",
+		"zod": "4.6.7"
+	},
+	"local": {
+		"scheduler": {
+			"exports": {
+				"./queue/testing": "./queue/testing.ts",
+				"./queue/extensions": "./queue/extensions.ts"
+			}
+		}
+	},
+	"patches": {}
+}

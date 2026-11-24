@@ -1,0 +1,30 @@
+{
+	"name": "@utils/storage",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"description": "DeepScope's browser stores for @utils/scheduler/queue and @utils/workflow history. See utils/README.md.",
+	"exports": {
+		"./indexeddb": "./indexeddb.ts",
+		"./queue/indexeddb": "./queue/indexeddb.ts",
+		"./queue/memory": "./queue/memory.ts",
+		"./workflow/history/indexeddb": "./workflow/history/indexeddb.ts"
+	},
+	"dependencies": {
+		"@okikio/observables": "1.4.0",
+		"@utils/context": "workspace:*",
+		"@utils/duration": "workspace:*",
+		"@utils/result": "workspace:*",
+		"@utils/scheduler": "workspace:*",
+		"@utils/telemetry": "workspace:*",
+		"@utils/workflow": "workspace:*",
+		"idb": "8.0.4"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@1.0.20",
+		"@utils/schema": "workspace:*",
+		"fake-indexeddb": "6.2.8"
+	}
+}

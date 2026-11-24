@@ -1,0 +1,21 @@
+{
+	"name": "@utils/dispose",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": [
+		"./polyfill.ts"
+	],
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/dispose @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		"./once": "./once.ts",
+		".": "./mod.ts",
+		"./polyfill": "./polyfill.ts",
+		"./ponyfill": "./ponyfill.ts",
+		"./run": "./run.ts"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@1.0.20"
+	}
+}

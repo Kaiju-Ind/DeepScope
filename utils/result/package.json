@@ -1,0 +1,27 @@
+{
+	"name": "@utils/result",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/result @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		"./async": "./async.ts",
+		"./failure": "./failure/mod.ts",
+		"./failure/types": "./failure/types.ts",
+		"./fault": "./fault/mod.ts",
+		"./fault/types": "./fault/types.ts",
+		".": "./mod.ts",
+		"./failure/migrate": "./failure/migrate.ts"
+	},
+	"dependencies": {
+		"@utils/collection": "workspace:*",
+		"@utils/schema": "workspace:*"
+	},
+	"devDependencies": {
+		"@utils/dispose": "workspace:*",
+		"@standard-schema/spec": "1.1.0",
+		"@std/expect": "npm:@jsr/std__expect@1.0.20"
+	}
+}

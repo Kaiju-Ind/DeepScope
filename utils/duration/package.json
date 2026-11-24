@@ -1,0 +1,29 @@
+{
+	"name": "@utils/duration",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": [
+		"./polyfill.ts"
+	],
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/duration @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		"./arithmetic": "./arithmetic.ts",
+		"./format": "./format.ts",
+		"./units": "./units.ts",
+		"./conversion": "./conversion.ts",
+		"./instant": "./instant.ts",
+		".": "./mod.ts",
+		"./types": "./types.ts",
+		"./temporal": "./temporal.ts",
+		"./polyfill": "./polyfill.ts"
+	},
+	"dependencies": {
+		"temporal-polyfill": "1.0.8"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@1.0.20",
+		"fast-check": "4.11.0"
+	}
+}

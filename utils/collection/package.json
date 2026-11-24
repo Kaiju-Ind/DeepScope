@@ -1,0 +1,21 @@
+{
+	"name": "@utils/collection",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/collection @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		"./catalog": "./catalog/mod.ts",
+		"./catalog/types": "./catalog/types.ts",
+		"./record": "./record/mod.ts",
+		"./record/types": "./record/types.ts",
+		"./record/json": "./record/json.ts",
+		"./record/change": "./record/change.ts"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@1.0.20",
+		"fast-check": "4.11.0"
+	}
+}
