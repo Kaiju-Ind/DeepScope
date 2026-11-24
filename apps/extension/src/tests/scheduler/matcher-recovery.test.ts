@@ -56,6 +56,7 @@ async function loadHarness(records: readonly ReturnType<typeof matcherWork>[]) {
 
 	const matcher = await import('@/lib/scheduler/matcher');
 	const executor = {
+		kind: 'offscreen-worker-pool',
 		capacity: 2,
 		runPartition: vi.fn(),
 		cancelJob: vi.fn(async () => undefined),

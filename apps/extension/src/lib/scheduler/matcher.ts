@@ -1,11 +1,6 @@
 import type {
-	MatcherJobExecutorResult,
-	MatcherJobObserver,
-	MatcherJobTerminalReason,
-	MatcherPartitionResult,
-	MatcherPartitionTask,
-	RunMatcherJobRequest,
-	RunMatcherPartitionRequest,
+	MatcherJobExecutor, MatcherJobExecutorResult, MatcherJobObserver, MatcherJobTerminalReason,
+	MatcherPartitionResult, MatcherPartitionTask, RunMatcherJobRequest, RunMatcherPartitionRequest,
 } from '@/lib/matcher/contracts';
 import { estimateObservationBatchBytes } from '@/lib/matcher/cost';
 import { createDetectionStorageHash } from '@/lib/storage/contracts';
@@ -23,6 +18,8 @@ import * as fence from '@/utils/fence';
 
 /** Offscreen capability consumed by the background partition scheduler. */
 export interface MatcherPartitionExecutor {
+	/** Where partitions run, recorded on jobs and snapshots: the offscreen pool or the background's own workers. */
+	readonly kind: MatcherJobExecutor;
 	/** Maximum partitions the hidden worker pool can execute at once. */
 	readonly capacity: number;
 	/** Execute one already-selected partition. */
@@ -253,7 +250,7 @@ export function create(
 			job: item.request.job,
 			mode: item.request.mode,
 			partitionCount: item.completedPartitionCount,
-			executor: 'offscreen-worker-pool',
+			executor: executor.kind,
 			completedAt: Date.now(),
 		};
 		takePending(jobId);
@@ -365,6 +362,7 @@ export function create(
 		await item.observer?.onState?.({
 			jobId: item.request.job.jobId,
 			phase,
+			executor: executor.kind,
 			queuedAt: item.createdAt,
 			...(item.startedAt === undefined ? {} : { startedAt: item.startedAt }),
 			queueDepth: pending.size,

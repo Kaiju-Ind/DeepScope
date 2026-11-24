@@ -46,6 +46,7 @@ describe('matcher cancellation ordering', { concurrent: false }, () => {
 		const matcher = await import('@/lib/scheduler/matcher');
 		const cancelJob = vi.fn(async () => undefined);
 		const scheduler = matcher.create({
+			kind: 'offscreen-worker-pool',
 			capacity: 1,
 			runPartition: vi.fn(() => new Promise<never>(() => undefined)),
 			cancelJob,
@@ -90,6 +91,7 @@ describe('matcher cancellation ordering', { concurrent: false }, () => {
 		const matcher = await import('@/lib/scheduler/matcher');
 		const cancelTab = vi.fn(async () => undefined);
 		const scheduler = matcher.create({
+			kind: 'offscreen-worker-pool',
 			capacity: 1,
 			runPartition: vi.fn(),
 			cancelJob: vi.fn(async () => undefined),

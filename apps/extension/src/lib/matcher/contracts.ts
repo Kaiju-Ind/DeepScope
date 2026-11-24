@@ -204,8 +204,12 @@ export interface RunMatcherJobRequest {
 	readonly lifecycleId?: string;
 }
 
-/** Executor path that produced matcher partition work. */
-export type MatcherJobExecutor = 'offscreen-worker-pool';
+/**
+ * Executor path that produced matcher partition work: the offscreen document's
+ * worker pool (Chromium, whose service worker cannot start workers) or workers
+ * started by the background page itself (Firefox, Safari).
+ */
+export type MatcherJobExecutor = 'offscreen-worker-pool' | 'background-workers';
 
 /** Completed matcher job returned to the background. */
 export interface MatcherJobRunResult {
@@ -346,6 +350,8 @@ export type MatcherJobPhase = 'queued' | 'running';
 export type MatcherJobState = {
 	readonly jobId: string;
 	readonly phase: MatcherJobPhase;
+	/** Executor that will run the job's partitions. */
+	readonly executor: MatcherJobExecutor;
 	readonly queuedAt: number;
 	readonly startedAt?: number;
 	readonly queuePosition?: number;

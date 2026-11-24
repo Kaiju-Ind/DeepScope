@@ -28,6 +28,7 @@ export function createLocalExecutor(): MatcherPartitionExecutor {
 		onDiagnostic: (message) => void persistTransportedDiagnosticMessage(message),
 	});
 	return {
+		kind: 'background-workers',
 		capacity: executor.capacity,
 		runPartition: (request) => executor.run(request),
 		cancelJob: async (jobId) => {

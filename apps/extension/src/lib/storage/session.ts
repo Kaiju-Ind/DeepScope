@@ -188,7 +188,7 @@ export type DetectionSessionSnapshotSource = 'cache' | 'content' | 'background';
  * The side panel can show this in diagnostics so matcher work is not misread as
  * page collection or replay latency. `unknown` covers legacy or partial records.
  */
-export type DetectionMatcherExecutor = 'offscreen-worker-pool' | 'unknown';
+export type DetectionMatcherExecutor = 'offscreen-worker-pool' | 'background-workers' | 'unknown';
 
 /**
  * Public-safe matcher progress embedded in a partial snapshot revision.

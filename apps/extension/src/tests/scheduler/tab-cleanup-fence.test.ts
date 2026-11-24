@@ -97,6 +97,7 @@ describe('tab cleanup admission fence', { concurrent: false }, () => {
 
 		const matcher = await import('@/lib/scheduler/matcher');
 		const scheduler = matcher.create({
+			kind: 'offscreen-worker-pool',
 			capacity: 1,
 			runPartition: vi.fn(),
 			cancelJob: vi.fn(async () => undefined),

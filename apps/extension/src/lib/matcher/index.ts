@@ -3,6 +3,7 @@ export type { MatcherFailureType } from './error';
 export type {
 	CancelMatcherJobMessage,
 	MatcherHostFailure,
+	MatcherJobExecutor,
 	MatcherJobExecutorResult,
 	MatcherJobIdentity,
 	MatcherJobMode,

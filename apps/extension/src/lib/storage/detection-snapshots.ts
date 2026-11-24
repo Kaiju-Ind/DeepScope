@@ -663,7 +663,7 @@ function isDetectionSessionSnapshotSource(value: unknown): value is DetectionSes
 /** Guard matcher executor diagnostics emitted by the current snapshot contract. */
 function isDetectionMatcherExecutor(value: unknown): value is DetectionMatcherExecutor {
 	return (
-		value === 'offscreen-worker-pool' ||
+		value === 'offscreen-worker-pool' || value === 'background-workers' ||
 		value === 'unknown'
 	);
 }

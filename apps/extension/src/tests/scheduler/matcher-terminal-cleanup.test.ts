@@ -80,6 +80,7 @@ describe('matcher terminal cleanup', { concurrent: false }, () => {
 		const matcher = await import('@/lib/scheduler/matcher');
 		let first = true;
 		const scheduler = matcher.create({
+			kind: 'offscreen-worker-pool',
 			capacity: 1,
 			runPartition: vi.fn(async (input: RunMatcherPartitionRequest) => {
 				if (first) {
@@ -130,6 +131,7 @@ describe('matcher terminal cleanup', { concurrent: false }, () => {
 
 		const matcher = await import('@/lib/scheduler/matcher');
 		const scheduler = matcher.create({
+			kind: 'offscreen-worker-pool',
 			capacity: 1,
 			runPartition: vi.fn(async (input: RunMatcherPartitionRequest) => result(input)),
 			cancelJob: vi.fn(async () => undefined),
@@ -172,6 +174,7 @@ describe('matcher terminal cleanup', { concurrent: false }, () => {
 
 		const matcher = await import('@/lib/scheduler/matcher');
 		const scheduler = matcher.create({
+			kind: 'offscreen-worker-pool',
 			capacity: 1,
 			runPartition: vi.fn(async () => { throw new Error('partition failed'); }),
 			cancelJob: vi.fn(async () => undefined),

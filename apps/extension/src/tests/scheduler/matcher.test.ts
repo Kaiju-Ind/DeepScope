@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createCompiledDetectionGraph } from '@/lib/detection/registry-graph';
 import { createMatcherPartitionTasks } from '@/lib/matcher';
 import type {
+	MatcherJobExecutor,
 	MatcherPartitionResult,
 	MatcherPartitionTask,
 	RunMatcherJobRequest,
@@ -19,13 +20,14 @@ interface PendingPartition {
 	readonly reject: (error: unknown) => void;
 }
 
-function createExecutor(capacity = 2) {
+function createExecutor(capacity = 2, kind: MatcherJobExecutor = 'offscreen-worker-pool') {
 	const partitions: PendingPartition[] = [];
 	const canceledJobs: string[] = [];
 	return {
 		partitions,
 		canceledJobs,
 		executor: {
+			kind,
 			capacity,
 			runPartition(request: RunMatcherPartitionRequest) {
 				return new Promise<MatcherPartitionResult>((resolve, reject) => {
@@ -114,6 +116,28 @@ async function waitFor(predicate: () => boolean, description: string): Promise<v
 
 
 describe('matcher partition scheduler', () => {
+	// Firefox and Safari run partitions on the background page's own workers,
+	// but every job and snapshot was recorded as `offscreen-worker-pool`.
+	it.each(['background-workers', 'offscreen-worker-pool'] as const)('records the executor that ran the job (%s)', async (kind) => {
+		const controlled = createExecutor(2, kind);
+		const scheduler = matcherScheduler.create(controlled.executor);
+		const request = createRequest();
+		const partitionCount = createMatcherPartitionTasks({ job: request.job, batch: request.batch }).length;
+		const states: string[] = [];
+		const completion = scheduler.runJob(request, { onState: (state) => void states.push(state.executor) });
+
+		for (let index = 0; index < partitionCount; index += 1) {
+			await waitFor(() => controlled.partitions.length > index, `matcher partition ${index + 1}`);
+			const entry = controlled.partitions[index]!;
+			entry.resolve(result(entry.request.task));
+			await settle();
+		}
+
+		expect((await completion).executor).toBe(kind);
+		expect(states.length).toBeGreaterThan(0);
+		expect(new Set(states)).toEqual(new Set([kind]));
+	});
+
 	it('uses both workers for independent kinds and never exceeds executor capacity', async () => {
 		const controlled = createExecutor(2);
 		const scheduler = matcherScheduler.create(controlled.executor);

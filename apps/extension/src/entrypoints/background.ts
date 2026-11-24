@@ -165,6 +165,7 @@ export default defineBackground(() => {
 	const matcherExecutor: matcherScheduler.MatcherPartitionExecutor = localMatcher
 		? localWorkers.createLocalExecutor()
 		: {
+			kind: 'offscreen-worker-pool',
 			capacity: offscreen.capacity,
 			runPartition: offscreen.runPartition,
 			cancelJob: offscreen.cancel,

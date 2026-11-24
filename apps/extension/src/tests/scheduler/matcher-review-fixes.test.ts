@@ -41,6 +41,7 @@ function databaseMock(overrides: Record<string, unknown> = {}) {
 /** Executor double whose partitions never finish unless a test completes them. */
 function executor(overrides: Partial<MatcherPartitionExecutor> = {}): MatcherPartitionExecutor {
 	return {
+		kind: 'offscreen-worker-pool',
 		capacity: 1,
 		runPartition: vi.fn(() => new Promise<never>(() => undefined)),
 		cancelJob: vi.fn(async () => undefined),

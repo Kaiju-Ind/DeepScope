@@ -59,6 +59,7 @@ describe('matcher durable admission cancellation', { concurrent: false }, () => 
 		const matcher = await import('@/lib/scheduler/matcher');
 		const cancelJob = vi.fn(async () => undefined);
 		const scheduler = matcher.create({
+			kind: 'offscreen-worker-pool',
 			capacity: 2,
 			runPartition: vi.fn(),
 			cancelJob,
@@ -101,6 +102,7 @@ describe('matcher durable admission cancellation', { concurrent: false }, () => 
 
 		const matcher = await import('@/lib/scheduler/matcher');
 		const scheduler = matcher.create({
+			kind: 'offscreen-worker-pool',
 			capacity: 2,
 			runPartition: vi.fn(),
 			cancelJob: vi.fn(async () => undefined),

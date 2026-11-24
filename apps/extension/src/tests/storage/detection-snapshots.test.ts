@@ -33,6 +33,11 @@ afterEach(() => {
 });
 
 describe('detection session snapshots', { concurrent: false }, () => {
+	it.each(['offscreen-worker-pool', 'background-workers', 'unknown'] as const)('reads a snapshot recorded by the %s executor', async (matcherExecutor) => {
+		const storage = await loadStorageHarness();
+		expect(storage.isDetectionSessionSnapshot(makeDetectionSessionSnapshot({ matcherExecutor }))).toBe(true);
+	});
+
 	it('rejects superseded version 1 snapshot records', async () => {
 		const storage = await loadStorageHarness();
 		const obsoleteSnapshot = { ...makeDetectionSessionSnapshot(), schemaVersion: 1 };

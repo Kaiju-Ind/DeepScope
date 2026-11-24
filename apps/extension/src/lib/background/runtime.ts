@@ -2937,7 +2937,7 @@ export function createBackgroundRuntime(
 		const ownsPublication = () => isMatcherCurrent(state.jobId, context);
 		if (!ownsPublication()) return;
 
-		context.matcherExecutor = 'offscreen-worker-pool';
+		context.matcherExecutor = state.executor;
 		await updateMatcherJobRecord({ jobId: state.jobId, incognito: context.tab.incognito }, {
 			status: state.phase === 'queued' ? 'queued' : 'running',
 			...(state.partitionCount === undefined ? {} : { partitionCount: state.partitionCount }),

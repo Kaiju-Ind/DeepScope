@@ -1537,7 +1537,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			const observer = mocks.runMatcherJob.mock.calls[0]![1]!;
 			void (isPartition
 				? observer.onPartition!({ partition: result.partitions[0]!, partitionCount: 1, completedPartitionCount: 1 })
-				: observer.onState!({ jobId: request.job.jobId, phase: 'running', queueDepth: 1, queuedAt: 1, startedAt: 2, partitionCount: 1 }));
+				: observer.onState!({ jobId: request.job.jobId, phase: 'running', executor: 'offscreen-worker-pool', queueDepth: 1, queuedAt: 1, startedAt: 2, partitionCount: 1 }));
 			try {
 				await waiting.promise;
 				if (!staysCurrent) harness.runtime.onTabNavigation(7);
