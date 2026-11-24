@@ -5,7 +5,7 @@ import {
 	BACKGROUND_RPC_NAMESPACE,
 } from '@/lib/messaging/adapters/background';
 import { CONTENT_RPC_CHANNEL, CONTENT_RPC_NAMESPACE } from '@/lib/messaging/adapters/content';
-import { RpcTimeoutError, contentScriptFailure, withTimeout } from '@/lib/messaging/rpc';
+import { RpcTimeoutError, contentScriptFailure, injectionFailure, withLivenessDeadline, withTimeout } from '@/lib/messaging/rpc';
 import {
 	SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
 	SIDE_PANEL_TAB_NOTIFICATION_TYPE,
@@ -99,6 +99,86 @@ describe('messaging contract helpers', () => {
 		await expect(operation).rejects.toBe(reason);
 		expect(childSignal?.aborted).toBe(true);
 		expect(childSignal?.reason).toBe(reason);
+	});
+
+	describe('withLivenessDeadline', () => {
+		it('keeps waiting for a busy receiver that answers liveness probes', async () => {
+			vi.useFakeTimers();
+			try {
+				let finish!: (value: string) => void;
+				const operation = new Promise<string>((resolve) => { finish = resolve; });
+				// Like a content script mid-scan: the probe is answered when the work ends.
+				const isAlive = vi.fn(() => operation.then(() => true));
+				const extended = vi.fn();
+				const result = withLivenessDeadline(operation, 'Timed out.', { timeoutMs: 100, maxMs: 1_000, isAlive, onExtended: extended });
+
+				await vi.advanceTimersByTimeAsync(250);
+				finish('collected');
+				await expect(result).resolves.toBe('collected');
+				expect(isAlive).toHaveBeenCalledTimes(1);
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it('fails as a timeout when the receiver is gone', async () => {
+			vi.useFakeTimers();
+			try {
+				const result = withLivenessDeadline(new Promise<string>(() => undefined), 'Timed out.', {
+					timeoutMs: 100,
+					maxMs: 1_000,
+					isAlive: async () => false,
+				});
+				const assertion = expect(result).rejects.toBeInstanceOf(RpcTimeoutError);
+				await vi.advanceTimersByTimeAsync(100);
+				await assertion;
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it('stops at the hard cap even while probes keep succeeding', async () => {
+			vi.useFakeTimers();
+			try {
+				const result = withLivenessDeadline(new Promise<string>(() => undefined), 'Timed out.', {
+					timeoutMs: 100,
+					maxMs: 350,
+					isAlive: async () => true,
+				});
+				const assertion = expect(result).rejects.toBeInstanceOf(RpcTimeoutError);
+				await vi.advanceTimersByTimeAsync(400);
+				await assertion;
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it('passes through the receiver error and parent cancellation', async () => {
+			await expect(withLivenessDeadline(Promise.reject(new Error('boom')), 'Timed out.', {
+				timeoutMs: 100, maxMs: 1_000, isAlive: async () => true,
+			})).rejects.toThrow('boom');
+
+			const controller = new AbortController();
+			const result = withLivenessDeadline(new Promise<string>(() => undefined), 'Timed out.', {
+				timeoutMs: 1_000, maxMs: 5_000, isAlive: async () => true, signal: controller.signal,
+			});
+			const reason = new DOMException('Tab navigated.', 'AbortError');
+			controller.abort(reason);
+			await expect(result).rejects.toBe(reason);
+		});
+	});
+
+	it('maps a browser refusal to script the page to a permission error', () => {
+		expect(injectionFailure(new Error('Missing host permission for the tab'))).toMatchObject({
+			ok: false,
+			error: { code: 'PERMISSION_DENIED' },
+		});
+		expect(injectionFailure(new Error('Cannot access contents of url "https://chromewebstore.google.com/".'))).toMatchObject({
+			error: { code: 'PERMISSION_DENIED' },
+		});
+		expect(injectionFailure(new Error('No tab with id: 4'))).toMatchObject({
+			error: { code: 'CONTENT_SCRIPT_UNAVAILABLE', message: 'No tab with id: 4' },
+		});
 	});
 
 	it('maps content RPC failures into typed unavailable errors', () => {

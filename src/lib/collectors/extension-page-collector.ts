@@ -9,8 +9,10 @@ import {
 import type { CollectObservationBatchOutput, ContentApi } from '../messaging/analysis';
 import type { ObservationBatch } from '../observations';
 import {
+	CONTENT_SCRIPT_BUSY_LIMIT_MS,
 	CONTENT_SCRIPT_TIMEOUT_MS,
 	contentScriptFailure,
+	withLivenessDeadline,
 	withTimeout,
 } from '../messaging/rpc';
 import { timeAsyncSpan, type TimingContext } from '../diagnostics/timing';
@@ -40,6 +42,12 @@ export type ExtensionPageCollectorInput = {
 	timingTraceId?: string;
 	/** Document-work cancellation owned by the background tab lifecycle. */
 	signal?: AbortSignal;
+	/**
+	 * Probe whether the content script still answers while a collection runs.
+	 * When given, a slow but live content script keeps the request open up to
+	 * `CONTENT_SCRIPT_BUSY_LIMIT_MS` instead of failing at the quiet timeout.
+	 */
+	isContentAlive?: (signal: AbortSignal) => Promise<boolean>;
 };
 
 /**
@@ -85,12 +93,18 @@ export async function collectExtensionObservationBatch(
 		const response = await timeAsyncSpan(
 			'collector.content-rpc.collect-observation-batch',
 			timingContext,
-			() => withTimeout(
-				input.contentApi.collectObservationBatch(toCollectPageSignalsInput(collectionPlan, tier, input.timingTraceId)),
-				CONTENT_SCRIPT_TIMEOUT_MS,
-				'Content script did not respond before the messaging timeout.',
-				{ signal: input.signal },
-			),
+			() => {
+				const request = input.contentApi.collectObservationBatch(toCollectPageSignalsInput(collectionPlan, tier, input.timingTraceId));
+				const message = 'Content script did not respond before the messaging timeout.';
+				if (!input.isContentAlive) return withTimeout(request, CONTENT_SCRIPT_TIMEOUT_MS, message, { signal: input.signal });
+				return withLivenessDeadline(request, message, {
+					timeoutMs: CONTENT_SCRIPT_TIMEOUT_MS,
+					maxMs: CONTENT_SCRIPT_BUSY_LIMIT_MS,
+					isAlive: input.isContentAlive,
+					onExtended: (elapsedMs) => input.log?.('collect-observation-batch-busy', { tabId: input.tabId, tier, elapsedMs }),
+					...(input.signal ? { signal: input.signal } : {}),
+				});
+			},
 			(result) => ({
 				ok: result.ok,
 				observationCount: result.ok ? result.value.batch.observations.length : 0,

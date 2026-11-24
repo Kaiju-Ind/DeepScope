@@ -9,7 +9,7 @@ import {
 import type { PageSignals, SiteAnalysis } from '@/lib/detection/types';
 import type { ContentApi } from '@/lib/messaging';
 import { OBSERVATION_DIRTY_NOTIFICATION_TYPE } from '@/lib/messaging/observation-notifications';
-import { CONTENT_SCRIPT_TIMEOUT_MS } from '@/lib/messaging/rpc';
+import { CONTENT_SCRIPT_BUSY_LIMIT_MS, CONTENT_SCRIPT_TIMEOUT_MS } from '@/lib/messaging/rpc';
 import {
 	createDetectionStorageHash,
 	getDetectionOriginSnapshotKey,
@@ -827,12 +827,42 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 		});
 	});
 
-	it('returns CONTENT_SCRIPT_UNAVAILABLE when content-script RPC times out', async () => {
+	it('returns CONTENT_SCRIPT_UNAVAILABLE when a live content script stays busy past the cap', async () => {
 		vi.useFakeTimers();
 		const api = await loadBackgroundApi({
 			tab: HTTP_TAB,
 			contentApi: {
 				collectObservationBatch: vi.fn(() => new Promise<ExtensionResult<{ batch: ObservationBatch }>>(() => undefined)),
+			},
+		});
+
+		const result = api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-panel-open' });
+		await vi.advanceTimersByTimeAsync(CONTENT_SCRIPT_BUSY_LIMIT_MS);
+
+		await expect(result).resolves.toMatchObject({
+			ok: false,
+			error: {
+				code: 'CONTENT_SCRIPT_UNAVAILABLE',
+				message: 'Content script did not respond before the messaging timeout.',
+			},
+		});
+	});
+
+	it('returns CONTENT_SCRIPT_UNAVAILABLE at the quiet timeout when the content script stops answering', async () => {
+		vi.useFakeTimers();
+		// The page goes away while the collection request is outstanding.
+		let collecting = false;
+		const api = await loadBackgroundApi({
+			tab: HTTP_TAB,
+			contentApi: {
+				getObservationSessionState: vi.fn(async () => {
+					if (collecting) throw new Error('Could not establish connection. Receiving end does not exist.');
+					return extensionSuccess({ status: 'idle' } as observe.StateType);
+				}),
+				collectObservationBatch: vi.fn(() => {
+					collecting = true;
+					return new Promise<ExtensionResult<{ batch: ObservationBatch }>>(() => undefined);
+				}),
 			},
 		});
 
@@ -846,6 +876,23 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 				message: 'Content script did not respond before the messaging timeout.',
 			},
 		});
+	});
+
+	it('waits for a slow content script that is still alive', async () => {
+		vi.useFakeTimers();
+		let finish!: (value: ExtensionResult<{ batch: ObservationBatch }>) => void;
+		const collectObservationBatch = vi.fn(() => new Promise<ExtensionResult<{ batch: ObservationBatch }>>((resolve) => { finish = resolve; }));
+		const api = await loadBackgroundApi({ tab: HTTP_TAB, contentApi: { collectObservationBatch } });
+
+		const result = api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-panel-open' });
+		await vi.advanceTimersByTimeAsync(CONTENT_SCRIPT_TIMEOUT_MS * 2);
+		finish(extensionSuccess({ batch: undefined as unknown as ObservationBatch }));
+		await vi.advanceTimersByTimeAsync(0);
+
+		// The slow answer is consumed (here it is malformed, so it fails later),
+		// not reported as a missing content script.
+		const settled = await result;
+		expect(settled.ok ? undefined : settled.error.message).not.toBe('Content script did not respond before the messaging timeout.');
 	});
 
 	it('releases fresh-analysis ownership when registry loading throws', async () => {
