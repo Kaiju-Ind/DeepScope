@@ -19,10 +19,10 @@ export interface LoadedShard {
 	readonly index: ObservationMatcherIndex;
 }
 
-/** Render, parse and hydrate one shard exactly as the worker receives it from the package. */
-export function loadShard(registry: readonly TechnologyDefinition[], kind: PackagedRegistryObservationKind): LoadedShard {
+/** Render one shard's packaged JSON as the build writes it. */
+export function renderShard(registry: readonly TechnologyDefinition[], kind: PackagedRegistryObservationKind): string {
 	const technologies = createObservationKindTechnologyRegistry(registry, kind);
-	const json = renderPackagedRegistryJson({
+	return renderPackagedRegistryJson({
 		schemaVersion: PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
 		kind: 'kind-shard',
 		observationKind: kind,
@@ -34,10 +34,19 @@ export function loadShard(registry: readonly TechnologyDefinition[], kind: Packa
 		encodedPayloadBytes: 1,
 		priority: 1,
 	});
+}
+
+/** Parse and hydrate packaged shard JSON exactly as the worker does. */
+export function parseShard(json: string, kind: PackagedRegistryObservationKind): LoadedShard {
 	const parsed: unknown = JSON.parse(json);
 	if (!isPackagedTechnologyRegistryShardAsset(parsed, kind)) throw new Error(`Rendered ${kind} shard failed its own schema guard.`);
 	const hydrated = hydratePackagedTechnologyRegistryShard(parsed);
 	return { technologies: hydrated, index: hydrateMatcherIndex(hydrated, parsed.matcherIndex) };
+}
+
+/** Render, parse and hydrate one shard exactly as the worker receives it from the package. */
+export function loadShard(registry: readonly TechnologyDefinition[], kind: PackagedRegistryObservationKind): LoadedShard {
+	return parseShard(renderShard(registry, kind), kind);
 }
 
 /** Load every packaged shard once. */
