@@ -13,6 +13,7 @@ import { collectExtensionObservationBatch } from '@/lib/collectors/extension-pag
 import { createPackagedRuntimeTechnologyRegistryProvider } from '@/lib/registry/packaged-runtime';
 import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
 import * as logging from '@/lib/diagnostics/logging';
+import * as summary from '@/lib/diagnostics/summary';
 import {
 	isDiagnosticTransportMessage,
 	persistTransportedDiagnosticMessage,
@@ -66,7 +67,7 @@ function createBackgroundLoggers() {
 	function logBackgroundEvent(event: string, details?: Record<string, unknown>): void {
 		backgroundLogger.debug('[kaiju-deepscope][background] {event}{summary}', {
 			event,
-			summary: formatBackgroundLogSummary(details),
+			summary: summary.format(details, SUMMARY_KEYS, { parenthesize: true }),
 			...(details ?? {}),
 		});
 	}
@@ -83,48 +84,32 @@ function createBackgroundLoggers() {
 	return { logBackgroundEvent, logAnalysisSummary };
 }
 
-function formatBackgroundLogSummary(details?: Record<string, unknown>): string {
-	if (!details) return '';
-
-	const pairs: string[] = [];
-	for (const key of [
-		'tabId',
-		'hostname',
-		'jobId',
-		'mode',
-		'refreshKind',
-		'matcherMode',
-		'kind',
-		'partitionId',
-		'collectionPassId',
-		'collectionPassIds',
-		'revision',
-		'rejectedByRevision',
-		'observationCount',
-		'queuedObservationCount',
-		'resultCount',
-		'storedResultCount',
-		'matchCount',
-		'candidateRuleCount',
-		'completedPartitionCount',
-		'partitionCount',
-		'status',
-		'executor',
-		'timingTraceId',
-	]) {
-		const value = details[key];
-		if (value === undefined) continue;
-		pairs.push(`${key}=${formatBackgroundLogValue(value)}`);
-	}
-
-	return pairs.length ? ` (${pairs.join(' ')})` : '';
-}
-
-function formatBackgroundLogValue(value: unknown): string {
-	if (Array.isArray(value)) return `[${value.map(formatBackgroundLogValue).join(',')}]`;
-	if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
-	return JSON.stringify(value);
-}
+/** Detail keys shown in each background log line's summary. */
+const SUMMARY_KEYS = [
+	'tabId',
+	'hostname',
+	'jobId',
+	'mode',
+	'refreshKind',
+	'matcherMode',
+	'kind',
+	'partitionId',
+	'collectionPassId',
+	'collectionPassIds',
+	'revision',
+	'rejectedByRevision',
+	'observationCount',
+	'queuedObservationCount',
+	'resultCount',
+	'storedResultCount',
+	'matchCount',
+	'candidateRuleCount',
+	'completedPartitionCount',
+	'partitionCount',
+	'status',
+	'executor',
+	'timingTraceId',
+] as const;
 
 /** Forward an active-tab lifecycle event to any mounted side panel in the same window. */
 function notifySidePanelTab(

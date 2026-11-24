@@ -10,6 +10,7 @@ import { validatePageSignals } from "@/lib/detection/validate";
 import { getDiagnosticBuildId } from "@/lib/diagnostics/build";
 import { installDiagnosticCrashHooks } from "@/lib/diagnostics/crash";
 import * as logging from '@/lib/diagnostics/logging';
+import * as summary from '@/lib/diagnostics/summary';
 import type { CollectPageSignalsInput, ContentApi } from "@/lib/messaging";
 import {
   CONTENT_RPC_NAMESPACE,
@@ -73,39 +74,25 @@ function clearRuntimeState(state: ContentRuntimeState): void {
 function logContentEvent(event: string, details?: Record<string, unknown>): void {
   contentLogger.debug("[kaiju-deepscope][content] {event}{summary}", {
     event,
-    summary: formatContentLogSummary(details),
+    summary: summary.format(details, SUMMARY_KEYS, { skipBlank: true }),
     ...(details ?? {}),
   });
 }
 
-function formatContentLogSummary(details?: Record<string, unknown>): string {
-  if (!details) {
-    return "";
-  }
-
-  const fields: string[] = [];
-  const keys = [
-    "tabId",
-    "frameId",
-    "documentId",
-    "sessionId",
-    "hostname",
-    "status",
-    "observationCount",
-    "acceptedCount",
-    "queuedCount",
-    "resultCount",
-    "timingTraceId",
-  ];
-  for (const key of keys) {
-    const value = details[key];
-    if (value !== undefined && value !== null && value !== "") {
-      fields.push(`${key}=${String(value)}`);
-    }
-  }
-
-  return fields.length ? ` ${fields.join(" ")}` : "";
-}
+/** Detail keys shown in each content log line's summary. */
+const SUMMARY_KEYS = [
+  "tabId",
+  "frameId",
+  "documentId",
+  "sessionId",
+  "hostname",
+  "status",
+  "observationCount",
+  "acceptedCount",
+  "queuedCount",
+  "resultCount",
+  "timingTraceId",
+] as const;
 
 /** Keep document state available without recording the location of a private page. */
 function summarizeCurrentDocument(incognito: boolean): Record<string, unknown> {
