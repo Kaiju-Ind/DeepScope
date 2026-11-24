@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import Icons from 'unplugin-icons/vite';
-import { defineConfig } from 'wxt';
+import { defineConfig, type WxtUnimportOptions } from 'wxt';
 
 /** Release version shared by `package.json` and every browser manifest. */
 const version = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version;
@@ -41,6 +41,16 @@ const nativeTemporal = fileURLToPath(new URL('../../utils/duration/temporal.nati
 /** Repository root: build output and the Firefox sources archive live here, not in this package. */
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 
+/**
+ * Vendored `@utils/*` sources, which WXT auto-imports must leave alone.
+ *
+ * Auto-import detection is textual, so a method named `batch` in
+ * `utils/context` gets an (unused) `solid-js` import injected. `utils/*` does
+ * not depend on `solid-js`, so outside this package that import cannot resolve
+ * and a clean build fails. The injected import was always tree-shaken.
+ */
+const vendoredUtils = new RegExp(`^${`${repoRoot}utils/`.replaceAll('\\', '/').replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`, 'u');
+
 export default defineConfig({
 	srcDir: 'src',
 	outDir: `${repoRoot}.output`,
@@ -53,6 +63,9 @@ export default defineConfig({
 		// WXT still skips dot folders (.mise, .wxt, .output), node_modules and tests.
 		sourcesRoot: repoRoot,
 	},
+	// unimport's default excludes plus the vendored utils. WXT hands these options
+	// to unimport's Vite plugin, which reads `exclude`, but does not type it.
+	imports: { exclude: [/[\\/]node_modules[\\/]/u, /[\\/]\.git[\\/]/u, vendoredUtils] } as WxtUnimportOptions,
 	modules: ['@wxt-dev/module-solid'],
 	// WXT defaults Firefox and Safari to Manifest V2. DeepScope targets V3 everywhere.
 	manifestVersion: 3,
