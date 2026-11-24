@@ -33,14 +33,16 @@ const OVERSIZED: Readonly<Record<string, number>> = {
 	'app/provider.tsx': 1349,
 	'app/model.ts': 935,
 	'lib/detection/engine.ts': 987,
-	'lib/storage/detection-snapshots.ts': 939,
+	// +2 for the Safari-safe batched storage reads (bug C, stress test); split in Phase B.
+	'lib/storage/detection-snapshots.ts': 941,
 	'lib/content/observe/runtime.ts': 947,
 	'lib/candidates/refine.ts': 861,
 	'lib/detection/observation-matcher-index.ts': 708,
 	'lib/scheduler/matcher.ts': 649,
 	'entrypoints/content.ts': 649,
 	'lib/detection/rule-performance-profile.ts': 655,
-	'lib/diagnostics/journal.ts': 628,
+	// +1 for the Safari-safe batched storage reads (bug C, stress test); split in Phase B.
+	'lib/diagnostics/journal.ts': 629,
 	'lib/content/collect-page-signals.ts': 624,
 	'lib/collectors/background-signals.ts': 516,
 };

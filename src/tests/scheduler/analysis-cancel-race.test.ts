@@ -74,7 +74,7 @@ describe('analysis canceled while its claim is being removed', { concurrent: fal
 		}));
 
 		const analysis = await import('@/lib/scheduler/analysis');
-		const analyze = vi.fn(async () => ({ ok: false as const, error: { code: 'VALIDATION_ERROR' as const, message: 'old document' } }));
+		const analyze = vi.fn(async () => ({ ok: false as const, failure: { code: 'VALIDATION_ERROR' as const, message: 'old document' } }));
 		const scheduler = analysis.create({
 			resolveTarget: vi.fn(async () => ({ ok: true as const, value: input().target })),
 			analyze,
