@@ -41,8 +41,6 @@ export const studioTechnologyDefinition: TechnologyDefinition = {
 		],
 	},
 	implies: [
-		'firebase',
-		'google-cloud',
 		'google-tag-manager',
 		'nuxt-js',
 		'vue-js',

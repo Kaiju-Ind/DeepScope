@@ -29,7 +29,6 @@ export const aquilacmsTechnologyDefinition: TechnologyDefinition = {
 		oss: true,
 	},
 	implies: [
-		'amazon-web-services',
 		'mongodb',
 		'next-js',
 		'node-js',

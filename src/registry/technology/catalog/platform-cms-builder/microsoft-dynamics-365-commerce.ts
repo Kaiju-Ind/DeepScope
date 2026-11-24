@@ -26,7 +26,6 @@ export const microsoftDynamics365CommerceTechnologyDefinition: TechnologyDefinit
 		],
 	},
 	requires: [
-		'azure',
 		'react',
 	],
 } as const satisfies TechnologyDefinition;

@@ -46,7 +46,4 @@ export const acquiaPersonalizationTechnologyDefinition: TechnologyDefinition = {
 	metadata: {
 		saas: true,
 	},
-	implies: [
-		'acquia-cloud-platform',
-	],
 } as const satisfies TechnologyDefinition;

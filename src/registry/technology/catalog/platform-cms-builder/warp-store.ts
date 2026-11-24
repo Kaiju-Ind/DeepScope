@@ -33,7 +33,6 @@ export const warpStoreTechnologyDefinition: TechnologyDefinition = {
 		],
 	},
 	implies: [
-		'cloudflare',
 		'next-js',
 		'node-js',
 		'react',

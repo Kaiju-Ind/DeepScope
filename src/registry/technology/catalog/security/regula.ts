@@ -27,7 +27,4 @@ export const regulaTechnologyDefinition: TechnologyDefinition = {
 	metadata: {
 		saas: true,
 	},
-	requires: [
-		'unpkg',
-	],
 } as const satisfies TechnologyDefinition;

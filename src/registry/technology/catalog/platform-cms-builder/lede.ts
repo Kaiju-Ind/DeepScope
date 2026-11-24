@@ -48,6 +48,5 @@ export const ledeTechnologyDefinition: TechnologyDefinition = {
 	},
 	implies: [
 		'wordpress',
-		'wordpress-vip',
 	],
 } as const satisfies TechnologyDefinition;

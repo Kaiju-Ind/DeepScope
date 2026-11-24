@@ -32,7 +32,6 @@ export const convertrTechnologyDefinition: TechnologyDefinition = {
 		],
 	},
 	implies: [
-		'amazon-web-services',
 		'mysql',
 		'nuxt-js',
 		'php',

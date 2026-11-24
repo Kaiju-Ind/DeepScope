@@ -48,7 +48,6 @@ export const brownieTechnologyDefinition: TechnologyDefinition = {
 		],
 	},
 	implies: [
-		'amazon-web-services',
 		'bootstrap',
 		'jquery',
 		'mysql',

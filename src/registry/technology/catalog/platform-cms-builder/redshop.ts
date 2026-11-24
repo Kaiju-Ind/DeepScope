@@ -26,7 +26,6 @@ export const redshopTechnologyDefinition: TechnologyDefinition = {
 		],
 	},
 	implies: [
-		'amazon-s3',
 		'next-js',
 		'react',
 		'typescript',

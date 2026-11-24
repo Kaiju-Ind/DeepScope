@@ -2,14 +2,13 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 
 export const gatsbyCloudImageCdnTechnologyDefinition: TechnologyDefinition = {
 	id: 'gatsby-cloud-image-cdn',
-	name: 'Gatsby Cloud Image CDN',
-	website: 'https://www.gatsbyjs.com/products/cloud/image-cdn',
+	name: 'Gatsby Image CDN',
+	website: 'https://www.gatsbyjs.com/',
 	description:
-		'Image CDN is a new feature of hosting on Gatsby Cloud. Instead of processing images at build time, Image CDN defers and offloads image processing to the edge.',
+		'Gatsby Image CDN serves gatsby-plugin-image URLs under /_gatsby/image/ from the host at request time. The path proves the Gatsby feature, not a specific host: Gatsby Cloud shut down in 2023 and Netlify serves the same paths.',
 	icon: 'Gatsby.svg',
 	categories: [
 		'framework',
-		'infrastructure-hosting',
 	],
 	rules: [
 		{
@@ -19,12 +18,7 @@ export const gatsbyCloudImageCdnTechnologyDefinition: TechnologyDefinition = {
 			description: 'DOM selector matches a known technology marker.',
 		},
 	],
-	metadata: {
-		saas: true,
-		pricing: [
-			'freemium',
-			'low',
-			'recurring',
-		],
-	},
+	implies: [
+		'gatsby',
+	],
 } as const satisfies TechnologyDefinition;
