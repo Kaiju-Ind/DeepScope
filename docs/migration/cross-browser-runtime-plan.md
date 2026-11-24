@@ -346,6 +346,22 @@ cold first page 410-525 ms to 135-160 ms. Cleanup found on the way:
 byte-identical, two helpers are duplicated across matcher files, and four
 unpackaged build products (about 12 MB) are generated on every build.
 
+Steps 0-3 are merged (2026-11-24). A golden test (`src/tests/matcher/golden.test.ts`,
+recorded with the original matcher on the synced catalog) covers about 28,800
+observations and 8,200 matches with full evidence; every step reproduced it.
+Steady-state matching of the test page went from about 274 ms to 47 ms, cold
+from about 322 ms to 83 ms, and regexes compiled on the first page from 3,760
+to 781. Shard schema is now 4 (route gates); shards grew 1.2%. Firefox showed
+identical technology lists on fixtures and real sites. Step 4 is deferred.
+
+**Follow-up (security and stability):** some catalog regexes backtrack
+catastrophically (for example shadcn-ui `(?:[^"'\s]{0,200}\s*)*`); one hung a
+test for minutes. Literal prefilters now shield most of them, and the worker
+pool's per-partition deadline terminates a stuck worker, but a page could
+still trigger one. Add a catalog lint for nested unbounded quantifiers (the
+compiler already reports 186 `unsafe_pattern` warnings) and rewrite the
+offending patterns.
+
 ### Catalog provenance (blocks public promotion)
 
 The catalog appears to be derived from Wappalyzer data: 7,624 definitions
