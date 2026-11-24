@@ -328,6 +328,22 @@ try {
 		return results;
 	}`).catch((error) => ({ error: String(error) }));
 	record('safari-worker-fetch', true, { note: 'informational: can a worker fetch packaged registry shards (the matcher worker must)', ...workerFetch });
+	if (want('storage-limit')) {
+		// How much stored data storage.local.get(null) returns before Safari
+		// refuses the call. DeepScope enumerates its keys that way.
+		const limit = await ext(`async () => {
+			const chunk = 'x'.repeat(256 * 1024);
+			const steps = [];
+			for (let i = 0; i < 256; i++) {
+				await browser.storage.local.set({ ['verify:fill:' + i]: chunk });
+				try { await browser.storage.local.get(null); } catch (error) { steps.push({ failedAtMiB: ((i + 1) * 256) / 1024, error: String(error.message || error) }); break; }
+			}
+			const keys = Array.from({ length: 256 }, (_, i) => 'verify:fill:' + i);
+			await browser.storage.local.remove(keys);
+			return { ...(steps[0] ?? { failedAtMiB: null, note: 'no failure up to 64 MiB' }), getKeys: typeof browser.storage.local.getKeys };
+		}`);
+		record('storage-get-all-limit', true, { note: 'informational', ...limit });
+	}
 	const tabs = await ext(`async () => (await browser.tabs.query({})).map((t) => ({ id: t.id, url: t.url, active: t.active, windowId: t.windowId }))`);
 
 	await runScenarios(session, harness, {

@@ -169,16 +169,30 @@ export async function runStress(session, harness, context) {
 		return fixtureUrl();
 	}
 
+	/** A page this run opened: the current fixture server or a real site, not a leftover from an earlier session. */
+	function isOurs(url) {
+		try {
+			const parsed = new URL(url);
+			if (parsed.origin === origin) return true;
+			return /^https:$/.test(parsed.protocol) && REAL_SITES.some((site) => new URL(site).origin === parsed.origin);
+		} catch {
+			return false;
+		}
+	}
+
 	/** What a document at `url` may and must show. */
 	function expectation(url, extras = []) {
 		let parsed;
 		try { parsed = new URL(url); } catch { return undefined; }
 		if (!/^https?:$/.test(parsed.protocol)) return undefined;
+		if (/^(127\.0\.0\.1|localhost)$/.test(parsed.hostname) && parsed.origin !== origin) return undefined;
 		if (parsed.origin !== origin) return { real: true, must: [], late: [], forbidden: REAL_FORBIDDEN.filter((n) => !extras.includes(n)) };
 		const fixture = STRESS_FIXTURES[parsed.pathname];
 		if (!fixture) return { must: [], late: [], forbidden: [] };
 		const allowed = new Set([...fixture.must, ...(fixture.late ?? []), ...extras]);
-		return { must: fixture.must, late: fixture.late ?? [], forbidden: ALL_MARKERS.filter((n) => !allowed.has(n)) };
+		// A rewritten document may have lost its markers before any scan saw them.
+		const rewritten = extras.includes(INJECTED_MARKER.name);
+		return { must: rewritten ? [] : fixture.must, late: fixture.late ?? [], forbidden: ALL_MARKERS.filter((n) => !allowed.has(n)) };
 	}
 
 	// --- reading the extension ---------------------------------------------------
@@ -258,7 +272,7 @@ export async function runStress(session, harness, context) {
 	}
 
 	async function pollJournal() {
-		const records = await ext(`async (since) => Object.entries(await browser.storage.local.get(null))
+		const records = await ext(`async (since) => Object.entries(await readStorage(['diagnostics:record:']))
 			.filter(([k, v]) => k.startsWith('diagnostics:record:') && v && v.timestamp >= since)
 			.map(([k, v]) => [k, { t: v.timestamp, surface: v.surface, level: v.level, message: typeof v.message === 'string' ? v.message.slice(0, 200) : undefined, event: v.properties?.event, code: v.properties?.code, tabId: v.properties?.tabId, errorMessage: v.properties?.message ?? v.properties?.errorMessage ?? v.properties?.errorType, reason: v.properties?.reason, props: JSON.stringify(v.properties ?? {}).slice(0, 400) }])`, startedAt);
 		for (const [key, value] of records) journal.set(key, value);
@@ -560,19 +574,21 @@ export async function runStress(session, harness, context) {
 
 	/** Reconcile the model with the browser after operations that create tabs the harness did not name. */
 	async function syncModel(reason) {
-		const live = await call('sync', `async (controlWindowId) => (await browser.tabs.query({})).filter((t) => t.windowId !== controlWindowId && /^https?:/.test(t.url || t.pendingUrl || '')).map((t) => ({ id: t.id, windowId: t.windowId, incognito: t.incognito, pinned: t.pinned, url: t.url }))`, control.windowId);
+		// Every tab still open, whatever it shows: a tab between documents can
+		// briefly report about:blank and must not be mistaken for a closed one.
+		const live = await call('sync', `async (controlWindowId) => (await browser.tabs.query({})).filter((t) => t.windowId !== controlWindowId).map((t) => ({ id: t.id, windowId: t.windowId, incognito: t.incognito, pinned: t.pinned, url: t.url || t.pendingUrl || '' }))`, control.windowId);
 		if (!live) return;
 		const liveIds = new Set(live.map((t) => t.id));
-		for (const t of [...tabs.values()]) if (!liveIds.has(t.id) && !t.pendingSince) dropTab(t.label);
+		for (const t of [...tabs.values()]) if (!liveIds.has(t.id)) dropTab(t.label);
 		const known = new Set([...tabs.values()].map((t) => t.id));
 		for (const t of live.sort((a, b) => a.id - b.id)) {
-			if (known.has(t.id)) continue;
+			if (known.has(t.id) || !isOurs(t.url)) continue;
 			const label = addTab(t, t.url);
 			touch(t.id);
 			step('adopt-tab', { tabId: t.id, url: t.url, reason });
 			void label;
 		}
-		for (const t of live) {
+		for (const t of live.filter((x) => known.has(x.id) || isOurs(x.url))) {
 			const model = [...tabs.values()].find((m) => m.id === t.id);
 			if (model) {
 				const w = windowLabelById(t.windowId) ?? addWindow(t.windowId, Boolean(t.incognito));
@@ -634,7 +650,13 @@ export async function runStress(session, harness, context) {
 
 	// Seed windows and tabs.
 	const existing = await call('seed', `async (controlWindowId) => (await browser.tabs.query({})).filter((t) => t.windowId !== controlWindowId && /^https?:/.test(t.url || '')).map((t) => ({ id: t.id, windowId: t.windowId, incognito: t.incognito, pinned: t.pinned, url: t.url }))`, control.windowId) ?? [];
-	for (const t of existing) addTab(t, t.url);
+	// Safari keeps windows from earlier automation sessions; close what this run did not open.
+	const foreign = existing.filter((t) => !isOurs(t.url));
+	if (foreign.length) {
+		await call('close-leftovers', `async (ids) => { await browser.tabs.remove(ids); }`, foreign.map((t) => t.id));
+		info.counts['closed-leftover-tabs'] = foreign.length;
+	}
+	for (const t of existing.filter((x) => isOurs(x.url))) addTab(t, t.url);
 	while (normalWindows().length < Math.min(2, plan.maxWindows)) await newWindow();
 	for (let i = tabs.size; i < Math.ceil(plan.maxTabs * 0.6); i++) await openTab();
 
@@ -837,6 +859,8 @@ export async function runStress(session, harness, context) {
 		openAtEnd: tabs.size,
 		finalVisits: { ok: finalTabs.filter((t) => t.verdict === 'ok').length, total: finalTabs.length, slowestMs: Math.max(0, ...finalTabs.map((t) => t.tookMs)) },
 		drainMs,
+		storageKiB: leftovers.storageKiB,
+		unreadableKeys: leftovers.unreadableKeys,
 		counts: info.counts,
 		actionErrors: info.actionErrors,
 		disruptedNoise: info.disrupted,
@@ -844,6 +868,7 @@ export async function runStress(session, harness, context) {
 		idle: info.idle,
 		memory: info.memory.map(({ label, t, residentMiB }) => ({ label, t, residentMiB })),
 		journalRecordsSeen: journal.size,
+		...(process.env.VERIFY_JOURNAL ? { journal: [...journal.values()].sort((a, b) => a.t - b.t).map((r) => `${r.t - startedAt} ${r.surface} ${r.level} ${r.event ?? r.message}${r.code ? ' ' + r.code : ''} ${r.props ?? ''}`.slice(0, 600)) } : {}),
 		failures,
 		log,
 	});
@@ -851,7 +876,7 @@ export async function runStress(session, harness, context) {
 	/** Storage and IndexedDB state that should be empty or only describe open tabs. */
 	function readLeftovers() {
 		return ext(`async (privateIds) => {
-			const all = await browser.storage.local.get(null);
+			const all = await readStorage();
 			const sessionKeys = Object.keys(all).filter((k) => /^rd:(session-index|session|content-session):/.test(k));
 			const jobs = Object.entries(all).filter(([k]) => k.startsWith('matcher-job:')).map(([, v]) => ({ jobId: v.jobId, tabId: v.tabId, status: v.status, reason: v.reason, updatedAt: v.updatedAt }));
 			const activeJobs = jobs.filter((j) => j.status === 'queued' || j.status === 'running' || j.status === 'claimed');
@@ -868,6 +893,8 @@ export async function runStress(session, harness, context) {
 				} finally { db.close(); }
 			}
 			return {
+				storageKiB: Math.round(JSON.stringify(all).length / 1024),
+				unreadableKeys: all.__unreadable ?? [],
 				sessionKeys,
 				activeJobs,
 				closedJobs: jobs,

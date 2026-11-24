@@ -13,11 +13,42 @@ const EXPECTED = /canceled|navigated away|no longer owns|inspectable URL yet|^ta
 // Logged once each time the background page or worker starts.
 const BACKGROUND_START_EVENT = 'matcher-executor-selected';
 
-export const SCENARIOS = ['preinstall', 'active-load', 'background-tab', 'spa', 'real-sites', 'busy-page', 'navigate-mid-scan', 'close-mid-scan', 'idle-wake', 'panel-page', 'reinstall', 'restricted', 'heavy', 'history', 'nav-loop', 'stress', 'permission-revoked'];
+export const SCENARIOS = ['preinstall', 'active-load', 'background-tab', 'spa', 'real-sites', 'busy-page', 'navigate-mid-scan', 'close-mid-scan', 'idle-wake', 'panel-page', 'reinstall', 'restricted', 'heavy', 'history', 'nav-loop', 'reload-storm', 'stress', 'permission-revoked'];
+
+/**
+ * In-page helper every control-page script can call: the stored entries whose
+ * keys start with one of `prefixes`. Safari refuses storage.local.get(null)
+ * once storage holds about 1 MiB ("exceeded maximum data size allowed per
+ * call"), so it lists keys with getKeys() and reads them in batches, halving
+ * a batch that is still too large. Values over the limit on their own are
+ * reported under `__unreadable`.
+ */
+const READ_STORAGE = `async function readStorage(prefixes = ['']) {
+	const area = browser.storage.local;
+	const wanted = (key) => prefixes.some((prefix) => key.startsWith(prefix));
+	if (typeof area.getKeys !== 'function') {
+		return Object.fromEntries(Object.entries(await area.get(null)).filter(([key]) => wanted(key)));
+	}
+	const keys = (await area.getKeys()).filter(wanted);
+	const out = {};
+	const unreadable = [];
+	const read = async (batch) => {
+		try { Object.assign(out, await area.get(batch)); } catch (error) {
+			if (batch.length === 1) { unreadable.push(batch[0]); return; }
+			const mid = batch.length >> 1;
+			await read(batch.slice(0, mid));
+			await read(batch.slice(mid));
+		}
+	};
+	for (let i = 0; i < keys.length; i += 40) await read(keys.slice(i, i + 40));
+	if (unreadable.length) Object.defineProperty(out, '__unreadable', { value: unreadable, enumerable: false });
+	return out;
+}`;
 
 /** Wrap an async function source so `execAsync` runs it and reports its result or error. */
 export function asyncScript(body) {
 	return `const done = arguments[arguments.length - 1];
+		 ${READ_STORAGE}
 		 const fn = ${body};
 		 fn(...Array.from(arguments).slice(0, -1)).then((v) => done({ ok: true, v }), (e) => done({ ok: false, e: String(e && e.message || e) }));`;
 }
@@ -55,7 +86,7 @@ export function createHarness(ext) {
 	/** Tab, badge, stored results and journal events for one tab since `since`. */
 	function tabState(tabId, since = 0) {
 		return ext(`async (tabId, since) => {
-			const all = await browser.storage.local.get(null);
+			const all = await readStorage(['rd:session', 'diagnostics:record:']);
 			const index = all['rd:session-index:' + tabId];
 			const latest = index?.entries?.slice().sort((a, b) => b.updatedAt - a.updatedAt)[0];
 			let names = [];
@@ -84,7 +115,7 @@ export function createHarness(ext) {
 
 	/** Number of background starts recorded in the journal since `since`. */
 	function backgroundStarts(since = 0) {
-		return ext(`async (since, event) => Object.entries(await browser.storage.local.get(null))
+		return ext(`async (since, event) => Object.entries(await readStorage(['diagnostics:record:']))
 			.filter(([k, v]) => k.startsWith('diagnostics:record:') && v.timestamp >= since && v.surface === 'background' && v.properties?.event === event).length`, since, BACKGROUND_START_EVENT);
 	}
 
@@ -106,7 +137,7 @@ export function createHarness(ext) {
 
 	/** Error and warning journal records with their properties, for VERIFY_VERBOSE diagnosis. */
 	function errorRecords(limit = 20) {
-		return ext(`async (limit) => Object.values(await browser.storage.local.get(null))
+		return ext(`async (limit) => Object.values(await readStorage(['diagnostics:record:']))
 			.filter((v) => v && typeof v === 'object' && 'surface' in v && (v.level === 'error' || v.level === 'warning'))
 			.sort((a, b) => b.timestamp - a.timestamp)
 			.slice(0, limit)
@@ -212,7 +243,7 @@ export async function runScenarios(session, harness, context) {
 		await delay(1200);
 		await ext(`async (id) => { await browser.tabs.remove(id); }`, tab.id);
 		await delay(3000);
-		const jobs = await ext(`async (tabId) => Object.values(await browser.storage.local.get(null)).filter((v) => v && v.jobId && v.tabId === tabId).map((v) => ({ status: v.status, reason: v.reason }))`, tab.id);
+		const jobs = await ext(`async (tabId) => Object.values(await readStorage(['matcher-job:'])).filter((v) => v && v.jobId && v.tabId === tabId).map((v) => ({ status: v.status, reason: v.reason }))`, tab.id);
 		const stuck = jobs.filter((job) => job.status === 'running' || job.status === 'queued');
 		const state = await tabState(tab.id, since);
 		record('close-tab-mid-scan', stuck.length === 0, { jobs, problems: problems(state).slice(0, 6) });
@@ -325,6 +356,27 @@ export async function runScenarios(session, harness, context) {
 			else ok++;
 		}
 		record(`nav-loop x${rounds}`, failures.length === 0, { ok, failures });
+	}
+
+	if (want('reload-storm')) {
+		// Minimal reproduction from the stress runs: navigate the active tab, then
+		// reload it a few times quickly. The last document must still get results
+		// without the user switching away and back.
+		const failures = [];
+		for (let round = 0; round < 8; round++) {
+			const url = `${origin}/ghost.html?storm=${round}`;
+			const since = Date.now();
+			await ext(`async (id, url, gaps) => {
+				await browser.tabs.update(id, { url, active: true });
+				for (const gap of gaps) {
+					await new Promise((r) => setTimeout(r, gap));
+					browser.tabs.reload(id).catch(() => undefined);
+				}
+			}`, wpTab.id, url, [120, 70, 130, 150].slice(0, 1 + (round % 4)));
+			const loaded = await waitForResults(wpTab.id, since, { url, expect: ['Ghost'], timeoutMs: 25_000 });
+			if (loaded.timedOut) failures.push({ round, reloads: 1 + (round % 4), ...summarize(loaded.state, true) });
+		}
+		record('reload-storm-then-wait', failures.length === 0, { rounds: 8, failures });
 	}
 
 	if (want('stress')) {
