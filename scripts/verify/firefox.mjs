@@ -111,7 +111,17 @@ async function openExtensionTab(path) {
 async function ensureControl() {
 	const handles = await session.handles();
 	if (handles.includes(controlHandle)) return;
+	await openControlWindow();
+}
+
+/**
+ * Keep the control page in its own window. WebDriver selects the tab it
+ * switches to, so a control tab beside the target would steal activation.
+ */
+async function openControlWindow() {
+	const handles = await session.handles();
 	await session.switchTo(handles.includes(mainHandle) ? mainHandle : handles[0]);
+	await session.switchTo(await session.newWindow('window'));
 	controlHandle = await openExtensionTab('options.html');
 	await delay(1000);
 }
@@ -182,11 +192,12 @@ async function waitFor(check, timeoutMs = 30_000, intervalMs = 500) {
 }
 
 /** Wait until a tab shows results (badge and stored names), or report what it showed. */
-async function waitForResults(tabId, since, { timeoutMs = 30_000, expect = [] } = {}) {
+async function waitForResults(tabId, since, { timeoutMs = 30_000, expect = [], url } = {}) {
 	return waitFor(async () => {
 		const state = await tabState(tabId, since);
 		const hasExpected = expect.every((name) => state.names.includes(name));
-		const current = state.snapshotUrl === state.url;
+		// Right after tabs.update the tab still reports the previous URL.
+		const current = state.snapshotUrl === state.url && (!url || Boolean(state.url?.startsWith(url)));
 		return { done: current && state.names.length > 0 && hasExpected && Boolean(state.badge), state };
 	}, timeoutMs);
 }
@@ -200,7 +211,7 @@ function summarize(state, timedOut = false) {
 	const verbose = timedOut || process.env.VERIFY_VERBOSE;
 	const injected = state.events.filter((e) => /^content-runtime/.test(e.event ?? '')).map((e) => e.event);
 	const timings = state.events.map((e) => /\[timing\] (collector\.content-rpc\.collect-observation-batch|background\.content-runtime\.ensure) (\w+) in (\d+)ms/.exec(e.event ?? '')).filter(Boolean).map((m) => `${m[1].split('.').at(-1)} ${m[2]} ${m[3]}ms`);
-	return { url: state.url, ...(state.snapshotUrl !== state.url ? { snapshotUrl: state.snapshotUrl } : {}), badge: state.badge, names: state.names.slice(0, 12), count: state.names.length, contentRuntime: [...new Set(injected)], timings: timings.slice(0, 6), problems: problems(state).slice(0, 8), ...(verbose ? { events: state.events.map((e) => `${e.t % 100000} ${e.surface} ${e.event}${e.code ? ' ' + e.code : ''}${e.message ? ' ' + e.message : ''}${e.stats ? ' ' + e.stats : ''}`) } : {}) };
+	return { url: state.url, tabStatus: state.status, active: state.active, ...(state.snapshotUrl !== state.url ? { snapshotUrl: state.snapshotUrl } : {}), badge: state.badge, names: state.names.slice(0, 12), count: state.names.length, contentRuntime: [...new Set(injected)], timings: timings.slice(0, 6), problems: problems(state).slice(0, 8), ...(verbose ? { events: state.events.map((e) => `${e.t % 100000} ${e.surface} ${e.event}${e.code ? ' ' + e.code : ''}${e.message ? ' ' + e.message : ''}${e.stats ? ' ' + e.stats : ''}`) } : {}) };
 }
 
 const want = (name) => !options.only || options.only.split(',').includes(name);
@@ -219,10 +230,7 @@ try {
 	const installedAt = Date.now();
 	await session.cmd('POST', '/moz/addon/install', { addon: readFileSync(xpi).toString('base64'), temporary: true });
 	await delay(1500);
-	const controlWindow = await session.newWindow('window');
-	await session.switchTo(controlWindow);
-	controlHandle = await openExtensionTab('options.html');
-	await delay(1000);
+	await openControlWindow();
 
 	const permissions = await ext(`async () => ({
 		all: await browser.permissions.getAll(),
@@ -255,7 +263,7 @@ try {
 	if (want('active-load')) {
 		const since = Date.now();
 		await ext(`async (id, url) => { await browser.tabs.update(id, { url, active: true }); }`, wpTab.id, `${origin}/wp.html?load=1`);
-		const loaded = await waitForResults(wpTab.id, since, { expect: ['WordPress', 'jQuery'] });
+		const loaded = await waitForResults(wpTab.id, since, { url: `${origin}/wp.html?load=1`, expect: ['WordPress', 'jQuery'] });
 		record('active-tab-load', !loaded.timedOut, summarize(loaded.state, loaded.timedOut));
 	}
 
@@ -284,7 +292,7 @@ try {
 		for (const url of ['https://example.com/', 'https://wordpress.org/', 'https://react.dev/']) {
 			const since = Date.now();
 			await ext(`async (id, url) => { await browser.tabs.update(id, { url, active: true }); }`, wpTab.id, url);
-			const loaded = await waitForResults(wpTab.id, since, { timeoutMs: 45_000 });
+			const loaded = await waitForResults(wpTab.id, since, { url: url, timeoutMs: 45_000 });
 			record(`real-site ${url}`, !loaded.timedOut, summarize(loaded.state, loaded.timedOut));
 		}
 	}
@@ -292,7 +300,7 @@ try {
 	if (want('busy-page')) {
 		const since = Date.now();
 		await ext(`async (id, url) => { await browser.tabs.update(id, { url, active: true }); }`, wpTab.id, `${origin}/busy.html`);
-		const loaded = await waitForResults(wpTab.id, since, { timeoutMs: 40_000, expect: ['WordPress'] });
+		const loaded = await waitForResults(wpTab.id, since, { url: `${origin}/busy.html`, timeoutMs: 40_000, expect: ['WordPress'] });
 		record('busy-main-thread-page', !loaded.timedOut, summarize(loaded.state, loaded.timedOut));
 	}
 
@@ -301,7 +309,7 @@ try {
 		await ext(`async (id, url) => { await browser.tabs.update(id, { url, active: true }); }`, wpTab.id, 'https://react.dev/');
 		await delay(900);
 		await ext(`async (id, url) => { await browser.tabs.update(id, { url }); }`, wpTab.id, `${origin}/wp.html?mid=1`);
-		const loaded = await waitForResults(wpTab.id, since, { expect: ['WordPress'] });
+		const loaded = await waitForResults(wpTab.id, since, { url: `${origin}/wp.html?mid=1`, expect: ['WordPress'] });
 		record('navigate-mid-scan', !loaded.timedOut && loaded.state.url.includes('mid=1'), summarize(loaded.state, loaded.timedOut));
 	}
 
@@ -331,7 +339,7 @@ try {
 		const memoryIdle = await extensionProcessMemory();
 		const since = Date.now();
 		await ext(`async (id, url) => { await browser.tabs.update(id, { url, active: true }); }`, wpTab.id, `${origin}/wp.html?wake=1`);
-		const loaded = await waitForResults(wpTab.id, since, { expect: ['WordPress'] });
+		const loaded = await waitForResults(wpTab.id, since, { url: `${origin}/wp.html?wake=1`, expect: ['WordPress'] });
 		const after = await backgroundState();
 		record('event-page-idle-unload-then-scan', !loaded.timedOut && !suspended.timedOut, {
 			backgroundBefore: before, backgroundAfterIdle: suspended.state, backgroundAfterScan: after,
@@ -357,32 +365,42 @@ try {
 		const since = Date.now();
 		await session.cmd('POST', '/moz/addon/install', { addon: readFileSync(xpi).toString('base64'), temporary: true });
 		await delay(2000);
-		await ensureControl();
-		await ext(`async (id) => { await browser.tabs.update(id, { active: true }); }`, exampleTab.id);
-		await delay(500);
-		await ext(`async (id) => { await browser.tabs.update(id, { active: true }); }`, wpTab.id);
-		const loaded = await waitForResults(wpTab.id, since, { expect: ['WordPress'] });
-		record('reinstall-with-open-tabs-then-activate', !loaded.timedOut, summarize(loaded.state, loaded.timedOut));
+		// The upgrade closes extension tabs (and so the control window), sometimes
+		// after this point; reopen in a fresh window.
+		await openControlWindow();
+		const permissionsAfter = await ext(`async () => ({
+			origins: (await browser.permissions.getAll()).origins,
+			local: await browser.permissions.contains({ origins: ['http://127.0.0.1/*'] }),
+		})`);
+		console.log('permissions after reinstall', JSON.stringify(permissionsAfter));
+		// Old pages keep the previous build's content script world only in Chrome;
+		// Firefox removes it, so this load must re-inject.
+		await ext(`async (id, url) => { await browser.tabs.update(id, { url, active: true }); }`, wpTab.id, `${origin}/wp.html?reinstalled=1`);
+		const loaded = await waitForResults(wpTab.id, since, { url: `${origin}/wp.html?reinstalled=1`, expect: ['WordPress'] });
+		record('reinstall-with-open-tabs-then-activate', !loaded.timedOut, { permissionsAfter, ...summarize(loaded.state, loaded.timedOut) });
 	}
 
 	if (want('restricted')) {
 		// http(s) pages where Firefox refuses extension scripts.
 		const pdf = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+		// Use a throwaway tab: headless pdf.js can hang its content process.
 		for (const url of ['https://addons.mozilla.org/en-US/firefox/', pdf]) {
 			const since = Date.now();
-			await ext(`async (id, url) => { await browser.tabs.update(id, { url, active: true }); }`, wpTab.id, url);
+			const tab = await ext(`async (windowId, url) => browser.tabs.create({ windowId, url, active: true })`, mainWindowId, url);
 			await delay(8000);
-			const state = await tabState(wpTab.id, since);
-			const direct = await ext(`async (id) => { try { await browser.scripting.executeScript({ target: { tabId: id }, func: () => 1 }); return 'injected'; } catch (e) { return String(e.message || e); } }`, wpTab.id);
+			const state = await tabState(tab.id, since);
+			const direct = await ext(`async (id) => { try { await browser.scripting.executeScript({ target: { tabId: id }, func: () => 1 }); return 'injected'; } catch (e) { return String(e.message || e); } }`, tab.id);
 			record(`restricted-page ${url}`, true, { note: 'informational: what the user sees', executeScriptError: direct, ...summarize(state, true) });
+			await ext(`async (id) => { await browser.tabs.remove(id); }`, tab.id).catch(() => undefined);
 		}
+		await ext(`async (id) => { await browser.tabs.update(id, { active: true }); }`, wpTab.id);
 	}
 
 	if (want('heavy')) {
 		for (const url of (process.env.HEAVY_URLS ?? 'https://en.wikipedia.org/wiki/United_States,https://github.com/mozilla/gecko-dev').split(',')) {
 			const since = Date.now();
 			await ext(`async (id, url) => { await browser.tabs.update(id, { url, active: true }); }`, wpTab.id, url);
-			const loaded = await waitForResults(wpTab.id, since, { timeoutMs: 90_000 });
+			const loaded = await waitForResults(wpTab.id, since, { url: url, timeoutMs: 90_000 });
 			record(`heavy-page ${url}`, !loaded.timedOut && problems(loaded.state).length === 0, summarize(loaded.state, loaded.timedOut));
 		}
 	}
@@ -390,23 +408,13 @@ try {
 	if (want('history')) {
 		const since = Date.now();
 		await ext(`async (id, url) => { await browser.tabs.update(id, { url, active: true }); }`, wpTab.id, `${origin}/wp.html?h=1`);
-		await waitForResults(wpTab.id, since, { expect: ['WordPress'] });
+		await waitForResults(wpTab.id, since, { url: `${origin}/wp.html?h=1`, expect: ['WordPress'] });
 		await ext(`async (id, url) => { await browser.tabs.update(id, { url }); }`, wpTab.id, `${origin}/spa.html?h=2`);
-		await waitForResults(wpTab.id, since);
+		await waitForResults(wpTab.id, since, { url: `${origin}/spa.html?h=2` });
 		const back = Date.now();
 		await ext(`async (id) => { await browser.tabs.goBack(id); }`, wpTab.id);
-		const restored = await waitForResults(wpTab.id, back, { expect: ['WordPress'] });
+		const restored = await waitForResults(wpTab.id, back, { url: `${origin}/wp.html?h=1`, expect: ['WordPress'] });
 		record('history-back (bfcache)', !restored.timedOut && problems(restored.state).length === 0, summarize(restored.state, restored.timedOut));
-	}
-
-	if (want('permission-revoked')) {
-		// What a user gets after turning off "access your data for all websites".
-		const removed = await ext(`async () => browser.permissions.remove({ origins: ['http://*/*', 'https://*/*'] })`);
-		const since = Date.now();
-		await ext(`async (id, url) => { await browser.tabs.update(id, { url, active: true }); }`, wpTab.id, `${origin}/wp.html?perm=0`);
-		await delay(8000);
-		const state = await tabState(wpTab.id, since);
-		record('host-permission-revoked', true, { note: 'informational', removed, contains: await ext(`async () => browser.permissions.contains({ origins: ['http://127.0.0.1/*'] })`), ...summarize(state, true) });
 	}
 
 	if (want('stress')) {
@@ -418,12 +426,23 @@ try {
 			const url = `${urls[i % urls.length]}${urls[i % urls.length].includes('?') ? '&' : '?'}r=${i}`;
 			const since = Date.now();
 			await ext(`async (id, url) => { await browser.tabs.update(id, { url, active: true }); }`, wpTab.id, url);
-			const loaded = await waitForResults(wpTab.id, since, { timeoutMs: 40_000 });
+			const loaded = await waitForResults(wpTab.id, since, { url: url, timeoutMs: 40_000 });
 			const bad = problems(loaded.state);
 			if (loaded.timedOut || bad.length) failures.push({ url, timedOut: Boolean(loaded.timedOut), problems: bad.slice(0, 4), contentRuntime: summarize(loaded.state, loaded.timedOut).contentRuntime });
 			else ok++;
 		}
 		record(`stress-navigation x${rounds}`, failures.length === 0, { ok, failures });
+	}
+
+	if (want('permission-revoked')) {
+		// Runs last: the permission cannot be granted back without a user gesture.
+		// What a user gets after turning off "access your data for all websites".
+		const removed = await ext(`async () => browser.permissions.remove({ origins: ['http://*/*', 'https://*/*'] })`);
+		const since = Date.now();
+		await ext(`async (id, url) => { await browser.tabs.update(id, { url, active: true }); }`, wpTab.id, `${origin}/wp.html?perm=0`);
+		await delay(8000);
+		const state = await tabState(wpTab.id, since);
+		record('host-permission-revoked', true, { note: 'informational', removed, contains: await ext(`async () => browser.permissions.contains({ origins: ['http://127.0.0.1/*'] })`), ...summarize(state, true) });
 	}
 } catch (error) {
 	record('driver', false, { error: String(error.stack ?? error) });
