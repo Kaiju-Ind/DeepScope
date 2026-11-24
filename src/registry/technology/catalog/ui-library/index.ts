@@ -110,7 +110,6 @@ import { zoneJsTechnologyDefinition } from './zone-js';
 import { emberTechnologyDefinition } from './ember';
 import { infernoTechnologyDefinition } from './inferno';
 import { qwikTechnologyDefinition } from './qwik';
-import { solidTechnologyDefinition } from './solid';
 import { webComponentsTechnologyDefinition } from './web-components';
 
 export const uiLibraryTechnologyDefinitions = [
@@ -225,6 +224,5 @@ export const uiLibraryTechnologyDefinitions = [
 	emberTechnologyDefinition,
 	infernoTechnologyDefinition,
 	qwikTechnologyDefinition,
-	solidTechnologyDefinition,
 	webComponentsTechnologyDefinition,
 ] as const satisfies readonly TechnologyDefinition[];
