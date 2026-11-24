@@ -430,7 +430,7 @@ export function PanelProvider(props: {
         tabId: target.tabId,
         ...(response.ok
           ? { status: response.value.status, stopReason: response.value.stopReason }
-          : diagnosticFailure(response.error, target.incognito)),
+          : diagnosticFailure(response.failure, target.incognito)),
       });
     } catch (error) {
       logPanelEvent("observation-release-threw", {
@@ -623,7 +623,7 @@ export function PanelProvider(props: {
     const response = await backgroundApi.getReplayTraceHistory({ url: identity.url });
     if (disposed || !sameTab(visibleTabIdentity(), identity)) return [];
     if (!response.ok) {
-      throw new Error(formatError(response.error));
+      throw new Error(formatError(response.failure));
     }
 
     return response.value;
@@ -809,7 +809,7 @@ export function PanelProvider(props: {
       }
 
       if (!response.ok) {
-        logPanelEvent("observation-sync-unavailable", diagnosticFailure(response.error, identity.incognito));
+        logPanelEvent("observation-sync-unavailable", diagnosticFailure(response.failure, identity.incognito));
         setLiveUpdateMode("unknown");
         return;
       }
@@ -914,9 +914,9 @@ export function PanelProvider(props: {
       if (!response.ok) {
         logPanelEvent("analysis-failed", {
           source: options.source,
-          ...diagnosticFailure(response.error, identity.incognito),
+          ...diagnosticFailure(response.failure, identity.incognito),
         });
-        showFailure(formatError(response.error));
+        showFailure(formatError(response.failure));
         return;
       }
 
@@ -1017,8 +1017,8 @@ export function PanelProvider(props: {
       await waitForCurrentTab(identity);
       if (!ownsReply()) return;
       if (!response.ok) {
-        logPanelEvent("observation-stop-failed", diagnosticFailure(response.error, target.incognito));
-        setErrorMessage(formatError(response.error));
+        logPanelEvent("observation-stop-failed", diagnosticFailure(response.failure, target.incognito));
+        setErrorMessage(formatError(response.failure));
         return;
       }
 
@@ -1210,15 +1210,15 @@ export function PanelProvider(props: {
       });
       if (disposed) return;
       if (!identityResponse.ok) {
-        const message = formatError(identityResponse.error);
+        const message = formatError(identityResponse.failure);
         logPanelEvent("visible-tab-identity-unavailable", {
           reason,
           windowId: target.windowId,
           tabId: target.tabId,
-          code: identityResponse.error.code,
-          message: identityResponse.error.message,
+          code: identityResponse.failure.code,
+          message: identityResponse.failure.message,
         });
-        if (identityResponse.error.code === "NO_ACTIVE_TAB" && requestedTarget) {
+        if (identityResponse.failure.code === "NO_ACTIVE_TAB" && requestedTarget) {
           // Chrome can deliver an activation for tab A after tab B already became
           // active. Re-resolve the window instead of blanking the panel for A.
           queueTabSync("tab-change");

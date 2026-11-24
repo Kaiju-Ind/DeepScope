@@ -10,7 +10,7 @@ import { vi } from 'vitest';
 
 import type { ExtensionPageCollectorInput } from '@/lib/collectors/extension-page-collector';
 import type { ContentApi, VisibleTabIdentity } from '@/lib/messaging';
-import { extensionSuccess } from '@/lib/messaging/result';
+import { ok } from '@/lib/messaging/result';
 import {
 	createMatcherPartitionTasks,
 	createMatcherPipelineResult,
@@ -110,7 +110,7 @@ export async function load(options: Options = {}) {
 		flushObservationBatch: vi.fn(),
 		beginObservationSession: vi.fn(),
 		stopObservationSession: vi.fn(),
-		getObservationSessionState: vi.fn(async () => extensionSuccess({ status: 'idle', throttleMs: 1_500, pendingMutationCount: 0 })),
+		getObservationSessionState: vi.fn(async () => ok({ status: 'idle', throttleMs: 1_500, pendingMutationCount: 0 })),
 	} as unknown as ContentApi;
 
 	const mocks = {
@@ -120,7 +120,7 @@ export async function load(options: Options = {}) {
 		}),
 		collect: vi.fn(async (input: ExtensionPageCollectorInput) => {
 			if (input.signal) signals.push(input.signal);
-			return extensionSuccess(batch());
+			return ok(batch());
 		}),
 		runJob: vi.fn(async (request: RunMatcherJobRequest, observer?: MatcherJobObserver) => {
 			if (options.holdMatcher) await new Promise<void>((resolve) => held.push(resolve));

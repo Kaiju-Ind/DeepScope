@@ -59,7 +59,7 @@ import {
 	getObservationRefreshBlockReason,
 	shouldStartObservationForAnalysis,
 } from '@/lib/lifecycle/observation';
-import { errorResponse, extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
+import { errorResponse, ok, type ExtensionResult } from '@/lib/messaging/result';
 import {
 	MatcherError,
 	createMatcherPipelineResult,
@@ -631,8 +631,8 @@ export function createBackgroundRuntime(
 				if (!response.ok) {
 					logBackgroundEvent('observation-refresh-background-failed', {
 						...details,
-						code: response.error.code,
-						...(!target.incognito && { message: response.error.message }),
+						code: response.failure.code,
+						...(!target.incognito && { message: response.failure.message }),
 					});
 					return;
 				}
@@ -715,7 +715,7 @@ export function createBackgroundRuntime(
 		if (!tab.ok) return tab;
 		const identity = createVisibleTabIdentity(tab.value);
 		if (identity.frameId === target.frameId && identity.urlHash === target.urlHash) {
-			return extensionSuccess(identity);
+			return ok(identity);
 		}
 
 		logBackgroundEvent('scheduled-tab-target-mismatch', {
@@ -835,7 +835,7 @@ export function createBackgroundRuntime(
 			);
 		}
 
-		return extensionSuccess({
+		return ok({
 			id: tab.id,
 			windowId: tab.windowId,
 			url: tab.url,
@@ -878,7 +878,7 @@ export function createBackgroundRuntime(
 			signal?.throwIfAborted();
 			await dependencies.executeContentScript(tabId);
 			signal?.throwIfAborted();
-			return extensionSuccess(undefined);
+			return ok(undefined);
 		} catch (error) {
 			return injectionFailure(error);
 		}
@@ -889,7 +889,7 @@ export function createBackgroundRuntime(
 		signal?.throwIfAborted();
 		if (await pingContentScript(tabId, signal)) {
 			logBackgroundEvent('content-runtime-ready', { tabId });
-			return extensionSuccess(undefined);
+			return ok(undefined);
 		}
 
 		const existingInjection = contentScriptInjectionByTab.get(tabId);
@@ -904,15 +904,15 @@ export function createBackgroundRuntime(
 			if (!injectionResponse.ok) {
 				logBackgroundEvent('content-runtime-inject-failed', {
 					tabId,
-					code: injectionResponse.error.code,
-					...(!tab.incognito && { message: injectionResponse.error.message }),
+					code: injectionResponse.failure.code,
+					...(!tab.incognito && { message: injectionResponse.failure.message }),
 				});
 				return injectionResponse;
 			}
 
 			if (await pingContentScript(tabId, signal)) {
 				logBackgroundEvent('content-runtime-inject-ready', { tabId });
-				return extensionSuccess(undefined);
+				return ok(undefined);
 			}
 
 			logBackgroundEvent('content-runtime-inject-timeout', { tabId });
@@ -1305,7 +1305,7 @@ export function createBackgroundRuntime(
 			);
 		}
 
-		return extensionSuccess(undefined);
+		return ok(undefined);
 	}
 
 	async function getObservationSessionStateForTab(
@@ -1379,7 +1379,7 @@ export function createBackgroundRuntime(
 					(value) => ({ replayHistoryCount: value.length }),
 				);
 				endTimingSpan(totalSpan, { ok: true, snapshotHit: true, lateObservationCount: 0 });
-				return extensionSuccess(createAnalysisOutput(
+				return ok(createAnalysisOutput(
 					snapshot.analysis,
 					'hit',
 					flush.session,
@@ -1411,7 +1411,7 @@ export function createBackgroundRuntime(
 		const [, ...remainingEvidencePasses] = collectionPasses;
 		const recoveredRefresh = !baseBatch || !isSameObservationTarget(baseBatch, lateBatch);
 		const batchResponse = !recoveredRefresh
-			? extensionSuccess(timeSyncSpan(
+			? ok(timeSyncSpan(
 				'background.observation-refresh.merge-late-batch',
 				timingContext,
 				() => mergeObservationBatches(baseBatch, lateBatch),
@@ -1496,7 +1496,7 @@ export function createBackgroundRuntime(
 			resultCount: response.analysis.results.length,
 			lateObservationCount: lateBatch.observations.length,
 		});
-		return extensionSuccess(response);
+		return ok(response);
 	}
 
 	async function recoverObservationBatchForRefresh(
@@ -1516,7 +1516,7 @@ export function createBackgroundRuntime(
 			return recoveredBatch;
 		}
 
-		return extensionSuccess(mergeObservationBatches(recoveredBatch.value, lateBatch));
+		return ok(mergeObservationBatches(recoveredBatch.value, lateBatch));
 	}
 
 	async function beginObservationSessionForTab(
@@ -1608,8 +1608,8 @@ export function createBackgroundRuntime(
 			sessionId: target.sessionId,
 			failedAt,
 			...(response.ok ? {} : {
-				code: response.error.code,
-				...(!tab.incognito && { message: response.error.message }),
+				code: response.failure.code,
+				...(!tab.incognito && { message: response.failure.message }),
 			}),
 		});
 	}
@@ -1681,8 +1681,8 @@ export function createBackgroundRuntime(
 					session = sessionResponse.value;
 				} else {
 					dependencies.logEvent('observation-session-unavailable', {
-						code: sessionResponse.error.code,
-						...(!tab.incognito && { message: sessionResponse.error.message }),
+						code: sessionResponse.failure.code,
+						...(!tab.incognito && { message: sessionResponse.failure.message }),
 					});
 				}
 			}
@@ -1773,7 +1773,7 @@ export function createBackgroundRuntime(
 				deferredCollectionPassCount: remainingPasses.length,
 				returnedResultCount: response.analysis.results.length,
 			});
-			return extensionSuccess(response);
+			return ok(response);
 		} finally {
 			activeFreshAnalysisByTab.delete(tab.id);
 		}
@@ -1840,8 +1840,8 @@ export function createBackgroundRuntime(
 					logBackgroundEvent('evidence-pass-collection-skipped', {
 						...summarizeTab(input.tab),
 						passId: pass.id,
-						code: passBatch.error.code,
-						...(!input.tab.incognito && { message: passBatch.error.message }),
+						code: passBatch.failure.code,
+						...(!input.tab.incognito && { message: passBatch.failure.message }),
 					});
 					continue;
 				}
@@ -2147,7 +2147,7 @@ export function createBackgroundRuntime(
 				ownsPublication,
 			});
 			return output
-				? extensionSuccess(output)
+				? ok(output)
 				: errorResponse('VALIDATION_ERROR', 'Matcher result no longer owns the visible session.');
 		} catch (error) {
 			// Navigation, tab closure and superseding analyses abort the document work
@@ -2562,7 +2562,7 @@ export function createBackgroundRuntime(
 			timingTraceId,
 		});
 		const sessionResponse = knownSession
-			? extensionSuccess(knownSession)
+			? ok(knownSession)
 			: await timeAsyncSpan(
 				'background.observation-refresh.get-session-state',
 				timingContext,
@@ -2655,7 +2655,7 @@ export function createBackgroundRuntime(
 			return targetValidation;
 		}
 
-		return extensionSuccess(response.value);
+		return ok(response.value);
 	}
 
 	async function getInspectableTabForObservationSessionTarget(
@@ -2684,7 +2684,7 @@ export function createBackgroundRuntime(
 				);
 			}
 
-			return extensionSuccess({
+			return ok({
 				id: target.tabId,
 				windowId: tab.windowId,
 				url: tab.url,
@@ -2810,8 +2810,8 @@ export function createBackgroundRuntime(
 				resolveRegistered();
 				logBackgroundEvent('analysis-queued-persist-failed', {
 					...summarizeTab(input.tab),
-					code: response.error.code,
-					...(!input.tab.incognito && { message: response.error.message }),
+					code: response.failure.code,
+					...(!input.tab.incognito && { message: response.failure.message }),
 				});
 				return;
 			}
@@ -2901,7 +2901,7 @@ export function createBackgroundRuntime(
 						undefined,
 						snapshot.evidence,
 					);
-					return extensionSuccess(output);
+					return ok(output);
 				}
 
 				logBackgroundEvent('analysis-snapshot-miss', {
@@ -2922,7 +2922,7 @@ export function createBackgroundRuntime(
 	function createBackgroundApi(): BackgroundApi {
 		return {
 			async getAnalysisStatus() {
-				return extensionSuccess(await getStatus());
+				return ok(await getStatus());
 			},
 
 			async getVisibleTabIdentity(input) {
@@ -2933,7 +2933,7 @@ export function createBackgroundRuntime(
 					return tabResponse;
 				}
 
-				return extensionSuccess(createVisibleTabIdentity(tabResponse.value));
+				return ok(createVisibleTabIdentity(tabResponse.value));
 			},
 
 			async analyzeVisibleTab(input): Promise<ExtensionResult<AnalyzeVisibleTabOutput>> {
@@ -2961,7 +2961,7 @@ export function createBackgroundRuntime(
 
 
 			async getReplayTraceHistory(input) {
-				return extensionSuccess(await getCachedReplayTraceHistory(input.url));
+				return ok(await getCachedReplayTraceHistory(input.url));
 			},
 		};
 	}

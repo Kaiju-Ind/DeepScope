@@ -124,7 +124,7 @@ describe('panel reset paths', () => {
 
 	it('unavailable tab clears document state and the visible identity and shows the failure', async () => {
 		const app = await mount(identity(7));
-		calls.identity.mockResolvedValue({ ok: false, error: { code: 'UNSUPPORTED_URL', message: 'This page cannot be inspected.' } });
+		calls.identity.mockResolvedValue({ ok: false, failure: { code: 'UNSUPPORTED_URL', message: 'This page cannot be inspected.' } });
 		app.switchTo(identity(8));
 		await vi.waitFor(() => expect(app.panel.visibleTabIdentity()).toBeNull());
 

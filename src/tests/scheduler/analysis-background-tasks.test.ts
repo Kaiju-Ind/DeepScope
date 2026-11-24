@@ -56,7 +56,7 @@ async function load() {
 		resolveTarget: vi.fn(async () => ({ ok: true as const, value: {} as never })),
 		analyze: vi.fn(async () => {
 			order.push('foreground-analysis');
-			return { ok: false as const, error: { code: 'VALIDATION_ERROR' as const, message: 'fixture' } };
+			return { ok: false as const, failure: { code: 'VALIDATION_ERROR' as const, message: 'fixture' } };
 		}),
 		log,
 	});

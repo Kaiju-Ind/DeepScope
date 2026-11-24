@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AnalyzeVisibleTabInput, VisibleTabIdentity } from '@/lib/messaging';
-import { extensionSuccess } from '@/lib/messaging/result';
+import { ok } from '@/lib/messaging/result';
 
 const mocks = vi.hoisted(() => ({
 	onUpdated: vi.fn(),
@@ -128,11 +128,11 @@ describe('background entrypoint navigation wiring', () => {
 		const activeAnalysis = Promise.withResolvers<void>();
 		const replacement = { ...firstDocument, url: 'https://example.com/replacement', urlHash: 'replacement-url' };
 		mocks.getVisibleTabIdentity
-			.mockResolvedValueOnce(extensionSuccess(firstDocument))
-			.mockResolvedValueOnce(extensionSuccess(replacement));
+			.mockResolvedValueOnce(ok(firstDocument))
+			.mockResolvedValueOnce(ok(replacement));
 		mocks.analyzeVisibleTab.mockImplementation(async ({ target }: AnalyzeVisibleTabInput) => {
 			if (target === firstDocument) await activeAnalysis.promise;
-			return extensionSuccess({ analysis: { results: [] }, snapshot: { status: 'bypassed' } });
+			return ok({ analysis: { results: [] }, snapshot: { status: 'bypassed' } });
 		});
 		vi.stubGlobal('defineBackground', (start: () => void) => {
 			start();

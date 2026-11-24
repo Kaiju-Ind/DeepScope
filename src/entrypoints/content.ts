@@ -26,7 +26,7 @@ import {
   type ObservationBatch,
   type ObservationBatchControllerStats,
 } from "@/lib/observations";
-import { errorResponse, extensionSuccess } from "@/lib/messaging/result";
+import { errorResponse, ok } from "@/lib/messaging/result";
 import { diagnosticErrorType } from "@/lib/privacy/redaction";
 import * as url from "@/utils/url";
 
@@ -287,7 +287,7 @@ async function collectSignals(
 
     logContentEvent("collect-success", summarizeSignals(signals, incognito));
 
-    return extensionSuccess(signals);
+    return ok(signals);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to collect page signals";
     const stack = error instanceof Error ? error.stack : undefined;
@@ -348,7 +348,7 @@ async function collectInitialObservationBatch(
     tier: input.tier ?? "initial",
   });
 
-  return extensionSuccess({ batch });
+  return ok({ batch });
 }
 
 /**
@@ -464,7 +464,7 @@ export function createContentRuntime(observedSignals: observe.SignalsType, incog
         expiresAt: session.expiresAt,
       });
 
-      return extensionSuccess(session);
+      return ok(session);
     },
 
     async flushObservationBatch() {
@@ -478,7 +478,7 @@ export function createContentRuntime(observedSignals: observe.SignalsType, incog
         status: flush.session.status,
         pendingMutationCount: flush.session.pendingMutationCount,
       });
-      return extensionSuccess(flush);
+      return ok(flush);
     },
 
     async stopObservationSession(input) {
@@ -504,7 +504,7 @@ export function createContentRuntime(observedSignals: observe.SignalsType, incog
         status: session.status,
         stopReason: session.stopReason,
       });
-      return extensionSuccess(session);
+      return ok(session);
     },
 
     async getObservationSessionState() {
@@ -518,7 +518,7 @@ export function createContentRuntime(observedSignals: observe.SignalsType, incog
         lastObservedAt: session.lastObservedAt,
         stopReason: session.stopReason,
       });
-      return extensionSuccess(session);
+      return ok(session);
     },
   };
 

@@ -77,11 +77,11 @@ describe('analysis claim fencing', { concurrent: false }, () => {
 		}));
 
 		const analysis = await import('@/lib/scheduler/analysis');
-		let finishOld!: (value: { ok: false; error: { code: 'VALIDATION_ERROR'; message: string } }) => void;
-		const oldResult = new Promise<{ ok: false; error: { code: 'VALIDATION_ERROR'; message: string } }>((resolve) => {
+		let finishOld!: (value: { ok: false; failure: { code: 'VALIDATION_ERROR'; message: string } }) => void;
+		const oldResult = new Promise<{ ok: false; failure: { code: 'VALIDATION_ERROR'; message: string } }>((resolve) => {
 			finishOld = resolve;
 		});
-		const freshResult = { ok: false as const, error: { code: 'VALIDATION_ERROR' as const, message: 'fresh-result' } };
+		const freshResult = { ok: false as const, failure: { code: 'VALIDATION_ERROR' as const, message: 'fresh-result' } };
 		const analyze = vi.fn()
 			.mockImplementationOnce(async () => await oldResult)
 			.mockImplementationOnce(async () => freshResult);
@@ -98,7 +98,7 @@ describe('analysis claim fencing', { concurrent: false }, () => {
 		const second = scheduler.analyze(input());
 		await vi.waitFor(() => expect(durable?.state).toBe('queued'));
 
-		finishOld({ ok: false, error: { code: 'VALIDATION_ERROR', message: 'stale-result' } });
+		finishOld({ ok: false, failure: { code: 'VALIDATION_ERROR', message: 'stale-result' } });
 		await settle();
 
 		await expect(second).resolves.toEqual(freshResult);

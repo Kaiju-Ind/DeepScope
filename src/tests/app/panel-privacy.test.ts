@@ -174,7 +174,7 @@ describe('private panel storage access', () => {
 
 /** A target mismatch includes both page addresses in the collector's RPC error message. */
 function targetFailure(target: VisibleTabIdentity) {
-	return { ok: false as const, error: {
+	return { ok: false as const, failure: {
 		code: 'VALIDATION_ERROR' as const,
 		message: `Collected observations do not match the visible tab URL. Expected ${target.url}, got https://redirect.invalid/notes.`,
 	} };
@@ -185,13 +185,13 @@ describe('panel command failure ownership', () => {
 		const target = identity(7, true, 'https://private.invalid/records');
 		const failure = targetFailure(target);
 		if (kind === 'returned') calls.analyze.mockResolvedValue(failure);
-		else calls.analyze.mockRejectedValue(new Error(failure.error.message));
+		else calls.analyze.mockRejectedValue(new Error(failure.failure.message));
 		const app = mount(target);
-		await vi.waitFor(() => expect(app.panel.errorMessage()).toContain(failure.error.message));
+		await vi.waitFor(() => expect(app.panel.errorMessage()).toContain(failure.failure.message));
 		expect(app.panel.matcherStatus()).toBe('idle');
 		const event = kind === 'returned' ? 'analysis-failed' : 'analysis-request-threw';
 		const record = calls.log.mock.calls.map(call => call[1]).find(record => record.event === event);
-		expect(record).toMatchObject(kind === 'returned' ? { code: failure.error.code } : { errorType: 'Error' });
+		expect(record).toMatchObject(kind === 'returned' ? { code: failure.failure.code } : { errorType: 'Error' });
 		expect(record).not.toHaveProperty('message');
 		expect(JSON.stringify(calls.log.mock.calls)).not.toContain(target.url);
 		expect(JSON.stringify(calls.log.mock.calls)).not.toContain('redirect.invalid');
@@ -215,7 +215,7 @@ describe('panel command failure ownership', () => {
 		await vi.waitFor(() => expect(app.panel.matcherStatus()).toBe('matching'));
 		const failure = targetFailure(first);
 		if (kind === 'returned') old.resolve(failure);
-		else old.reject(new Error(failure.error.message));
+		else old.reject(new Error(failure.failure.message));
 		await vi.waitFor(() => expect(app.panel.busy()).toBe(false));
 		expect(app.panel.matcherStatus()).toBe('matching');
 		expect(app.panel.errorMessage()).toBe('');
@@ -231,13 +231,13 @@ describe('panel command failure ownership', () => {
 		const app = mount(target);
 		await vi.waitFor(() => expect(calls.observation).toHaveBeenCalledWith(session));
 		if (kind === 'returned') calls.stop.mockResolvedValue(failure);
-		else calls.stop.mockRejectedValue(new Error(failure.error.message));
+		else calls.stop.mockRejectedValue(new Error(failure.failure.message));
 		calls.history.mockResolvedValue({ ok: true, value: [] });
 		app.switchTo(identity(8, false));
 		const event = kind === 'returned' ? 'observation-release-failed' : 'observation-release-threw';
 		await vi.waitFor(() => {
 			const record = calls.log.mock.calls.map(call => call[1]).find(record => record.event === event);
-			expect(record).toMatchObject(kind === 'returned' ? { code: failure.error.code } : { errorType: 'Error' });
+			expect(record).toMatchObject(kind === 'returned' ? { code: failure.failure.code } : { errorType: 'Error' });
 			expect(record).not.toHaveProperty('message');
 		});
 		expect(JSON.stringify(calls.log.mock.calls)).not.toContain('redirect.invalid');
@@ -249,9 +249,9 @@ describe('panel command failure ownership', () => {
 		calls.history.mockResolvedValue({ ok: true, value: [] });
 		calls.analyze.mockResolvedValue(failure);
 		const app = mount(ordinary);
-		await vi.waitFor(() => expect(app.panel.errorMessage()).toContain(failure.error.message));
+		await vi.waitFor(() => expect(app.panel.errorMessage()).toContain(failure.failure.message));
 		expect(calls.log.mock.calls.map(call => call[1])).toContainEqual(expect.objectContaining({
-			event: 'analysis-failed', code: failure.error.code, message: failure.error.message,
+			event: 'analysis-failed', code: failure.failure.code, message: failure.failure.message,
 		}));
 	});
 });
@@ -280,7 +280,7 @@ describe('stopping a panel observation', () => {
 		const error = app.panel.errorMessage();
 		if (result === 'throw') oldStop.reject(new Error('Old stop transport failure'));
 		else oldStop.resolve(result === 'success' ? { ok: true, value: { status: 'stopped' } } : {
-			ok: false, error: { code: 'VALIDATION_ERROR', message: 'Old stop rejected' },
+			ok: false, failure: { code: 'VALIDATION_ERROR', message: 'Old stop rejected' },
 		});
 		await stopped;
 		expect(app.panel.liveUpdateMode()).toBe('active');
@@ -302,13 +302,13 @@ describe('private Stop errors', () => {
 		const app = mount(target);
 		await vi.waitFor(() => expect(app.panel.liveUpdateMode()).toBe('active'));
 		if (kind === 'returned') calls.stop.mockResolvedValueOnce(failure);
-		else calls.stop.mockRejectedValueOnce(new Error(failure.error.message));
+		else calls.stop.mockRejectedValueOnce(new Error(failure.failure.message));
 		await app.panel.stopObservation();
-		expect(app.panel.errorMessage()).toContain(failure.error.message);
+		expect(app.panel.errorMessage()).toContain(failure.failure.message);
 		expect(app.panel.liveUpdateMode()).toBe('active');
 		if (kind === 'returned') {
 			const record = calls.log.mock.calls.map(call => call[1]).find(record => record.event === 'observation-stop-failed');
-			expect(record).toMatchObject({ code: failure.error.code });
+			expect(record).toMatchObject({ code: failure.failure.code });
 			expect(record).not.toHaveProperty('message');
 		}
 		expect(JSON.stringify(calls.log.mock.calls)).not.toContain('redirect.invalid');
