@@ -261,6 +261,11 @@ scopes are contexts). New npm dependencies: `@okikio/observables`,
 `@std/async` (via `npm:@jsr/std__async`), `@standard-schema/spec`,
 `temporal-polyfill` for Safari only (Chrome's minimum is now 144).
 
+Vendored (2026-11-24) as `@utils/*` workspace packages under `utils/`, with
+PR #29's queue, dispatch and record fixes; see `utils/README.md` for the
+package list, resync script and migration order. Nothing in `src/` imports
+them yet.
+
 ### Browser store for workflow and queue (design, 2026-11-23)
 
 Utils contracts are stable on `47d2c0f` (open PRs only change Postgres
@@ -287,7 +292,10 @@ internals). Recommended design:
   methods, about 3,000 lines) is not ported; if full `serve()` durability is
   needed later, run the unchanged Postgres stores on PGlite in a worker.
 - **Private tabs** use `queue.memory()` and `history.memory()` only.
-- **Upstream first:** add the adapters to Kaiju Utils as
+- **Built in DeepScope first (owner decision, 2026-11-24):** the stores live
+  in `utils/storage/` with the conformance suite in
+  `utils/scheduler/queue/testing.ts`, written so they can be proposed upstream
+  unchanged. Original plan: add the adapters to Kaiju Utils as
   `storage/queue/indexeddb.ts` and `storage/workflow/history/indexeddb.ts`,
   with a shared queue conformance suite and small contract extensions
   (labels, `cancelWhere`, `reprioritize`, `abandon`, `next`; History
