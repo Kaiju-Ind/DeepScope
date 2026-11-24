@@ -12,6 +12,14 @@ export class RpcTimeoutError extends Error {
 	}
 }
 
+/** The receiver kept answering liveness probes but did not finish within the hard cap. */
+export class RpcBusyError extends RpcTimeoutError {
+	constructor(message: string) {
+		super(message);
+		this.name = 'RpcBusyError';
+	}
+}
+
 export interface RpcDeadlineOptions {
 	/** Parent lifecycle signal. Aborting it stops the caller from waiting for stale work. */
 	readonly signal?: AbortSignal;
@@ -110,8 +118,9 @@ export interface LivenessDeadlineOptions extends RpcDeadlineOptions {
  * `withTimeout` cannot tell a missing content script from one that is still
  * walking a very large document, so both surface as "did not respond". This
  * waits `timeoutMs`, then asks `isAlive`; a live receiver earns another period,
- * up to `maxMs` in total. A dead receiver, or the cap, rejects with
- * `RpcTimeoutError` exactly as `withTimeout` would.
+ * up to `maxMs` in total. A dead receiver rejects with `RpcTimeoutError`
+ * exactly as `withTimeout` would; reaching the cap after the receiver answered
+ * a probe rejects with `RpcBusyError`, so callers can tell busy from missing.
  */
 export async function withLivenessDeadline<T>(
 	operation: Promise<T>,
@@ -119,6 +128,8 @@ export async function withLivenessDeadline<T>(
 	options: LivenessDeadlineOptions,
 ): Promise<T> {
 	const startedAt = Date.now();
+	/** Set once a probe answered: from then on, running out of time means busy, not missing. */
+	let alive = false;
 	const settled = operation.then(
 		(value) => ({ done: true as const, value }),
 		(error: unknown) => ({ done: true as const, error }),
@@ -128,7 +139,7 @@ export async function withLivenessDeadline<T>(
 
 	for (;;) {
 		const remaining = options.maxMs - (Date.now() - startedAt);
-		if (remaining <= 0) throw new RpcTimeoutError(message);
+		if (remaining <= 0) throw alive ? new RpcBusyError(message) : new RpcTimeoutError(message);
 		const outcome = await withTimeout(settled, Math.min(options.timeoutMs, remaining), message, options)
 			.catch((error: unknown) => {
 				if (error instanceof RpcTimeoutError) return { done: false as const };
@@ -139,10 +150,10 @@ export async function withLivenessDeadline<T>(
 			return outcome.value;
 		}
 		const budget = options.maxMs - (Date.now() - startedAt);
-		if (budget <= 0) throw new RpcTimeoutError(message);
+		if (budget <= 0) throw alive ? new RpcBusyError(message) : new RpcTimeoutError(message);
 		// A busy receiver may only answer the probe once its current work ends,
 		// so the probe may use the rest of the budget. A missing one fails fast.
-		const alive = await withTimeout(options.isAlive, budget, message, options).catch((error: unknown) => {
+		alive = await withTimeout(options.isAlive, budget, message, options).catch((error: unknown) => {
 			if (options.signal?.aborted) throw error;
 			return false;
 		});
@@ -158,6 +169,13 @@ function getAbortReason(signal: AbortSignal): Error {
 }
 
 export function contentScriptFailure(error: unknown): ExtensionFailure {
+	if (error instanceof RpcBusyError) {
+		return errorResponse(
+			'CONTENT_SCRIPT_BUSY',
+			'The page is still busy: its content script kept answering but did not finish before the time limit.',
+			error.stack,
+		);
+	}
 	if (error instanceof RpcTimeoutError) {
 		return errorResponse('CONTENT_SCRIPT_UNAVAILABLE', error.message, error.stack);
 	}

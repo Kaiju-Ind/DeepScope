@@ -827,7 +827,9 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 		});
 	});
 
-	it('returns CONTENT_SCRIPT_UNAVAILABLE when a live content script stays busy past the cap', async () => {
+	// A script that answered every liveness probe is busy, not missing; the
+	// panel used to say "unavailable" for both.
+	it('returns CONTENT_SCRIPT_BUSY when a live content script stays busy past the cap', async () => {
 		vi.useFakeTimers();
 		const api = await loadBackgroundApi({
 			tab: HTTP_TAB,
@@ -841,10 +843,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 
 		await expect(result).resolves.toMatchObject({
 			ok: false,
-			failure: {
-				code: 'CONTENT_SCRIPT_UNAVAILABLE',
-				message: 'Content script did not respond before the messaging timeout.',
-			},
+			failure: { code: 'CONTENT_SCRIPT_BUSY' },
 		});
 	});
 
@@ -1139,6 +1138,30 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			'enrichment',
 			'enrichment',
 		]);
+	});
+
+	// An evidence pass that reached a live script and ran out of time was
+	// reported as CONTENT_SCRIPT_UNAVAILABLE, as if the script were missing.
+	it('reports a timed-out evidence pass as busy, not unavailable', async () => {
+		const collectObservationBatch = vi.fn((input: unknown) => (input as { tier?: string }).tier === 'enrichment'
+			? new Promise<never>(() => undefined)
+			: Promise.resolve(ok({ batch: makeObservationBatch() })));
+		vi.useFakeTimers();
+		const harness = await loadBackgroundApiHarness({
+			tab: HTTP_TAB,
+			collectionPlan: makeTextEnrichmentCollectionPlan(),
+			contentApi: { collectObservationBatch },
+		});
+		const analysis = harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'none' });
+		for (let step = 0; step < 50 && collectObservationBatch.mock.calls.length < 2; step++) await vi.advanceTimersByTimeAsync(10);
+		await expect(analysis).resolves.toMatchObject({ ok: true });
+		expect(collectObservationBatch).toHaveBeenCalledTimes(2);
+
+		await vi.advanceTimersByTimeAsync(10_000);
+		expect(harness.mocks.logEvent).toHaveBeenCalledWith(
+			'evidence-pass-collection-skipped',
+			expect.objectContaining({ code: 'CONTENT_SCRIPT_BUSY' }),
+		);
 	});
 
 	it('cancels active visible-session matcher work when a newer analysis supersedes it', async () => {

@@ -48,9 +48,9 @@ import {
 	CONTENT_SCRIPT_TIMEOUT_MS,
 	RpcTimeoutError,
 	contentScriptFailure,
-	injectionFailure,
 	withTimeout,
 } from '@/lib/messaging/rpc';
+import * as injection from './injection';
 import { isObservationDirtyNotification } from '@/lib/messaging/observation-notifications';
 import {
 	EXTENSION_OBSERVATION_POLICY,
@@ -193,7 +193,6 @@ function getFinding(analysis: SiteAnalysis): string | undefined {
 export function createBackgroundRuntime(
 	dependencies: BackgroundRuntimeDependencies,
 ): BackgroundRuntime {
-	const CONTENT_SCRIPT_PING_TIMEOUT_MS = 750;
 	const matcherContextId = dependencies.matcherContextId ?? crypto.randomUUID();
 
 	const {
@@ -214,14 +213,10 @@ export function createBackgroundRuntime(
 	/** Each follow-up evidence surface is bounded so one slow collector cannot own the UX. */
 	const EVIDENCE_PASS_TIMEOUT_MS = 10_000;
 
-	/**
-	 * In-flight runtime injections are deduplicated per tab.
-	 *
-	 * Side panel refreshes and live-update requests can ask for the content runtime at nearly the same
-	 * time. The first request owns the injection; later requests await the same
-	 * promise instead of injecting duplicate runtime scripts into the page.
-	 */
-	const contentScriptInjectionByTab = new Map<number, Promise<ExtensionResult<void>>>();
+	/** Content-runtime pings and per-tab deduplicated injection. */
+	const injector = injection.create({ executeContentScript: dependencies.executeContentScript, createContentApiClient, log: logBackgroundEvent });
+	const pingContentScript = injector.ping;
+	const ensureContentScript = injector.ensure;
 
 	/** Observation batch retained only while one refreshable content session owns it. */
 	interface ObservationRefreshBaseline {
@@ -457,7 +452,7 @@ export function createBackgroundRuntime(
 	 */
 	function forgetTabRuntimeState(tabId: number, reason: 'navigation' | 'tab-closed' = 'navigation'): void {
 		abortDocumentWork(tabId, reason);
-		contentScriptInjectionByTab.delete(tabId);
+		injector.forget(tabId);
 		releaseObservationRefreshBaseline(tabId);
 		activeFreshAnalysisByTab.delete(tabId);
 		pendingMatcherPersistenceByTab.delete(tabId);
@@ -841,85 +836,6 @@ export function createBackgroundRuntime(
 		if (!tab.ok || tab.value.active) return tab;
 		logBackgroundEvent('visible-tab-inactive', { tabId });
 		return errorResponse('NO_ACTIVE_TAB', 'The requested browser tab is no longer active.');
-	}
-
-	async function pingContentScript(
-		tabId: number,
-		signal?: AbortSignal,
-		timeoutMs = CONTENT_SCRIPT_PING_TIMEOUT_MS,
-	): Promise<boolean> {
-		const contentApi = createContentApiClient(tabId, 0);
-
-		try {
-			const response = await withTimeout(
-				contentApi.getObservationSessionState(),
-				timeoutMs,
-				'Content script ping timed out.',
-				{ signal },
-			);
-
-			return response.ok;
-		} catch {
-			return false;
-		}
-	}
-
-	async function injectContentScript(tabId: number, signal?: AbortSignal): Promise<ExtensionResult<void>> {
-		try {
-			signal?.throwIfAborted();
-			await dependencies.executeContentScript(tabId);
-			signal?.throwIfAborted();
-			return ok(undefined);
-		} catch (error) {
-			return injectionFailure(error);
-		}
-	}
-
-	async function ensureContentScript(tab: InspectableTab, signal?: AbortSignal): Promise<ExtensionResult<void>> {
-		const tabId = tab.id;
-		signal?.throwIfAborted();
-		if (await pingContentScript(tabId, signal)) {
-			logBackgroundEvent('content-runtime-ready', { tabId });
-			return ok(undefined);
-		}
-
-		const existingInjection = contentScriptInjectionByTab.get(tabId);
-		if (existingInjection) {
-			logBackgroundEvent('content-runtime-await-existing-injection', { tabId });
-			return await withTimeout(existingInjection, CONTENT_SCRIPT_TIMEOUT_MS, 'Existing content-script injection did not settle.', { signal });
-		}
-
-		const injection = (async () => {
-			logBackgroundEvent('content-runtime-inject-start', { tabId });
-			const injectionResponse = await injectContentScript(tabId, signal);
-			if (!injectionResponse.ok) {
-				logBackgroundEvent('content-runtime-inject-failed', {
-					tabId,
-					code: injectionResponse.failure.code,
-					...(!tab.incognito && { message: injectionResponse.failure.message }),
-				});
-				return injectionResponse;
-			}
-
-			if (await pingContentScript(tabId, signal)) {
-				logBackgroundEvent('content-runtime-inject-ready', { tabId });
-				return ok(undefined);
-			}
-
-			logBackgroundEvent('content-runtime-inject-timeout', { tabId });
-			return errorResponse(
-				'CONTENT_SCRIPT_UNAVAILABLE',
-				'Injected content script did not register before the messaging timeout.',
-			);
-		})();
-
-		contentScriptInjectionByTab.set(tabId, injection);
-
-		try {
-			return await injection;
-		} finally {
-			contentScriptInjectionByTab.delete(tabId);
-		}
 	}
 
 	/**
@@ -1887,14 +1803,13 @@ export function createBackgroundRuntime(
 			return await withTimeout(
 				operation,
 				EVIDENCE_PASS_TIMEOUT_MS,
-				'Evidence collection pass timed out before it could update the side panel.',
+				`The page was still busy with an earlier request; this evidence pass gave up after ${EVIDENCE_PASS_TIMEOUT_MS / 1000} s.`,
 				{ signal },
 			);
 		} catch (error) {
 			if (signal?.aborted) throw error;
-			if (error instanceof RpcTimeoutError) {
-				return errorResponse('CONTENT_SCRIPT_UNAVAILABLE', error.message, error.stack);
-			}
+			// The pass reached a live script (a missing one fails fast inside it), so a timeout means busy.
+			if (error instanceof RpcTimeoutError) return errorResponse('CONTENT_SCRIPT_BUSY', error.message, error.stack);
 
 			const message = error instanceof Error ? error.message : 'Evidence collection pass failed.';
 			const stack = error instanceof Error ? error.stack : undefined;
