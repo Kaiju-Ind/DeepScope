@@ -1,0 +1,34 @@
+{
+	"page": {
+		"candidateRuleCount": 48912,
+		"keyedRuleCount": 5151,
+		"fallbackRuleCount": 43243,
+		"literalRuleCount": 518,
+		"literalRejectedRuleCount": 374901,
+		"matchCount": 713
+	},
+	"curated": {
+		"candidateRuleCount": 17741,
+		"keyedRuleCount": 0,
+		"fallbackRuleCount": 17556,
+		"literalRuleCount": 185,
+		"literalRejectedRuleCount": 143986,
+		"matchCount": 35
+	},
+	"miss": {
+		"candidateRuleCount": 3582518,
+		"keyedRuleCount": 957876,
+		"fallbackRuleCount": 2619542,
+		"literalRuleCount": 5100,
+		"literalRejectedRuleCount": 27297783,
+		"matchCount": 134
+	},
+	"pass": {
+		"candidateRuleCount": 8688,
+		"keyedRuleCount": 7330,
+		"fallbackRuleCount": 1358,
+		"literalRuleCount": 0,
+		"literalRejectedRuleCount": 0,
+		"matchCount": 7304
+	}
+}
