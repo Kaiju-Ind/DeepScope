@@ -29,6 +29,17 @@ const FIREFOX_ADDON_ID = 'deepscope@openarsenal.github.io';
 const OFFSCREEN_BROWSERS = new Set(['chrome', 'edge', 'opera']);
 
 /**
+ * Browsers whose minimum supported version ships Temporal (Chromium 144, Firefox 139).
+ *
+ * `@utils/duration/temporal` imports `temporal-polyfill` statically and prefers
+ * the native global at run time. For these browsers the polyfill specifier is
+ * aliased to a module that re-exports the native global, so their bundles carry
+ * no polyfill. Safari ships Temporal from 27.3 and keeps the polyfill.
+ */
+const NATIVE_TEMPORAL_BROWSERS = new Set(['chrome', 'edge', 'opera', 'firefox']);
+const nativeTemporal = fileURLToPath(new URL('./utils/duration/temporal.native.ts', import.meta.url));
+
+/**
  * Local logo font source owned by Fontless during the Vite build.
  *
  * A data URL lets Fontless hash and emit the licensed local font through the
@@ -118,8 +129,13 @@ export default defineConfig({
 		],
 		host_permissions: ['http://*/*', 'https://*/*'],
 	}),
-	vite: () => ({
+	vite: ({ browser }) => ({
 		build: { modulePreload: false },
+		resolve: {
+			alias: NATIVE_TEMPORAL_BROWSERS.has(browser)
+				? [{ find: /^temporal-polyfill\/full\/implementation$/, replacement: nativeTemporal }]
+				: [],
+		},
 		plugins: [
 			fontless({
 				provider: 'fontsource',
