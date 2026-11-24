@@ -37,7 +37,7 @@ const OVERSIZED: Readonly<Record<string, number>> = {
 	'lib/content/observe/runtime.ts': 947,
 	'lib/candidates/refine.ts': 861,
 	'lib/detection/observation-matcher-index.ts': 708,
-	'lib/scheduler/matcher.ts': 664,
+	'lib/scheduler/matcher.ts': 649,
 	'entrypoints/content.ts': 662,
 	'lib/detection/rule-performance-profile.ts': 655,
 	'lib/diagnostics/journal.ts': 628,

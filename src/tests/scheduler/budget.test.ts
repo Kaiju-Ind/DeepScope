@@ -1,21 +1,42 @@
 import { describe, expect, it } from 'vitest';
 
-import { accepts } from '@/lib/scheduler/budget';
+import * as budget from '@/lib/scheduler/budget';
 
 describe('scheduler transient budget', () => {
-	const limit = { count: 2, bytes: 1_024 } as const;
+	const limit = { jobs: 2, bytes: 1_024 } as const;
 
 	it('accepts work that fits both count and byte limits', () => {
-		expect(accepts({ count: 0, bytes: 0 }, 1_024, limit)).toBe(true);
-		expect(accepts({ count: 1, bytes: 512 }, 512, limit)).toBe(true);
+		const pool = budget.create(limit);
+		expect(budget.reserve(pool, 512)).toBeDefined();
+		expect(budget.reserve(pool, 512)).toBeDefined();
+		expect(budget.reserve(budget.create(limit), 1_024)).toBeDefined();
 	});
 
 	it('rejects the next item once the job-count limit is reached', () => {
-		expect(accepts({ count: 2, bytes: 0 }, 1, limit)).toBe(false);
+		const pool = budget.create(limit);
+		budget.reserve(pool, 0);
+		budget.reserve(pool, 0);
+		expect(budget.reserve(pool, 1)).toBeUndefined();
 	});
 
 	it('rejects one byte beyond the byte limit', () => {
-		expect(accepts({ count: 0, bytes: 0 }, 1_025, limit)).toBe(false);
-		expect(accepts({ count: 1, bytes: 900 }, 125, limit)).toBe(false);
+		expect(budget.reserve(budget.create(limit), 1_025)).toBeUndefined();
+		const pool = budget.create(limit);
+		budget.reserve(pool, 900);
+		expect(budget.reserve(pool, 125)).toBeUndefined();
+	});
+
+	it('returns capacity when a lease is released, once', () => {
+		const pool = budget.create(limit);
+		const lease = budget.reserve(pool, 1_000)!;
+		expect(budget.reserve(pool, 100)).toBeUndefined();
+		lease.release();
+		lease.release();
+		expect(budget.reserve(pool, 1_024)).toBeDefined();
+		expect(budget.reserve(pool, 1)).toBeUndefined();
+	});
+
+	it('keeps the DeepScope limits', () => {
+		expect(budget.LIMIT).toEqual({ jobs: 8, bytes: 12 * 1024 * 1024 });
 	});
 });
