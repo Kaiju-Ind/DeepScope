@@ -1,7 +1,8 @@
 import { fc } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
 
-import type { LiteralPrefilteredObservationRule } from '@/lib/detection/observation-matcher-index';
+import { gatePattern } from '@/lib/detection/match/gate';
+import type { IndexedObservationRule, LiteralPrefilteredObservationRule } from '@/lib/detection/observation-matcher-index';
 import type { DetectionPatternType, TechnologyDefinition } from '@/lib/detection/types';
 import { technologyDefinitions } from '@/registry/technologies';
 
@@ -30,7 +31,7 @@ function guarded(rule: LiteralPrefilteredObservationRule): DetectionPatternType 
 	return rule.rule.kind === 'link' ? rule.rule.hrefPattern : (rule.rule as { readonly pattern?: DetectionPatternType }).pattern;
 }
 
-/** Distinct (pattern, literal) pairs across every shard. */
+/** Distinct (pattern, literal) pairs across every shard: literal routes and gates. */
 function pairs(): { readonly source: string; readonly flags: string; readonly literal: string; readonly id: string }[] {
 	const seen = new Map<string, { source: string; flags: string; literal: string; id: string }>();
 	for (const shard of shards.values()) {
@@ -38,12 +39,26 @@ function pairs(): { readonly source: string; readonly flags: string; readonly li
 			for (const rule of rules ?? []) {
 				const pattern = guarded(rule);
 				if (!pattern) throw new Error(`Literal route without a pattern: ${rule.technology.id}:${rule.ruleIndex}`);
-				const key = `${pattern.flags}/${pattern.source}/${rule.requiredLiteral}`;
-				if (!seen.has(key)) seen.set(key, { source: pattern.source, flags: pattern.flags, literal: rule.requiredLiteral, id: `${rule.technology.id}:${rule.ruleIndex}` });
+				add(pattern, rule.requiredLiteral, rule);
 			}
+		}
+		const routed = [
+			...Object.values(shard.index.fallbackRules).flatMap((rules) => rules ?? []),
+			...Object.values(shard.index.keyedRules).flatMap((keys) => Object.values(keys ?? {}).flatMap((rules) => rules ?? [])),
+		];
+		for (const rule of routed) {
+			if (rule.gate === undefined) continue;
+			const pattern = gatePattern(rule.rule);
+			if (!pattern) throw new Error(`Gate without a pattern: ${rule.technology.id}:${rule.ruleIndex}`);
+			add(pattern, rule.gate, rule);
 		}
 	}
 	return [...seen.values()];
+
+	function add(pattern: DetectionPatternType, literal: string, rule: IndexedObservationRule): void {
+		const key = `${pattern.flags}/${pattern.source}/${literal}`;
+		if (!seen.has(key)) seen.set(key, { source: pattern.source, flags: pattern.flags, literal, id: `${rule.technology.id}:${rule.ruleIndex}` });
+	}
 }
 
 /** Swap the case of ASCII letters where `bits` says so; an `i` pattern still matches. */

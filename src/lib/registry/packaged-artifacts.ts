@@ -4,7 +4,7 @@ import type { PackagedRuntimeTechnologyRegistryData } from './runtime-artifact';
 import type { NormalizedObservationKind } from '../observations';
 
 /** Current JSON registry asset schema version. */
-export const PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION = 3;
+export const PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION = 4;
 
 /** Literal JSON registry asset schema version used by runtime guards. */
 export type PackagedRegistryAssetSchemaVersion = typeof PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION;

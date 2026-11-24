@@ -3,6 +3,7 @@ import type { DetectionRule, DetectionRunOptions, MatcherTechnologyType, Pattern
 import type { NormalizedObservation, NormalizedObservationKind } from '../observations';
 import { matchObservationRule } from './observation-matcher';
 import { requiredLiteral } from './match/extract';
+import { gate, gateSubject } from './match/gate';
 import { scan, tableFor } from './match/literal';
 // Relative, not `@/`: the build-time registry module loads this file outside Vite's alias resolution.
 import * as dictionary from '../../utils/dictionary';
@@ -24,6 +25,11 @@ export interface IndexedObservationRule {
 	readonly ruleIndex: number;
 	/** Global registry order used to preserve sequential matcher ordering. */
 	readonly sequence: number;
+	/**
+	 * Lowercase literal the rule's subject must contain before its regex runs
+	 * (cookie, header, meta and DNS rules; see `match/gate.ts`).
+	 */
+	readonly gate?: string;
 }
 
 /**
@@ -189,7 +195,10 @@ export function createObservationMatcherIndex(
 	for (const technology of registry) {
 		for (const [ruleIndex, rule] of technology.rules.entries()) {
 			const sourceRuleIndex = getRuleSourceIndex(rule, ruleIndex);
-			const indexedRule: IndexedObservationRule = { technology, rule, ruleIndex: sourceRuleIndex, sequence };
+			const literal = gate(rule);
+			const indexedRule: IndexedObservationRule = literal === undefined
+				? { technology, rule, ruleIndex: sourceRuleIndex, sequence }
+				: { technology, rule, ruleIndex: sourceRuleIndex, sequence, gate: literal };
 			for (const route of getRuleRoutes(technology.id, sourceRuleIndex, rule)) {
 				addIndexedRule({ fallbackRules, keyedRules, literalRules, route, indexedRule });
 			}
@@ -240,7 +249,17 @@ export function matchIndexedObservationBatch(
 		diagnostics.candidateRuleCount += route.rules.length;
 		incrementCount(diagnostics.candidateRulesByKind, observation.kind, route.rules.length);
 
+		// Lowercased gate subjects, computed at most once per observation.
+		let lowerKey: string | undefined;
+		let lowerValue: string | undefined;
 		for (const indexedRule of route.rules) {
+			// A rule whose gate literal is absent cannot match; skip its regex.
+			if (indexedRule.gate !== undefined) {
+				const subject = indexedRule.rule.kind === 'cookie'
+					? (lowerKey ??= gateSubject(indexedRule.rule, observation).toLowerCase())
+					: (lowerValue ??= gateSubject(indexedRule.rule, observation).toLowerCase());
+				if (!subject.includes(indexedRule.gate)) continue;
+			}
 			const startedAt = input.onRuleEvaluation ? performance.now() : 0;
 			const match = matchObservationRule({
 				technology: indexedRule.technology,

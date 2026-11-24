@@ -30,6 +30,8 @@ export interface PackagedMatcherRuleReference {
 	readonly sequence: number;
 	/** Conservative literal required before semantic regex evaluation, when available. */
 	readonly requiredLiteral?: string;
+	/** Lowercase gate literal for keyed and fallback value rules (see `match/gate.ts`). */
+	readonly gate?: string;
 }
 
 /** Generated route tables that contain only numeric references, never duplicated rule objects. */
@@ -118,6 +120,7 @@ function packageRule(
 		ruleIndex: rule.ruleIndex,
 		sequence: rule.sequence,
 		...('requiredLiteral' in rule ? { requiredLiteral: rule.requiredLiteral } : {}),
+		...(rule.gate !== undefined ? { gate: rule.gate } : {}),
 	};
 }
 
@@ -167,7 +170,9 @@ function hydrateRule(
 	if (!technology || !rule) {
 		throw new Error(`Packaged matcher route references missing rule ${reference.technologyIndex}:${reference.localRuleIndex}.`);
 	}
-	return { technology, rule, ruleIndex: reference.ruleIndex, sequence: reference.sequence };
+	return reference.gate === undefined
+		? { technology, rule, ruleIndex: reference.ruleIndex, sequence: reference.sequence }
+		: { technology, rule, ruleIndex: reference.ruleIndex, sequence: reference.sequence, gate: reference.gate };
 }
 
 /** Rehydrate fallback kind buckets. */
