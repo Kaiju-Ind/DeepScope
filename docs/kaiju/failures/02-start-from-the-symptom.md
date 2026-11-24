@@ -11,6 +11,8 @@
 | Diagnostics name the wrong executor                                    | The persisted `matcherExecutor` value per browser.                                                | DS-08        |
 | Something from a private window appears in storage or history          | Private context passed through collection, matcher persistence and diagnostics.                   | DS-09        |
 | Toolbar badge blank or stale                                           | Which snapshot revision the badge owner last wrote; navigation kind.                              | DS-10        |
+| A tab stays blank; `auto-scan-already-in-flight` repeats               | `auto-scan-stalled`, `scheduler-analysis-timeout` and the IndexedDB `work` store.                 | DS-14        |
+| `rd:session*` keys remain for a closed tab                             | Writes in flight at close; content lifecycle keys; replaced tab ids.                              | DS-15        |
 | Safari verification refuses every session                              | Remote Automation, unsigned extensions, extension enabled, website access.                        | DS-11        |
 | A cached CI task still re-runs, or a job "passes" without running      | Cache restore versus hit; whether the step's script exists.                                       | DS-12, DS-13 |
 

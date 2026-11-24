@@ -8,7 +8,9 @@ found on very large pages (Wikipedia). *Evidence:* the script was alive but its 
 conditions of their right-most compound (`src/lib/dom/route.ts`): 4,730 calls and 0.41 s on the same page, collection
 19.0 s to 0.59 s; a busy-but-alive script is waited for up to 60 s; refused pages report `PERMISSION_DENIED`.
 *Prevention:* `src/tests/dom/match.test.ts` proves the routed selector set equals DOM ground truth, with a property test
-and an independent audit (0 lost matches). *Open:* later evidence passes still time out at 10 s on huge pages.
+and an independent audit (0 lost matches). A script that answers probes but runs out of time now reports
+`CONTENT_SCRIPT_BUSY`, and `CONTENT_SCRIPT_UNAVAILABLE` means it is missing; a freshly injected script gets one longer
+ping before it is reported missing. *Open:* later evidence passes still time out at 10 s each on huge pages.
 
 **DS-02 Page-controlled keys reached object prototypes.** *Symptom:* a page with `<meta name="constructor">` made the
 content observer throw while merging metadata. *Cause (confirmed):* page-chosen names (meta, cookie, header, attribute,

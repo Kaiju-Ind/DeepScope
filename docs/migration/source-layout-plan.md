@@ -171,7 +171,8 @@ Notes for the next steps:
 
 ## Separate behaviour fixes found
 
-- `runtime.ts` (`updateMatcherState`) and `scheduler/matcher.ts`
-  (`finishIfComplete`) both hard-code `'offscreen-worker-pool'` as the executor,
-  so it is recorded even when the Firefox or Safari local executor ran the job;
-  the value is persisted.
+- Done: `runtime.ts` (`updateMatcherState`) and `scheduler/matcher.ts`
+  (`finishIfComplete`) hard-coded `'offscreen-worker-pool'` as the executor;
+  the executor now declares its kind (DS-08).
+- Done: content-runtime injection moved from `runtime.ts` to
+  `background/injection.ts`.
