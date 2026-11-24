@@ -308,6 +308,36 @@ with one Rolldown pass (cold build 17.9 s to 8.9 s, byte-identical output).
 The registry redesign steps above are withdrawn except where they speed up or
 tidy that build step.
 
+### Matcher performance study (2026-11-24)
+
+Measured on a realistic 1,076-observation page with the real shards, every
+variant checked for identical matches and evidence:
+
+- About two thirds of steady-state matcher time is
+  `findLiteralPrefilteredRules` calling `value.includes(literal)` once per
+  literal rule over every large observation (html, inline scripts).
+- Object shapes are not the bottleneck: rules have 48 hidden classes across
+  shards, but a normalized fixed-field record was slightly slower. The JSON
+  layout is close to optimal for load cost (parse plus hydrate about 20 ms per
+  worker).
+
+Plan, each step behind a golden-output test (full matches and evidence in
+order over a page corpus and the curated fixtures):
+
+| Step | Change | Measured effect |
+| --- | --- | --- |
+| 0 | Golden-output and property tests (regex match implies literal present; scanner equals `includes`) | safety net |
+| 1 | One multi-literal scan per observation (4-character hash, `startsWith` on hits) replaces per-rule `includes` | literal kinds 275 ms to 73 ms |
+| 2 | Literal extraction rejects only a top-level `\|`, not any `\|` | 559 more rules get a literal; 73 ms to 50 ms |
+| 3 | Lowercase literal gates for keyed and fallback value rules (cookies, meta, headers) | first match 51 ms to 10 ms; regexes compiled 3,807 to 852; regex heap 6.8 MB to 2.3 MB |
+| 4 | Routes as sequence numbers; drop routes belonging to the other kind | shards 23% smaller |
+
+End to end with steps 1-3: steady state 320-370 ms to 66-73 ms per page,
+cold first page 410-525 ms to 135-160 ms. Cleanup found on the way:
+`precompiled-module.ts` is dead, `html` and `htmlMatch` shards are
+byte-identical, two helpers are duplicated across matcher files, and four
+unpackaged build products (about 12 MB) are generated on every build.
+
 ### Catalog provenance (blocks public promotion)
 
 The catalog appears to be derived from Wappalyzer data: 7,624 definitions
