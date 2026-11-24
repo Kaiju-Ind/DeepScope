@@ -95,3 +95,20 @@ MutationObserver batch
 ```
 
 The snapshot does not contain the raw observation batch. It only preserves the best existing `SiteAnalysis` and advances the lifecycle state, so this keeps the storage stream responsive without expanding what content persists.
+
+## DOM selector routing
+
+Content matches registry DOM selectors against the live document with one time-sliced `TreeWalker` pass (`src/lib/dom/match.ts`). `Element.matches()` is the expensive step: Firefox content scripts reach page DOM through Xray wrappers, so every call crosses a compartment boundary. The walker therefore calls `matches()` only for selectors that could match the current element (`src/lib/dom/route.ts`).
+
+```text
+visited element
+  -> read local name, attribute names, id, and class once
+  -> look up branch buckets by id, each class, local name, each attribute name
+  -> guard expression per bucket rejects groups whose attribute values cannot match
+  -> per-branch test of every type, id, class, and attribute condition
+  -> matches() once per surviving pending selector
+```
+
+Every routing test is a necessary condition taken from the right-most compound of a comma branch, compared ASCII case-insensitively and with `~=`/`|=` relaxed to substring and prefix tests. Routing can only admit extra candidates, never reject a selector that matches, so the matched set equals calling `matches()` for every pending selector. The route is derived inside the content script from `DomPlanType.selectors`; the serialized collection plan is unchanged. The plan's tag, attribute, id, and class tables still drive mutation filtering in the observer.
+
+The previous walker routed by the union of every tag, attribute name, id, and class in a selector. `link[href*='x']` was therefore checked on every element with `href`, and Wikipedia's "United States" article (21,965 elements) cost 9.4 million `matches()` calls and 17.9 s in Firefox. The branch routing checks the same page in Firefox 160 with 4,730 calls and about 110,000 in-script guard and branch tests, finishing the document scan in 0.41 s with the same two matched selectors. `src/tests/dom/match.test.ts` compares the result against direct DOM ground truth for every registry selector, hand-written edge cases, and random documents.
