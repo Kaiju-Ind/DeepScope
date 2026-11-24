@@ -1,4 +1,5 @@
 import type { DomPlanType } from './plan';
+import * as route from './route';
 
 /** Maximum elements checked before one live DOM scan yields to the page. */
 const DEFAULT_ELEMENTS_PER_SLICE = 256;
@@ -32,6 +33,8 @@ export type MatchStatsType = {
 	readonly elementCount: number;
 	/** Native `Element.matches()` calls issued after cheap routing. */
 	readonly selectorCheckCount: number;
+	/** Guard expressions and selector branches tested in script before `matches()`. */
+	readonly routeCheckCount: number;
 	/** Positive selectors discovered during this scan. */
 	readonly matchCount: number;
 	/** Cooperative yields performed to return control to the renderer. */
@@ -47,10 +50,15 @@ export type MatchStatsType = {
  *
  * The content script must not serialize the page into an offscreen document, but
  * it also must not monopolize the renderer main thread. This walker therefore
- * routes each element to a small selector set, retires positive evidence for the
- * rest of the document session, and yields cooperatively between both elements
- * and selector checks. `sliceMs` is a scheduling target, not a hard CPU deadline:
- * a single native `Element.matches()` call cannot be preempted after it starts.
+ * routes each element to the few selectors whose right-most compound can match
+ * it (see `route.ts`), retires positive evidence for the rest of the document
+ * session, and yields cooperatively between both elements and selector checks.
+ * `sliceMs` is a scheduling target, not a hard CPU deadline: a single native
+ * `Element.matches()` call cannot be preempted after it starts.
+ *
+ * Routing only skips selectors that provably cannot match, so the result equals
+ * calling `matches()` for every pending selector on every element. Each selector
+ * is checked at most once per element even when several comma branches admit it.
  *
  * The caller owns mutation invalidation. Structural selectors such as `A + B`,
  * `:empty`, positional pseudo-classes, and `:has()` can require existing siblings,
@@ -64,31 +72,39 @@ export async function match(
 ): Promise<Record<string, boolean>> {
 	const pending = getPending(plan, options.matched);
 	const matches: Record<string, boolean> = Object.create(null) as Record<string, boolean>;
-	const routes = new Set<string>();
+	const routes = plan && pending.size > 0 ? route.get(plan.selectors) : undefined;
+	const checked = new Set<string>();
+	const candidates: string[] = [];
+	const admit = (selector: string): boolean => pending.has(selector) && !checked.has(selector);
+	const visit = (selector: string): void => {
+		checked.add(selector);
+		candidates.push(selector);
+	};
 	const budget = createBudget(options);
 	const startedAt = now();
 	let elementCount = 0;
 	let selectorCheckCount = 0;
+	let routeCheckCount = 0;
 
 	try {
 		for (const element of elements(root, options.deep !== false)) {
 			if (options.signal?.aborted) break;
 			elementCount += 1;
 			options.visit?.(element);
-			if (!plan || pending.size === 0) {
+			if (!routes || pending.size === 0) {
 				if (await budget.step(options.signal)) break;
 				continue;
 			}
 
-			getRoutes(plan, element, routes);
-			for (const selector of routes) {
+			checked.clear();
+			candidates.length = 0;
+			routeCheckCount += route.each(routes, route.read(element), admit, visit);
+			for (const selector of candidates) {
 				if (options.signal?.aborted) break;
-				if (pending.has(selector)) {
-					selectorCheckCount += 1;
-					if (safeMatch(element, selector)) {
-						matches[selector] = true;
-						pending.delete(selector);
-					}
+				selectorCheckCount += 1;
+				if (safeMatch(element, selector)) {
+					matches[selector] = true;
+					pending.delete(selector);
 				}
 				if (await budget.check(options.signal)) break;
 			}
@@ -100,6 +116,7 @@ export async function match(
 		options.onStats?.({
 			elementCount,
 			selectorCheckCount,
+			routeCheckCount,
 			matchCount: Object.keys(matches).length,
 			yieldCount: budget.yields(),
 			durationMs: Math.max(0, now() - startedAt),
@@ -119,22 +136,6 @@ function getPending(
 		if (probe.valid && !matched?.has(probe.selector)) pending.add(probe.selector);
 	}
 	return pending;
-}
-
-/** Route one element without allocating selector arrays on the hot path. */
-function getRoutes(plan: DomPlanType, element: Element, result: Set<string>): void {
-	result.clear();
-	add(result, plan.selectorsWithoutRoute);
-	add(result, plan.selectorsByTag[element.localName.toLowerCase()]);
-	for (const attribute of element.getAttributeNames()) add(result, plan.selectorsByAttribute[attribute.toLowerCase()]);
-	if (element.id) add(result, plan.selectorsById[element.id]);
-	for (const className of element.classList) add(result, plan.selectorsByClass[className]);
-}
-
-/** Add routed selectors to the reusable per-element candidate set. */
-function add(target: Set<string>, selectors: readonly string[] | undefined): void {
-	if (!selectors) return;
-	for (const selector of selectors) target.add(selector);
 }
 
 /** Browser selector failures are authored-registry defects, not page failures. */

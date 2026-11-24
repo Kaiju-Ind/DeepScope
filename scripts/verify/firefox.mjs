@@ -163,7 +163,7 @@ function tabState(tabId, since = 0) {
 			.filter(([k, v]) => k.startsWith('diagnostics:record:') && v.timestamp >= since && (v.properties?.tabId === tabId || v.surface === 'content' || v.level === 'error' || v.level === 'warning'))
 			.map(([, v]) => v)
 			.sort((a, b) => a.timestamp - b.timestamp)
-			.map((v) => ({ t: v.timestamp, surface: v.surface, level: v.level, event: v.properties?.event ?? v.message?.slice(0, 120), code: v.properties?.code, message: v.properties?.message ?? v.properties?.errorMessage, ...(v.properties?.event === 'dom-scan' ? { stats: ['elementCount', 'selectorCheckCount', 'matchCount', 'yieldCount', 'durationMs', 'scope'].map((k) => k + '=' + v.properties[k]).join(' ') } : {}) }));
+			.map((v) => ({ t: v.timestamp, surface: v.surface, level: v.level, event: v.properties?.event ?? v.message?.slice(0, 120), code: v.properties?.code, message: v.properties?.message ?? v.properties?.errorMessage, ...(v.properties?.event === 'dom-scan' ? { stats: ['elementCount', 'selectorCheckCount', 'routeCheckCount', 'matchCount', 'yieldCount', 'durationMs', 'scope'].map((k) => k + '=' + v.properties[k]).join(' ') } : {}) }));
 		let tab;
 		try { tab = await browser.tabs.get(tabId); } catch { tab = undefined; }
 		const badge = tab ? await browser.action.getBadgeText({ tabId }) : undefined;
