@@ -51,6 +51,7 @@ import {
 	withTimeout,
 } from '@/lib/messaging/rpc';
 import * as injection from './injection';
+import { missingUrlFailure } from '@/lib/browser/permissions';
 import { isObservationDirtyNotification } from '@/lib/messaging/observation-notifications';
 import {
 	EXTENSION_OBSERVATION_POLICY,
@@ -785,7 +786,6 @@ export function createBackgroundRuntime(
 		};
 	}
 
-
 	function createContentApiClient(tabId: number, frameId = 0): ContentApi {
 		return dependencies.createContentApiClient(tabId, frameId);
 	}
@@ -810,7 +810,7 @@ export function createBackgroundRuntime(
 
 		if (typeof tab.id !== 'number' || !tab.url) {
 			logBackgroundEvent('tab-unavailable', { tabId });
-			return errorResponse('NO_ACTIVE_TAB', 'The browser tab does not have an inspectable URL yet.');
+			return await missingUrlFailure();
 		}
 
 		if (!canInspectTab(tab)) {

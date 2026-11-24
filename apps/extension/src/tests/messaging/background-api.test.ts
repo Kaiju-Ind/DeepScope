@@ -71,6 +71,8 @@ const OBSERVATION_TARGET = {
 
 type BackgroundApiHarnessOptions = {
 	tab?: TestTab | null;
+	/** What `permissions.contains` answers for DeepScope's website access. */
+	siteAccess?: boolean;
 	contentApi?: Partial<ContentApi>;
 	cachedAnalysis?: SiteAnalysis | null;
 	cachedReplayTrace?: DetectionReplayTrace | null;
@@ -397,6 +399,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 			tabs: {
 				get: getTab,
 			},
+			permissions: { contains: vi.fn(async () => input.siteAccess ?? true) },
 		},
 	}));
 
@@ -786,6 +789,20 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			ok: false,
 			failure: { code: 'NO_ACTIVE_TAB' },
 		});
+	});
+
+	// Firefox hides tab.url when the user turns off DeepScope's site access; the
+	// panel said the tab "does not have an inspectable URL yet" and never why.
+	it.each([
+		[false, 'PERMISSION_DENIED'],
+		[true, 'NO_ACTIVE_TAB'],
+	] as const)('explains a tab with no URL when website access is %s', async (siteAccess, code) => {
+		const api = await loadBackgroundApi({ tab: { ...HTTP_TAB, url: undefined }, siteAccess });
+
+		const identity = await api.getVisibleTabIdentity({ tabId: 7, windowId: 3 });
+
+		expect(identity).toMatchObject({ ok: false, failure: { code } });
+		if (!siteAccess && !identity.ok) expect(identity.failure.message).toMatch(/access to websites is turned off/);
 	});
 
 	it('returns UNSUPPORTED_URL before contacting the content script', async () => {
