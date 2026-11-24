@@ -60,7 +60,8 @@ function recase(value: string, bits: readonly boolean[]): string {
 /** Sample values for one regex; `undefined` when fast-check cannot model the pattern. */
 function arbitrary(source: string, flags: string): fc.Arbitrary<string> | undefined {
 	try {
-		const plain = fc.stringMatching(new RegExp(source, flags.replace(/[gy]/g, '')), { size: 'small' });
+		// fast-check rejects `i`; samples of the case-sensitive pattern also match the `i` one.
+		const plain = fc.stringMatching(new RegExp(source, flags.replace(/[giy]/g, '')), { size: 'small' });
 		return flags.includes('i')
 			? fc.tuple(plain, fc.array(fc.boolean(), { minLength: 1, maxLength: 8 })).map(([value, bits]) => recase(value, bits))
 			: plain;

@@ -123,7 +123,8 @@ describe('required literal extraction', () => {
 			try {
 				// Samples match by construction. They are not re-run through the regex:
 				// generated nestings such as `(abcd+)*` can backtrack for minutes.
-				values = fc.sample(fc.stringMatching(regex), { numRuns: 20, seed: 7 });
+				// fast-check rejects `i`; samples of the case-sensitive pattern also match the `i` one.
+				values = fc.sample(fc.stringMatching(new RegExp(source, flags.replace(/[iy]/g, ''))), { numRuns: 20, seed: 7 });
 			} catch {
 				return;
 			}
