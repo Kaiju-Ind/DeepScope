@@ -1,5 +1,6 @@
 import {
 	createObservationMatcherIndex,
+	prepareLiteralScanners,
 	type IndexedObservationRule,
 	type LiteralPrefilteredObservationRule,
 	type ObservationMatcherIndex,
@@ -29,6 +30,8 @@ export interface PackagedMatcherRuleReference {
 	readonly sequence: number;
 	/** Conservative literal required before semantic regex evaluation, when available. */
 	readonly requiredLiteral?: string;
+	/** Lowercase gate literal for keyed and fallback value rules (see `match/gate.ts`). */
+	readonly gate?: string;
 }
 
 /** Generated route tables that contain only numeric references, never duplicated rule objects. */
@@ -82,13 +85,13 @@ export function hydrateMatcherIndex(
 	technologies: readonly MatcherTechnologyType[],
 	packaged: PackagedMatcherIndex,
 ): ObservationMatcherIndex {
-	return {
+	return prepareLiteralScanners({
 		technologyCount: packaged.technologyCount,
 		ruleCount: packaged.ruleCount,
 		fallbackRules: hydrateRuleBuckets(packaged.fallbackRules, technologies),
 		keyedRules: hydrateKeyBuckets(packaged.keyedRules, technologies),
 		literalRules: hydrateLiteralBuckets(packaged.literalRules, technologies),
-	};
+	});
 }
 
 /** Internal lookup from the exact build-time rule object to its shard-local coordinates. */
@@ -117,6 +120,7 @@ function packageRule(
 		ruleIndex: rule.ruleIndex,
 		sequence: rule.sequence,
 		...('requiredLiteral' in rule ? { requiredLiteral: rule.requiredLiteral } : {}),
+		...(rule.gate !== undefined ? { gate: rule.gate } : {}),
 	};
 }
 
@@ -166,7 +170,9 @@ function hydrateRule(
 	if (!technology || !rule) {
 		throw new Error(`Packaged matcher route references missing rule ${reference.technologyIndex}:${reference.localRuleIndex}.`);
 	}
-	return { technology, rule, ruleIndex: reference.ruleIndex, sequence: reference.sequence };
+	return reference.gate === undefined
+		? { technology, rule, ruleIndex: reference.ruleIndex, sequence: reference.sequence }
+		: { technology, rule, ruleIndex: reference.ruleIndex, sequence: reference.sequence, gate: reference.gate };
 }
 
 /** Rehydrate fallback kind buckets. */
@@ -208,9 +214,10 @@ function hydrateLiteralBuckets(
 ): ObservationMatcherIndex['literalRules'] {
 	return dictionary.fromEntries(Object.entries(buckets).map(([kind, rules]) => [
 		kind,
-		(rules ?? []).map((reference) => ({
+		// Frozen because the bucket's literal scanner is cached by array identity.
+		Object.freeze((rules ?? []).map((reference) => ({
 			...hydrateRule(reference, technologies),
 			requiredLiteral: reference.requiredLiteral ?? '',
-		})),
+		}))),
 	])) as ObservationMatcherIndex['literalRules'];
 }

@@ -1,7 +1,10 @@
 import type { MatchObservationBatchInput, ObservationPatternMatch, ObservationPatternMatchBatch } from './observation-match-types';
-import type { DetectionPatternType, DetectionRule, DetectionRunOptions, MatcherTechnologyType, PatternDetectionRule } from './types';
+import type { DetectionRule, DetectionRunOptions, MatcherTechnologyType, PatternDetectionRule } from './types';
 import type { NormalizedObservation, NormalizedObservationKind } from '../observations';
 import { matchObservationRule } from './observation-matcher';
+import { requiredLiteral } from './match/extract';
+import { gate, gateSubject } from './match/gate';
+import { scan, tableFor } from './match/literal';
 // Relative, not `@/`: the build-time registry module loads this file outside Vite's alias resolution.
 import * as dictionary from '../../utils/dictionary';
 
@@ -22,6 +25,11 @@ export interface IndexedObservationRule {
 	readonly ruleIndex: number;
 	/** Global registry order used to preserve sequential matcher ordering. */
 	readonly sequence: number;
+	/**
+	 * Lowercase literal the rule's subject must contain before its regex runs
+	 * (cookie, header, meta and DNS rules; see `match/gate.ts`).
+	 */
+	readonly gate?: string;
 }
 
 /**
@@ -187,7 +195,10 @@ export function createObservationMatcherIndex(
 	for (const technology of registry) {
 		for (const [ruleIndex, rule] of technology.rules.entries()) {
 			const sourceRuleIndex = getRuleSourceIndex(rule, ruleIndex);
-			const indexedRule: IndexedObservationRule = { technology, rule, ruleIndex: sourceRuleIndex, sequence };
+			const literal = gate(rule);
+			const indexedRule: IndexedObservationRule = literal === undefined
+				? { technology, rule, ruleIndex: sourceRuleIndex, sequence }
+				: { technology, rule, ruleIndex: sourceRuleIndex, sequence, gate: literal };
 			for (const route of getRuleRoutes(technology.id, sourceRuleIndex, rule)) {
 				addIndexedRule({ fallbackRules, keyedRules, literalRules, route, indexedRule });
 			}
@@ -195,13 +206,13 @@ export function createObservationMatcherIndex(
 		}
 	}
 
-	return {
+	return prepareLiteralScanners({
 		technologyCount: registry.length,
 		ruleCount: sequence,
 		fallbackRules: freezeRuleBuckets(fallbackRules),
 		keyedRules: freezeKeyBuckets(keyedRules),
 		literalRules: freezeLiteralBuckets(literalRules),
-	};
+	});
 }
 
 /**
@@ -238,7 +249,17 @@ export function matchIndexedObservationBatch(
 		diagnostics.candidateRuleCount += route.rules.length;
 		incrementCount(diagnostics.candidateRulesByKind, observation.kind, route.rules.length);
 
+		// Lowercased gate subjects, computed at most once per observation.
+		let lowerKey: string | undefined;
+		let lowerValue: string | undefined;
 		for (const indexedRule of route.rules) {
+			// A rule whose gate literal is absent cannot match; skip its regex.
+			if (indexedRule.gate !== undefined) {
+				const subject = indexedRule.rule.kind === 'cookie'
+					? (lowerKey ??= gateSubject(indexedRule.rule, observation).toLowerCase())
+					: (lowerValue ??= gateSubject(indexedRule.rule, observation).toLowerCase());
+				if (!subject.includes(indexedRule.gate)) continue;
+			}
 			const startedAt = input.onRuleEvaluation ? performance.now() : 0;
 			const match = matchObservationRule({
 				technology: indexedRule.technology,
@@ -437,19 +458,19 @@ function createLinkRoute(rule: Extract<DetectionRule, { kind: 'link' }>): Observ
 		return { kind: 'link', key: canonicalLinkRel(rule.rel) };
 	}
 
-	const requiredLiteral = extractTopLevelRegexLiteral(rule.hrefPattern);
-	return requiredLiteral
-		? { kind: 'link', requiredLiteral }
+	const literal = requiredLiteral(rule.hrefPattern);
+	return literal
+		? { kind: 'link', requiredLiteral: literal }
 		: { kind: 'link' };
 }
 
 function createPatternRoute(rule: PatternDetectionRule): ObservationRuleRoute {
-	const requiredLiteral = isLiteralPrefilterSupported(rule.kind)
-		? extractTopLevelRegexLiteral(rule.pattern)
+	const literal = isLiteralPrefilterSupported(rule.kind)
+		? requiredLiteral(rule.pattern)
 		: undefined;
 
-	return requiredLiteral
-		? { kind: rule.kind, requiredLiteral }
+	return literal
+		? { kind: rule.kind, requiredLiteral: literal }
 		: { kind: rule.kind };
 }
 
@@ -479,166 +500,6 @@ function isLiteralPrefilterSupported(kind: NormalizedObservationKind): boolean {
     }
 }
 
-/**
- * Extract one provably required top-level literal from a regex source.
- *
- * The parser intentionally leaves money on the table. It ignores literals inside
- * groups and character classes, rejects patterns containing alternation, and
- * discards a literal run when `?`, `*`, or `{...}` can make its final atom
- * optional. Escaped classes such as `\d` and `\s`, backreferences, and encoded
- * escapes are never interpreted as source text. Unclear cases remain fallback
- * rules, so this prefilter cannot turn a true regex match into a false negative.
- */
-function extractTopLevelRegexLiteral(pattern: DetectionPatternType | undefined): string | undefined {
-    if (!pattern || pattern.source.includes('|')) {
-        return undefined;
-    }
-
-    const tokens: string[] = [];
-    let token = '';
-    let depth = 0;
-    let inCharacterClass = false;
-
-    for (let index = 0; index < pattern.source.length; index += 1) {
-        const char = pattern.source[index]!;
-
-        if (char === '\\') {
-            const next = pattern.source[index + 1];
-            if (next === undefined) {
-                flushToken();
-                break;
-            }
-
-            if (depth === 0 && !inCharacterClass && isEscapedLiteralCharacter(next)) {
-                token += next;
-                index += 1;
-            } else {
-                flushToken();
-                index = skipNonLiteralEscape(pattern.source, index);
-            }
-            continue;
-        }
-
-        if (inCharacterClass) {
-            if (char === ']') {
-                inCharacterClass = false;
-            }
-            continue;
-        }
-        if (char === '[') {
-            flushToken();
-            inCharacterClass = true;
-            continue;
-        }
-        if (char === '(') {
-            flushToken();
-            depth += 1;
-            continue;
-        }
-        if (char === ')') {
-            flushToken();
-            depth = Math.max(0, depth - 1);
-            continue;
-        }
-
-        if (depth > 0) {
-            continue;
-        }
-
-        if (isPlainLiteralCharacter(char)) {
-            token += char;
-            continue;
-        }
-
-        switch (char) {
-            case '?':
-            case '*':
-                discardToken();
-                break;
-            case '{':
-                discardToken();
-                index = skipBraceExpression(pattern.source, index);
-                break;
-            default:
-                flushToken();
-        }
-    }
-    flushToken();
-
-    return tokens.sort((left, right) => right.length - left.length)[0];
-
-    function flushToken(): void {
-        const normalized = token.toLowerCase();
-        if (isUsefulLiteralToken(normalized)) {
-            tokens.push(normalized);
-        }
-        token = '';
-    }
-
-    function discardToken(): void {
-        token = '';
-    }
-}
-
-function isPlainLiteralCharacter(char: string): boolean {
-    return /^[a-zA-Z0-9_~:/@%-]$/.test(char);
-}
-
-function isEscapedLiteralCharacter(char: string): boolean {
-    return '.\\^$*+?(){}[]|/-'.includes(char);
-}
-
-/** Skip escape payloads whose text is regex syntax rather than required source text. */
-function skipNonLiteralEscape(source: string, slashIndex: number): number {
-    const escapeType = source[slashIndex + 1];
-    if (escapeType === undefined) {
-        return slashIndex;
-    }
-
-    switch (escapeType) {
-        case 'x':
-            return Math.min(source.length - 1, slashIndex + 3);
-        case 'u':
-            return source[slashIndex + 2] === '{'
-                ? skipBraceExpression(source, slashIndex + 2)
-                : Math.min(source.length - 1, slashIndex + 5);
-        case 'c':
-            return Math.min(source.length - 1, slashIndex + 2);
-        case 'p':
-        case 'P':
-            return source[slashIndex + 2] === '{'
-                ? skipBraceExpression(source, slashIndex + 2)
-                : slashIndex + 1;
-        case 'k': {
-            if (source[slashIndex + 2] !== '<') {
-                return slashIndex + 1;
-            }
-            const closing = source.indexOf('>', slashIndex + 3);
-            return closing < 0 ? source.length - 1 : closing;
-        }
-        default:
-            if (!/^[0-9]$/.test(escapeType)) {
-                return slashIndex + 1;
-            }
-
-            let end = slashIndex + 1;
-            while (end + 1 < source.length && /^[0-9]$/.test(source[end + 1]!)) {
-                end += 1;
-            }
-            return end;
-    }
-}
-
-/** Skip a brace-delimited quantifier or escape payload so its digits cannot become literals. */
-function skipBraceExpression(source: string, openingBraceIndex: number): number {
-    const closing = source.indexOf('}', openingBraceIndex + 1);
-    return closing < 0 ? source.length - 1 : closing;
-}
-
-function isUsefulLiteralToken(token: string): boolean {
-	return token.length >= 4 && /[a-z0-9]/.test(token);
-}
-
 function findLiteralPrefilteredRules(
 	index: ObservationMatcherIndex,
 	observation: NormalizedObservation,
@@ -648,18 +509,31 @@ function findLiteralPrefilteredRules(
 		return { rules, rejectedCount: 0 };
 	}
 
+	// One scan of the value answers `value.includes(literal)` for every literal
+	// in the bucket at once (see `match/literal.ts` for the exactness argument).
 	const value = String(observation.value).toLowerCase();
+	const scanner = tableFor(rules);
+	const found = scan(scanner, value);
+	const ids = scanner.ids;
 	const matched: LiteralPrefilteredObservationRule[] = [];
 	let rejectedCount = 0;
-	for (const rule of rules) {
-		if (value.includes(rule.requiredLiteral)) {
-			matched.push(rule);
+	for (let position = 0; position < rules.length; position += 1) {
+		if (found[ids[position]!] === 1) {
+			matched.push(rules[position]!);
 		} else {
 			rejectedCount += 1;
 		}
 	}
 
 	return { rules: matched, rejectedCount };
+}
+
+/** Build every literal bucket's scanner now, so the first observation does not pay for it. */
+export function prepareLiteralScanners(index: ObservationMatcherIndex): ObservationMatcherIndex {
+	for (const rules of Object.values(index.literalRules)) {
+		if (rules && rules.length > 0) tableFor(rules);
+	}
+	return index;
 }
 
 /** Return exact routing keys in the same canonical form used when rules are indexed. */
