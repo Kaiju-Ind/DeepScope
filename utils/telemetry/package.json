@@ -1,0 +1,25 @@
+{
+	"name": "@utils/telemetry",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/telemetry @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		".": "./mod.ts",
+		"./types": "./types.ts",
+		"./instrument": "./instrument.ts",
+		"./observe": "./observe.ts",
+		"./events": "./events.ts"
+	},
+	"dependencies": {
+		"@utils/collection": "workspace:*",
+		"@utils/result": "workspace:*",
+		"@utils/schema": "workspace:*",
+		"@okikio/observables": "1.4.0"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@1.0.20"
+	}
+}

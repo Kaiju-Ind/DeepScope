@@ -1,0 +1,25 @@
+{
+	"name": "@utils/task",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/task @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		".": "./mod.ts",
+		"./types": "./types.ts",
+		"./progress": "./progress.ts"
+	},
+	"dependencies": {
+		"@utils/capability": "workspace:*",
+		"@utils/context": "workspace:*",
+		"@utils/dispose": "workspace:*",
+		"@utils/schema": "workspace:*",
+		"@okikio/observables": "1.4.0"
+	},
+	"devDependencies": {
+		"@utils/duration": "workspace:*",
+		"@std/expect": "npm:@jsr/std__expect@1.0.20"
+	}
+}

@@ -1,0 +1,118 @@
+// Vendored from Kaiju-Ind/Utils packages/context/types.ts @ 47d2c0f.
+// MIT (c) 2026 Okikio, see utils/LICENSE. Local changes: none. Resync: scripts/utils/sync.ts.
+import type { Temporal } from '@utils/duration/temporal';
+import type { Instrument } from '@utils/telemetry/instrument';
+
+/** Provider-neutral clock used by requests, activities, workflows, and tests. */
+export interface Clock {
+	/** Return the current absolute instant. */
+	now(): Temporal.Instant;
+	/** Wait for a bounded duration using the same time source as `now()`. */
+	sleep(milliseconds: number, signal?: AbortSignal): Promise<void>;
+}
+
+/**
+ * Serializable identity and timing data for one operation context.
+ *
+ * A snapshot can cross a queue, process, or Worker message. Cancellation does
+ * not cross with it. The receiving host creates a new local `AbortSignal`.
+ */
+export interface Snapshot {
+	/** Stable identity of the operation represented by this context. */
+	readonly id: string;
+	/** Optional trace correlation identity; it does not authorize the operation. */
+	readonly traceId?: string;
+	/** Optional host deployment identity carried with the operation. */
+	readonly deploymentId?: string;
+	/** Caller-owned identity for repeated work; a receiving provider must enforce its idempotency policy. */
+	readonly idempotencyKey?: string;
+	/** Start instant captured by the owning clock, or its serialized ISO timestamp. */
+	readonly startedAt: string;
+	/** Latest permitted completion instant; serialized contexts use ISO timestamp text. */
+	readonly deadline?: string;
+}
+
+/**
+ * Cancellation, deadline, identity, and clock carried through one operation.
+ *
+ * `id` names the current operation. The caller decides what the operation is,
+ * such as an HTTP request, activity job, queue claim, workflow run, or process
+ * command. Protocol-specific code can keep a more specific name such as
+ * `requestId` and copy that value into `id` when it creates the context.
+ */
+export interface Context {
+	/** Stable identity of the operation represented by this context. */
+	readonly id: string;
+	/** Optional trace correlation identity; it does not authorize the operation. */
+	readonly traceId?: string;
+	/** Optional host deployment identity carried with the operation. */
+	readonly deploymentId?: string;
+	/** Caller-owned identity for repeated work; a receiving provider must enforce its idempotency policy. */
+	readonly idempotencyKey?: string;
+	/** Start instant captured by the owning clock, or its serialized ISO timestamp. */
+	readonly startedAt: Temporal.Instant;
+	/** Latest permitted completion instant; serialized contexts use ISO timestamp text. */
+	readonly deadline?: Temporal.Instant | undefined;
+	/** Cancellation signal supplied by the operation lifetime owner. */
+	readonly signal: AbortSignal;
+	/** Clock used for operation time and waits; tests can supply a logical clock. */
+	readonly clock: Clock;
+	/** Borrowed process-local observations; omitted from transport snapshots and never disposed here. */
+	readonly instrument?: Instrument;
+}
+
+/** Standard resource ownership operations available on one owned context. */
+export interface Resources {
+	/** Add an already disposable value to this context's lifetime. */
+	use<Value extends Disposable | AsyncDisposable | null | undefined>(value: Value): Value;
+	/** Add an arbitrary value with an explicit asynchronous or synchronous disposer. */
+	adopt<Value>(value: Value, dispose: (value: Value) => void | PromiseLike<void>): Value;
+	/** Add cleanup that runs when this context closes. */
+	defer(dispose: () => void | PromiseLike<void>): void;
+}
+
+/** Independently owned context with deterministic cancellation and resource cleanup. */
+export interface Owned extends Context, Resources, AsyncDisposable {
+	/** Resolves after every owned cleanup is attempted, even when disposal rejects with a cleanup failure. */
+	readonly closed: Promise<void>;
+	/** Cancel admission and join cleanup. Repeated and reentrant calls receive this owner's same completion Promise. */
+	[Symbol.asyncDispose](): Promise<void>;
+}
+
+/** Inputs accepted while creating one owned operation context. */
+export interface CreateOptions {
+	/** Stable identity of the operation represented by the new context. */
+	readonly id: string;
+	/** Optional trace correlation identity; it does not authorize the operation. */
+	readonly traceId?: string;
+	/** Optional host deployment identity carried with the operation. */
+	readonly deploymentId?: string;
+	/** Caller-owned identity for repeated work; a receiving provider must enforce its idempotency policy. */
+	readonly idempotencyKey?: string;
+	/** Start instant captured by the owning clock, or its serialized ISO timestamp. */
+	readonly startedAt?: Temporal.Instant;
+	/** Latest permitted completion instant; serialized contexts use ISO timestamp text. */
+	readonly deadline?: Temporal.Instant;
+	/** Cancellation signal supplied by the operation lifetime owner. */
+	readonly signal?: AbortSignal;
+	/** Clock used for operation time and waits; tests can supply a logical clock. */
+	readonly clock?: Clock;
+	/** Borrowed process-local observations; omitted from transport snapshots and never disposed here. */
+	readonly instrument?: Instrument;
+}
+
+/** Inputs accepted while deriving a child context. */
+export interface ChildOptions extends Partial<Omit<CreateOptions, 'startedAt'>> {
+	/** Override the inherited operation identity for a new nested operation. */
+	readonly id?: string;
+}
+
+/** Inputs accepted while restoring a serializable snapshot. */
+export interface RestoreOptions {
+	/** Cancellation signal supplied by the operation lifetime owner. */
+	readonly signal?: AbortSignal;
+	/** Clock used for operation time and waits; tests can supply a logical clock. */
+	readonly clock?: Clock;
+	/** Borrowed process-local observations; omitted from transport snapshots and never disposed here. */
+	readonly instrument?: Instrument;
+}

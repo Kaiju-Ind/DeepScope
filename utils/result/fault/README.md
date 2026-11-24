@@ -1,0 +1,126 @@
+<!-- Vendored from Kaiju-Ind/Utils packages/result/fault/README.md @ 47d2c0f; links to upstream docs are not copied. -->
+
+# `@utils/result/fault`
+
+A service returns a value your program cannot use, so your code throws an error. To send a useful support report, you
+need the error's name and message. `JSON.stringify(error)` can print just `{}`. `fault.encode()` copies useful details
+into ordinary data, with limits on how far it looks and how much it keeps. It can stop when a value points back to
+itself and avoids calling ordinary getters, which are functions that run when a property is read.
+
+| Value in the demo          | Diagnostic projection | What remains local    |
+| -------------------------- | --------------------- | --------------------- |
+| `TypeError` with a message | Name and message      | The live Error object |
+| `includeStack: false`      | No stack field        | Stack trace           |
+
+The table shows what the small example copies for a support report. Larger inputs have depth, entry and string
+limits. Choose what the recipient is allowed to see: copying with these limits does not remove secrets.
+
+The [public source](./mod.ts) lists the options and the types of diagnostic values it can return.
+
+## Turn an exception into bounded diagnostic data
+
+A provider throws a TypeError. Encode its diagnostic name and message without a stack so the receiver gets useful
+context without an accidental disclosure of local source paths.
+
+After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+Save the next complete TypeScript block as
+`example.ts` at that root, then run `mise exec -- deno run example.ts`.
+
+```ts runnable
+import * as fault from '@utils/result/fault';
+const error = new TypeError('Provider returned an invalid value.');
+// Produce diagnostic data without retaining the live error. Stack removal is not a complete redaction policy.
+console.log(JSON.stringify(fault.encode(error, { includeStack: false })));
+```
+
+Expected output:
+
+```text output
+{"name":"TypeError","message":"Provider returned an invalid value."}
+```
+
+The input is a `TypeError`; the output is a JSON object containing its name and message. Change the error's message to
+change the diagnostic text. Turning stack inclusion on can add a runtime-dependent stack trace, so its exact text is not
+a stable application contract.
+
+## Build a support response from an ordinary exception
+
+You can keep using `try` and `catch`. Project the caught value when it becomes a diagnostic. This local response example
+shows that conversion without running a server.
+Save it as `support-response.ts` and run `mise exec -- deno run support-response.ts` from the same checkout.
+
+```ts runnable=support-response.ts
+import { encode, message } from '@utils/result/fault';
+
+try {
+	JSON.parse('{broken');
+} catch {
+	const error = new Error('The settings file is not valid JSON.', { cause: 'invalid-json' });
+	const response = Response.json({ problem: encode(error, { includeStack: false }) }, { status: 400 });
+	console.log(response.status);
+	console.log(message(error));
+	console.log(await response.text());
+}
+```
+
+```text output
+400
+The settings file is not valid JSON.
+{"problem":{"name":"Error","message":"The settings file is not valid JSON.","cause":"invalid-json"}}
+```
+
+| Call or option             | Contract                                                                | Consequence                                                                                        |
+| -------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `encode(value, options?)`  | Unknown value → JSON-safe `FaultValue`                                  | Produces primitives or frozen diagnostic containers; never returns the original object.            |
+| `FaultValue`               | String, finite number, boolean, null, or arrays/records of those values | Unsupported or truncated values become readable markers.                                           |
+| Limits                     | `maximumDepth`, `maximumEntries`, `maximumStringLength`                 | Bound nesting, entries per container and each string. They are not a total serialized byte budget. |
+| `message(value, options?)` | Unknown value → bounded string                                          | Uses the safe projection with stack inclusion off, not arbitrary `toString()` methods.             |
+
+Fault checks how each property is defined before reading it. It copies values stored directly on the object. If a
+property would call a getter, Fault writes `[accessor]` instead. When a value refers back to an object already on the
+current path, Fault marks the cycle and stops following it. Size and depth limits also stop the copy. Fault reads an
+error's name, message, and cause separately because a normal walk through the fields can miss them.
+
+Cleanup can fail after the operation has already failed. `SuppressedError` keeps the cleanup failure in `error` and the
+earlier failure in `suppressed`; `AggregateError` keeps its children in `errors`. Projection preserves these own fields
+even though the standard constructors make them non-enumerable. Their values use the same depth, entry, cycle and string
+limits as other diagnostics. A getter in one of those fields becomes `[accessor]`, and inherited fields are not copied.
+
+Save this example as `cleanup-diagnostics.ts` and run `mise exec -- deno run cleanup-diagnostics.ts`. Check that the
+printed report includes both `close failed` and `read failed`.
+
+```ts runnable=cleanup-diagnostics.ts
+import { SuppressedError } from '@utils/dispose';
+import * as fault from '@utils/result/fault';
+
+const failure = new SuppressedError(new Error('close failed'), new Error('read failed'), 'cleanup failed');
+console.log(JSON.stringify(fault.encode(failure, { includeStack: false })));
+```
+
+```text output
+{"name":"SuppressedError","message":"cleanup failed","error":{"name":"Error","message":"close failed"},"suppressed":{"name":"Error","message":"read failed"}}
+```
+
+This is diagnostic copying, not error recovery or secret removal. The response above uses an application-owned safe
+message and cause. Do not publish raw provider errors just because they are now serializable. Proxy traps can still
+execute during inspection; this is not a sandbox for hostile JavaScript objects.
+
+## Choose which diagnostics a receiver may see
+
+- Project an unexpected exception before adding it to [Telemetry](../../telemetry/README.md) or a
+  [Worker](../../worker/thread/README.md) diagnostic message. The destination still needs its own exposure and redaction
+  policy.
+- Use [Failure](../failure/README.md) for a declared business reason such as a missing file. Use Fault for unexpected
+  runtime diagnostics; these two values answer different questions.
+
+## Choose adjacent capabilities
+
+Use Fault for bounded diagnostics from an unexpected thrown value. Failure names expected domain rejection and HTTP
+Problem declares a response. Diagnostic projection is neither retry classification nor an authoritative business result.
+
+The [package choice map](../README.md#choose-an-entry-point) lists the other public entries and when to use them.
+
+## Read further
+
+The [numbered guide](https://github.com/okikio/utils/blob/main/docs/packages/09-fault.md) explains the model, manual
+alternatives, and composition.

@@ -1,0 +1,155 @@
+// Vendored from Kaiju-Ind/Utils packages/activity/local.ts @ 47d2c0f.
+// MIT (c) 2026 Okikio, see utils/LICENSE. Local changes: none. Resync: scripts/utils/sync.ts.
+/**
+ * Process-local activity engine provider.
+ *
+ * The provider adapts exact activity implementations to the generic Workflow
+ * Scheduler engine protocol. It does not own the Scheduler job, attempt number,
+ * retry policy, queue claim, or registration generation.
+ *
+ * @module
+ */
+import * as context from '@utils/context';
+import type { EffectEmitter } from '@utils/capability/effect';
+import type { PermissionChecker } from '@utils/authz/permission';
+import type { RequirementRuntime } from '@utils/capability/requirement';
+import type { ResourceCollection } from '@utils/capability/resource';
+import type { ActivityAttemptResultType, EngineProvider } from '@utils/workflow';
+import * as activity from './mod.ts';
+import * as remote from './remote.ts';
+import { HostSelectionError } from './selection.ts';
+import type { ActivityDefinition, ActivityImplementation } from './types.ts';
+import type { EngineDefinition } from './engine.ts';
+
+/** Options accepted by `local.create()`. */
+export interface LocalProviderOptions {
+	/** Exact engine definition represented by this local provider. */
+	readonly engine: EngineDefinition;
+	/** Implementations available through this provider. */
+	readonly implementations: readonly ActivityImplementation[];
+	/** Borrowed resource collection shared by local attempts. */
+	readonly resources: ResourceCollection;
+	/** Fallback permission evaluator; an exact attempt control takes precedence when supplied. */
+	readonly permission?: PermissionChecker;
+	/** Fallback effect owner; an exact attempt control takes precedence when supplied. */
+	readonly effect?: EffectEmitter;
+	/** Generic requirement interpreters used by direct attempts and resources. */
+	readonly requirements?: RequirementRuntime;
+	/** Optional cooperative pause gate supplied by the host. */
+	readonly checkpoint?: () => Promise<void>;
+}
+
+/** Raised when a provider receives an activity it did not register. */
+export class MissingActivityError extends Error {
+	/** Stable activity ID requested from this local provider. */
+	readonly activityId: string;
+	/** Activity contract version requested from this local provider. */
+	readonly version: string;
+
+	/** Create one configuration error for an activity/version the provider does not implement. */
+	constructor(activityId: string, version: string) {
+		super(`Local engine provider has no implementation for ${JSON.stringify(`${activityId}@${version}`)}.`);
+		this.name = 'MissingActivityError';
+		this.activityId = activityId;
+		this.version = version;
+	}
+}
+
+/**
+ * Create one borrowed process-local engine provider.
+ *
+ * The returned provider owns no resource collection and starts no background
+ * worker. Every `run()` call executes one dispatch-owned attempt immediately.
+ */
+export function create(options: LocalProviderOptions): EngineProvider {
+	remote.engine(options.engine, 'Local provider');
+	if (options.implementations.length === 0) {
+		throw new TypeError('Local engine provider requires at least one implementation.');
+	}
+	const byDefinition = new Map<ActivityDefinition, ActivityImplementation>();
+	const byIdentity = new Map<string, ActivityImplementation>();
+	for (const implementation of options.implementations) {
+		assertImplementation(implementation);
+		if (byDefinition.has(implementation.definition)) {
+			throw new TypeError(
+				`Activity ${JSON.stringify(implementation.definition.id)} has more than one local implementation.`,
+			);
+		}
+		const key = remote.identity(implementation.definition.id, implementation.definition.version);
+		if (byIdentity.has(key)) {
+			throw new TypeError(`Activity identity ${JSON.stringify(key)} belongs to different local definitions.`);
+		}
+		byDefinition.set(implementation.definition, implementation);
+		byIdentity.set(key, implementation);
+	}
+
+	return Object.freeze({
+		activities: Object.freeze([...byDefinition.keys()]),
+		/**
+		 * Run the matching implementation in this process. A requested physical host cannot be substituted
+		 * with local execution.
+		 */
+		async run(
+			ctx: import('@utils/context').Context,
+			attempt: import('@utils/workflow').ActivityAttemptType,
+			control: import('@utils/workflow').ActivityAttemptControl,
+		): Promise<ActivityAttemptResultType> {
+			if (attempt.location?.host) return Object.freeze({ type: 'lost', reason: new HostSelectionError('lost') });
+			if (attempt.engineId !== options.engine.id) {
+				return Object.freeze({
+					type: 'fault',
+					fault: new activity.InvalidEngineError(attempt.activityId, attempt.engineId),
+				});
+			}
+			const implementation = byIdentity.get(remote.identity(attempt.activityId, attempt.activityVersion));
+			if (implementation === undefined) {
+				return Object.freeze({
+					type: 'fault',
+					fault: new MissingActivityError(attempt.activityId, attempt.activityVersion),
+				});
+			}
+			try {
+				// An exact attempt control owns its authority; provider defaults serve calls without that override.
+				const value = await activity.run({
+					implementation,
+					engine: options.engine,
+					input: attempt.input,
+					ctx,
+					resources: options.resources,
+					jobId: attempt.jobId,
+					attempt: attempt.attempt,
+					admitted: attempt.admitted,
+					...((control.permission ?? options.permission) === undefined
+						? {}
+						: { permission: control.permission ?? options.permission }),
+					...((control.effect ?? options.effect) === undefined ? {} : { effect: control.effect ?? options.effect }),
+					...(options.requirements === undefined ? {} : { requirements: options.requirements }),
+					...(options.checkpoint === undefined ? {} : { checkpoint: options.checkpoint }),
+					heartbeat(value) {
+						return control.heartbeat(value);
+					},
+				});
+				return Object.freeze({ type: 'success', value });
+			} catch (error) {
+				if (activity.isFailure(implementation.definition, error)) {
+					return Object.freeze({ type: 'failure', failure: error });
+				}
+				// A late abort must not hide resource-disposal failures or unrelated implementation errors.
+				if (context.cancelled(error) || (ctx.signal.aborted && error === ctx.signal.reason)) {
+					return Object.freeze({ type: 'cancelled', reason: ctx.signal.aborted ? ctx.signal.reason : error });
+				}
+				return Object.freeze({ type: 'fault', fault: error });
+			}
+		},
+	});
+}
+
+/** Reject a malformed implementation before provider registration. */
+function assertImplementation(value: ActivityImplementation): void {
+	if (
+		typeof value !== 'object' || value === null || value.definition?.kind !== 'activity' ||
+		typeof value.run !== 'function'
+	) {
+		throw new TypeError('Local provider implementation must bind an activity definition to run().');
+	}
+}

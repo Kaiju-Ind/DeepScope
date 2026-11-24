@@ -1,0 +1,26 @@
+{
+	"name": "@utils/worker",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/worker @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		"./thread": "./thread/mod.ts",
+		"./thread/types": "./thread/types.ts",
+		"./protocol": "./protocol.ts"
+	},
+	"dependencies": {
+		"@utils/context": "workspace:*",
+		"@utils/dispose": "workspace:*",
+		"@utils/result": "workspace:*",
+		"@utils/schema": "workspace:*",
+		"@utils/telemetry": "workspace:*",
+		"@okikio/observables": "1.4.0"
+	},
+	"devDependencies": {
+		"@standard-schema/spec": "1.1.0",
+		"@std/expect": "npm:@jsr/std__expect@1.0.20"
+	}
+}

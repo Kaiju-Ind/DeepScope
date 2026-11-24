@@ -1,0 +1,30 @@
+// Vendored from Kaiju-Ind/Utils packages/pool/types.test.ts @ 47d2c0f.
+// MIT (c) 2026 Okikio, see utils/LICENSE. Local changes: none. Resync: scripts/utils/sync.ts.
+import type { Context } from '@utils/context';
+import * as pool from './mod.ts';
+
+/** Borrowed consumer Context used only to exercise the pool type surface. */
+declare const ctx: Context;
+
+/** Compile-time consumer examples prove created values flow unchanged through leases. */
+async function poolTypes(): Promise<void> {
+	await using clients = await pool.create({
+		ctx,
+		maximum: 2,
+		maximumWaiting: 32,
+		create: () => ({ kind: 'client' as const, request: (path: string) => path.length }),
+		close() {},
+	});
+	await using lease = await clients.acquire(ctx);
+
+	const kind: 'client' = lease.value.kind;
+	const size: number = lease.value.request('/health');
+	void kind;
+	void size;
+
+	// @ts-expect-error The lease retains the literal value type created by the provider.
+	const wrong: 'database' = lease.value.kind;
+	void wrong;
+}
+
+void poolTypes;

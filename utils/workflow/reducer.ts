@@ -1,0 +1,73 @@
+// Vendored from Kaiju-Ind/Utils packages/workflow/reducer.ts @ 47d2c0f.
+// MIT (c) 2026 Okikio, see utils/LICENSE. Local changes: none. Resync: scripts/utils/sync.ts.
+/**
+ * Reentrancy-safe scheduler for live branch transitions.
+ *
+ * Step callbacks can resolve synchronously while `Step.enter()` is still on
+ * the stack. The reducer defers the next generator transition until the
+ * current transition has returned.
+ *
+ * ```text
+ * Step callback
+ *    |
+ *    v
+ * enqueue transition
+ *    |
+ *    +--> current drain still active -> queue only
+ *    |
+ *    v
+ * FIFO drain, at most `stepBudget` actions
+ *    |
+ *    +--> more work -> next microtask
+ * ```
+ */
+export class Reducer {
+	/** Maximum actions in one microtask drain, including critical cleanup; defaults to 256. */
+	readonly stepBudget: number;
+	#critical: (() => void)[] = [];
+	#normal: (() => void)[] = [];
+	/** Only one future drain may be queued while no drain is active. */
+	#scheduled = false;
+	/** Synchronous callbacks can enqueue work but cannot enter a nested drain. */
+	#draining = false;
+
+	constructor(stepBudget = 256) {
+		if (!Number.isSafeInteger(stepBudget) || stepBudget < 1) {
+			throw new TypeError('Reducer stepBudget must be a positive safe integer.');
+		}
+		this.stepBudget = stepBudget;
+	}
+
+	/** Schedule one transition. Critical cleanup can move ahead of normal work. */
+	enqueue(action: () => void, priority: 'normal' | 'critical' = 'normal'): void {
+		if (priority === 'critical') this.#critical.push(action);
+		else this.#normal.push(action);
+		this.#schedule();
+	}
+
+	/** Request one future drain. Callbacks during a drain only enqueue work; they must not re-enter the generator. */
+	#schedule(): void {
+		if (this.#scheduled || this.#draining) return;
+		this.#scheduled = true;
+		queueMicrotask(() => this.#drain());
+	}
+
+	/** Run critical cleanup first, up to one step budget; schedule remaining transitions in another microtask. */
+	#drain(): void {
+		if (this.#draining) return;
+		this.#scheduled = false;
+		this.#draining = true;
+		try {
+			let steps = 0;
+			while (steps < this.stepBudget) {
+				const action = this.#critical.shift() ?? this.#normal.shift();
+				if (action === undefined) return;
+				steps += 1;
+				action();
+			}
+		} finally {
+			this.#draining = false;
+			if (this.#critical.length > 0 || this.#normal.length > 0) this.#schedule();
+		}
+	}
+}

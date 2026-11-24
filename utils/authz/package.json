@@ -1,0 +1,24 @@
+{
+	"name": "@utils/authz",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/authz @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		"./permission": "./permission/mod.ts",
+		"./permission/definition": "./permission/definition.ts",
+		"./permission/types": "./permission/types.ts"
+	},
+	"dependencies": {
+		"@utils/capability": "workspace:*",
+		"@utils/collection": "workspace:*",
+		"@utils/context": "workspace:*",
+		"@utils/schema": "workspace:*",
+		"@standard-schema/spec": "1.1.0"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@1.0.20"
+	}
+}
