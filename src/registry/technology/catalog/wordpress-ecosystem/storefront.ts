@@ -1,7 +1,7 @@
 import type { TechnologyDefinition } from '@/lib/detection/types';
 
 export const storefrontTechnologyDefinition: TechnologyDefinition = {
-	id: 'storefront',
+	id: 'woocommerce-storefront-theme',
 	name: 'Storefront',
 	website: 'https://wordpress.org/themes/storefront/',
 	description:
@@ -11,7 +11,7 @@ export const storefrontTechnologyDefinition: TechnologyDefinition = {
 	],
 	rules: [
 		{
-			id: 'storefront:resourceUrl:0',
+			id: 'woocommerce-storefront-theme:resourceUrl:0',
 			kind: 'resourceUrl',
 			pattern: new RegExp('/wp\\-content/themes/storefront/', 'i'),
 			confidence: 100,
@@ -23,7 +23,7 @@ export const storefrontTechnologyDefinition: TechnologyDefinition = {
 			description: 'Loaded resource URL is served from /wp-content/themes/storefront/.',
 		},
 		{
-			id: 'storefront:stylesheetHref:1',
+			id: 'woocommerce-storefront-theme:stylesheetHref:1',
 			kind: 'stylesheetHref',
 			pattern: new RegExp('/wp\\-content/themes/storefront/', 'i'),
 			confidence: 100,
@@ -35,7 +35,7 @@ export const storefrontTechnologyDefinition: TechnologyDefinition = {
 			description: 'Stylesheet URL is served from /wp-content/themes/storefront/.',
 		},
 		{
-			id: 'storefront:scriptSrc:2',
+			id: 'woocommerce-storefront-theme:scriptSrc:2',
 			kind: 'scriptSrc',
 			pattern: new RegExp('/wp\\-content/themes/storefront/', 'i'),
 			confidence: 100,
@@ -47,7 +47,7 @@ export const storefrontTechnologyDefinition: TechnologyDefinition = {
 			description: 'Script URL is served from /wp-content/themes/storefront/.',
 		},
 		{
-			id: 'storefront:html:3',
+			id: 'woocommerce-storefront-theme:html:3',
 			kind: 'html',
 			pattern: new RegExp('/wp\\-content/themes/storefront/', 'i'),
 			confidence: 90,

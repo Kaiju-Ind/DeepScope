@@ -28,7 +28,6 @@ export const theComTechnologyDefinition: TechnologyDefinition = {
 		],
 	},
 	implies: [
-		'amazon-s3',
 		'react',
 	],
 } as const satisfies TechnologyDefinition;

@@ -35,7 +35,6 @@ export const yooriTechnologyDefinition: TechnologyDefinition = {
 		],
 	},
 	implies: [
-		'cpanel',
 		'laravel',
 		'mysql',
 		'php',

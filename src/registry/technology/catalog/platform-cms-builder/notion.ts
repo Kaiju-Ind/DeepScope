@@ -23,7 +23,8 @@ export const notionTechnologyDefinition: TechnologyDefinition = {
 			recordType: 'TXT',
 			valuePattern: /notion-domain-verification=/i,
 			confidence: 35,
-			description: 'DNS shows that the domain was verified with Notion; this does not prove the site is hosted by Notion.',
+			description:
+				'DNS shows that the domain was verified with Notion; this does not prove the site is hosted by Notion.',
 		},
 	],
 	metadata: {

@@ -25,6 +25,5 @@ export const redwoodjsTechnologyDefinition: TechnologyDefinition = {
 	implies: [
 		'graphql',
 		'react',
-		'typescript',
 	],
 } as const satisfies TechnologyDefinition;

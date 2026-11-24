@@ -6,7 +6,6 @@ export const automatticCookieBannerTechnologyDefinition: TechnologyDefinition = 
 	website: 'https://automattic.com/cookies/',
 	description: 'Automattic Cookie Banner presents cookie consent and privacy preferences on Automattic-operated sites.',
 	icon: 'WordPress.svg',
-
 	categories: [
 		'privacy-compliance',
 	],

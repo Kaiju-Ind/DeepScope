@@ -5,7 +5,7 @@ export const apilayerTechnologyDefinition: TechnologyDefinition = {
 	name: 'APILayer',
 	website: 'https://apilayer.com',
 	description:
-		'APILayer is an API marketplace that provides scalable APIs across multiple categories, including artificial intelligence and finance.',
+		'APILayer is a hosted API marketplace and unified API hub that provides proprietary and third-party APIs across categories such as geolocation, finance, AI, data processing, and developer tools.',
 	icon: 'APILayer.svg',
 	categories: [
 		'developer-tooling',

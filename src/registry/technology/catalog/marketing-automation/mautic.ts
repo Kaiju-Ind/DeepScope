@@ -14,7 +14,7 @@ export const mauticTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'mautic:scriptSrc:0',
 			kind: 'scriptSrc',
-			pattern: new RegExp('[^a-z]mtc.*\\.js'),
+			pattern: new RegExp('[^a-z]mtc(?:\\.min)?\\.js'),
 			description: 'Script source URL matches a known technology marker.',
 		},
 		{

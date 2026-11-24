@@ -36,7 +36,6 @@ export const inblogTechnologyDefinition: TechnologyDefinition = {
 	implies: [
 		'next-js',
 		'shadcn-ui',
-		'supabase',
 		'tailwind-css',
 	],
 } as const satisfies TechnologyDefinition;

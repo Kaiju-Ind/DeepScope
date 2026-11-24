@@ -38,7 +38,6 @@ export const vndaTechnologyDefinition: TechnologyDefinition = {
 		],
 	},
 	implies: [
-		'amazon-web-services',
 		'node-js',
 	],
 } as const satisfies TechnologyDefinition;

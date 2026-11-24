@@ -3,8 +3,8 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const dayJsTechnologyDefinition: TechnologyDefinition = {
 	id: 'day-js',
 	name: 'Day.js',
-	website: 'https://github.com/iamkun/dayjs',
-	description: 'Day.js is a lightweight JavaScript library for parsing, validating, and formatting dates.',
+	website: 'https://day.js.org/',
+	description: 'Day.js is a minimalist JavaScript library that parses, validates, manipulates, and displays dates and times.',
 	icon: 'Day.js.svg',
 	categories: [
 		'dates',
@@ -81,4 +81,7 @@ export const dayJsTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

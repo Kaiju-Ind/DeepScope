@@ -1,7 +1,7 @@
 import type { TechnologyDefinition } from '@/lib/detection/types';
 
 export const goTechnologyDefinition: TechnologyDefinition = {
-	id: 'go',
+	id: 'wordpress-go-theme',
 	name: 'Go',
 	website: 'https://wordpress.org/themes/go/',
 	description:
@@ -11,7 +11,7 @@ export const goTechnologyDefinition: TechnologyDefinition = {
 	],
 	rules: [
 		{
-			id: 'go:resourceUrl:0',
+			id: 'wordpress-go-theme:resourceUrl:0',
 			kind: 'resourceUrl',
 			pattern: new RegExp('/wp\\-content/themes/go/', 'i'),
 			confidence: 100,
@@ -23,7 +23,7 @@ export const goTechnologyDefinition: TechnologyDefinition = {
 			description: 'Loaded resource URL is served from /wp-content/themes/go/.',
 		},
 		{
-			id: 'go:stylesheetHref:1',
+			id: 'wordpress-go-theme:stylesheetHref:1',
 			kind: 'stylesheetHref',
 			pattern: new RegExp('/wp\\-content/themes/go/', 'i'),
 			confidence: 100,
@@ -35,7 +35,7 @@ export const goTechnologyDefinition: TechnologyDefinition = {
 			description: 'Stylesheet URL is served from /wp-content/themes/go/.',
 		},
 		{
-			id: 'go:scriptSrc:2',
+			id: 'wordpress-go-theme:scriptSrc:2',
 			kind: 'scriptSrc',
 			pattern: new RegExp('/wp\\-content/themes/go/', 'i'),
 			confidence: 100,
@@ -47,7 +47,7 @@ export const goTechnologyDefinition: TechnologyDefinition = {
 			description: 'Script URL is served from /wp-content/themes/go/.',
 		},
 		{
-			id: 'go:html:3',
+			id: 'wordpress-go-theme:html:3',
 			kind: 'html',
 			pattern: new RegExp('/wp\\-content/themes/go/', 'i'),
 			confidence: 90,

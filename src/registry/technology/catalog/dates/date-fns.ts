@@ -4,7 +4,8 @@ export const dateFnsTechnologyDefinition: TechnologyDefinition = {
 	id: 'date-fns',
 	name: 'date-fns',
 	website: 'https://date-fns.org/',
-	description: 'Modern JavaScript date utility library',
+	description: 'date-fns is an open-source JavaScript date utility library built around small, immutable functions.',
+	icon: 'date-fns.svg',
 	categories: [
 		'dates',
 	],
@@ -188,4 +189,7 @@ export const dateFnsTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

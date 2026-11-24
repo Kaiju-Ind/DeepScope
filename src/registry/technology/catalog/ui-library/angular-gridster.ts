@@ -3,9 +3,9 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const angularGridsterTechnologyDefinition: TechnologyDefinition = {
 	id: 'angular-gridster',
 	name: 'Angular Gridster',
-	website: 'https://tiberiuzuld.github.io/angular-gridster2/',
+	website: 'https://manifestwebdesign.github.io/angular-gridster/',
 	description:
-		'Gridster is a JavaScript library, with a simple drag-and-drop interface, for creating intuitive, dynamic and customizable layouts in web applications.',
+		'Angular Gridster is an AngularJS directive implementation of gridster-like dashboard widgets with draggable and resizable layouts.',
 	icon: 'Angular.svg',
 	categories: [
 		'ui-library',

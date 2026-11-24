@@ -5,8 +5,8 @@ export const adonisjsTechnologyDefinition: TechnologyDefinition = {
 	name: 'AdonisJS',
 	website: 'https://adonisjs.com',
 	description:
-		'AdonisJS is a Node.js web application framework that follows the MVC pattern, simplifying web development with features like ORM, authentication, and WebSockets.',
-	icon: 'AdonisJS.png',
+		'AdonisJS is a backend-first, type-safe web framework for Node.js and TypeScript applications with integrated routing, validation, ORM, and authentication.',
+	icon: 'AdonisJS.svg',
 	categories: [
 		'framework',
 	],

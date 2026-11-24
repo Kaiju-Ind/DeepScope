@@ -6,7 +6,6 @@ export const wordpressComStatsTechnologyDefinition: TechnologyDefinition = {
 	website: 'https://wordpress.com/support/stats/',
 	description: 'WordPress.com Stats measures page views and events through Automattic-hosted tracking endpoints.',
 	icon: 'WordPress.svg',
-
 	categories: [
 		'analytics',
 	],

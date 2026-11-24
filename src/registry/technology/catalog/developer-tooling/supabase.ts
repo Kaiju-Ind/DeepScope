@@ -5,7 +5,7 @@ export const supabaseTechnologyDefinition: TechnologyDefinition = {
 	name: 'Supabase',
 	website: 'https://supabase.com',
 	description:
-		'Supabase is an open-source platform that offers a Postgres database, Authentication, APIs, Edge Functions, Realtime subscriptions, Storage, and Vector embeddings for project development.',
+		'Supabase is an open-source Postgres development platform that provides a dedicated Postgres database plus authentication, APIs, storage, realtime services, and server-side application tooling.',
 	icon: 'Supabase.svg',
 	categories: [
 		'developer-tooling',

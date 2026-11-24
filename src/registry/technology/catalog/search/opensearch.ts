@@ -1,7 +1,7 @@
 import type { TechnologyDefinition } from '@/lib/detection/types';
 
 export const opensearchTechnologyDefinition: TechnologyDefinition = {
-	id: 'opensearch',
+	id: 'opensearch-description',
 	name: 'OpenSearch Description',
 	website: 'https://developer.mozilla.org/en-US/docs/Web/XML/Guides/OpenSearch',
 	description: 'Declares an OpenSearch description document.',
@@ -10,7 +10,7 @@ export const opensearchTechnologyDefinition: TechnologyDefinition = {
 	],
 	rules: [
 		{
-			id: 'opensearch:link:0',
+			id: 'opensearch-description:link:0',
 			kind: 'link',
 			rel: 'search',
 			typePattern: new RegExp('application/opensearchdescription\\+xml', 'i'),

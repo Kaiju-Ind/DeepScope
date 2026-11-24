@@ -10,6 +10,7 @@ import { adasitecomplianceTechnologyDefinition } from './adasitecompliance';
 import { allInOneAccessibilityTechnologyDefinition } from './all-in-one-accessibility';
 import { allyableTechnologyDefinition } from './allyable';
 import { allyantTechnologyDefinition } from './allyant';
+import { ariaActionsTechnologyDefinition } from './aria-actions';
 import { ariaLiveRegionTechnologyDefinition } from './aria-live-region';
 import { audioeyeTechnologyDefinition } from './audioeye';
 import { digiAccessTechnologyDefinition } from './digi-access';
@@ -44,6 +45,7 @@ import { voiceIntuitiveTechnologyDefinition } from './voice-intuitive';
 import { waiAriaTechnologyDefinition } from './wai-aria';
 import { xcompliantTechnologyDefinition } from './xcompliant';
 
+/** Technology definitions in the accessibility category folder. */
 export const accessibilityTechnologyDefinitions = [
 	accessgoTechnologyDefinition,
 	accessibeTechnologyDefinition,
@@ -56,6 +58,7 @@ export const accessibilityTechnologyDefinitions = [
 	allInOneAccessibilityTechnologyDefinition,
 	allyableTechnologyDefinition,
 	allyantTechnologyDefinition,
+	ariaActionsTechnologyDefinition,
 	ariaLiveRegionTechnologyDefinition,
 	audioeyeTechnologyDefinition,
 	digiAccessTechnologyDefinition,

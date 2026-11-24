@@ -6,7 +6,6 @@ export const shopifyDuxTechnologyDefinition: TechnologyDefinition = {
 	website: 'https://www.shopify.com/',
 	description: 'Shopify DUX records brochure-site interaction and performance events through Shopify-owned endpoints.',
 	icon: 'Shopify.svg',
-
 	categories: [
 		'analytics',
 	],

@@ -3,8 +3,9 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const brunchTechnologyDefinition: TechnologyDefinition = {
 	id: 'brunch',
 	name: 'Brunch',
-	website: 'https://brunch.io/',
-	description: 'Fast, reliable, and modern build tool for web applications',
+	website: 'https://brunch.github.io/',
+	description:
+		'Brunch is an open-source JavaScript build tool for web applications with an opinionated build pipeline and plugin ecosystem.',
 	categories: [
 		'bundler',
 	],
@@ -73,4 +74,10 @@ export const brunchTechnologyDefinition: TechnologyDefinition = {
 			description: 'Resource filename or URL matches a modern tooling marker.',
 		},
 	],
+	versioning: {
+		scheme: 'semver',
+	},
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

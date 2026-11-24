@@ -5,7 +5,7 @@ export const animaTechnologyDefinition: TechnologyDefinition = {
 	name: 'Anima',
 	website: 'https://www.animaapp.com/',
 	description:
-		'Anima is an AI-powered tool designed to assist users in converting their designs into functional code, creating interactive prototypes, and streamlining the automation of design systems.',
+		'Anima is a hosted design-to-code and AI application-building platform that can turn Figma, website, brand, and prompt context into editable web applications and frontend code.',
 	icon: 'Anima.svg',
 	categories: [
 		'developer-tooling',

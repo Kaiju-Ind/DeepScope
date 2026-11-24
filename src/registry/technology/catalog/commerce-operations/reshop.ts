@@ -14,7 +14,9 @@ export const reshopTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'reshop:scriptSrc:0',
 			kind: 'scriptSrc',
-			pattern: new RegExp('^https?:\\/\\/[^/"\'\\s]+\\/(?:[^?#]{1,240}\\/)?widgets\\/reshop-tooltip(?:\\.min)?\\.js(?:\\?[^"\'\\s#]{0,200})?(?:#[^"\'\\s]{0,120})?$'),
+			pattern: new RegExp(
+				'^https?:\\/\\/[^/"\'\\s]+\\/(?:[^?#]{1,240}\\/)?widgets\\/reshop-tooltip(?:\\.min)?\\.js(?:\\?[^"\'\\s#]{0,200})?(?:#[^"\'\\s]{0,120})?$',
+			),
 			description: 'Script source URL matches a known technology marker.',
 		},
 	],

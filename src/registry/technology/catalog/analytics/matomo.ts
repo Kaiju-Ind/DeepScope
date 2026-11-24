@@ -4,7 +4,8 @@ export const matomoTechnologyDefinition: TechnologyDefinition = {
 	id: 'matomo',
 	name: 'Matomo',
 	website: 'https://matomo.org/',
-	description: 'Google Analytics alternative that protects your data and your customers privacy',
+	description: 'Matomo is an open-source web analytics platform available for self-hosted and cloud deployments.',
+	icon: 'Matomo.svg',
 	categories: [
 		'analytics',
 	],
@@ -24,4 +25,7 @@ export const matomoTechnologyDefinition: TechnologyDefinition = {
 			description: 'Resource filename or URL matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

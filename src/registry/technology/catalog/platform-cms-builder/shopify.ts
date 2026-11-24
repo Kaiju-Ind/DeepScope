@@ -36,12 +36,6 @@ export const shopifyTechnologyDefinition: TechnologyDefinition = {
 			description: 'Script source URL matches a known technology marker.',
 		},
 		{
-			id: 'shopify:scriptContent:2',
-			kind: 'scriptContent',
-			pattern: new RegExp('shopifyTag'),
-			description: 'Script content contains a bounded technology signature.',
-		},
-		{
 			id: 'shopify:url:3',
 			kind: 'url',
 			pattern: new RegExp('^https?\\/\\/.+\\.myshopify\\.com'),
@@ -118,12 +112,6 @@ export const shopifyTechnologyDefinition: TechnologyDefinition = {
 			kind: 'cookie',
 			keyPattern: new RegExp('^_shopify_sa_t$', 'i'),
 			description: 'Cookie name matches a known technology marker.',
-		},
-		{
-			id: 'shopify:scriptContent:19',
-			kind: 'scriptContent',
-			pattern: new RegExp('shopifytag'),
-			description: 'Script content contains a bounded technology signature.',
 		},
 		{
 			id: 'shopify:scriptContent:21',

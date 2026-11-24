@@ -26,7 +26,6 @@ export const marketpathCmsTechnologyDefinition: TechnologyDefinition = {
 		],
 	},
 	implies: [
-		'azure',
 		'zurb-foundation',
 	],
 } as const satisfies TechnologyDefinition;

@@ -13,7 +13,7 @@ export const dynamicsJsTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'dynamics-js:scriptSrc:0',
 			kind: 'scriptSrc',
-			pattern: new RegExp('dynamics(?:\\.min)?\\.js(?:\\?v(?:er)?=((?:\\d+\\.)+\\d+))?'),
+			pattern: new RegExp('(?<![\\w-])dynamics(?:\\.min)?\\.js(?:\\?v(?:er)?=((?:\\d+\\.)+\\d+))?'),
 			version: {
 				source: 'match',
 				group: 1,

@@ -34,7 +34,4 @@ export const dandomainTechnologyDefinition: TechnologyDefinition = {
 			'recurring',
 		],
 	},
-	requires: [
-		'angularjs',
-	],
 } as const satisfies TechnologyDefinition;

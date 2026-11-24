@@ -345,7 +345,6 @@ export const wordpressBlockEditorTechnologyDefinition: TechnologyDefinition = {
 	website: 'https://wordpress.org/gutenberg/',
 	description: 'Sites using the WordPress Block Editor, also known as Gutenberg.',
 	icon: 'WordPress.svg',
-
 	categories: [
 		'platform-cms-builder',
 	],

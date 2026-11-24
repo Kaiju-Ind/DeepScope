@@ -7,7 +7,6 @@ export const wordpressComLandpackTechnologyDefinition: TechnologyDefinition = {
 	description:
 		'WordPress.com Landpack provides landing-page blocks, layout classes, and animations for WordPress.com marketing pages.',
 	icon: 'WordPress.svg',
-
 	categories: [
 		'component-library',
 	],

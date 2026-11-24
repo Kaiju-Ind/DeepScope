@@ -2,10 +2,10 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 
 export const umijsTechnologyDefinition: TechnologyDefinition = {
 	id: 'umijs',
-	name: 'UmiJs',
-	website: 'https://umijs.org',
+	name: 'UmiJS',
+	website: 'https://umijs.org/',
 	description:
-		'UmiJs is a scalable, enterprise-class frontend application framework that supports both configuration and conventional routing while maintaining functional completeness, such as dynamic routing, nested routing, and permission routing.',
+		'Umi is an extensible React application framework with configuration-based and convention-based routing plus a lifecycle-wide plugin system.',
 	icon: 'UmiJs.png',
 	categories: [
 		'ui-library',

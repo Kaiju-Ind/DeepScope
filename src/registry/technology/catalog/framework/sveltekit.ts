@@ -3,9 +3,9 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const sveltekitTechnologyDefinition: TechnologyDefinition = {
 	id: 'sveltekit',
 	name: 'SvelteKit',
-	website: 'https://kit.svelte.dev',
+	website: 'https://svelte.dev/docs/kit',
 	description:
-		'SvelteKit is the official Svelte framework for building web applications with a flexible filesystem-based routing.',
+		'SvelteKit is the official framework for building web applications with Svelte, with filesystem routing, server rendering, prerendering, and deployment adapters.',
 	icon: 'Svelte.svg',
 	categories: [
 		'framework',
@@ -143,7 +143,6 @@ export const sveltekitTechnologyDefinition: TechnologyDefinition = {
 		cpe: 'cpe:2.3:a:svelte:sveltekit:*:*:*:*:*:*:*:*',
 	},
 	implies: [
-		'node-js',
 		'svelte',
 		'vite',
 	],

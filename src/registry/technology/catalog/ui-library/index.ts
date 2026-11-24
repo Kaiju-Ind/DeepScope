@@ -110,7 +110,6 @@ import { zoneJsTechnologyDefinition } from './zone-js';
 import { emberTechnologyDefinition } from './ember';
 import { infernoTechnologyDefinition } from './inferno';
 import { qwikTechnologyDefinition } from './qwik';
-import { solidTechnologyDefinition } from './solid';
 import { webComponentsTechnologyDefinition } from './web-components';
 
 export const uiLibraryTechnologyDefinitions = [
@@ -141,6 +140,7 @@ export const uiLibraryTechnologyDefinitions = [
 	efJsTechnologyDefinition,
 	elementUiTechnologyDefinition,
 	emberJsTechnologyDefinition,
+	emberTechnologyDefinition,
 	enyoTechnologyDefinition,
 	essentialJs2TechnologyDefinition,
 	extjsTechnologyDefinition,
@@ -151,6 +151,7 @@ export const uiLibraryTechnologyDefinitions = [
 	hydrogenTechnologyDefinition,
 	inertiaJsTechnologyDefinition,
 	infernojsTechnologyDefinition,
+	infernoTechnologyDefinition,
 	jcomponentTechnologyDefinition,
 	jqueryTechnologyDefinition,
 	jqueryBlockuiTechnologyDefinition,
@@ -171,8 +172,8 @@ export const uiLibraryTechnologyDefinitions = [
 	litHtmlTechnologyDefinition,
 	marionetteJsTechnologyDefinition,
 	meteorTechnologyDefinition,
-	mithrilTechnologyDefinition,
 	mithrilJsTechnologyDefinition,
+	mithrilTechnologyDefinition,
 	moonTechnologyDefinition,
 	mootoolsTechnologyDefinition,
 	mustacheTechnologyDefinition,
@@ -196,8 +197,8 @@ export const uiLibraryTechnologyDefinitions = [
 	requirejsTechnologyDefinition,
 	revealJsTechnologyDefinition,
 	rightjsTechnologyDefinition,
-	riotTechnologyDefinition,
 	riotJsTechnologyDefinition,
+	riotTechnologyDefinition,
 	rippleTechnologyDefinition,
 	rxjsTechnologyDefinition,
 	satSTechnologyDefinition,
@@ -222,9 +223,6 @@ export const uiLibraryTechnologyDefinitions = [
 	weblocksTechnologyDefinition,
 	wowTechnologyDefinition,
 	zoneJsTechnologyDefinition,
-	emberTechnologyDefinition,
-	infernoTechnologyDefinition,
 	qwikTechnologyDefinition,
-	solidTechnologyDefinition,
 	webComponentsTechnologyDefinition,
 ] as const satisfies readonly TechnologyDefinition[];

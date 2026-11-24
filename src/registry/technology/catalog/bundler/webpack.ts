@@ -4,7 +4,8 @@ export const webpackTechnologyDefinition: TechnologyDefinition = {
 	id: 'webpack',
 	name: 'Webpack',
 	website: 'https://webpack.js.org/',
-	description: 'A static module bundler for modern JavaScript applications',
+	description: 'Webpack is a static module bundler for modern JavaScript applications.',
+	icon: 'Webpack.svg',
 	categories: [
 		'bundler',
 	],
@@ -185,4 +186,7 @@ export const webpackTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

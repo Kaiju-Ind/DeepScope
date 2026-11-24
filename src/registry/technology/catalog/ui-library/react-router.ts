@@ -4,7 +4,8 @@ export const reactRouterTechnologyDefinition: TechnologyDefinition = {
 	id: 'react-router',
 	name: 'React Router',
 	website: 'https://reactrouter.com',
-	description: 'React Router provides declarative routing for React.',
+	description:
+		'React Router is a multi-strategy router for React with declarative, data, and framework modes.',
 	icon: 'React Router.svg',
 	categories: [
 		'ui-library',
@@ -32,6 +33,9 @@ export const reactRouterTechnologyDefinition: TechnologyDefinition = {
 			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
+	versioning: {
+		scheme: 'semver',
+	},
 	metadata: {
 		oss: true,
 	},

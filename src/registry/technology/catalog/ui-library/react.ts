@@ -33,7 +33,7 @@ export const reactTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'react:scriptSrc:2',
 			kind: 'scriptSrc',
-			pattern: new RegExp('react(?:\\-dom)?(?:\\.production)?(?:\\.min)?\\.js'),
+			pattern: new RegExp('(?<![\\w-])react(?:\\-dom)?(?:\\.production)?(?:\\.min)?\\.js'),
 			description: 'Script source URL matches a known technology marker.',
 		},
 		{

@@ -12,7 +12,7 @@ export const exhibitTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'exhibit:scriptSrc:0',
 			kind: 'scriptSrc',
-			pattern: new RegExp('exhibit.*\\.js'),
+			pattern: new RegExp('(?<![\\w-])exhibit.*\\.js'),
 			description: 'Script source URL matches a known technology marker.',
 		},
 		{

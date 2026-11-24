@@ -40,6 +40,7 @@ import { meilisearchTechnologyDefinition } from './meilisearch';
 import { misoTechnologyDefinition } from './miso';
 import { novaBuscaTechnologyDefinition } from './nova-busca';
 import { opensearchTechnologyDefinition } from './opensearch';
+import { opensearchPlatformTechnologyDefinition } from './opensearch-platform';
 import { oramaTechnologyDefinition } from './orama';
 import { pagefindTechnologyDefinition } from './pagefind';
 import { pickzenTechnologyDefinition } from './pickzen';
@@ -65,6 +66,7 @@ import { wizzyTechnologyDefinition } from './wizzy';
 import { yextTechnologyDefinition } from './yext';
 import { zeviTechnologyDefinition } from './zevi';
 
+/** Technology definitions in the search category folder. */
 export const searchTechnologyDefinitions = [
 	addsearchTechnologyDefinition,
 	algoliaTechnologyDefinition,
@@ -106,6 +108,7 @@ export const searchTechnologyDefinitions = [
 	meilisearchTechnologyDefinition,
 	misoTechnologyDefinition,
 	novaBuscaTechnologyDefinition,
+	opensearchPlatformTechnologyDefinition,
 	opensearchTechnologyDefinition,
 	oramaTechnologyDefinition,
 	pagefindTechnologyDefinition,

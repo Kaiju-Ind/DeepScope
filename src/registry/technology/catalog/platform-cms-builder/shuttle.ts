@@ -31,7 +31,6 @@ export const shuttleTechnologyDefinition: TechnologyDefinition = {
 		],
 	},
 	implies: [
-		'amazon-web-services',
 		'laravel',
 		'php',
 	],

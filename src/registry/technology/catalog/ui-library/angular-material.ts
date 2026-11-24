@@ -2,10 +2,10 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 
 export const angularMaterialTechnologyDefinition: TechnologyDefinition = {
 	id: 'angular-material',
-	name: 'Angular Material',
-	website: 'https://material.angularjs.org',
+	name: 'AngularJS Material',
+	website: 'https://material.angularjs.org/',
 	description:
-		'Angular Material is a UI component library for Angular JS developers. Angular Material components assist in constructing attractive, consistent, and functional web pages and web applications.',
+		'AngularJS Material is an AngularJS 1.x UI component library that implements the 2014–2017 Google Material Design specification with reusable, tested, and accessible components.',
 	icon: 'AngularJS.svg',
 	categories: [
 		'ui-library',
@@ -29,6 +29,9 @@ export const angularMaterialTechnologyDefinition: TechnologyDefinition = {
 			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 	implies: [
 		'angularjs',
 	],

@@ -55,6 +55,5 @@ export const foodOrderingCoUkTechnologyDefinition: TechnologyDefinition = {
 		'bootstrap',
 		'google-maps',
 		'microsoft-asp-net',
-		'plesk',
 	],
 } as const satisfies TechnologyDefinition;

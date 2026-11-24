@@ -5,7 +5,7 @@ export const apiaryTechnologyDefinition: TechnologyDefinition = {
 	name: 'Apiary',
 	website: 'https://apiary.io',
 	description:
-		'Apiary is an API design stack that provides tools for designing, testing, and documenting APIs, built specifically to support developers throughout the API development process.',
+		'Oracle Apiary is a hosted API design and documentation platform with API Blueprint and OpenAPI support, interactive documentation, and mock services.',
 	icon: 'Apiary.svg',
 	categories: [
 		'developer-tooling',

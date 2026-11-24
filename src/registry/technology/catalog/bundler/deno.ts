@@ -312,13 +312,6 @@ export const denoTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 		{
-			id: 'deno:scriptContent:modern:43',
-			kind: 'scriptContent',
-			pattern: new RegExp('new\\s+URL\\(["\'][^"\']+["\'],\\s*import\\.meta\\.url\\)'),
-			confidence: 45,
-			description: 'Bundled script content matches a modern tooling marker.',
-		},
-		{
 			id: 'deno:scriptContent:modern:44',
 			kind: 'scriptContent',
 			pattern: new RegExp('\\/\\*\\s*@deno-types\\s*\\*\\/'),

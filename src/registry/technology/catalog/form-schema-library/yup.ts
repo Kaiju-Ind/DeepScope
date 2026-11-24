@@ -4,7 +4,7 @@ export const yupTechnologyDefinition: TechnologyDefinition = {
 	id: 'yup',
 	name: 'Yup',
 	website: 'https://github.com/jquense/yup',
-	description: 'Schema builder for runtime value parsing and validation',
+	description: 'Yup is an open-source JavaScript schema builder for runtime value parsing and validation.',
 	categories: [
 		'form-schema-library',
 	],
@@ -38,4 +38,7 @@ export const yupTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

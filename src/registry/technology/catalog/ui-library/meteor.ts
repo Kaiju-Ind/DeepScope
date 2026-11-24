@@ -3,10 +3,10 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const meteorTechnologyDefinition: TechnologyDefinition = {
 	id: 'meteor',
 	name: 'Meteor',
-	website: 'https://www.meteor.com',
+	website: 'https://meteor.com/',
 	description:
-		'Meteor is a JavaScript-based platform used for developing web and mobile applications with a unified language across all layers of the application stack.',
-	icon: 'Meteor.png',
+		'Meteor is a full-stack JavaScript framework for building web and mobile applications with a Node.js server runtime, MongoDB data integration, front-end framework choice, and real-time application features.',
+	icon: 'Meteor.svg',
 	categories: [
 		'ui-library',
 		'framework',

@@ -14,7 +14,7 @@ export const threeJsTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'three-js:scriptSrc:0',
 			kind: 'scriptSrc',
-			pattern: new RegExp('three(?:\\.min)?\\.js'),
+			pattern: new RegExp('(?<![\\w-])three(?:\\.min)?\\.js'),
 			description: 'Script source URL matches a known technology marker.',
 		},
 		{

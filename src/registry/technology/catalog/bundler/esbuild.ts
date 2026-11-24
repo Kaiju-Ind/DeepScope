@@ -4,7 +4,8 @@ export const esbuildTechnologyDefinition: TechnologyDefinition = {
 	id: 'esbuild',
 	name: 'esbuild',
 	website: 'https://esbuild.github.io/',
-	description: 'An extremely fast JavaScript bundler and minifier',
+	description: 'esbuild is an open-source JavaScript and CSS bundler, minifier, and transpiler written in Go.',
+	icon: 'esbuild.svg',
 	categories: [
 		'bundler',
 		'minifier',
@@ -61,4 +62,7 @@ export const esbuildTechnologyDefinition: TechnologyDefinition = {
 			description: 'Script content includes esbuild-generated style tag injection output.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

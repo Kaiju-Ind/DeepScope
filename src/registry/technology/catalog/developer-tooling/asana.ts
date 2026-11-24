@@ -4,7 +4,7 @@ export const asanaTechnologyDefinition: TechnologyDefinition = {
 	id: 'asana',
 	name: 'Asana',
 	website: 'https://asana.com',
-	description: 'Asana is a web and mobile application designed to help teams organize, track, and manage their work.',
+	description: 'Asana is a work management platform for coordinating projects, processes, goals, and human-agent workflows.',
 	icon: 'Asana.svg',
 	categories: [
 		'developer-tooling',
