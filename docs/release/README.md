@@ -123,12 +123,19 @@ the secrets. Values come from the store consoles; nothing here supplies them.
 
 ## Reproducibility
 
-The release job exports `SOURCE_DATE_EPOCH` (the tagged commit's time), but
-`wxt.config.ts` currently embeds `new Date()` in the build id, so two builds of
-the same commit differ (observed locally: the Chrome zip hash changed between
-runs while the Firefox sources zip did not). Deriving the build id from
-`SOURCE_DATE_EPOCH` is required before AMO source review can match byte for
-byte.
+Rebuilding a commit produces byte-identical archives for every browser. Three
+full `mise run release:archives chrome firefox safari` runs gave the same
+`SHA256SUMS`, two of them with outbound network blocked. What makes that hold:
+
+- The build id is the version plus the commit (`DEEPSCOPE_SOURCE_COMMIT`, else
+  `GITHUB_SHA`, else `local`); nothing reads the clock.
+- Registry files carry no build timestamp
+  (`src/tests/registry/reproducible-assets.test.ts` builds the catalog twice).
+- Fonts come from pinned npm packages, declared by hand in
+  `src/styles/fonts.css`, so no CDN download decides their order.
+- WXT sorts zip entries and writes no timestamps.
+
+The release job still exports `SOURCE_DATE_EPOCH` for any tool that honours it.
 
 ## Owner actions
 
