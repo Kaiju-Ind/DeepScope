@@ -6,6 +6,7 @@ import type {
 	DetectionPipelineRuntimeResult,
 	DetectionPipelineStage,
 } from './runtime';
+import type { DetectionReplaySummary } from '../storage/session';
 import * as dictionary from '../../utils/dictionary';
 
 /** Schema version for serialized replay traces produced by this module. */
@@ -291,6 +292,31 @@ export function isDetectionReplayTraceForAnalysis(
 		trace.resultCount === analysis.results.length &&
 		trace.analyzedAt === analysis.analyzedAt
 	);
+}
+
+/** Compact form of a trace kept on snapshots: run id, counts and the ordered unique stages. */
+export function summarize(trace: DetectionReplayTrace): DetectionReplaySummary {
+	const stages: DetectionPipelineStage[] = [];
+	for (const event of trace.events) {
+		if (!stages.includes(event.stage)) stages.push(event.stage);
+	}
+
+	return {
+		...(trace.runId ? { runId: trace.runId } : {}),
+		analyzedAt: trace.analyzedAt,
+		eventCount: trace.events.length,
+		explanationCount: trace.explanations.length,
+		resultCount: trace.resultCount,
+		stages,
+	};
+}
+
+/** Whether a compact summary describes this analysis: same run time and result count. */
+export function describes(
+	summary: DetectionReplaySummary | undefined,
+	analysis: SiteAnalysis,
+): summary is DetectionReplaySummary {
+	return Boolean(summary && summary.resultCount === analysis.results.length && summary.analyzedAt === analysis.analyzedAt);
 }
 
 /** Filter replay histories so origin-level storage cannot explain the wrong visible run. */

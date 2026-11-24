@@ -11,7 +11,6 @@ import type { ContentPageSessionSnapshotTarget } from '@/lib/messaging/analysis'
 import type {
 	DetectionEnrichmentState,
 	DetectionEvidenceState,
-	DetectionReplaySummary,
 	DetectionSessionKey,
 	DetectionSessionSnapshot,
 	DetectionSessionSnapshotSource,
@@ -24,7 +23,7 @@ import {
 	filterReplayHistoryForAnalysis,
 	isDetectionReplayTraceForAnalysis,
 } from '@/lib/pipeline';
-import type { DetectionPipelineStage, DetectionReplayTrace } from '@/lib/pipeline';
+import type { DetectionReplayTrace } from '@/lib/pipeline';
 import {
 	createTimingTraceId,
 	endTimingSpan,
@@ -59,7 +58,9 @@ import {
 	getObservationRefreshBlockReason,
 	shouldStartObservationForAnalysis,
 } from '@/lib/lifecycle/observation';
-import { errorResponse, extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
+import * as tabIdentity from '@/lib/messaging/identity';
+import * as replay from '@/lib/pipeline/replay';
+import { errorResponse, ok, type ExtensionResult } from '@/lib/messaging/result';
 import {
 	MatcherError,
 	createMatcherPipelineResult,
@@ -80,6 +81,7 @@ import { diagnosticErrorType } from '@/lib/privacy/redaction';
 import type { RuntimeTechnologyRegistryArtifact } from '@/lib/registry/runtime-artifact';
 import * as revision from '@/lib/background/revision';
 import * as rank from '@/lib/detection/rank';
+import * as fence from '@/utils/fence';
 import * as url from '@/utils/url';
 import {
 	STORAGE_LIMITS,
@@ -377,7 +379,7 @@ export function createBackgroundRuntime(
 	const activeMatcherProgressByJob = new Map<string, ActiveMatcherProgressContext>();
 
 	/** Background snapshot writes are serialized per exact visible session. */
-	const snapshotWriteQueueBySession = new Map<string, Promise<void>>();
+	const snapshotWrites = fence.create<string>();
 
 	/** Retain one full observation batch only for a live content observation session. */
 	function retainObservationRefreshBaseline(
@@ -631,8 +633,8 @@ export function createBackgroundRuntime(
 				if (!response.ok) {
 					logBackgroundEvent('observation-refresh-background-failed', {
 						...details,
-						code: response.error.code,
-						...(!target.incognito && { message: response.error.message }),
+						code: response.failure.code,
+						...(!target.incognito && { message: response.failure.message }),
 					});
 					return;
 				}
@@ -689,17 +691,6 @@ export function createBackgroundRuntime(
 		};
 	}
 
-	function isSameVisibleTabIdentity(left: VisibleTabIdentity, right: VisibleTabIdentity): boolean {
-		return (
-			left.windowId === right.windowId &&
-			left.tabId === right.tabId &&
-			left.frameId === right.frameId &&
-			left.originHash === right.originHash &&
-			left.urlHash === right.urlHash &&
-			left.incognito === right.incognito
-		);
-	}
-
 	async function getInspectableVisibleTab(target: VisibleTabIdentity): Promise<ExtensionResult<InspectableTab>> {
 		return validateInspectableTarget(target, await getInspectableActiveTab(target.tabId, target.windowId));
 	}
@@ -715,7 +706,7 @@ export function createBackgroundRuntime(
 		if (!tab.ok) return tab;
 		const identity = createVisibleTabIdentity(tab.value);
 		if (identity.frameId === target.frameId && identity.urlHash === target.urlHash) {
-			return extensionSuccess(identity);
+			return ok(identity);
 		}
 
 		logBackgroundEvent('scheduled-tab-target-mismatch', {
@@ -735,7 +726,7 @@ export function createBackgroundRuntime(
 	): ExtensionResult<InspectableTab> {
 		if (!targetTab.ok) return targetTab;
 		const targetIdentity = createVisibleTabIdentity(targetTab.value);
-		if (isSameVisibleTabIdentity(targetIdentity, target)) return targetTab;
+		if (tabIdentity.same(targetIdentity, target)) return targetTab;
 
 		logBackgroundEvent('visible-tab-target-mismatch', {
 			requestedWindowId: target.windowId,
@@ -835,7 +826,7 @@ export function createBackgroundRuntime(
 			);
 		}
 
-		return extensionSuccess({
+		return ok({
 			id: tab.id,
 			windowId: tab.windowId,
 			url: tab.url,
@@ -878,7 +869,7 @@ export function createBackgroundRuntime(
 			signal?.throwIfAborted();
 			await dependencies.executeContentScript(tabId);
 			signal?.throwIfAborted();
-			return extensionSuccess(undefined);
+			return ok(undefined);
 		} catch (error) {
 			return injectionFailure(error);
 		}
@@ -889,7 +880,7 @@ export function createBackgroundRuntime(
 		signal?.throwIfAborted();
 		if (await pingContentScript(tabId, signal)) {
 			logBackgroundEvent('content-runtime-ready', { tabId });
-			return extensionSuccess(undefined);
+			return ok(undefined);
 		}
 
 		const existingInjection = contentScriptInjectionByTab.get(tabId);
@@ -904,15 +895,15 @@ export function createBackgroundRuntime(
 			if (!injectionResponse.ok) {
 				logBackgroundEvent('content-runtime-inject-failed', {
 					tabId,
-					code: injectionResponse.error.code,
-					...(!tab.incognito && { message: injectionResponse.error.message }),
+					code: injectionResponse.failure.code,
+					...(!tab.incognito && { message: injectionResponse.failure.message }),
 				});
 				return injectionResponse;
 			}
 
 			if (await pingContentScript(tabId, signal)) {
 				logBackgroundEvent('content-runtime-inject-ready', { tabId });
-				return extensionSuccess(undefined);
+				return ok(undefined);
 			}
 
 			logBackgroundEvent('content-runtime-inject-timeout', { tabId });
@@ -1083,13 +1074,13 @@ export function createBackgroundRuntime(
 		}
 
 		const key = createDetectionSessionKeyForOutput(tab, output);
-		await queueSnapshotWrite(key, async () => {
+		await snapshotWrites.run(getSnapshotQueueKey(key), async () => {
 			// A matcher can lose ownership while this revision waits in the write queue.
 			if (ownsPublication?.() === false) return;
 			const existing = await getLatestDetectionSessionSnapshot(key);
 			if (ownsPublication?.() === false) return;
 			const replaySummary = shouldAttachReplaySummaryToSnapshot(output)
-				? createReplaySummary(output.replayTrace)
+				? replay.summarize(output.replayTrace)
 				: undefined;
 			const snapshot: DetectionSessionSnapshot = {
 				key,
@@ -1140,26 +1131,6 @@ export function createBackgroundRuntime(
 	/** Build a stable key for ordered writes to one exact visible page session. */
 	function getSnapshotQueueKey(key: DetectionSessionKey): string {
 		return `${key.tabId}:${key.frameId}:${key.originHash}:${key.documentId}`;
-	}
-
-	/** Serialize revision assignment and storage writes for one exact session. */
-	function queueSnapshotWrite(
-		key: DetectionSessionKey,
-		operation: () => Promise<void>,
-	): Promise<void> {
-		const queueKey = getSnapshotQueueKey(key);
-		const previous = snapshotWriteQueueBySession.get(queueKey) ?? Promise.resolve();
-		const next = previous
-			.catch(() => undefined)
-			.then(operation)
-			.finally(() => {
-				if (snapshotWriteQueueBySession.get(queueKey) === next) {
-					snapshotWriteQueueBySession.delete(queueKey);
-				}
-			});
-
-		snapshotWriteQueueBySession.set(queueKey, next);
-		return next;
 	}
 
 	/** Explain why storage rejected a write so count regressions are diagnosable. */
@@ -1271,22 +1242,6 @@ export function createBackgroundRuntime(
 		return filterReplayHistoryForAnalysis(history, analysis);
 	}
 
-	/** Keep only public-safe replay progress inside the visible snapshot record. */
-	function createReplaySummary(trace: DetectionReplayTrace): DetectionReplaySummary {
-		const stages: DetectionPipelineStage[] = [];
-		for (const event of trace.events) {
-			if (!stages.includes(event.stage)) stages.push(event.stage);
-		}
-		return {
-			...(trace.runId ? { runId: trace.runId } : {}),
-			analyzedAt: trace.analyzedAt,
-			eventCount: trace.events.length,
-			explanationCount: trace.explanations.length,
-			resultCount: trace.resultCount,
-			stages,
-		};
-	}
-
 	function validateObservationSessionTarget(
 		actual: observe.StateType,
 		expected: ObservationSessionTarget,
@@ -1305,7 +1260,7 @@ export function createBackgroundRuntime(
 			);
 		}
 
-		return extensionSuccess(undefined);
+		return ok(undefined);
 	}
 
 	async function getObservationSessionStateForTab(
@@ -1379,7 +1334,7 @@ export function createBackgroundRuntime(
 					(value) => ({ replayHistoryCount: value.length }),
 				);
 				endTimingSpan(totalSpan, { ok: true, snapshotHit: true, lateObservationCount: 0 });
-				return extensionSuccess(createAnalysisOutput(
+				return ok(createAnalysisOutput(
 					snapshot.analysis,
 					'hit',
 					flush.session,
@@ -1411,7 +1366,7 @@ export function createBackgroundRuntime(
 		const [, ...remainingEvidencePasses] = collectionPasses;
 		const recoveredRefresh = !baseBatch || !isSameObservationTarget(baseBatch, lateBatch);
 		const batchResponse = !recoveredRefresh
-			? extensionSuccess(timeSyncSpan(
+			? ok(timeSyncSpan(
 				'background.observation-refresh.merge-late-batch',
 				timingContext,
 				() => mergeObservationBatches(baseBatch, lateBatch),
@@ -1496,7 +1451,7 @@ export function createBackgroundRuntime(
 			resultCount: response.analysis.results.length,
 			lateObservationCount: lateBatch.observations.length,
 		});
-		return extensionSuccess(response);
+		return ok(response);
 	}
 
 	async function recoverObservationBatchForRefresh(
@@ -1516,7 +1471,7 @@ export function createBackgroundRuntime(
 			return recoveredBatch;
 		}
 
-		return extensionSuccess(mergeObservationBatches(recoveredBatch.value, lateBatch));
+		return ok(mergeObservationBatches(recoveredBatch.value, lateBatch));
 	}
 
 	async function beginObservationSessionForTab(
@@ -1608,8 +1563,8 @@ export function createBackgroundRuntime(
 			sessionId: target.sessionId,
 			failedAt,
 			...(response.ok ? {} : {
-				code: response.error.code,
-				...(!tab.incognito && { message: response.error.message }),
+				code: response.failure.code,
+				...(!tab.incognito && { message: response.failure.message }),
 			}),
 		});
 	}
@@ -1681,8 +1636,8 @@ export function createBackgroundRuntime(
 					session = sessionResponse.value;
 				} else {
 					dependencies.logEvent('observation-session-unavailable', {
-						code: sessionResponse.error.code,
-						...(!tab.incognito && { message: sessionResponse.error.message }),
+						code: sessionResponse.failure.code,
+						...(!tab.incognito && { message: sessionResponse.failure.message }),
 					});
 				}
 			}
@@ -1773,7 +1728,7 @@ export function createBackgroundRuntime(
 				deferredCollectionPassCount: remainingPasses.length,
 				returnedResultCount: response.analysis.results.length,
 			});
-			return extensionSuccess(response);
+			return ok(response);
 		} finally {
 			activeFreshAnalysisByTab.delete(tab.id);
 		}
@@ -1840,8 +1795,8 @@ export function createBackgroundRuntime(
 					logBackgroundEvent('evidence-pass-collection-skipped', {
 						...summarizeTab(input.tab),
 						passId: pass.id,
-						code: passBatch.error.code,
-						...(!input.tab.incognito && { message: passBatch.error.message }),
+						code: passBatch.failure.code,
+						...(!input.tab.incognito && { message: passBatch.failure.message }),
 					});
 					continue;
 				}
@@ -2147,7 +2102,7 @@ export function createBackgroundRuntime(
 				ownsPublication,
 			});
 			return output
-				? extensionSuccess(output)
+				? ok(output)
 				: errorResponse('VALIDATION_ERROR', 'Matcher result no longer owns the visible session.');
 		} catch (error) {
 			// Navigation, tab closure and superseding analyses abort the document work
@@ -2562,7 +2517,7 @@ export function createBackgroundRuntime(
 			timingTraceId,
 		});
 		const sessionResponse = knownSession
-			? extensionSuccess(knownSession)
+			? ok(knownSession)
 			: await timeAsyncSpan(
 				'background.observation-refresh.get-session-state',
 				timingContext,
@@ -2655,7 +2610,7 @@ export function createBackgroundRuntime(
 			return targetValidation;
 		}
 
-		return extensionSuccess(response.value);
+		return ok(response.value);
 	}
 
 	async function getInspectableTabForObservationSessionTarget(
@@ -2684,7 +2639,7 @@ export function createBackgroundRuntime(
 				);
 			}
 
-			return extensionSuccess({
+			return ok({
 				id: target.tabId,
 				windowId: tab.windowId,
 				url: tab.url,
@@ -2810,8 +2765,8 @@ export function createBackgroundRuntime(
 				resolveRegistered();
 				logBackgroundEvent('analysis-queued-persist-failed', {
 					...summarizeTab(input.tab),
-					code: response.error.code,
-					...(!input.tab.incognito && { message: response.error.message }),
+					code: response.failure.code,
+					...(!input.tab.incognito && { message: response.failure.message }),
 				});
 				return;
 			}
@@ -2901,7 +2856,7 @@ export function createBackgroundRuntime(
 						undefined,
 						snapshot.evidence,
 					);
-					return extensionSuccess(output);
+					return ok(output);
 				}
 
 				logBackgroundEvent('analysis-snapshot-miss', {
@@ -2922,7 +2877,7 @@ export function createBackgroundRuntime(
 	function createBackgroundApi(): BackgroundApi {
 		return {
 			async getAnalysisStatus() {
-				return extensionSuccess(await getStatus());
+				return ok(await getStatus());
 			},
 
 			async getVisibleTabIdentity(input) {
@@ -2933,7 +2888,7 @@ export function createBackgroundRuntime(
 					return tabResponse;
 				}
 
-				return extensionSuccess(createVisibleTabIdentity(tabResponse.value));
+				return ok(createVisibleTabIdentity(tabResponse.value));
 			},
 
 			async analyzeVisibleTab(input): Promise<ExtensionResult<AnalyzeVisibleTabOutput>> {
@@ -2961,7 +2916,7 @@ export function createBackgroundRuntime(
 
 
 			async getReplayTraceHistory(input) {
-				return extensionSuccess(await getCachedReplayTraceHistory(input.url));
+				return ok(await getCachedReplayTraceHistory(input.url));
 			},
 		};
 	}

@@ -6,9 +6,18 @@ copied here, renamed from `@kaiju-ind/<package>` to `@utils/<package>`, so this
 repository builds and publishes without access to the Utils repository or its
 registry.
 
-Nothing in `src/` imports these packages yet. They are available, tested and
-documented; DeepScope's scheduler, runtime and matcher move onto them module by
-module (see "Migrating DeepScope code" below).
+`src/` uses four of them today (source cleanup phase A):
+
+| Package | Used by | For |
+| --- | --- | --- |
+| `@utils/result` | `src/lib/messaging/result.ts` (and every `ExtensionResult` caller) | `ExtensionResult` is `Result<Value, ExtensionError>`; `ok`/`fail`, failures carry `failure` |
+| `@utils/context` | `src/lib/messaging/rpc.ts` | each `withTimeout` wait owns a context (`create`, `cancel`, `observe`, `delay`) |
+| `@utils/dispose` | `src/lib/messaging/rpc.ts`, `src/lib/matcher/workers/pool.ts` | `DisposableStack` for a worker slot's listeners, timer and heap; `asyncDispose` key |
+| `@utils/scheduler/capacity` | `src/lib/scheduler/budget.ts` | matcher admission leases (8 jobs, 12 MiB) |
+
+The others are declared but not yet imported; DeepScope's pool, queue and
+analysis lifecycle move onto them module by module (see "Migrating DeepScope
+code" below).
 
 ## Layout
 
@@ -188,11 +197,13 @@ database with no item leased twice.
 
 Order (each step is one reviewable change with its own tests):
 
-1. `src/utils/result.ts` callers to `@utils/result`.
-2. The reserve/release accounting in `scheduler/matcher.ts` to
+1. Done: `src/utils/result.ts` callers to `@utils/result`.
+2. Done: the reserve/release accounting in `scheduler/matcher.ts` to
    `@utils/scheduler/capacity`; the limits in `budget.ts` stay DeepScope policy.
-3. Per-tab `AbortController` scopes and `rpc.ts:withTimeout` to
-   `@utils/context` (`context.create`, child contexts, deadlines).
+3. Done for `rpc.ts:withTimeout` (`withLivenessDeadline` composes it). The
+   per-tab `AbortController` document-work scopes in the background runtime
+   move to child contexts with the runtime split, when `work.ts` owns them
+   and a runtime root context exists to parent them.
 4. `matcher/workers/pool.ts`, the slot logic in `executor.ts` and the worker
    message loop to `@utils/pool` and `@utils/worker/thread` + `protocol`.
 5. `scheduler/database.ts` to `@utils/storage/queue/indexeddb`: one namespace

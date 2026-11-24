@@ -10,6 +10,7 @@ import { validatePageSignals } from "@/lib/detection/validate";
 import { getDiagnosticBuildId } from "@/lib/diagnostics/build";
 import { installDiagnosticCrashHooks } from "@/lib/diagnostics/crash";
 import * as logging from '@/lib/diagnostics/logging';
+import * as summary from '@/lib/diagnostics/summary';
 import type { CollectPageSignalsInput, ContentApi } from "@/lib/messaging";
 import {
   CONTENT_RPC_NAMESPACE,
@@ -26,7 +27,7 @@ import {
   type ObservationBatch,
   type ObservationBatchControllerStats,
 } from "@/lib/observations";
-import { errorResponse, extensionSuccess } from "@/lib/messaging/result";
+import { errorResponse, ok } from "@/lib/messaging/result";
 import { diagnosticErrorType } from "@/lib/privacy/redaction";
 import * as url from "@/utils/url";
 
@@ -73,39 +74,25 @@ function clearRuntimeState(state: ContentRuntimeState): void {
 function logContentEvent(event: string, details?: Record<string, unknown>): void {
   contentLogger.debug("[kaiju-deepscope][content] {event}{summary}", {
     event,
-    summary: formatContentLogSummary(details),
+    summary: summary.format(details, SUMMARY_KEYS, { skipBlank: true }),
     ...(details ?? {}),
   });
 }
 
-function formatContentLogSummary(details?: Record<string, unknown>): string {
-  if (!details) {
-    return "";
-  }
-
-  const fields: string[] = [];
-  const keys = [
-    "tabId",
-    "frameId",
-    "documentId",
-    "sessionId",
-    "hostname",
-    "status",
-    "observationCount",
-    "acceptedCount",
-    "queuedCount",
-    "resultCount",
-    "timingTraceId",
-  ];
-  for (const key of keys) {
-    const value = details[key];
-    if (value !== undefined && value !== null && value !== "") {
-      fields.push(`${key}=${String(value)}`);
-    }
-  }
-
-  return fields.length ? ` ${fields.join(" ")}` : "";
-}
+/** Detail keys shown in each content log line's summary. */
+const SUMMARY_KEYS = [
+  "tabId",
+  "frameId",
+  "documentId",
+  "sessionId",
+  "hostname",
+  "status",
+  "observationCount",
+  "acceptedCount",
+  "queuedCount",
+  "resultCount",
+  "timingTraceId",
+] as const;
 
 /** Keep document state available without recording the location of a private page. */
 function summarizeCurrentDocument(incognito: boolean): Record<string, unknown> {
@@ -287,7 +274,7 @@ async function collectSignals(
 
     logContentEvent("collect-success", summarizeSignals(signals, incognito));
 
-    return extensionSuccess(signals);
+    return ok(signals);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to collect page signals";
     const stack = error instanceof Error ? error.stack : undefined;
@@ -348,7 +335,7 @@ async function collectInitialObservationBatch(
     tier: input.tier ?? "initial",
   });
 
-  return extensionSuccess({ batch });
+  return ok({ batch });
 }
 
 /**
@@ -464,7 +451,7 @@ export function createContentRuntime(observedSignals: observe.SignalsType, incog
         expiresAt: session.expiresAt,
       });
 
-      return extensionSuccess(session);
+      return ok(session);
     },
 
     async flushObservationBatch() {
@@ -478,7 +465,7 @@ export function createContentRuntime(observedSignals: observe.SignalsType, incog
         status: flush.session.status,
         pendingMutationCount: flush.session.pendingMutationCount,
       });
-      return extensionSuccess(flush);
+      return ok(flush);
     },
 
     async stopObservationSession(input) {
@@ -504,7 +491,7 @@ export function createContentRuntime(observedSignals: observe.SignalsType, incog
         status: session.status,
         stopReason: session.stopReason,
       });
-      return extensionSuccess(session);
+      return ok(session);
     },
 
     async getObservationSessionState() {
@@ -518,7 +505,7 @@ export function createContentRuntime(observedSignals: observe.SignalsType, incog
         lastObservedAt: session.lastObservedAt,
         stopReason: session.stopReason,
       });
-      return extensionSuccess(session);
+      return ok(session);
     },
   };
 

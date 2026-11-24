@@ -70,7 +70,7 @@ describe('analysis scheduler fairness', { concurrent: false }, () => {
 		}));
 
 		const analysis = await import('@/lib/scheduler/analysis');
-		const analyze = vi.fn(async () => ({ ok: false as const, error: { code: 'VALIDATION_ERROR' as const, message: 'fixture' } }));
+		const analyze = vi.fn(async () => ({ ok: false as const, failure: { code: 'VALIDATION_ERROR' as const, message: 'fixture' } }));
 		const resolveTarget = vi.fn(async () => ({
 			ok: true as const,
 			value: {

@@ -1,18 +1,4 @@
-import type { Evidence } from '@/lib/detection/types';
 import type { EvidencePreview } from '@/app/model';
-
-/** Convert stored detection evidence to the same safe preview shape used by replay explanations. */
-export function createEvidencePreview(evidence: Evidence): EvidencePreview {
-	return {
-		kind: evidence.kind,
-		direct: evidence.direct !== false,
-		...(evidence.matchedValue ? { matchedValue: evidence.matchedValue } : {}),
-		...(evidence.version ? { version: evidence.version } : {}),
-		...(evidence.sourceTechnologyId ? { sourceTechnologyId: evidence.sourceTechnologyId } : {}),
-		...(evidence.observationKey ? { observationKey: evidence.observationKey } : {}),
-		...(evidence.attributes ? { attributes: { ...evidence.attributes } } : {}),
-	};
-}
 
 /** Format one already-redacted evidence row for human inspection. */
 export function formatEvidencePreview(item: EvidencePreview): string {

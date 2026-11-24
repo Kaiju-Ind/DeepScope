@@ -31,7 +31,7 @@ import {
 import type { DetectionReplayTrace } from '@/lib/pipeline';
 import type { RuntimeTechnologyRegistryArtifact } from '@/lib/registry/runtime-artifact';
 import type { MatcherJobStore } from '@/lib/persistence/ports';
-import { extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
+import { ok, type ExtensionResult } from '@/lib/messaging/result';
 import { makeDetectionReplayTrace } from '../support/factories';
 import { createMockBrowserStorageArea } from '../support/mock-browser';
 
@@ -356,8 +356,8 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	};
 
 	const contentApi = {
-		collectObservationBatch: vi.fn(async () => extensionSuccess({ batch: makeObservationBatch() })),
-		flushObservationBatch: vi.fn(async () => extensionSuccess({
+		collectObservationBatch: vi.fn(async () => ok({ batch: makeObservationBatch() })),
+		flushObservationBatch: vi.fn(async () => ok({
 			stats: {
 				queuedCount: 0,
 				acceptedCount: 0,
@@ -368,9 +368,9 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 			},
 			session: observingState,
 		})),
-		beginObservationSession: vi.fn(async () => extensionSuccess(observingState)),
-		stopObservationSession: vi.fn(async () => extensionSuccess(stoppedState)),
-		getObservationSessionState: vi.fn(async () => extensionSuccess(pollingState)),
+		beginObservationSession: vi.fn(async () => ok(observingState)),
+		stopObservationSession: vi.fn(async () => ok(stoppedState)),
+		getObservationSessionState: vi.fn(async () => ok(pollingState)),
 		...input.contentApi,
 	} satisfies ContentApi;
 
@@ -561,7 +561,7 @@ afterEach(() => {
 
 describe('background visible-tab identity', { concurrent: false }, () => {
 	it('returns the visible tab identity without contacting the content script', async () => {
-		const collectObservationBatch = vi.fn(async (_input: unknown) => extensionSuccess({ batch: makeObservationBatch() }));
+		const collectObservationBatch = vi.fn(async (_input: unknown) => ok({ batch: makeObservationBatch() }));
 		const harness = await loadBackgroundApiHarness({ tab: HTTP_TAB, contentApi: { collectObservationBatch } });
 
 		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 3 })).resolves.toMatchObject({
@@ -586,7 +586,7 @@ describe('background visible-tab identity', { concurrent: false }, () => {
 
 		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 3 })).resolves.toMatchObject({
 			ok: false,
-			error: { code: 'NO_ACTIVE_TAB' },
+			failure: { code: 'NO_ACTIVE_TAB' },
 		});
 	});
 
@@ -614,7 +614,7 @@ describe('background visible-tab identity', { concurrent: false }, () => {
 			urlHash: createDetectionStorageHash(HTTP_TAB.url!),
 		})).resolves.toMatchObject({
 			ok: false,
-			error: { code: 'VALIDATION_ERROR' },
+			failure: { code: 'VALIDATION_ERROR' },
 		});
 	});
 
@@ -628,7 +628,7 @@ describe('background visible-tab identity', { concurrent: false }, () => {
 
 		await expect(harness.api.analyzeVisibleTab(input)).resolves.toMatchObject({
 			ok: false,
-			error: { code: 'NO_ACTIVE_TAB' },
+			failure: { code: 'NO_ACTIVE_TAB' },
 		});
 		await expect(harness.runtime.analyzeScheduledTab(input)).resolves.toMatchObject({
 			ok: true,
@@ -644,7 +644,7 @@ describe('background visible-tab identity', { concurrent: false }, () => {
 
 		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 3 })).resolves.toMatchObject({
 			ok: false,
-			error: { code: 'NO_ACTIVE_TAB' },
+			failure: { code: 'NO_ACTIVE_TAB' },
 		});
 		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 3, follow: 'pinned' })).resolves.toMatchObject({
 			ok: true,
@@ -659,10 +659,10 @@ describe('background visible-tab identity', { concurrent: false }, () => {
 
 		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 9, follow: 'pinned' })).resolves.toMatchObject({
 			ok: false,
-			error: { code: 'NO_ACTIVE_TAB' },
+			failure: { code: 'NO_ACTIVE_TAB' },
 		});
 		await expect(harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'none', follow: 'pinned' }))
-			.resolves.toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
+			.resolves.toMatchObject({ ok: false, failure: { code: 'VALIDATION_ERROR' } });
 	});
 
 	it('keeps a pinned private target out of durable storage', async () => {
@@ -690,7 +690,7 @@ describe('background visible-tab identity', { concurrent: false }, () => {
 			observe: 'none',
 		})).resolves.toMatchObject({
 			ok: false,
-			error: { code: 'VALIDATION_ERROR' },
+			failure: { code: 'VALIDATION_ERROR' },
 		});
 	});
 
@@ -699,7 +699,7 @@ describe('background visible-tab identity', { concurrent: false }, () => {
 
 		await expect(harness.api.getVisibleTabIdentity({ tabId: 7, windowId: 3 })).resolves.toMatchObject({
 			ok: false,
-			error: { code: 'NO_ACTIVE_TAB' },
+			failure: { code: 'NO_ACTIVE_TAB' },
 		});
 	});
 });
@@ -712,7 +712,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 		});
 		const harness = await loadBackgroundApiHarness({ tab: { ...HTTP_TAB, incognito }, contentApi: { collectObservationBatch } });
 		await expect(harness.api.analyzeVisibleTab({ target: { ...VISIBLE_TAB_TARGET, incognito }, mode: 'refresh', observe: 'none' }))
-			.resolves.toMatchObject({ ok: false, error: { message } });
+			.resolves.toMatchObject({ ok: false, failure: { message } });
 		expect(collectObservationBatch).toHaveBeenCalledOnce();
 		const failure = harness.mocks.logEvent.mock.calls.find(([event]) => event === 'collect-observation-batch-failed')?.[1];
 		const timing = harness.mocks.timingDebug.mock.calls.map(([, details]) => details)
@@ -771,7 +771,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'while-panel-open' }),
 		).resolves.toMatchObject({
 			ok: false,
-			error: {
+			failure: {
 				code: 'NO_ACTIVE_TAB',
 			},
 		});
@@ -784,12 +784,12 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'while-panel-open' }),
 		).resolves.toMatchObject({
 			ok: false,
-			error: { code: 'NO_ACTIVE_TAB' },
+			failure: { code: 'NO_ACTIVE_TAB' },
 		});
 	});
 
 	it('returns UNSUPPORTED_URL before contacting the content script', async () => {
-		const collectObservationBatch = vi.fn(async (_input: unknown) => extensionSuccess({ batch: makeObservationBatch() }));
+		const collectObservationBatch = vi.fn(async (_input: unknown) => ok({ batch: makeObservationBatch() }));
 		const api = await loadBackgroundApi({
 			tab: { id: 7, windowId: 3, url: 'chrome://extensions' },
 			contentApi: { collectObservationBatch },
@@ -799,7 +799,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'while-panel-open' }),
 		).resolves.toMatchObject({
 			ok: false,
-			error: {
+			failure: {
 				code: 'UNSUPPORTED_URL',
 			},
 		});
@@ -820,7 +820,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-panel-open' }),
 		).resolves.toMatchObject({
 			ok: false,
-			error: {
+			failure: {
 				code: 'CONTENT_SCRIPT_UNAVAILABLE',
 				message: 'Could not establish connection. Receiving end does not exist.',
 			},
@@ -841,7 +841,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 
 		await expect(result).resolves.toMatchObject({
 			ok: false,
-			error: {
+			failure: {
 				code: 'CONTENT_SCRIPT_UNAVAILABLE',
 				message: 'Content script did not respond before the messaging timeout.',
 			},
@@ -857,7 +857,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			contentApi: {
 				getObservationSessionState: vi.fn(async () => {
 					if (collecting) throw new Error('Could not establish connection. Receiving end does not exist.');
-					return extensionSuccess({ status: 'idle' } as observe.StateType);
+					return ok({ status: 'idle' } as observe.StateType);
 				}),
 				collectObservationBatch: vi.fn(() => {
 					collecting = true;
@@ -871,7 +871,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 
 		await expect(result).resolves.toMatchObject({
 			ok: false,
-			error: {
+			failure: {
 				code: 'CONTENT_SCRIPT_UNAVAILABLE',
 				message: 'Content script did not respond before the messaging timeout.',
 			},
@@ -886,13 +886,13 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 
 		const result = api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'while-panel-open' });
 		await vi.advanceTimersByTimeAsync(CONTENT_SCRIPT_TIMEOUT_MS * 2);
-		finish(extensionSuccess({ batch: undefined as unknown as ObservationBatch }));
+		finish(ok({ batch: undefined as unknown as ObservationBatch }));
 		await vi.advanceTimersByTimeAsync(0);
 
 		// The slow answer is consumed (here it is malformed, so it fails later),
 		// not reported as a missing content script.
 		const settled = await result;
-		expect(settled.ok ? undefined : settled.error.message).not.toBe('Content script did not respond before the messaging timeout.');
+		expect(settled.ok ? undefined : settled.failure.message).not.toBe('Content script did not respond before the messaging timeout.');
 	});
 
 	it('releases fresh-analysis ownership when registry loading throws', async () => {
@@ -904,7 +904,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 				throw registryFailure;
 			}),
 			contentApi: {
-				getObservationSessionState: vi.fn(async () => extensionSuccess({
+				getObservationSessionState: vi.fn(async () => ok({
 					status: 'dirty' as const,
 					throttleMs: 1_500,
 					pendingMutationCount: 1,
@@ -931,7 +931,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 	});
 
 	it('returns stored snapshot analysis without probing content runtime in snapshot-first mode', async () => {
-		const collectObservationBatch = vi.fn(async () => extensionSuccess({ batch: makeObservationBatch() }));
+		const collectObservationBatch = vi.fn(async () => ok({ batch: makeObservationBatch() }));
 		const cachedAnalysis = { ...makeAnalysis(), source: 'cache' as const };
 		const cachedReplayTrace = makeDetectionReplayTrace({ completedMode: 'event' });
 		const harness = await loadBackgroundApiHarness({
@@ -1066,7 +1066,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 
 			return null;
 		});
-		const collectObservationBatch = vi.fn(async (_input: unknown) => extensionSuccess({ batch: makeObservationBatch() }));
+		const collectObservationBatch = vi.fn(async (_input: unknown) => ok({ batch: makeObservationBatch() }));
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			collectionPlan: makeTextEnrichmentCollectionPlan(),
@@ -1105,7 +1105,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 	});
 
 	it('merges multiple enrichment evidence passes into one follow-up matcher run', async () => {
-		const collectObservationBatch = vi.fn(async (_input: unknown) => extensionSuccess({ batch: makeObservationBatch() }));
+		const collectObservationBatch = vi.fn(async (_input: unknown) => ok({ batch: makeObservationBatch() }));
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			collectionPlan: makeMultiSurfaceEnrichmentCollectionPlan(),
@@ -1154,7 +1154,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 
 			return null;
 		});
-		const collectObservationBatch = vi.fn(async (_input: unknown) => extensionSuccess({ batch: makeObservationBatch() }));
+		const collectObservationBatch = vi.fn(async (_input: unknown) => ok({ batch: makeObservationBatch() }));
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			contentApi: { collectObservationBatch },
@@ -1212,7 +1212,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 		});
 		const beginObservationSession = vi.fn(async () => {
 			observationSession += 1;
-			return extensionSuccess({
+			return ok({
 				status: 'observing' as const,
 				sessionId: `session-${observationSession}`,
 				expectedUrl: HTTP_TAB.url!,
@@ -1282,7 +1282,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			tab: { ...HTTP_TAB, url: scanUrl, incognito },
 			matcherPersistence: 'browser',
 			contentApi: {
-				collectObservationBatch: vi.fn(async () => extensionSuccess({
+				collectObservationBatch: vi.fn(async () => ok({
 					batch: makeObservationBatch(makeSignals({ url: scanUrl })),
 				})),
 			},
@@ -1679,7 +1679,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			contentApi: {
-				collectObservationBatch: vi.fn(async () => extensionSuccess({ batch: makeObservationBatch(makeSignals({
+				collectObservationBatch: vi.fn(async () => ok({ batch: makeObservationBatch(makeSignals({
 					url: 'https://other.example/products',
 					hostname: 'other.example',
 				})) })),
@@ -1690,7 +1690,7 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 			harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'refresh', observe: 'none' }),
 		).resolves.toMatchObject({
 			ok: false,
-			error: {
+			failure: {
 				code: 'VALIDATION_ERROR',
 			},
 		});
@@ -1780,7 +1780,7 @@ describe('background observation session baseline', { concurrent: false }, () =>
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			contentApi: {
-				getObservationSessionState: vi.fn(async () => extensionSuccess({
+				getObservationSessionState: vi.fn(async () => ok({
 					status: 'dirty' as const,
 					throttleMs: 1_500,
 					pendingMutationCount: 2,
@@ -1837,8 +1837,8 @@ describe('background observation session baseline', { concurrent: false }, () =>
 			}],
 		};
 
-		vi.mocked(harness.contentApi.getObservationSessionState).mockResolvedValueOnce(extensionSuccess(dirtyState));
-		vi.mocked(harness.contentApi.flushObservationBatch).mockResolvedValueOnce(extensionSuccess({
+		vi.mocked(harness.contentApi.getObservationSessionState).mockResolvedValueOnce(ok(dirtyState));
+		vi.mocked(harness.contentApi.flushObservationBatch).mockResolvedValueOnce(ok({
 			batch: lateBatch,
 			stats: {
 				queuedCount: 1,
@@ -1901,8 +1901,8 @@ describe('background observation session baseline', { concurrent: false }, () =>
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			contentApi: {
-				getObservationSessionState: vi.fn(async () => extensionSuccess(dirtyState)),
-				flushObservationBatch: vi.fn(async () => extensionSuccess({
+				getObservationSessionState: vi.fn(async () => ok(dirtyState)),
+				flushObservationBatch: vi.fn(async () => ok({
 					batch: lateBatch,
 					stats: {
 						queuedCount: 1,
@@ -1934,7 +1934,7 @@ describe('background observation session baseline', { concurrent: false }, () =>
 		const harness = await loadBackgroundApiHarness({
 			tab: { id: 7, windowId: 3, url: 'https://example.com/pricing' },
 			contentApi: {
-				getObservationSessionState: vi.fn(async () => extensionSuccess({
+				getObservationSessionState: vi.fn(async () => ok({
 					status: 'dirty' as const,
 					throttleMs: 1_500,
 					pendingMutationCount: 2,
@@ -1946,7 +1946,7 @@ describe('background observation session baseline', { concurrent: false }, () =>
 
 		await expect(harness.api.refreshObservationSession(OBSERVATION_TARGET)).resolves.toMatchObject({
 			ok: false,
-			error: {
+			failure: {
 				code: 'OBSERVATION_SESSION_UNAVAILABLE',
 				message: 'The visible tab navigated away from the observed document.',
 			},
@@ -1961,7 +1961,7 @@ describe('background observation session baseline', { concurrent: false }, () =>
 
 		await expect(harness.api.refreshObservationSession(OBSERVATION_TARGET)).resolves.toMatchObject({
 			ok: false,
-			error: {
+			failure: {
 				code: 'OBSERVATION_SESSION_UNAVAILABLE',
 			},
 		});
@@ -1976,7 +1976,7 @@ describe('background observation session baseline', { concurrent: false }, () =>
 		const harness = await loadBackgroundApiHarness({
 			tab: { ...HTTP_TAB, active: false },
 			contentApi: {
-				getObservationSessionState: vi.fn(async () => extensionSuccess({
+				getObservationSessionState: vi.fn(async () => ok({
 					status: 'dirty' as const,
 					throttleMs: 1_500,
 					pendingMutationCount: 2,
@@ -1996,7 +1996,7 @@ describe('background observation session baseline', { concurrent: false }, () =>
 		const harness = await loadBackgroundApiHarness({
 			tab: HTTP_TAB,
 			contentApi: {
-				getObservationSessionState: vi.fn(async () => extensionSuccess({
+				getObservationSessionState: vi.fn(async () => ok({
 					status: 'observing' as const,
 					throttleMs: 1_500,
 					pendingMutationCount: 0,

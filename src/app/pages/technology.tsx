@@ -2,7 +2,8 @@ import ChevronLeft from '~icons/fluent/chevron-left-24-regular';
 import { useParams } from '@tanstack/solid-router';
 import { For, Show } from 'solid-js';
 
-import { createEvidencePreview, formatEvidencePreview } from '@/app/evidence';
+import { formatEvidencePreview } from '@/app/evidence';
+import { createEvidencePreview } from '@/app/model';
 import { useTechnology } from '@/app/context';
 import { Badge } from '@/ui/badge';
 import { ButtonLink } from '@/ui/router-link';

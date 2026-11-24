@@ -8,6 +8,7 @@ import type {
 } from '@/lib/messaging/analysis';
 import {
 	DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION,
+	evidenceRank,
 	type DetectionReplaySummary,
 	type DetectionEvidenceState,
 	type MatcherProgressType,
@@ -15,7 +16,7 @@ import {
 	type DetectionSessionStatus,
 	type DetectionSessionSnapshot,
 } from '@/lib/storage/session';
-import type { CategoryId, ConfidenceScore, DetectionResult, SiteAnalysis } from '@/lib/detection/types';
+import type { CategoryId, ConfidenceScore, DetectionResult, Evidence, SiteAnalysis } from '@/lib/detection/types';
 import {
 	filterReplayHistoryForAnalysis,
 	isDetectionReplayTraceForAnalysis,
@@ -23,6 +24,7 @@ import {
 	type DetectionExplanationEvidenceSummary,
 	type DetectionReplayTrace,
 } from '@/lib/pipeline';
+import * as replay from '@/lib/pipeline/replay';
 import type { ExtensionError } from '@/lib/messaging/failure';
 import * as dictionary from '../utils/dictionary';
 
@@ -80,16 +82,6 @@ export type AnalysisActivity = {
 	/** Determinate progress when matcher partitions are known, otherwise an indeterminate state. */
 	readonly progress: AnalysisProgress;
 };
-
-/** Panel workflow state owned by visible tab/session transitions. */
-export type SessionState =
-	| { readonly kind: 'empty' }
-	| { readonly kind: 'loading-visible-tab' }
-	| { readonly kind: 'showing-snapshot'; readonly revision: VisibleRevision }
-	| { readonly kind: 'requesting-analysis'; readonly previous?: VisibleRevision }
-	| { readonly kind: 'streaming-revisions'; readonly revision: VisibleRevision }
-	| { readonly kind: 'stopped'; readonly revision?: VisibleRevision }
-	| { readonly kind: 'failed'; readonly message: string };
 
 /** Replay state normalized for side panel rendering. */
 export type ReplayState =
@@ -462,14 +454,6 @@ export function isVisibleRevisionPending(revision: VisibleRevision): boolean {
 }
 
 
-/** Return whether a compact replay summary belongs to the supplied analysis. */
-export function isReplaySummaryForAnalysis(
-	summary: DetectionReplaySummary,
-	analysis: SiteAnalysis,
-): boolean {
-	return summary.resultCount === analysis.results.length && summary.analyzedAt === analysis.analyzedAt;
-}
-
 /** Return only replay history entries that explain the visible analysis. */
 export function getReplayHistoryForVisibleAnalysis(
 	history: readonly DetectionReplayTrace[] | undefined,
@@ -491,7 +475,7 @@ export function getReplaySummaryForVisibleAnalysis(
 	summary: DetectionReplaySummary | undefined,
 	analysis: SiteAnalysis,
 ): DetectionReplaySummary | undefined {
-	return summary && isReplaySummaryForAnalysis(summary, analysis) ? summary : undefined;
+	return replay.describes(summary, analysis) ? summary : undefined;
 }
 
 /** Returns whether replay details belong to the current visible revision. */
@@ -504,7 +488,7 @@ export function shouldApplyReplayState(revision: VisibleRevision): boolean {
 		return false;
 	}
 
-	if (revision.replaySummary && !isReplaySummaryForAnalysis(revision.replaySummary, revision.analysis)) {
+	if (revision.replaySummary && !replay.describes(revision.replaySummary, revision.analysis)) {
 		return false;
 	}
 
@@ -535,7 +519,7 @@ export function getReplayState(revision: VisibleRevision): ReplayState {
 	const history = getReplayHistoryForVisibleAnalysis(revision.replayHistory, revision.analysis);
 	if (history.length) {
 		const summary = getReplaySummaryForVisibleAnalysis(revision.replaySummary, revision.analysis)
-			?? createReplaySummaryFromTrace(history[0]!);
+			?? replay.summarize(history[0]!);
 		return { kind: 'history', summary, history };
 	}
 
@@ -546,38 +530,11 @@ export function getReplayState(revision: VisibleRevision): ReplayState {
 
 	const replayTrace = getReplayTraceForVisibleAnalysis(revision.replayTrace, revision.analysis);
 	if (replayTrace) {
-		return { kind: 'summary', summary: createReplaySummaryFromTrace(replayTrace) };
+		return { kind: 'summary', summary: replay.summarize(replayTrace) };
 	}
 
 	return { kind: 'none' };
 }
-
-/** Convert a full trace into the compact replay summary shape used by snapshots. */
-export function createReplaySummaryFromTrace(trace: DetectionReplayTrace): DetectionReplaySummary {
-	const stages: DetectionReplayTrace['events'][number]['stage'][] = [];
-	for (const event of trace.events) {
-		if (!stages.includes(event.stage)) stages.push(event.stage);
-	}
-
-	return {
-		...(trace.runId ? { runId: trace.runId } : {}),
-		analyzedAt: trace.analyzedAt,
-		eventCount: trace.events.length,
-		explanationCount: trace.explanations.length,
-		resultCount: trace.resultCount,
-		stages,
-	};
-}
-
-/**
- * Input used when the side panel decides whether observation state should trigger a refresh.
- */
-export type ShouldRefreshObservedChangeInput = {
-	/** Latest content-script observation state reported by the background. */
-	session: observe.StateType;
-	/** Current rendered analysis, if the side panel has one. */
-	analysis: SiteAnalysis | null;
-};
 
 /**
  * Groups detections by their primary category for the current side panel layout.
@@ -754,31 +711,13 @@ function isLowerCompletenessDetectorRevision(
 		return false;
 	}
 
-	if (snapshot.evidence && getEvidenceCompletenessRank(snapshot.evidence) < 5) {
+	if (snapshot.evidence && evidenceRank(snapshot.evidence) < 5) {
 		return true;
 	}
 
 	return snapshot.replaySummary === undefined;
 }
 
-/** Rank evidence coverage so recovered or partial passes cannot visibly replace richer runs. */
-function getEvidenceCompletenessRank(state: DetectionEvidenceState | undefined): number {
-	switch (state?.level) {
-		case 'full':
-			return 5;
-		case 'enriched':
-			return 4;
-		case 'incremental':
-			return 3;
-		case 'initial':
-			return 2;
-		case 'recovered-initial':
-			return 1;
-		case 'unknown':
-		default:
-			return 0;
-	}
-}
 
 /**
  * Preserve replay UI when a lifecycle-only snapshot repeats the same analysis.
@@ -863,10 +802,11 @@ function createExplanationHeadline(explanation: DetectionExplanation): string {
 	return `Matched ${explanation.directEvidenceCount} direct signal${explanation.directEvidenceCount === 1 ? '' : 's'}.`;
 }
 
-function createEvidencePreview(evidence: DetectionExplanationEvidenceSummary): EvidencePreview {
+/** Safe preview of one evidence row, from a replay explanation or from stored detection evidence. */
+export function createEvidencePreview(evidence: DetectionExplanationEvidenceSummary | Evidence): EvidencePreview {
 	return {
 		kind: evidence.kind,
-		direct: evidence.direct,
+		direct: evidence.direct !== false,
 		...(evidence.matchedValue ? { matchedValue: evidence.matchedValue } : {}),
 		...(evidence.version ? { version: evidence.version } : {}),
 		...(evidence.sourceTechnologyId ? { sourceTechnologyId: evidence.sourceTechnologyId } : {}),

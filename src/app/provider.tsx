@@ -31,10 +31,11 @@ import {
   BACKGROUND_RPC_NAMESPACE,
   createBackgroundClientAdapter,
 } from "@/lib/messaging";
+import { same as sameTab } from "@/lib/messaging/identity";
+import * as replay from "@/lib/pipeline/replay";
 import {
   buildAnalysisUpdate,
   createVisibleRevisionFromAnalysisResponse,
-  createReplaySummaryFromTrace,
   formatError,
   getAnalysisActivity,
   getMatcherStatusFromSnapshot,
@@ -133,19 +134,6 @@ function getMatcherStatus(
   }
 
   return revision.analysis.results.length > 0 ? "matching" : "recording";
-}
-
-/** Compare tab, frame, visible location, and privacy mode before applying a response. */
-function sameTab(left: VisibleTabIdentity | null, right: VisibleTabIdentity): boolean {
-  return Boolean(
-    left &&
-      left.windowId === right.windowId &&
-      left.tabId === right.tabId &&
-      left.frameId === right.frameId &&
-      left.originHash === right.originHash &&
-      left.urlHash === right.urlHash &&
-      left.incognito === right.incognito,
-  );
 }
 
 
@@ -430,7 +418,7 @@ export function PanelProvider(props: {
         tabId: target.tabId,
         ...(response.ok
           ? { status: response.value.status, stopReason: response.value.stopReason }
-          : diagnosticFailure(response.error, target.incognito)),
+          : diagnosticFailure(response.failure, target.incognito)),
       });
     } catch (error) {
       logPanelEvent("observation-release-threw", {
@@ -623,7 +611,7 @@ export function PanelProvider(props: {
     const response = await backgroundApi.getReplayTraceHistory({ url: identity.url });
     if (disposed || !sameTab(visibleTabIdentity(), identity)) return [];
     if (!response.ok) {
-      throw new Error(formatError(response.error));
+      throw new Error(formatError(response.failure));
     }
 
     return response.value;
@@ -756,7 +744,7 @@ export function PanelProvider(props: {
       !applyReplay
         ? null
         : revision.replayTrace
-        ? createReplaySummaryFromTrace(revision.replayTrace)
+        ? replay.summarize(revision.replayTrace)
         : revision.replaySummary ?? preservedReplaySummary,
     );
     setEvidenceState(revision.evidence ?? null);
@@ -809,7 +797,7 @@ export function PanelProvider(props: {
       }
 
       if (!response.ok) {
-        logPanelEvent("observation-sync-unavailable", diagnosticFailure(response.error, identity.incognito));
+        logPanelEvent("observation-sync-unavailable", diagnosticFailure(response.failure, identity.incognito));
         setLiveUpdateMode("unknown");
         return;
       }
@@ -914,9 +902,9 @@ export function PanelProvider(props: {
       if (!response.ok) {
         logPanelEvent("analysis-failed", {
           source: options.source,
-          ...diagnosticFailure(response.error, identity.incognito),
+          ...diagnosticFailure(response.failure, identity.incognito),
         });
-        showFailure(formatError(response.error));
+        showFailure(formatError(response.failure));
         return;
       }
 
@@ -1017,8 +1005,8 @@ export function PanelProvider(props: {
       await waitForCurrentTab(identity);
       if (!ownsReply()) return;
       if (!response.ok) {
-        logPanelEvent("observation-stop-failed", diagnosticFailure(response.error, target.incognito));
-        setErrorMessage(formatError(response.error));
+        logPanelEvent("observation-stop-failed", diagnosticFailure(response.failure, target.incognito));
+        setErrorMessage(formatError(response.failure));
         return;
       }
 
@@ -1210,15 +1198,15 @@ export function PanelProvider(props: {
       });
       if (disposed) return;
       if (!identityResponse.ok) {
-        const message = formatError(identityResponse.error);
+        const message = formatError(identityResponse.failure);
         logPanelEvent("visible-tab-identity-unavailable", {
           reason,
           windowId: target.windowId,
           tabId: target.tabId,
-          code: identityResponse.error.code,
-          message: identityResponse.error.message,
+          code: identityResponse.failure.code,
+          message: identityResponse.failure.message,
         });
-        if (identityResponse.error.code === "NO_ACTIVE_TAB" && requestedTarget) {
+        if (identityResponse.failure.code === "NO_ACTIVE_TAB" && requestedTarget) {
           // Chrome can deliver an activation for tab A after tab B already became
           // active. Re-resolve the window instead of blanking the panel for A.
           queueTabSync("tab-change");

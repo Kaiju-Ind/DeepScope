@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createAutoScanController } from '@/lib/autostart/controller';
 import type { AnalyzeVisibleTabInput, AnalyzeVisibleTabOutput, VisibleTabIdentity } from '@/lib/messaging';
-import { errorResponse, extensionSuccess } from '@/lib/messaging/result';
+import { errorResponse, ok } from '@/lib/messaging/result';
 
 const VISIBLE_IDENTITY: VisibleTabIdentity = {
 	windowId: 3,
@@ -34,10 +34,10 @@ function makeOutput(identity = VISIBLE_IDENTITY): AnalyzeVisibleTabOutput {
 
 describe('automatic scan controller', () => {
 	it('runs an enabled automatic scan without leaving a live page observer', async () => {
-		const analyzeVisibleTab = vi.fn(async () => extensionSuccess(makeOutput()));
+		const analyzeVisibleTab = vi.fn(async () => ok(makeOutput()));
 		const controller = createAutoScanController({
 			getEnabled: vi.fn(async () => true),
-			getVisibleTabIdentity: vi.fn(async () => extensionSuccess(VISIBLE_IDENTITY)),
+			getVisibleTabIdentity: vi.fn(async () => ok(VISIBLE_IDENTITY)),
 			analyzeVisibleTab,
 		});
 
@@ -57,12 +57,12 @@ describe('automatic scan controller', () => {
 		failure.name = identity.url;
 		const log = vi.fn();
 		const analyzeVisibleTab = vi.fn()
-			.mockResolvedValueOnce(extensionSuccess(makeOutput(identity)))
+			.mockResolvedValueOnce(ok(makeOutput(identity)))
 			.mockResolvedValueOnce(errorResponse('VALIDATION_ERROR', failure.message))
 			.mockRejectedValueOnce(failure);
 		const controller = createAutoScanController({
 			getEnabled: async () => true,
-			getVisibleTabIdentity: async () => extensionSuccess(identity),
+			getVisibleTabIdentity: async () => ok(identity),
 			analyzeVisibleTab,
 			log,
 		});
@@ -102,7 +102,7 @@ describe('automatic scan controller', () => {
 		const analyzeVisibleTab = vi.fn(() => result.promise);
 		const controller = createAutoScanController({
 			getEnabled: async () => true,
-			getVisibleTabIdentity: async () => extensionSuccess(VISIBLE_IDENTITY),
+			getVisibleTabIdentity: async () => ok(VISIBLE_IDENTITY),
 			analyzeVisibleTab,
 			log,
 		});
@@ -117,10 +117,10 @@ describe('automatic scan controller', () => {
 	});
 
 	it('does nothing when automatic scanning is disabled', async () => {
-		const analyzeVisibleTab = vi.fn(async () => extensionSuccess(makeOutput()));
+		const analyzeVisibleTab = vi.fn(async () => ok(makeOutput()));
 		const controller = createAutoScanController({
 			getEnabled: vi.fn(async () => false),
-			getVisibleTabIdentity: vi.fn(async () => extensionSuccess(VISIBLE_IDENTITY)),
+			getVisibleTabIdentity: vi.fn(async () => ok(VISIBLE_IDENTITY)),
 			analyzeVisibleTab,
 		});
 
@@ -130,7 +130,7 @@ describe('automatic scan controller', () => {
 	});
 
 	it('drops a scan when the requested tab is no longer active', async () => {
-		const analyzeVisibleTab = vi.fn(async () => extensionSuccess(makeOutput()));
+		const analyzeVisibleTab = vi.fn(async () => ok(makeOutput()));
 		const getVisibleTabIdentity = vi.fn(async () => errorResponse('NO_ACTIVE_TAB', 'The requested browser tab is no longer active.'));
 		const controller = createAutoScanController({
 			getEnabled: vi.fn(async () => true),
@@ -151,11 +151,11 @@ describe('automatic scan controller', () => {
 		});
 		const analyzeVisibleTab = vi.fn(async () => {
 			await analysisGate;
-			return extensionSuccess(makeOutput());
+			return ok(makeOutput());
 		});
 		const controller = createAutoScanController({
 			getEnabled: vi.fn(async () => true),
-			getVisibleTabIdentity: vi.fn(async () => extensionSuccess(VISIBLE_IDENTITY)),
+			getVisibleTabIdentity: vi.fn(async () => ok(VISIBLE_IDENTITY)),
 			analyzeVisibleTab,
 		});
 
@@ -178,12 +178,12 @@ describe('automatic scan controller', () => {
 				urlHash: url === VISIBLE_IDENTITY.url ? VISIBLE_IDENTITY.urlHash : 'replacement-url',
 			};
 			const getVisibleTabIdentity = vi.fn()
-				.mockResolvedValueOnce(extensionSuccess(VISIBLE_IDENTITY))
-				.mockResolvedValueOnce(extensionSuccess(replacement));
-			const analyzeVisibleTab = vi.fn(async ({ target }: AnalyzeVisibleTabInput) => extensionSuccess(makeOutput(target)))
+				.mockResolvedValueOnce(ok(VISIBLE_IDENTITY))
+				.mockResolvedValueOnce(ok(replacement));
+			const analyzeVisibleTab = vi.fn(async ({ target }: AnalyzeVisibleTabInput) => ok(makeOutput(target)))
 				.mockImplementationOnce(async () => {
 					await firstAnalysis.promise;
-					return extensionSuccess(makeOutput());
+					return ok(makeOutput());
 				});
 			const controller = createAutoScanController({
 				getEnabled: async () => true,
@@ -212,12 +212,12 @@ describe('automatic scan controller', () => {
 		const firstAnalysis = Promise.withResolvers<void>();
 		const lastIdentity = { ...VISIBLE_IDENTITY, windowId: 5, url: 'https://example.com/latest' };
 		const getVisibleTabIdentity = vi.fn()
-			.mockResolvedValueOnce(extensionSuccess(VISIBLE_IDENTITY))
-			.mockResolvedValueOnce(extensionSuccess(lastIdentity));
-		const analyzeVisibleTab = vi.fn(async ({ target }: AnalyzeVisibleTabInput) => extensionSuccess(makeOutput(target)))
+			.mockResolvedValueOnce(ok(VISIBLE_IDENTITY))
+			.mockResolvedValueOnce(ok(lastIdentity));
+		const analyzeVisibleTab = vi.fn(async ({ target }: AnalyzeVisibleTabInput) => ok(makeOutput(target)))
 			.mockImplementationOnce(async () => {
 				await firstAnalysis.promise;
-				return extensionSuccess(makeOutput());
+				return ok(makeOutput());
 			});
 		const controller = createAutoScanController({
 			getEnabled: async () => true,
@@ -247,10 +247,10 @@ describe('automatic scan controller', () => {
 	it('rechecks the preference before starting a queued replacement', async () => {
 		const firstAnalysis = Promise.withResolvers<void>();
 		const getEnabled = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-		const getVisibleTabIdentity = vi.fn(async () => extensionSuccess(VISIBLE_IDENTITY));
+		const getVisibleTabIdentity = vi.fn(async () => ok(VISIBLE_IDENTITY));
 		const analyzeVisibleTab = vi.fn(async () => {
 			await firstAnalysis.promise;
-			return extensionSuccess(makeOutput());
+			return ok(makeOutput());
 		});
 		const controller = createAutoScanController({ getEnabled, getVisibleTabIdentity, analyzeVisibleTab });
 
@@ -269,12 +269,12 @@ describe('automatic scan controller', () => {
 	it('skips an old lookup that resolves after its page has navigated', async () => {
 		const firstIdentity = Promise.withResolvers<void>();
 		const replacement = { ...VISIBLE_IDENTITY, url: 'https://example.com/replacement', urlHash: 'replacement-url' };
-		const getVisibleTabIdentity = vi.fn(async () => extensionSuccess(replacement))
+		const getVisibleTabIdentity = vi.fn(async () => ok(replacement))
 			.mockImplementationOnce(async () => {
 				await firstIdentity.promise;
-				return extensionSuccess(VISIBLE_IDENTITY);
+				return ok(VISIBLE_IDENTITY);
 			});
-		const analyzeVisibleTab = vi.fn(async () => extensionSuccess(makeOutput(replacement)));
+		const analyzeVisibleTab = vi.fn(async () => ok(makeOutput(replacement)));
 		const controller = createAutoScanController({ getEnabled: async () => true, getVisibleTabIdentity, analyzeVisibleTab });
 		const first = controller.scanVisibleTab(7, 3, 'refresh', 'page-load');
 		await vi.waitFor(() => expect(getVisibleTabIdentity).toHaveBeenCalledOnce());
@@ -288,14 +288,14 @@ describe('automatic scan controller', () => {
 
 	it('drops the queued scan at tab removal and allows a later scan to run', async () => {
 		const firstAnalysis = Promise.withResolvers<void>();
-		const analyzeVisibleTab = vi.fn(async () => extensionSuccess(makeOutput()))
+		const analyzeVisibleTab = vi.fn(async () => ok(makeOutput()))
 			.mockImplementationOnce(async () => {
 				await firstAnalysis.promise;
-				return extensionSuccess(makeOutput());
+				return ok(makeOutput());
 			});
 		const controller = createAutoScanController({
 			getEnabled: async () => true,
-			getVisibleTabIdentity: async () => extensionSuccess(VISIBLE_IDENTITY),
+			getVisibleTabIdentity: async () => ok(VISIBLE_IDENTITY),
 			analyzeVisibleTab,
 		});
 

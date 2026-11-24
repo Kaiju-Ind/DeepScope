@@ -21,9 +21,6 @@ import * as session from './session';
 import { EXECUTION_SCHEMA_VERSION, MatcherWorkSchema, type MatcherWorkType, type WorkPriorityType } from './schema';
 import * as fence from '@/utils/fence';
 
-const MAX_TRANSIENT_JOBS = 8;
-const MAX_TRANSIENT_BYTES = 12 * 1024 * 1024;
-
 /** Offscreen capability consumed by the background partition scheduler. */
 export interface MatcherPartitionExecutor {
 	/** Maximum partitions the hidden worker pool can execute at once. */
@@ -65,6 +62,8 @@ interface PendingMatcher {
 	readonly request: RunMatcherJobRequest;
 	readonly observer?: MatcherJobObserver;
 	readonly estimatedBytes: number;
+	/** Transient memory admission held from reservation until the job leaves `pending`. */
+	readonly lease: budget.Lease;
 	readonly createdAt: number;
 	readonly durable: boolean;
 	readonly remaining: MatcherPartitionTask[];
@@ -110,9 +109,9 @@ export function create(
 	const busyWorkerIndexes = new Set<number>();
 	/** Active job owner for each physical worker slot, used to invalidate affinity after cancellation. */
 	const activeJobByWorkerIndex = new Map<number, string>();
+	/** Transient jobs and estimated bytes, from reservation until the job leaves `pending`. */
+	const admission = budget.create();
 	let pendingBytes = 0;
-	let reservedJobs = 0;
-	let reservedBytes = 0;
 	let inFlightPartitionCount = 0;
 	let dispatchSequence = 0;
 	let foregroundDispatches = 0;
@@ -134,30 +133,13 @@ export function create(
 		await resumed;
 	}
 
-	/** Reserve admission capacity synchronously so concurrent pre-persistence awaits cannot oversubscribe RAM. */
-	function reserve(estimatedBytes: number): boolean {
-		if (!budget.accepts(
-			{ count: pending.size + reservedJobs, bytes: pendingBytes + reservedBytes },
-			estimatedBytes,
-			{ count: MAX_TRANSIENT_JOBS, bytes: MAX_TRANSIENT_BYTES },
-		)) return false;
-		reservedJobs += 1;
-		reservedBytes += estimatedBytes;
-		return true;
-	}
-
-	/** Release one pre-admission reservation after it becomes pending or fails before admission. */
-	function releaseReservation(estimatedBytes: number): void {
-		reservedJobs = Math.max(0, reservedJobs - 1);
-		reservedBytes = Math.max(0, reservedBytes - estimatedBytes);
-	}
-
 	/** Remove one transient matcher payload exactly once and release its byte budget. */
 	function takePending(jobId: string): PendingMatcher | undefined {
 		const item = pending.get(jobId);
 		if (!item) return undefined;
 		pending.delete(jobId);
 		pendingBytes = Math.max(0, pendingBytes - item.estimatedBytes);
+		item.lease.release();
 		return item;
 	}
 
@@ -398,8 +380,10 @@ export function create(
 			}
 
 			const estimatedBytes = estimateObservationBatchBytes(request.batch);
-			if (!reserve(estimatedBytes)) {
-				throw new MatcherError('queue-full', `Matcher scheduler exceeded its ${MAX_TRANSIENT_JOBS}-job or ${MAX_TRANSIENT_BYTES}-byte transient limit.`);
+			// Reserve synchronously so concurrent pre-persistence awaits cannot oversubscribe RAM.
+			const lease = budget.reserve(admission, estimatedBytes);
+			if (!lease) {
+				throw new MatcherError('queue-full', `Matcher scheduler exceeded its ${budget.LIMIT.jobs}-job or ${budget.LIMIT.bytes}-byte transient limit.`);
 			}
 			let reservationHeld = true;
 
@@ -456,6 +440,7 @@ export function create(
 					request,
 					observer,
 					estimatedBytes,
+					lease,
 					createdAt,
 					durable,
 					remaining: tasks,
@@ -471,7 +456,7 @@ export function create(
 				};
 				pending.set(request.job.jobId, item);
 				pendingBytes += estimatedBytes;
-				releaseReservation(estimatedBytes);
+				// The pending item now owns the lease; `takePending` releases it.
 				reservationHeld = false;
 
 				if (durable) {
@@ -543,7 +528,7 @@ export function create(
 				else pump();
 				return await completion;
 			} catch (error) {
-				if (reservationHeld) releaseReservation(estimatedBytes);
+				if (reservationHeld) lease.release();
 				throw error;
 			}
 		},

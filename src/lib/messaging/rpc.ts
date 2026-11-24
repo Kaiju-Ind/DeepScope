@@ -1,3 +1,6 @@
+import * as context from '@utils/context';
+import { asyncDispose } from '@utils/dispose';
+
 import { errorResponse, type ExtensionFailure } from '@/lib/messaging/result';
 
 export const CONTENT_SCRIPT_TIMEOUT_MS = 10_000;
@@ -22,6 +25,17 @@ export interface RpcDeadlineOptions {
  * an operation factory also receives a child signal. Timeout or parent
  * cancellation aborts that signal before the caller is rejected, so local
  * fetch/collection work can release its resources promptly.
+ *
+ * Each wait owns one `@utils/context` scope that follows the parent signal.
+ * The timer cancels the scope with an `RpcTimeoutError`, and `context.observe`
+ * rejects the wait with the scope's reason. Settling disposes the scope, which
+ * removes its parent listener and stops its timer. The operation's signal is
+ * separate from the scope, so that disposal never aborts work the operation
+ * left running after it settled.
+ *
+ * `context.timeout` is not used: its reason is `ContextDeadlineExceededError`,
+ * while callers rely on `RpcTimeoutError` as both the rejection and the child
+ * signal's reason.
  */
 export function withTimeout<T>(
 	operation: Promise<T> | ((signal: AbortSignal) => Promise<T>),
@@ -29,43 +43,47 @@ export function withTimeout<T>(
 	message: string,
 	options: RpcDeadlineOptions = {},
 ): Promise<T> {
-	if (typeof operation === 'function' && options.signal?.aborted) {
-		return Promise.reject(getAbortReason(options.signal));
+	const parent = options.signal;
+	if (typeof operation === 'function' && parent?.aborted) {
+		return Promise.reject(getAbortReason(parent));
 	}
 
 	const controller = typeof operation === 'function' ? new AbortController() : undefined;
-	let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
-	let abortListener: (() => void) | undefined;
-	const operationPromise = typeof operation === 'function' ? operation(controller!.signal) : operation;
-
-	const timeout = new Promise<never>((_, reject) => {
-		timeoutId = globalThis.setTimeout(() => {
-			const error = new RpcTimeoutError(message);
-			controller?.abort(error);
-			reject(error);
-		}, timeoutMs);
-	});
-	const candidates: Promise<T | never>[] = [operationPromise, timeout];
-	if (options.signal) {
-		candidates.push(new Promise<never>((_, reject) => {
-			const rejectAbort = () => {
-				const error = getAbortReason(options.signal!);
-				controller?.abort(error);
-				reject(error);
-			};
-			if (options.signal!.aborted) {
-				rejectAbort();
-				return;
-			}
-			abortListener = rejectAbort;
-			options.signal!.addEventListener('abort', rejectAbort, { once: true });
-		}));
+	const pending = typeof operation === 'function' ? operation(controller!.signal) : operation;
+	if (parent?.aborted) {
+		// Like the race this replaces, an operation that already settled still wins.
+		const error = getAbortReason(parent);
+		controller?.abort(error);
+		return Promise.race([pending, Promise.reject(error)]);
 	}
 
-	return Promise.race(candidates).finally(() => {
-		if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId);
-		if (abortListener && options.signal) options.signal.removeEventListener('abort', abortListener);
-	});
+	const scope = context.create({ id: 'rpc.timeout', ...(parent ? { signal: parent } : {}) });
+	let settled = false;
+	let stopped: Error | undefined;
+	/** The timeout error, or the parent's reason as an Error; the same object for the child and the caller. */
+	const reason = (): Error => stopped ??= scope.signal.reason instanceof RpcTimeoutError
+		? scope.signal.reason
+		: getAbortReason(parent!);
+	if (controller) {
+		const forward = () => {
+			if (!settled) controller.abort(reason());
+		};
+		scope.signal.addEventListener('abort', forward, { once: true });
+		if (scope.signal.aborted) forward();
+	}
+	void context.delay(timeoutMs, scope.signal).then(
+		() => context.cancel(scope, new RpcTimeoutError(message)),
+		() => undefined,
+	);
+
+	return context.observe(scope.signal, pending)
+		.catch((error: unknown) => {
+			throw scope.signal.aborted && error === scope.signal.reason ? reason() : error;
+		})
+		.finally(() => {
+			settled = true;
+			void scope[asyncDispose]();
+		});
 }
 
 /**

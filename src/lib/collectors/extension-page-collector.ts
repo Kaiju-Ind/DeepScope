@@ -17,7 +17,7 @@ import {
 } from '../messaging/rpc';
 import { timeAsyncSpan, type TimingContext } from '../diagnostics/timing';
 import { diagnosticErrorType } from '../privacy/redaction';
-import { errorResponse, extensionSuccess, type ExtensionResult } from '@/lib/messaging/result';
+import { errorResponse, ok, type ExtensionResult } from '@/lib/messaging/result';
 import * as url from '@/utils/url';
 
 /** Input needed to collect one visible tab through extension APIs. */
@@ -151,7 +151,7 @@ export async function collectExtensionObservationBatch(
 			observedAt: enrichedBatch.observedAt,
 		});
 
-		return extensionSuccess(enrichedBatch);
+		return ok(enrichedBatch);
 	} catch (error) {
 		input.log?.('collect-observation-batch-failed', {
 			...tabDetails,

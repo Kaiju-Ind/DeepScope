@@ -29,6 +29,7 @@ import {
 	DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION,
 	DETECTION_SESSION_STATUSES,
 	DETECTION_STORAGE_STATUS_SCHEMA_VERSION,
+	evidenceRank,
 } from './session';
 import {
 	getContentSessionLifecycleKey,
@@ -374,7 +375,7 @@ function isOriginSnapshotNewer(
  * as a lower-ranked fallback for exact-session lifecycle reads.
  */
 function getOriginSnapshotRank(snapshot: DetectionSessionSnapshot): number {
-	const evidenceRank = getEvidenceCompletenessRank(snapshot.evidence);
+	const coverage = evidenceRank(snapshot.evidence);
 	const sourceRank = snapshot.source === 'background' && snapshot.replaySummary
 		? 4
 		: snapshot.source === 'background'
@@ -384,7 +385,7 @@ function getOriginSnapshotRank(snapshot: DetectionSessionSnapshot): number {
 				: snapshot.detectionCount > 0
 					? 1
 					: 0;
-	return evidenceRank * 10 + sourceRank;
+	return coverage * 10 + sourceRank;
 }
 
 /**
@@ -407,8 +408,8 @@ function shouldPreserveExistingAnalysisForCandidate(
 		return false;
 	}
 
-	const candidateEvidenceRank = getEvidenceCompletenessRank(candidate.evidence);
-	const existingEvidenceRank = getEvidenceCompletenessRank(existing.evidence);
+	const candidateEvidenceRank = evidenceRank(candidate.evidence);
+	const existingEvidenceRank = evidenceRank(existing.evidence);
 	if (candidateEvidenceRank < existingEvidenceRank) {
 		return true;
 	}
@@ -417,24 +418,6 @@ function shouldPreserveExistingAnalysisForCandidate(
 	}
 
 	return true;
-}
-
-function getEvidenceCompletenessRank(state: DetectionEvidenceState | undefined): number {
-	switch (state?.level) {
-		case 'full':
-			return 5;
-		case 'enriched':
-			return 4;
-		case 'incremental':
-			return 3;
-		case 'initial':
-			return 2;
-		case 'recovered-initial':
-			return 1;
-		case 'unknown':
-		default:
-			return 0;
-	}
 }
 
 /**

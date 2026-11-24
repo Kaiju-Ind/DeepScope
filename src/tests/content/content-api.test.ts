@@ -206,7 +206,7 @@ describe('content API observation baseline', { concurrent: false }, () => {
 			expectedUrl: 'https://example.com/products',
 		})).resolves.toMatchObject({
 			ok: false,
-			error: { code: 'OBSERVATION_SESSION_UNAVAILABLE' },
+			failure: { code: 'OBSERVATION_SESSION_UNAVAILABLE' },
 		});
 		expect(observedSignals.stopObservationSession).not.toHaveBeenCalled();
 	});

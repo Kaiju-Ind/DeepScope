@@ -1,5 +1,4 @@
 import type {
-  DetectionReplaySummary,
   DetectionSessionKey,
   DetectionSessionSnapshot,
 } from '@/lib/storage/session';
@@ -7,6 +6,7 @@ import type {
 import { browser } from 'wxt/browser';
 import type { VisibleTabIdentity, AnalysisEnrichmentState, AnalyzeVisibleTabOutput } from '@/lib/messaging';
 import { filterReplayHistoryForAnalysis, isDetectionReplayTraceForAnalysis } from '@/lib/pipeline';
+import * as replay from '@/lib/pipeline/replay';
 
 import {
   browserDetectionPersistence,
@@ -87,13 +87,13 @@ export async function getStoredAnalysis(
     return null;
   }
 
-  const replay = await getStoredReplayState(storedSnapshot.snapshot.analysis, persistence);
+  const replayState = await getStoredReplayState(storedSnapshot.snapshot.analysis, persistence);
   const stored = {
     source: storedSnapshot.source,
     analysis: storedSnapshot.snapshot.analysis,
     snapshot: storedSnapshot.snapshot,
     ...(storedSnapshot.lifecycleSnapshot ? { lifecycleSnapshot: storedSnapshot.lifecycleSnapshot } : {}),
-    ...replay,
+    ...replayState,
   };
   return { ...stored, revision: createStoredVisibleRevision(stored) };
 }
@@ -172,18 +172,6 @@ async function getStoredReplayState(
   };
 }
 
-/** Return whether a compact snapshot replay summary explains the stored analysis. */
-function isReplaySummaryForAnalysis(
-  summary: DetectionReplaySummary | undefined,
-  analysis: AnalyzeVisibleTabOutput['analysis'],
-): summary is DetectionReplaySummary {
-  return Boolean(
-    summary &&
-      summary.resultCount === analysis.results.length &&
-      summary.analyzedAt === analysis.analyzedAt,
-  );
-}
-
 /** Detector-owned or detection-bearing snapshots are safe as the first side panel paint. */
 function isDetectorStartupSnapshot(snapshot: DetectionSessionSnapshot): boolean {
   if (snapshot.source === 'background' || snapshot.source === 'cache') {
@@ -214,7 +202,7 @@ export function createStoredAnalysisOutput(stored: StoredAnalysisResult): Analyz
 /** Convert stored snapshot state into the side panel's revision model. */
 export function createStoredVisibleRevision(stored: Omit<StoredAnalysisResult, 'revision'>): VisibleRevision {
   const lifecycleSnapshot = stored.lifecycleSnapshot ?? stored.snapshot;
-  const replaySummary = isReplaySummaryForAnalysis(stored.snapshot?.replaySummary, stored.analysis)
+  const replaySummary = replay.describes(stored.snapshot?.replaySummary, stored.analysis)
     ? stored.snapshot?.replaySummary
     : undefined;
 

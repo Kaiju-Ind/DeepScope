@@ -13,17 +13,17 @@ import {
 	isSidePanelTabNotification,
 	isSidePanelTabUpdateChange,
 } from '@/lib/messaging';
-import { errorResponse, extensionSuccess } from '@/lib/messaging/result';
+import { errorResponse, ok } from '@/lib/messaging/result';
 
 describe('messaging contract helpers', () => {
 	it('returns stable success envelopes', () => {
-		expect(extensionSuccess({ value: 42 })).toEqual({ ok: true, value: { value: 42 } });
+		expect(ok({ value: 42 })).toEqual({ ok: true, value: { value: 42 } });
 	});
 
 	it('returns stable error envelopes', () => {
 		expect(errorResponse('CONTENT_SCRIPT_UNAVAILABLE', 'Missing')).toEqual({
 			ok: false,
-			error: {
+			failure: {
 				code: 'CONTENT_SCRIPT_UNAVAILABLE',
 				message: 'Missing',
 				stack: undefined,
@@ -171,20 +171,20 @@ describe('messaging contract helpers', () => {
 	it('maps a browser refusal to script the page to a permission error', () => {
 		expect(injectionFailure(new Error('Missing host permission for the tab'))).toMatchObject({
 			ok: false,
-			error: { code: 'PERMISSION_DENIED' },
+			failure: { code: 'PERMISSION_DENIED' },
 		});
 		expect(injectionFailure(new Error('Cannot access contents of url "https://chromewebstore.google.com/".'))).toMatchObject({
-			error: { code: 'PERMISSION_DENIED' },
+			failure: { code: 'PERMISSION_DENIED' },
 		});
 		expect(injectionFailure(new Error('No tab with id: 4'))).toMatchObject({
-			error: { code: 'CONTENT_SCRIPT_UNAVAILABLE', message: 'No tab with id: 4' },
+			failure: { code: 'CONTENT_SCRIPT_UNAVAILABLE', message: 'No tab with id: 4' },
 		});
 	});
 
 	it('maps content RPC failures into typed unavailable errors', () => {
 		expect(contentScriptFailure(new RpcTimeoutError('Timed out'))).toMatchObject({
 			ok: false,
-			error: {
+			failure: {
 				code: 'CONTENT_SCRIPT_UNAVAILABLE',
 				message: 'Timed out',
 			},

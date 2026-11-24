@@ -44,6 +44,28 @@ export interface DetectionEvidenceState {
 	readonly reason?: string;
 }
 
+/**
+ * Rank evidence coverage from 0 (unknown) to 5 (full), so a recovered or
+ * partial pass cannot visibly replace a richer run.
+ */
+export function evidenceRank(state: DetectionEvidenceState | undefined): number {
+	switch (state?.level) {
+		case 'full':
+			return 5;
+		case 'enriched':
+			return 4;
+		case 'incremental':
+			return 3;
+		case 'initial':
+			return 2;
+		case 'recovered-initial':
+			return 1;
+		case 'unknown':
+		default:
+			return 0;
+	}
+}
+
 /** Schema marker for origin-level detector summaries. */
 export const DETECTION_ORIGIN_SUMMARY_SCHEMA_VERSION = 3 as const;
 

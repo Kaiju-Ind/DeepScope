@@ -1,3 +1,4 @@
+import { DisposableStack } from '@utils/dispose';
 import { browser } from 'wxt/browser';
 
 import type { DiagnosticTransportMessage } from '../../diagnostics/contracts';
@@ -106,6 +107,8 @@ class Slot {
 		this.#terminateWorker();
 	};
 	#worker: Worker | undefined;
+	/** Releases the current worker: its persistent listeners, then the heap. */
+	#workerResources: DisposableStack | undefined;
 	#activeTask: MatcherPartitionTask | undefined;
 	#activeReject: ((error: Error) => void) | undefined;
 	#disposed = false;
@@ -130,8 +133,10 @@ class Slot {
 		const worker = this.#worker ??= this.#createWorker();
 
 		return new Promise((resolve, reject) => {
-			let cleanup = (): void => undefined;
-			let deadline: ReturnType<typeof globalThis.setTimeout> | undefined;
+			// Everything this run acquires is released together, once, by whichever
+			// of result, failure, deadline or cancellation settles the run first.
+			const resources = new DisposableStack();
+			const cleanup = (): void => resources.dispose();
 			const fail = (
 				error: Error,
 				event: string,
@@ -176,29 +181,25 @@ class Slot {
 				{},
 				true,
 			);
-			cleanup = (): void => {
-				if (deadline !== undefined) globalThis.clearTimeout(deadline);
-				deadline = undefined;
+			resources.defer(() => {
 				this.#activeTask = undefined;
 				this.#activeReject = undefined;
-				worker.removeEventListener('message', onMessage);
-				worker.removeEventListener('error', onError);
-				worker.removeEventListener('messageerror', onMessageError);
-			};
+			});
 			this.#activeReject = (error) => {
 				cleanup();
 				reject(error);
 			};
 
-			worker.addEventListener('message', onMessage);
-			worker.addEventListener('error', onError);
-			worker.addEventListener('messageerror', onMessageError);
-			deadline = globalThis.setTimeout(() => fail(
+			listen(resources, worker, 'message', onMessage);
+			listen(resources, worker, 'error', onError);
+			listen(resources, worker, 'messageerror', onMessageError);
+			const deadline = globalThis.setTimeout(() => fail(
 				new MatcherError('run-timeout', `Matcher partition exceeded its ${this.#deadlineMs}ms execution deadline.`),
 				'Matcher partition deadline expired; replacing worker.',
 				{ deadlineMs: this.#deadlineMs },
 				true,
 			), this.#deadlineMs);
+			resources.defer(() => globalThis.clearTimeout(deadline));
 			const message: MatcherWorkerRunMessage = { type: 'matcher-worker.run-partition', task };
 			try {
 				worker.postMessage(message);
@@ -233,19 +234,21 @@ class Slot {
 			new URL('./matcher.worker.ts', import.meta.url),
 			{ type: 'module', name: `kaiju-deepscope-matcher-${this.#index}` },
 		);
-		worker.addEventListener('message', this.#diagnosticListener);
-		worker.addEventListener('error', this.#idleErrorListener);
+		const resources = new DisposableStack();
+		resources.defer(() => worker.terminate());
+		listen(resources, worker, 'message', this.#diagnosticListener);
+		listen(resources, worker, 'error', this.#idleErrorListener);
+		this.#workerResources = resources;
 		return worker;
 	}
 
 	/** Terminate the current worker heap, leaving the slot to recreate one on demand. */
 	#terminateWorker(): void {
-		const worker = this.#worker;
-		if (!worker) return;
+		const resources = this.#workerResources;
+		if (!this.#worker || !resources) return;
 		this.#worker = undefined;
-		worker.removeEventListener('message', this.#diagnosticListener);
-		worker.removeEventListener('error', this.#idleErrorListener);
-		worker.terminate();
+		this.#workerResources = undefined;
+		resources.dispose();
 	}
 
 	/** Replace a canceled, failed or timed-out worker so other partitions can continue on this slot. */
@@ -253,6 +256,17 @@ class Slot {
 		this.#terminateWorker();
 		if (!this.#disposed) this.#worker = this.#createWorker();
 	}
+}
+
+/** Add a worker listener and register its removal with the owner of the listener's lifetime. */
+function listen<Type extends keyof WorkerEventMap>(
+	resources: DisposableStack,
+	worker: Worker,
+	type: Type,
+	listener: (event: WorkerEventMap[Type]) => void,
+): void {
+	worker.addEventListener(type, listener);
+	resources.defer(() => worker.removeEventListener(type, listener));
 }
 
 /** Receiver for diagnostics posted by matcher workers. */

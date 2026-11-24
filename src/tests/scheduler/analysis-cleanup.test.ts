@@ -79,7 +79,7 @@ describe('analysis terminal cleanup', { concurrent: false }, () => {
 			.mockRejectedValueOnce(new Error('temporary-idb-1'))
 			.mockRejectedValueOnce(new Error('temporary-idb-2'))
 			.mockResolvedValueOnce(true);
-		const result = { ok: false as const, error: { code: 'VALIDATION_ERROR' as const, message: 'primary-result' } };
+		const result = { ok: false as const, failure: { code: 'VALIDATION_ERROR' as const, message: 'primary-result' } };
 		const { scheduler } = await load(removeClaim, vi.fn(async () => result));
 
 		await expect(scheduler.analyze(input(), 'automatic')).resolves.toEqual(result);
@@ -93,7 +93,7 @@ describe('analysis terminal cleanup', { concurrent: false }, () => {
 
 		await expect(scheduler.analyze(input(), 'automatic')).resolves.toMatchObject({
 			ok: false,
-			error: { code: 'UNKNOWN', message: 'analysis-primary' },
+			failure: { code: 'UNKNOWN', message: 'analysis-primary' },
 		});
 		expect(removeClaim).toHaveBeenCalledTimes(3);
 		expect(log).toHaveBeenCalledWith('scheduler-analysis-failed', expect.objectContaining({ message: 'analysis-primary' }));

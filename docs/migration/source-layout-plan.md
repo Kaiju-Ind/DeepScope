@@ -107,7 +107,7 @@ commits.
 1. **Characterisation tests and guardrails** (serial): cleanup order after
    navigation and tab close, badge restore on snapshot-first, replaced vs
    removed tab cleanup, synchronous first-tick listener registration, the four
-   panel reset paths, and `module-boundaries.test.ts` (size ratchet and
+   panel reset paths, and `architecture/boundaries.test.ts` (size ratchet and
    dependency rules).
 2. **Shared foundations** (serial): vendor `result`, `dispose` and the
    `signal` helpers from Kaiju Utils (see the cross-browser plan); switch
@@ -143,7 +143,35 @@ commits.
   because WXT imports entrypoints in Node during the build.
 - Private-window field filtering in summaries moves verbatim.
 
+## Phase A status (2026-11-24, branch `cleanup/foundations`)
+
+Steps 1 and 2 are done. Guards: `tests/background/cleanup.test.ts`,
+`tests/lifecycle/listeners.test.ts`, `tests/app/reset.test.ts` and
+`tests/architecture/boundaries.test.ts`; `tests/support/runtime.ts` is a
+small runtime harness for new tests. Shared helpers: `lib/messaging/identity`
+(`same`), `lib/pipeline/replay` (`summarize`, `describes`),
+`storage/session#evidenceRank`, `app/model#createEvidencePreview`,
+`lib/diagnostics/summary` (`format`); snapshot writes use `utils/fence`.
+
+Notes for the next steps:
+
+- The ratchet records exact sizes. A fix that adds lines to an oversized file
+  fails it; split first or land the fix with its own justified re-recording.
+- Document-work scopes stay `AbortController`s. They become child contexts in
+  `runtime/work.ts` once a runtime root context exists; the lifecycle release
+  now in `completion.finally` would move to `scope.defer`, which changes its
+  ordering and needs its own test.
+- A replaced tab id releases the same memory as a closed tab but does not
+  mark snapshots stopped or drop the session index (pinned in
+  `listeners.test.ts`). Decide this when `listeners.ts` gets one
+  `forgetTab(tabId, reason)`; changing it is a behaviour fix.
+- The panel imports `same as sameTab` to keep its call sites; rename them in
+  the panel split. `errorResponse` is the last long result helper.
+- `background-api.test.ts` keeps its own harness as the step 4 guard.
+
 ## Separate behaviour fixes found
 
-- `runtime.ts:2975` records `'offscreen-worker-pool'` as the executor even when
-  the Firefox or Safari local executor ran the job; the value is persisted.
+- `runtime.ts` (`updateMatcherState`) and `scheduler/matcher.ts`
+  (`finishIfComplete`) both hard-code `'offscreen-worker-pool'` as the executor,
+  so it is recorded even when the Firefox or Safari local executor ran the job;
+  the value is persisted.

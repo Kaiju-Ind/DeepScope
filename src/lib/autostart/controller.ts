@@ -98,7 +98,7 @@ export function createAutoScanController(
 			dependencies.log?.('auto-scan-target-unavailable', {
 				tabId,
 				reason,
-				code: identityResponse.error.code,
+				code: identityResponse.failure.code,
 			});
 			return;
 		}
@@ -124,7 +124,7 @@ export function createAutoScanController(
 			reason,
 			...(response.ok
 				? { resultCount: response.value.analysis.results.length, snapshotStatus: response.value.snapshot.status }
-				: { code: response.error.code, ...(ordinaryOwner && { message: response.error.message }) }),
+				: { code: response.failure.code, ...(ordinaryOwner && { message: response.failure.message }) }),
 		});
 	}
 
