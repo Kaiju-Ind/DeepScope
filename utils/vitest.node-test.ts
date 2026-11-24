@@ -6,7 +6,7 @@
  * registrations, so the `utils` project in `vitest.config.ts` aliases
  * `node:test` to this file. Only the surface the copied tests use is mapped:
  * `describe`, `it`/`test` with optional options, and the test context's
- * `signal` and `mock.timers`.
+ * `signal`, `skip()` and `mock.timers`.
  *
  * DeepScope's own file, not vendored.
  */
@@ -24,6 +24,7 @@ interface Options {
 export interface TestContext {
 	readonly name: string;
 	readonly signal: AbortSignal;
+	skip(message?: string): void;
 	readonly mock: {
 		readonly timers: {
 			enable(options?: { readonly apis?: readonly string[]; readonly now?: number }): void;
@@ -41,10 +42,11 @@ function split<T>(options: Options | T | undefined, body: T | undefined): [Optio
 	return [(options as Options | undefined) ?? {}, body];
 }
 
-function context(name: string, signal: AbortSignal): TestContext {
+function context(name: string, signal: AbortSignal, skip: (message?: string) => void): TestContext {
 	return {
 		name,
 		signal,
+		skip,
 		mock: {
 			timers: {
 				enable(options = {}) {
@@ -66,14 +68,16 @@ function context(name: string, signal: AbortSignal): TestContext {
 
 export function it(name: string, options?: Options | Body, body?: Body): void {
 	const [settings, fn] = split<Body>(options, body);
-	const run = fn === undefined ? undefined : (task: { signal: AbortSignal }) => fn(context(name, task.signal));
+	const run = fn === undefined
+		? undefined
+		: (task: { signal: AbortSignal; skip: (message?: string) => void }) => fn(context(name, task.signal, task.skip));
 	if (settings.skip || settings.todo || run === undefined) {
 		vitestIt.skip(name, () => {});
 		return;
 	}
-	(settings.only ? vitestIt.only : vitestIt)(name, settings.timeout === undefined ? {} : { timeout: settings.timeout }, async ({ signal }) => {
+	(settings.only ? vitestIt.only : vitestIt)(name, settings.timeout === undefined ? {} : { timeout: settings.timeout }, async ({ signal, skip }) => {
 		try {
-			await run({ signal });
+			await run({ signal, skip: (message) => skip(message) });
 		} finally {
 			vi.useRealTimers();
 		}

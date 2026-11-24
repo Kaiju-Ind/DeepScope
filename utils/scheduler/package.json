@@ -14,7 +14,8 @@
 		"./queue/types": "./queue/types.ts",
 		"./queue/fifo": "./queue/fifo.ts",
 		"./queue/policy": "./queue/policy.ts",
-		"./queue/testing": "./queue/testing.ts"
+		"./queue/testing": "./queue/testing.ts",
+		"./queue/extensions": "./queue/extensions.ts"
 	},
 	"dependencies": {
 		"@utils/collection": "workspace:*",

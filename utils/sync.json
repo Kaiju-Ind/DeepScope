@@ -16,16 +16,57 @@
 		}
 	],
 	"entries": [
-		"result", "result/async", "result/failure", "result/failure/types", "result/fault", "result/fault/types", "result/failure/migrate",
-		"dispose", "dispose/once", "dispose/run", "dispose/polyfill", "dispose/ponyfill",
-		"scheduler/capacity", "scheduler/capacity/standard", "scheduler/capacity/types",
-		"scheduler/queue", "scheduler/queue/types", "scheduler/queue/fifo", "scheduler/queue/policy",
-		"context", "context/types", "context/state", "context/events", "context/testing",
-		"duration", "duration/arithmetic", "duration/format", "duration/units", "duration/conversion", "duration/instant", "duration/types", "duration/temporal", "duration/polyfill",
-		"pool", "pool/types",
-		"worker/thread", "worker/thread/types", "worker/protocol",
-		"workflow", "workflow/dispatch", "workflow/history", "workflow/types", "workflow/execution", "workflow/testing", "workflow/replay",
-		"activity", "activity/engine", "activity/local", "activity/types", "activity/worker", "activity/selection"
+		"result",
+		"result/async",
+		"result/failure",
+		"result/failure/types",
+		"result/fault",
+		"result/fault/types",
+		"result/failure/migrate",
+		"dispose",
+		"dispose/once",
+		"dispose/run",
+		"dispose/polyfill",
+		"dispose/ponyfill",
+		"scheduler/capacity",
+		"scheduler/capacity/standard",
+		"scheduler/capacity/types",
+		"scheduler/queue",
+		"scheduler/queue/types",
+		"scheduler/queue/fifo",
+		"scheduler/queue/policy",
+		"context",
+		"context/types",
+		"context/state",
+		"context/events",
+		"context/testing",
+		"duration",
+		"duration/arithmetic",
+		"duration/format",
+		"duration/units",
+		"duration/conversion",
+		"duration/instant",
+		"duration/types",
+		"duration/temporal",
+		"duration/polyfill",
+		"pool",
+		"pool/types",
+		"worker/thread",
+		"worker/thread/types",
+		"worker/protocol",
+		"workflow",
+		"workflow/dispatch",
+		"workflow/history",
+		"workflow/types",
+		"workflow/execution",
+		"workflow/testing",
+		"workflow/replay",
+		"activity",
+		"activity/engine",
+		"activity/local",
+		"activity/types",
+		"activity/worker",
+		"activity/selection"
 	],
 	"testExternals": [
 		"node:test",
@@ -53,7 +94,12 @@
 		"zod": "4.6.7"
 	},
 	"local": {
-		"scheduler": { "exports": { "./queue/testing": "./queue/testing.ts" } }
+		"scheduler": {
+			"exports": {
+				"./queue/testing": "./queue/testing.ts",
+				"./queue/extensions": "./queue/extensions.ts"
+			}
+		}
 	},
 	"patches": {}
 }
