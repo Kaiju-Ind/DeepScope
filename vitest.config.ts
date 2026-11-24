@@ -27,7 +27,17 @@ export default defineConfig({
 		projects: [
 			{
 				resolve,
-				test: { name: 'runtime', environment: 'node', globals: true, include: ['src/tests/**/*.test.{ts,tsx}'], exclude: [UI_TESTS] },
+				test: {
+					name: 'runtime',
+					environment: 'node',
+					globals: true,
+					include: ['src/tests/**/*.test.{ts,tsx}'],
+					exclude: [UI_TESTS],
+					// Several suites run the full registry or property tests. They take under a
+					// second on an idle machine but exceed Vitest's 5 s default on a loaded one
+					// or a shared CI runner, which would make failures depend on load.
+					testTimeout: 30_000,
+				},
 			},
 			{
 				// Vendored Kaiju Utils (`utils/`). Upstream tests register through
