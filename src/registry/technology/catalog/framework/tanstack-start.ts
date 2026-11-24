@@ -4,8 +4,8 @@ export const tanstackStartTechnologyDefinition: TechnologyDefinition = {
 	id: 'tanstack-start',
 	name: 'TanStack Start',
 	website: 'https://tanstack.com/start',
-	description:
-		'Start building your app with TanStack Start.Full-stack React and Solid framework powered by TanStack Router',
+	description: 'TanStack Start is an open-source full-stack framework for React and Solid applications powered by TanStack Router.',
+	icon: 'TanStack Start.svg',
 	categories: [
 		'framework',
 	],
@@ -45,4 +45,7 @@ export const tanstackStartTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

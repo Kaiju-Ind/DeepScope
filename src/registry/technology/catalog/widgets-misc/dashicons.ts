@@ -6,7 +6,6 @@ export const dashiconsTechnologyDefinition: TechnologyDefinition = {
 	website: 'https://developer.wordpress.org/resource/dashicons/',
 	description: 'Dashicons is the icon font used by WordPress admin and related WordPress interfaces.',
 	icon: 'WordPress.svg',
-
 	categories: [
 		'widgets-misc',
 	],

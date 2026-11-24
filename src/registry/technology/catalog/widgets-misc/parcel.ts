@@ -2,7 +2,7 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 
 export const parcelTechnologyDefinition: TechnologyDefinition = {
 	id: 'parcel',
-	name: 'parcel',
+	name: 'Parcel',
 	website: 'https://parceljs.org/',
 	description:
 		'Parcel is an open-source web application bundler known for its zero-config approach, simplifying the process of building and bundling web projects.',

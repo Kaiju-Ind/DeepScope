@@ -4,7 +4,7 @@ export const formikTechnologyDefinition: TechnologyDefinition = {
 	id: 'formik',
 	name: 'Formik',
 	website: 'https://formik.org/',
-	description: 'Build forms in React without the tears',
+	description: 'Formik is an open-source form state and validation library for React and React Native.',
 	categories: [
 		'form-schema-library',
 	],
@@ -101,4 +101,7 @@ export const formikTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

@@ -5,7 +5,7 @@ export const vikeTechnologyDefinition: TechnologyDefinition = {
 	name: 'Vike',
 	website: 'https://vike.dev',
 	description:
-		'Vike is a framework that enhances Vite applications with server-side rendering (SSR) and static site generation (SSG) capabilities, allowing for flexible integration and progressive enhancement​.',
+		'Vike is an open-source full-stack web framework built on Vite with server rendering, static generation, and integrations for React, Vue, and Solid.',
 	icon: 'Vike.svg',
 	categories: [
 		'bundler',
@@ -26,6 +26,9 @@ export const vikeTechnologyDefinition: TechnologyDefinition = {
 			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
+	versioning: {
+		scheme: 'semver',
+	},
 	metadata: {
 		saas: false,
 		oss: true,

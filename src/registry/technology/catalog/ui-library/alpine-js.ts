@@ -3,9 +3,9 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const alpineJsTechnologyDefinition: TechnologyDefinition = {
 	id: 'alpine-js',
 	name: 'Alpine.js',
-	website: 'https://github.com/alpinejs/alpine',
-	description: 'Alpine.js is a minimal framework for composing behavior directly in your markup.',
-	icon: 'Alpine.js.png',
+	website: 'https://alpinejs.dev/',
+	description: 'Alpine.js is a lightweight JavaScript framework for composing behavior directly in HTML markup.',
+	icon: 'Alpine.js.svg',
 	categories: [
 		'ui-library',
 	],

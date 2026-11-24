@@ -9,6 +9,7 @@ import { auth0LockTechnologyDefinition } from './auth0-lock';
 import { authorizedByTechnologyDefinition } from './authorized-by';
 import { authyTechnologyDefinition } from './authy';
 import { azureAdB2cTechnologyDefinition } from './azure-ad-b2c';
+import { betterAuthTechnologyDefinition } from './better-auth';
 import { clerkTechnologyDefinition } from './clerk';
 import { facebookLoginTechnologyDefinition } from './facebook-login';
 import { getsocialTechnologyDefinition } from './getsocial';
@@ -38,6 +39,7 @@ import { userbaseTechnologyDefinition } from './userbase';
 import { vouchedTechnologyDefinition } from './vouched';
 import { wwpassTechnologyDefinition } from './wwpass';
 
+/** Technology definitions in the authentication identity category folder. */
 export const authenticationIdentityTechnologyDefinitions = [
 	allianceAuthTechnologyDefinition,
 	amazonCognitoTechnologyDefinition,
@@ -49,6 +51,7 @@ export const authenticationIdentityTechnologyDefinitions = [
 	authorizedByTechnologyDefinition,
 	authyTechnologyDefinition,
 	azureAdB2cTechnologyDefinition,
+	betterAuthTechnologyDefinition,
 	clerkTechnologyDefinition,
 	facebookLoginTechnologyDefinition,
 	getsocialTechnologyDefinition,

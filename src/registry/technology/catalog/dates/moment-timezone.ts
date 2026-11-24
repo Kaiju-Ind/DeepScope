@@ -4,8 +4,7 @@ export const momentTimezoneTechnologyDefinition: TechnologyDefinition = {
 	id: 'moment-timezone',
 	name: 'Moment Timezone',
 	website: 'https://momentjs.com/timezone/',
-	description:
-		'Moment Timezone is a library built upon Moment.js, extending its capabilities to handle time zones in JavaScript. It allows developers to parse, manipulate, and display dates and times in various time zones, providing comprehensive support for time zone conversions and adjustments in web applications.',
+	description: 'Moment Timezone adds IANA time zone support to Moment.js and is maintained as a legacy project alongside Moment.js.',
 	icon: 'Moment.js.svg',
 	categories: [
 		'dates',
@@ -19,6 +18,9 @@ export const momentTimezoneTechnologyDefinition: TechnologyDefinition = {
 			description: 'Script source URL matches a known technology marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 	implies: [
 		'moment-js',
 	],

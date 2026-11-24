@@ -1,7 +1,7 @@
 import type { TechnologyDefinition } from '@/lib/detection/types';
 
 export const hostingerTechnologyDefinition: TechnologyDefinition = {
-	id: 'hostinger',
+	id: 'hostinger-tools',
 	name: 'Hostinger Tools',
 	website: 'https://wordpress.org/plugins/hostinger/',
 	description:
@@ -11,7 +11,7 @@ export const hostingerTechnologyDefinition: TechnologyDefinition = {
 	],
 	rules: [
 		{
-			id: 'hostinger:resourceUrl:0',
+			id: 'hostinger-tools:resourceUrl:0',
 			kind: 'resourceUrl',
 			pattern: new RegExp('/wp\\-content/plugins/hostinger/', 'i'),
 			confidence: 100,
@@ -23,7 +23,7 @@ export const hostingerTechnologyDefinition: TechnologyDefinition = {
 			description: 'Loaded resource URL is served from /wp-content/plugins/hostinger/.',
 		},
 		{
-			id: 'hostinger:stylesheetHref:1',
+			id: 'hostinger-tools:stylesheetHref:1',
 			kind: 'stylesheetHref',
 			pattern: new RegExp('/wp\\-content/plugins/hostinger/', 'i'),
 			confidence: 100,
@@ -35,7 +35,7 @@ export const hostingerTechnologyDefinition: TechnologyDefinition = {
 			description: 'Stylesheet URL is served from /wp-content/plugins/hostinger/.',
 		},
 		{
-			id: 'hostinger:scriptSrc:2',
+			id: 'hostinger-tools:scriptSrc:2',
 			kind: 'scriptSrc',
 			pattern: new RegExp('/wp\\-content/plugins/hostinger/', 'i'),
 			confidence: 100,
@@ -47,7 +47,7 @@ export const hostingerTechnologyDefinition: TechnologyDefinition = {
 			description: 'Script URL is served from /wp-content/plugins/hostinger/.',
 		},
 		{
-			id: 'hostinger:html:3',
+			id: 'hostinger-tools:html:3',
 			kind: 'html',
 			pattern: new RegExp('/wp\\-content/plugins/hostinger/', 'i'),
 			confidence: 90,

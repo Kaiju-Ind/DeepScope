@@ -4,7 +4,7 @@ export const finalFormTechnologyDefinition: TechnologyDefinition = {
 	id: 'final-form',
 	name: 'Final Form',
 	website: 'https://final-form.org/',
-	description: 'Framework agnostic, high performance, subscription-based form state management',
+	description: 'Final Form is an open-source, framework-agnostic, subscription-based form state management library.',
 	categories: [
 		'form-schema-library',
 	],
@@ -45,4 +45,7 @@ export const finalFormTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

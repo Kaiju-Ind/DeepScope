@@ -32,7 +32,4 @@ export const niagahosterTechnologyDefinition: TechnologyDefinition = {
 			'recurring',
 		],
 	},
-	implies: [
-		'niagahoster',
-	],
 } as const satisfies TechnologyDefinition;

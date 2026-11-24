@@ -722,6 +722,7 @@ import { maglrTechnologyDefinition } from './maglr';
 import { magnoliaCmsTechnologyDefinition } from './magnolia-cms';
 import { maharaTechnologyDefinition } from './mahara';
 import { mahoTechnologyDefinition } from './maho';
+import { openMageTechnologyDefinition } from './openmage';
 import { mailerliteWebsiteBuilderTechnologyDefinition } from './mailerlite-website-builder';
 import { maiseyTechnologyDefinition } from './maisey';
 import { makairaTechnologyDefinition } from './makaira';
@@ -1496,8 +1497,8 @@ import { woltlabCommunityFrameworkTechnologyDefinition } from './woltlab-communi
 import { woocommerceTechnologyDefinition } from './woocommerce';
 import {
 	wordpressBlockEditorTechnologyDefinition,
-	wordpressSiteEditorTechnologyDefinition,
 	wordpressTechnologyDefinition,
+	wordpressSiteEditorTechnologyDefinition,
 } from './wordpress';
 import { workareaTechnologyDefinition } from './workarea';
 import { workstandTechnologyDefinition } from './workstand';
@@ -1554,6 +1555,7 @@ import { zoorixTechnologyDefinition } from './zoorix';
 import { zoyeqTechnologyDefinition } from './zoyeq';
 import { zozoTechnologyDefinition } from './zozo';
 
+/** Technology definitions in the platform cms builder category folder. */
 export const platformCmsBuilderTechnologyDefinitions = [
 	technology1cBitrixTechnologyDefinition,
 	technology24nettbutikkTechnologyDefinition,
@@ -2278,6 +2280,7 @@ export const platformCmsBuilderTechnologyDefinitions = [
 	magnoliaCmsTechnologyDefinition,
 	maharaTechnologyDefinition,
 	mahoTechnologyDefinition,
+	openMageTechnologyDefinition,
 	mailerliteWebsiteBuilderTechnologyDefinition,
 	maiseyTechnologyDefinition,
 	makairaTechnologyDefinition,

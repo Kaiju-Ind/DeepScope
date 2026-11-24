@@ -14,7 +14,10 @@ export const glpiTechnologyDefinition: TechnologyDefinition = {
 		{
 			id: 'glpi:scriptSrc:0',
 			kind: 'scriptSrc',
-			pattern: new RegExp('^https?:\\/\\/[^/"\'\\s]+\\/[^?#]{0,120}glpi[^?#]{0,120}common\\.min\\.js\\?v=(\\d+\\.\\d+\\.\\d+)(?:[&#]|$)', 'i'),
+			pattern: new RegExp(
+				'^https?:\\/\\/[^/"\'\\s]+\\/[^?#]{0,120}glpi[^?#]{0,120}common\\.min\\.js\\?v=(\\d+\\.\\d+\\.\\d+)(?:[&#]|$)',
+				'i',
+			),
 			version: {
 				source: 'match',
 				group: 1,

@@ -1469,7 +1469,7 @@ describe('payload-ready collector promotions', () => {
 		expect(ids.has('wordpress-block-editor')).toBe(true);
 		expect(ids.has('parse-ly')).toBe(true);
 		expect(ids.has('really-simple-discovery')).toBe(true);
-		expect(ids.has('opensearch')).toBe(true);
+		expect(ids.has('opensearch-description')).toBe(true);
 		expect(ids.has('rss')).toBe(true);
 		expect(ids.has('hreflang')).toBe(true);
 		expect(ids.has('open-graph')).toBe(true);

@@ -6,7 +6,6 @@ export const shopifyCdnTechnologyDefinition: TechnologyDefinition = {
 	website: 'https://cdn.shopify.com/',
 	description: 'Shopify CDN serves Shopify-hosted storefront, brochure, font, image, and JavaScript assets.',
 	icon: 'Shopify.svg',
-
 	categories: [
 		'infrastructure-hosting',
 	],

@@ -5,7 +5,7 @@ export const svelteTechnologyDefinition: TechnologyDefinition = {
 	name: 'Svelte',
 	website: 'https://svelte.dev',
 	description:
-		'Svelte is a free and open-source front end compiler created by Rich Harris and maintained by the Svelte core team members.',
+		'Svelte is an open-source UI framework for building web applications with a compiler, reactive primitives, and separate client and server runtime entry points.',
 	icon: 'Svelte.svg',
 	categories: [
 		'ui-library',

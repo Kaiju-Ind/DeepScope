@@ -5,7 +5,8 @@ export const nextJsTechnologyDefinition: TechnologyDefinition = {
 	name: 'Next.js',
 	website: 'https://nextjs.org/',
 	description:
-		'Free and open-source React front-end web development framework that enables functionality such as server-side rendering and generating static websites for React based web applications.',
+		'Next.js is an open-source React framework from Vercel for full-stack web applications with server and client rendering, file-system routing, and server-side application features.',
+	icon: 'Next.js.svg',
 	categories: [
 		'framework',
 	],
@@ -66,30 +67,8 @@ export const nextJsTechnologyDefinition: TechnologyDefinition = {
 			confidence: 85,
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
-		{
-			id: 'next-js:header:modern:8',
-			kind: 'header',
-			key: 'server',
-			valuePattern: new RegExp('Vercel'),
-			confidence: 75,
-			description: 'HTTP response header matches a modern tooling marker.',
-		},
-		{
-			id: 'next-js:header:modern:9',
-			kind: 'header',
-			key: 'x-vercel-cache',
-			valuePattern: new RegExp('HIT'),
-			confidence: 75,
-			description: 'HTTP response header matches a modern tooling marker.',
-		},
-		{
-			id: 'next-js:header:modern:10',
-			kind: 'header',
-			key: 'x-vercel-id',
-			valuePattern: new RegExp('.'),
-			confidence: 75,
-			description: 'HTTP response header matches a modern tooling marker.',
-		},
+		// Vercel hosting, cache and request headers support Vercel presence only.
+		// They cannot identify the site's framework or authorize React derivation.
 		{
 			id: 'next-js:header:modern:11',
 			kind: 'header',
@@ -99,4 +78,7 @@ export const nextJsTechnologyDefinition: TechnologyDefinition = {
 			description: 'HTTP response header matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

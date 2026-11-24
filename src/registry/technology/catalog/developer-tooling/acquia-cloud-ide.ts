@@ -3,9 +3,9 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const acquiaCloudIdeTechnologyDefinition: TechnologyDefinition = {
 	id: 'acquia-cloud-ide',
 	name: 'Acquia Cloud IDE',
-	website: 'https://www.acquia.com/products/drupal-cloud/cloud-ide',
+	website: 'https://www.acquia.com/products/acquia-cloud-platform/cloud-ide',
 	description:
-		'Acquia Cloud IDE is a browser-based source code editor and a Drupal development stack running on the Acquia Cloud Platform.',
+		'Acquia Cloud IDE is a browser-based, Drupal-optimized development environment integrated with Acquia Cloud Platform and preconfigured with common Drupal development and debugging tools.',
 	icon: 'acquia-cloud-ide.png',
 	categories: [
 		'developer-tooling',

@@ -2,10 +2,10 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 
 export const rollupTechnologyDefinition: TechnologyDefinition = {
 	id: 'rollup',
-	name: 'rollup',
+	name: 'Rollup',
 	website: 'https://rollupjs.org/',
-	description:
-		'A module bundler for JavaScript which compiles small pieces of code into something larger and more complex',
+	description: 'Rollup is an open-source JavaScript module bundler focused on ES modules and optimized production bundles.',
+	icon: 'Rollup.svg',
 	categories: [
 		'bundler',
 	],
@@ -41,4 +41,7 @@ export const rollupTechnologyDefinition: TechnologyDefinition = {
 			description: 'Script content includes an explicit Rollup marker after the CommonJS ES module marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

@@ -3,9 +3,9 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const nuxtTechnologyDefinition: TechnologyDefinition = {
 	id: 'nuxt',
 	name: 'Nuxt',
-	website: 'https://nuxtjs.org/',
-	description:
-		'Nuxt.js is a free and open-source web application framework based on Vue.js, Node.js, Webpack and Babel.js.',
+	website: 'https://nuxt.com/',
+	description: 'Nuxt is an open-source full-stack Vue framework for building production web applications and websites.',
+	icon: 'Nuxt.svg',
 	categories: [
 		'framework',
 	],
@@ -81,4 +81,7 @@ export const nuxtTechnologyDefinition: TechnologyDefinition = {
 			description: 'Resource filename or URL matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

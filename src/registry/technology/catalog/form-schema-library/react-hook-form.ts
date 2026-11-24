@@ -4,7 +4,7 @@ export const reactHookFormTechnologyDefinition: TechnologyDefinition = {
 	id: 'react-hook-form',
 	name: 'React Hook Form',
 	website: 'https://react-hook-form.com/',
-	description: 'Performant, flexible and extensible forms with easy-to-use validation',
+	description: 'React Hook Form is an open-source form state and validation library built around React hooks.',
 	categories: [
 		'form-schema-library',
 	],
@@ -73,4 +73,7 @@ export const reactHookFormTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

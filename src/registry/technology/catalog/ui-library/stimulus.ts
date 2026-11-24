@@ -3,8 +3,9 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const stimulusTechnologyDefinition: TechnologyDefinition = {
 	id: 'stimulus',
 	name: 'Stimulus',
-	website: 'https://stimulusjs.org/',
-	description: 'A modest JavaScript framework for the HTML you already have.',
+	website: 'https://stimulus.hotwired.dev/',
+	description:
+		'Stimulus is a modest JavaScript framework that augments server-rendered HTML with controller, target, and action attributes.',
 	icon: 'Stimulus.svg',
 	categories: [
 		'ui-library',
@@ -41,4 +42,10 @@ export const stimulusTechnologyDefinition: TechnologyDefinition = {
 			description: 'Script content contains a bounded technology signature.',
 		},
 	],
+	versioning: {
+		scheme: 'semver',
+	},
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

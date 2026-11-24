@@ -75,7 +75,7 @@ export const nextJsTechnologyDefinition: TechnologyDefinition = {
 		cpe: 'cpe:2.3:a:zeit:next.js:*:*:*:*:*:*:*:*',
 	},
 	implies: [
-		'node-js',
+		// Static output or an Edge runtime does not establish a Node.js server.
 		'react',
 	],
 } as const satisfies TechnologyDefinition;

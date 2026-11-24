@@ -47,7 +47,6 @@ export const wordpressVipTechnologyDefinition: TechnologyDefinition = {
 	website: 'https://wpvip.com',
 	description: 'WordPress VIP is a managed hosting platform for WordPress.',
 	icon: 'wpvip.svg',
-
 	categories: [
 		'infrastructure-hosting',
 	],

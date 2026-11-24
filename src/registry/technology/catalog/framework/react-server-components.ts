@@ -11,7 +11,7 @@ export const reactServerComponentsTechnologyDefinition: TechnologyDefinition = {
 	name: 'React Server Components',
 	website: 'https://react.dev/reference/rsc/server-components',
 	description:
-		'React Server Components stream server-rendered component payloads to the client so frameworks can mix server and client UI boundaries.',
+		'React Server Components stream server-rendered component payloads to the client so frameworks can mix server-rendered and client-rendered UI regions.',
 	categories: [
 		'framework',
 		'ui-library',

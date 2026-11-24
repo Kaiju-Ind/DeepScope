@@ -6,7 +6,6 @@ export const wordpressComHelpCenterTechnologyDefinition: TechnologyDefinition = 
 	website: 'https://wordpress.com/support/',
 	description: 'WordPress.com Help Center loads Automattic support UI assets and a floating help launcher.',
 	icon: 'WordPress.svg',
-
 	categories: [
 		'widgets-misc',
 	],

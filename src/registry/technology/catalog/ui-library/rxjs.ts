@@ -5,7 +5,7 @@ export const rxjsTechnologyDefinition: TechnologyDefinition = {
 	name: 'RxJS',
 	website: 'https://reactivex.io',
 	description:
-		'RxJS is a reactive library used to implement reactive programming to deal with async implementation, callbacks, and event-based programs.',
+		'RxJS is a JavaScript library for composing asynchronous and event-based programs with Observable values.',
 	icon: 'RxJS.png',
 	categories: [
 		'ui-library',
@@ -30,6 +30,9 @@ export const rxjsTechnologyDefinition: TechnologyDefinition = {
 			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
+	versioning: {
+		scheme: 'semver',
+	},
 	metadata: {
 		oss: true,
 	},

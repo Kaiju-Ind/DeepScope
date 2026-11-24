@@ -10,7 +10,7 @@ export const shikiTechnologyDefinition: TechnologyDefinition = {
 	name: 'Shiki',
 	website: 'https://shiki.style/',
 	description:
-		'Shiki is a syntax highlighter that uses TextMate grammars and themes to produce tokenized code highlighting.',
+		'Shiki is an open-source syntax highlighter that uses TextMate grammars and VS Code themes to produce tokenized code.',
 	categories: [
 		'developer-tooling',
 		'rich-text-editors',

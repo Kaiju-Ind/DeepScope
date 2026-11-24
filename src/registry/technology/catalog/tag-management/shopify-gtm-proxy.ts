@@ -7,7 +7,6 @@ export const shopifyGtmProxyTechnologyDefinition: TechnologyDefinition = {
 	description:
 		'Shopify-hosted Google Tag Manager proxy endpoints forward analytics and advertising events through Shopify domains.',
 	icon: 'Shopify.svg',
-
 	categories: [
 		'tag-management',
 	],

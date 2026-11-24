@@ -7,11 +7,6 @@ export const kaliCartBridgeTechnologyDefinition: TechnologyDefinition = {
 	description:
 		'KaliCart Bridge is a WooCommerce plugin that exposes a structured commerce API and MCP server for software agents.',
 	categories: ['ecommerce-extensions'],
-	component: {
-		kind: 'plugin',
-		parentTechnologyId: 'woocommerce',
-		sourceIdentities: [{ kind: 'wordpress-plugin', value: 'kalicart-bridge' }],
-	},
 	rules: [
 		{
 			id: 'kalicart-bridge:url:well-known',
@@ -43,5 +38,10 @@ export const kaliCartBridgeTechnologyDefinition: TechnologyDefinition = {
 			description: 'Captured descriptor identifies KaliCart Bridge in its response body.',
 		},
 	],
+	component: {
+		kind: 'plugin',
+		parentTechnologyId: 'woocommerce',
+		sourceIdentities: [{ kind: 'wordpress-plugin', value: 'kalicart-bridge' }],
+	},
 	implies: ['woocommerce'],
 } as const satisfies TechnologyDefinition;

@@ -6,7 +6,6 @@ export const shopifyBrochureKitTechnologyDefinition: TechnologyDefinition = {
 	website: 'https://www.shopify.com/',
 	description: 'Shopify Brochure Kit is Shopify’s internal component system for public marketing pages.',
 	icon: 'Shopify.svg',
-
 	categories: [
 		'component-library',
 	],

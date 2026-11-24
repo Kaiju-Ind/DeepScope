@@ -3,8 +3,9 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const artifactoryTechnologyDefinition: TechnologyDefinition = {
 	id: 'artifactory',
 	name: 'Artifactory',
-	website: 'https://jfrog.com/open-source/#os-arti',
-	description: 'Artifactory is a repository manager for binary artifacts, packages, containers, and build metadata.',
+	website: 'https://jfrog.com/artifactory/',
+	description:
+		'JFrog Artifactory is a universal artifact repository for managing software packages, binaries, containers, AI/ML models, build artifacts, and release metadata.',
 	icon: 'Artifactory.svg',
 	categories: [
 		'developer-tooling',

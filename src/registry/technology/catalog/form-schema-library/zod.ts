@@ -4,7 +4,7 @@ export const zodTechnologyDefinition: TechnologyDefinition = {
 	id: 'zod',
 	name: 'Zod',
 	website: 'https://zod.dev/',
-	description: 'TypeScript-first schema validation with static type inference',
+	description: 'Zod is an open-source TypeScript-first schema validation library with static type inference.',
 	categories: [
 		'form-schema-library',
 	],
@@ -143,4 +143,7 @@ export const zodTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

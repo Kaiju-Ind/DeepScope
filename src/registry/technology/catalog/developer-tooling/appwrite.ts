@@ -5,7 +5,7 @@ export const appwriteTechnologyDefinition: TechnologyDefinition = {
 	name: 'Appwrite',
 	website: 'https://appwrite.io',
 	description:
-		'Appwrite is an end-to-end backend server for web, mobile or native applications packaged as a set of Docker microservices.',
+		'Appwrite is an open-source cloud development platform for web, mobile, and AI applications with authentication, databases, storage, functions, messaging, hosting, and realtime services.',
 	icon: 'Appwrite.svg',
 	categories: [
 		'developer-tooling',

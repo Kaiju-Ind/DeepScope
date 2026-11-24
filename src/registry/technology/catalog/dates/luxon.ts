@@ -4,7 +4,7 @@ export const luxonTechnologyDefinition: TechnologyDefinition = {
 	id: 'luxon',
 	name: 'Luxon',
 	website: 'https://moment.github.io/luxon/',
-	description: 'Modern JavaScript date utility library',
+	description: 'Luxon is an open-source JavaScript library for dates, times, intervals, durations, and time zones.',
 	categories: [
 		'dates',
 	],
@@ -150,4 +150,7 @@ export const luxonTechnologyDefinition: TechnologyDefinition = {
 			description: 'Bundled script content matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

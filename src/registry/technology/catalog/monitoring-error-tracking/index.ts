@@ -17,6 +17,7 @@ import { fasterizeTechnologyDefinition } from './fasterize';
 import { googleCloudTraceTechnologyDefinition } from './google-cloud-trace';
 import { gumletTechnologyDefinition } from './gumlet';
 import { hyperspeedTechnologyDefinition } from './hyperspeed';
+import { interactionContentfulPaintApiTechnologyDefinition } from './interaction-contentful-paint-api';
 import { intersectionObserverTechnologyDefinition } from './intersection-observer';
 import { jumboTechnologyDefinition } from './jumbo';
 import { loadifyTechnologyDefinition } from './loadify';
@@ -45,6 +46,7 @@ import { sectionsDesignShopifyAppOptimizationTechnologyDefinition } from './sect
 import { sematextExperienceTechnologyDefinition } from './sematext-experience';
 import { sentryTechnologyDefinition } from './sentry';
 import { site24x7TechnologyDefinition } from './site24x7';
+import { softNavigationApiTechnologyDefinition } from './soft-navigation-api';
 import { speedKitTechnologyDefinition } from './speed-kit';
 import { speedcurveTechnologyDefinition } from './speedcurve';
 import { speedimizeTechnologyDefinition } from './speedimize';
@@ -66,6 +68,7 @@ import { honeybadgerTechnologyDefinition } from './honeybadger';
 import { instanaTechnologyDefinition } from './instana';
 import { trackjsTechnologyDefinition } from './trackjs';
 
+/** Technology definitions in the monitoring error tracking category folder. */
 export const monitoringErrorTrackingTechnologyDefinitions = [
 	aispeedTechnologyDefinition,
 	akamaiMpulseTechnologyDefinition,
@@ -85,6 +88,7 @@ export const monitoringErrorTrackingTechnologyDefinitions = [
 	googleCloudTraceTechnologyDefinition,
 	gumletTechnologyDefinition,
 	hyperspeedTechnologyDefinition,
+	interactionContentfulPaintApiTechnologyDefinition,
 	intersectionObserverTechnologyDefinition,
 	jumboTechnologyDefinition,
 	loadifyTechnologyDefinition,
@@ -113,6 +117,7 @@ export const monitoringErrorTrackingTechnologyDefinitions = [
 	sematextExperienceTechnologyDefinition,
 	sentryTechnologyDefinition,
 	site24x7TechnologyDefinition,
+	softNavigationApiTechnologyDefinition,
 	speedKitTechnologyDefinition,
 	speedcurveTechnologyDefinition,
 	speedimizeTechnologyDefinition,

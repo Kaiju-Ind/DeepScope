@@ -35,9 +35,9 @@ export const hydrogenTechnologyDefinition: TechnologyDefinition = {
 	metadata: {
 		oss: true,
 	},
+	// Hydrogen 2026 is framework- and runtime-agnostic, so React and Vite are no
+	// longer implied; detect them from their own evidence.
 	implies: [
-		'react',
 		'shopify',
-		'vite',
 	],
 } as const satisfies TechnologyDefinition;

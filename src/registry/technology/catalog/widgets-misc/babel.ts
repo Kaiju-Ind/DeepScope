@@ -17,4 +17,7 @@ export const babelTechnologyDefinition: TechnologyDefinition = {
 			description: 'Page-owned global matches a known technology marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

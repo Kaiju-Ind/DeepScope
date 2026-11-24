@@ -3,7 +3,9 @@ import type { TechnologyDefinition } from '@/lib/detection/types';
 export const mermaidTechnologyDefinition: TechnologyDefinition = {
 	id: 'mermaid',
 	name: 'Mermaid',
-	website: 'https://mermaidjs.github.io/',
+	website: 'https://mermaid.js.org/',
+	description: 'Mermaid is an open-source JavaScript diagramming and charting tool that renders text definitions into diagrams.',
+	icon: 'Mermaid.svg',
 	categories: [
 		'graphics-visualization',
 	],
@@ -34,4 +36,7 @@ export const mermaidTechnologyDefinition: TechnologyDefinition = {
 			description: 'DOM selector matches a known technology marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;

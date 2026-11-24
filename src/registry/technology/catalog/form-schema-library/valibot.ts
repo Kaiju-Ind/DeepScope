@@ -4,7 +4,7 @@ export const valibotTechnologyDefinition: TechnologyDefinition = {
 	id: 'valibot',
 	name: 'Valibot',
 	website: 'https://valibot.dev/',
-	description: 'The modular and type safe schema library',
+	description: 'Valibot is an open-source modular and type-safe schema library for validating unknown data.',
 	categories: [
 		'form-schema-library',
 	],
@@ -66,4 +66,7 @@ export const valibotTechnologyDefinition: TechnologyDefinition = {
 			description: 'Resource filename or URL matches a modern tooling marker.',
 		},
 	],
+	metadata: {
+		oss: true,
+	},
 } as const satisfies TechnologyDefinition;
