@@ -447,7 +447,8 @@ export async function runStress(session, harness, context) {
 		const moves = Array.from({ length: 2 + int(5) }, () => chance(0.6) ? 'back' : 'forward');
 		const gaps = moves.map(() => int(250));
 		touch(tab.id);
-		tab.extras = [];
+		// Back and forward may stay inside one document (pushState entries), so a
+		// rewrite's marker stays allowed.
 		step('back-forward', { tabId: tab.id, moves });
 		await call('back-forward', `async (id, moves, gaps) => {
 			for (let i = 0; i < moves.length; i++) {
