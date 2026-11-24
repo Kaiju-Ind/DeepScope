@@ -1,4 +1,7 @@
 @import 'tailwindcss' source('../');
+/* Tests are not in the Firefox sources zip, so class-like strings in them must not
+   reach the release CSS or the AMO rebuild would differ. */
+@source not '../tests';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import './fonts.css';
