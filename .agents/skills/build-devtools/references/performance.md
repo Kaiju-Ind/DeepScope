@@ -325,6 +325,6 @@ unavailable runtimes.
 - Attached `undent.zip`, normative benchmarking/testing instructions plus
   executable timing and memory suites; verified 2026-07-17.
 
-The thresholds and Deno commands in Wikitext belong to that experiment. Reuse
+The thresholds and commands in Wikitext belong to that experiment. Reuse
 the experimental controls and evidence discipline; choose product-specific
 metrics, effects, runtimes, and gates before collecting new data.

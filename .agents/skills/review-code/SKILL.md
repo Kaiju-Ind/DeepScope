@@ -87,7 +87,7 @@ unit contract. Review the misleading comment and README as well as the code.
 
 ## Kaiju projects
 
-In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Failure catalogue](../../../docs/kaiju/failures/README.md), [Retrospective coverage](../../../docs/kaiju/failures/retrospectives/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).
+In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Failure catalogue](../../../docs/kaiju/failures/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).
 
 ## Resource navigation
 

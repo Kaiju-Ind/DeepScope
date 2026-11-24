@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build browser extensions"
+  short_description: "Manifest V3 extension contexts, surfaces and builds across Chrome, Firefox and Safari."
+  default_prompt: "Use $build-extensions to design, review or verify this extension change in every affected browser."

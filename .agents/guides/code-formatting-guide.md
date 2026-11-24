@@ -245,7 +245,7 @@ export function capturePage(
 Keep imports on one line when they remain readable.
 
 ```ts
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 ```
 
 Expand long imports when the line becomes difficult to scan or exceeds the repository formatter's limit.

@@ -1,10 +1,10 @@
-# TypeScript and Deno rules
+# TypeScript rules
 
 ## Runtime and module model
 
-Assume Deno v2, strict TypeScript, ESM, and explicit file extensions unless the repository says otherwise.
+Assume strict TypeScript, ESM, and explicit file extensions unless the repository says otherwise. In DeepScope, `tsc --noEmit` (`mise run check`) type-checks `src/`, `utils/`, scripts and tests against the WXT-generated `tsconfig`.
 
-Keep the same deterministic TypeScript implementation across Deno, Node, Bun, browsers, and workers where the capability overlaps. Runtime-specific adapters and tests may use runtime-specific APIs behind explicit modules. Do not fork the domain model merely to satisfy one toolchain.
+Keep the same deterministic TypeScript implementation across extension contexts, browsers and workers where the capability overlaps. Runtime-specific adapters and tests may use runtime-specific APIs behind explicit modules. Do not fork the domain model merely to satisfy one toolchain.
 
 Keep modules tree-shakeable and import-safe. Do not connect providers, configure logging, read environment variables, start workers, or acquire unrelated live resources during module evaluation.
 
@@ -12,8 +12,8 @@ Prefer JavaScript-native TypeScript. Use types to make runtime contracts precise
 
 ## Runtime coupling is a review signal
 
-Treat direct Node/Deno globals and static runtime-module imports in shared
-code as portability smells: `Deno.*`, ambient `process`/`Buffer`/`global`, and
+Treat direct Node globals and static runtime-module imports in shared
+code as portability smells: ambient `process`/`Buffer`/`global`, and
 `node:*` or equivalent bare builtin imports can couple module resolution,
 permissions, types or import-time work to a host. Count the concrete sites, then
 trace their owner and actual consumers before declaring a defect. Inspect
@@ -202,6 +202,6 @@ When code uses non-obvious parser recovery, bitwise or binary logic, offset math
 
 ## Verification
 
-After relevant TypeScript changes, run the repository's canonical checks. In a Deno-first repository this normally includes formatting, lint, strict type checking, tests, and documentation checks when configured. Run `deno doc --lint` when the repository exposes or requires that gate.
+After relevant TypeScript changes, run the repository's canonical checks. In DeepScope that is `mise run check` (strict type checking, including the type-only tests) and `mise run test`, plus `mise run build <browser>` when an entrypoint, manifest or bundle changes.
 
 When the project claims multiple runtimes, type checking alone is not enough. Run representative behavior in each required runtime when the host provides it, and state exactly what remains unverified when it does not.

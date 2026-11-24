@@ -41,4 +41,4 @@ locate a decision-specific resource; it is not a reading checklist.
 
 ## Kaiju projects
 
-In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Task prompts](../../../docs/kaiju/tasks/README.md).
+In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Failure catalogue](../../../docs/kaiju/failures/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).

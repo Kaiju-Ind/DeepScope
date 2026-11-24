@@ -104,8 +104,8 @@ Instrument acquisition and disposal. Assert:
 - repeated cycles plateau;
 - cleanup failures retain the primary failure and remain observable.
 
-Use Deno resource and operation sanitizers where available. Use platform handle
-inspection or fresh-process exit behavior elsewhere.
+Assert cleanup directly (listeners removed, workers terminated, stores closed).
+Use platform handle inspection or fresh-process exit behavior where it helps.
 
 ## Performance tests
 
@@ -169,11 +169,11 @@ to support, deprecate, or break it with an explicit release policy.
 
 ## Cross-skill verification
 
-### With build-clis
+### With build-extensions
 
-Prove the CLI calls the public library API, resolves configuration once, owns
-LogTape configuration and process lifecycle, and preserves stdout, stderr, exit,
-help, completion, and cancellation contracts.
+Prove each entrypoint calls the public library API, owns LogTape configuration
+and the context's lifecycle, and that the library imports nothing a context
+cannot load (no DOM in the service worker, no extension APIs in a worker).
 
 ### With explore-ecosystems
 
@@ -189,10 +189,10 @@ clean-consumer commands.
 
 Prove the line between library resume contracts and durable execution authority.
 
-### With build-data
+### With use-utils
 
-Prove persistence guarantees, query behavior, migrations, and projection
-rebuilds rather than assuming them from an interface.
+Prove persistence guarantees of the IndexedDB stores and snapshot rebuilds
+rather than assuming them from an interface.
 
 ## Completion report
 
@@ -224,6 +224,6 @@ Report:
 
 - Repository evaluation model and executable fixture conventions.
 - Library-first guidebook verification matrix, reviewed 2026-07-23.
-- Deno testing and benchmarking guidance, reviewed 2026-07-23.
+- Vitest testing and benchmarking guidance.
 - esbuild analysis and package-consumer verification guidance, reviewed
   2026-07-23.

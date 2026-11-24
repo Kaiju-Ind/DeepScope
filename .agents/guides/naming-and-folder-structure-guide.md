@@ -19,10 +19,43 @@ The objective is to make the codebase readable without prior context. Names shou
 
 This guide separates generic mechanisms, concrete capabilities, declarative
 definitions, and executable composition. `utils/`, `packages/`, `registry/`, and
-`clis/` are an illustrative application layout. Kaiju projects take generic
-mechanisms from the published `@kaiju-ind/*` packages; follow their actual
-public ownership and dependency graph rather than recreating this directory
-taxonomy.
+`clis/` are an illustrative application layout. DeepScope takes generic
+mechanisms from its vendored `@utils/*` packages (see `utils/README.md`); follow
+their actual public ownership and dependency graph rather than recreating this
+directory taxonomy.
+
+## DeepScope rules (owner decisions)
+
+These come from the repository owner and win over the general examples below.
+The source is the Rules section of
+[the source layout plan](../../docs/migration/source-layout-plan.md).
+
+- **Names are short.** The folder and module namespace carry the context:
+  `createBrowserContentPageSessionSnapshotStore` becomes
+  `snapshots.store.create`, and `clearScheduledObservationRefreshesForTab`
+  becomes `refresh.clear(tabId)`.
+- **A dash in a file or folder name usually hides a missing subfolder.**
+  `detection-snapshots.ts` becomes `snapshots/…`;
+  `observation-matcher-index.ts` becomes `matcher/index.ts`. Keep a dash only
+  for an established compound term (`service-worker`) or a name a tool
+  requires.
+- No new `runtime`, `helper` or `manager` modules. Persisted values, storage
+  keys and log event names stay byte-identical when code moves.
+- Files aim for 300 lines or fewer; review above 400; 500 is the cap
+  (tests, generated files, `src/registry` and `src/ui` excepted).
+- Never infer a provider from a framework: a page that uses Next.js is not
+  therefore hosted on Vercel. Name what the evidence shows.
+
+Layout today and the planned direction:
+
+| Role | Today | Planned |
+| --- | --- | --- |
+| Generic mechanics | `utils/*` (`@utils/*`), `src/utils/` | `utils/*` (`@utils/*`) |
+| Capabilities | `src/lib/*` | `packages/{dom,registry,detection}` (`@deepscope/*`) |
+| Declarative definitions | `src/registry/` | `packages/registry` |
+| Composition | `src/entrypoints/`, `src/app/` | `apps/extension` (WXT) |
+| Project programs | `scripts/` | `tools/` |
+| Decisions | `docs/architecture/`, `docs/migration/` | `docs/adr/` |
 
 ## Core principle
 
@@ -605,7 +638,7 @@ Use `camelCase` for internal TypeScript domain models.
 Preserve the established naming of external protocols, database records, and serialized formats at the adapter or codec layer.
 
 ```ts
-const ClickHouseCaptureRowSchema = z.object({
+const CaptureRowSchema = z.object({
   captured_at: z.string(),
   source_url: z.string().url(),
 });
@@ -619,7 +652,7 @@ interface CaptureRecord {
 Convert explicitly between external and internal forms.
 
 ```ts
-function parseCaptureRecord(row: ClickHouseCaptureRow): CaptureRecord {
+function parseCaptureRecord(row: CaptureRow): CaptureRecord {
   return { capturedAt: Temporal.Instant.from(row.captured_at), sourceUrl: new URL(row.source_url) };
 }
 ```
@@ -683,7 +716,6 @@ routeCaptureResult.ts
 Follow established ecosystem filenames where tools require or strongly conventionally expect them.
 
 ```text
-deno.jsonc
 package.json
 tsconfig.json
 README.md
@@ -783,9 +815,9 @@ packages/
   technology/
     detect/
     evidence/
-  db/
-    clickhouse/
-    postgres/
+  matcher/
+    workers/
+    route/
 ```
 
 Here, `browser/pool/` is precise because the parent establishes that the pool owns browser processes. `technology/detect/` is clearer and shorter than repeating `technology` in `technology-detection/`.
@@ -826,7 +858,7 @@ Also avoid redundant or inflated names:
 ```text
 browser-process-management-system/
 shared-common-utilities/
-clickhouse-database-adapter-package/
+indexeddb-storage-adapter-package/
 redpanda-message-queue-resource-implementation/
 ```
 
@@ -990,7 +1022,7 @@ Do not place concrete integrations in `utils/`:
 
 ```text
 utils/browser-process-pool/
-utils/clickhouse/
+utils/indexeddb-queue/
 utils/clerk/
 utils/redpanda/
 utils/wacz/
@@ -1022,9 +1054,8 @@ packages/
     capture/
     lighthouse/
     pool/
-  db/
-    clickhouse/
-    postgres/
+  storage/
+    indexeddb/
   queue/
     redpanda/
 ```
@@ -1039,7 +1070,6 @@ Follow established repository patterns first. When no stronger local convention 
 
 ```text
 packages/browser/pool/
-  deno.jsonc
   package.json
   src/
     create.ts
@@ -1210,7 +1240,7 @@ Prefer focused package entry points:
 ```text
 @kaiju/browser/capture
 @kaiju/browser/pool
-@kaiju/db/clickhouse
+@deepscope/detection
 ```
 
 Avoid one giant package entry point that exposes unrelated implementations and creates accidental coupling.

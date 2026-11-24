@@ -43,10 +43,13 @@ complete because it runs once on one workstation. It must have an owner,
 reproducible inputs, deterministic or intentionally variable outputs, failure
 behavior, CI parity, and a removal/upgrade path.
 
-the shared quality contract owns overall completion. `deno-software` owns Deno-specific
-manifests/runtime contracts. `build-libraries` owns reusable programming models.
-`build-clis` owns public command-language behavior. This skill owns toolchain,
-generation, packaging, release, and development-workflow mechanics.
+the shared quality contract owns overall completion. `build-libraries` owns
+reusable programming models. `build-extensions` owns manifests, browser targets
+and store packages. This skill owns toolchain, generation, scripts, release
+automation, and development-workflow mechanics. In DeepScope that means
+`mise.toml` and `.mise/tasks/`, `wxt.config.ts` and `modules/`,
+`vitest.config.ts`, the GitHub workflows, and the project programs in
+`scripts/` (planned to move to `tools/`).
 
 ## Evidence preflight
 
@@ -58,8 +61,8 @@ Inventory:
 - Oxc/Biome/TypeScript/esbuild/Vite/Rollup/Unplugin or other exact integrations;
 - source generators, templates, schemas, registries, Unicode/spec datasets, and
   codegen outputs;
-- package exports, declaration/build output, runtime conditions, tarball/JSR
-  contents, and clean-consumer checks;
+- package exports, build output, per-browser `.output/` contents, zips and
+  clean-install checks;
 - versioning, changelog, publish steps, registries, provenance, tags, rollback,
   and partial-release handling;
 - caches, downloaded binaries, generated directories, temporary workspaces, and
@@ -82,8 +85,8 @@ another tool that overlaps the same responsibility.
    adapter, virtual modules, HMR/SSR behavior, and generated types.
 3. **Mise is repository task/tool authority only when selected.** Pin tools and
    keep task semantics in `.mise/tasks/`/configuration as the repository
-   defines. Do not add a parallel `scripts/` framework just because an agent
-   prefers it.
+   defines. Do not add a parallel task framework just because an agent
+   prefers it; `scripts/` holds programs that tasks call, not tasks.
 4. **Generators have explicit ownership.** Separate generated-only files,
    human-owned files, and mixed-ownership regions. Mixed files require bounded,
    source-preserving edits or generated markers. Never reformat an entire
@@ -97,8 +100,7 @@ another tool that overlaps the same responsibility.
 7. **Releases originate from an immutable revision.** Version, build, test,
    provenance/checksums, publication, tags, and release metadata must agree.
    Define what happens when one registry succeeds and another fails.
-8. **Performance work protects real workflows.** Use Mitata where the repository
-   selected it, but benchmark representative operations, warm/cold behavior,
+8. **Performance work protects real workflows.** Use Vitest `bench`, but benchmark representative operations, warm/cold behavior,
    correctness, variance, memory/resource use, and regressions. Do not optimize a
    microbenchmark that makes the developer workflow slower or less correct.
 9. **Keep functional and mechanical changes separate.** Tooling changes can
@@ -142,14 +144,10 @@ Test or inspect for:
 
 - [toolchains.md](references/toolchains.md): ownership of compiler/linter/
   formatter/bundler/task/package-manager configuration and parity.
-- [mise-aube.md](references/mise-aube.md): detailed Mise and Aube configuration,
-  tasks, lockfiles, workspaces, security, lifecycle build jails, CI, migration,
-  and rollback.
+- [mise.md](references/mise.md): DeepScope's pinned tools and file tasks.
 - [generated-artifacts.md](references/generated-artifacts.md): generated versus
   authored ownership, check/write modes, deterministic output, provenance,
   source-preserving edits, and drift.
-- [packaging.md](references/packaging.md): cross-runtime builds, exports,
-  conditions, package contents, consumers, and lifecycle.
 - [releases.md](references/releases.md): versions, immutable revisions,
   provenance, multi-registry publication, rollback, and recovery.
 - [performance.md](references/performance.md): experiment protocol,

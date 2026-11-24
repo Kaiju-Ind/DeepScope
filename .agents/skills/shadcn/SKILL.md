@@ -42,6 +42,8 @@ A framework for building ui, components and design systems. Components are added
 
 The JSON above contains the project config and installed components. Use `npx shadcn@latest docs <component>` to get documentation and example URLs for any component.
 
+**DeepScope:** `components.json` uses the `kobalte` style (Solid, not React; `rsc: false`) and the `@zaidan` registry. The installed catalogue lives in `src/ui/` (alias `@/ui`), with hooks in `src/hooks/` and styles in `src/styles/app.css`. Examples on ui.shadcn.com are React; translate them to the Zaidan/Kobalte component that is installed instead of pasting React code. Run the CLI through the pinned toolchain (`mise exec -- pnpm dlx shadcn@latest …`) and only when the task authorizes adding a component.
+
 ## Principles
 
 1. **Use existing components first.** Use `npx shadcn@latest search` to check registries before writing custom UI. Check community registries too.

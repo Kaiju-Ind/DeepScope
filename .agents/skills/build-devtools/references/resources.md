@@ -6,10 +6,9 @@ Historical entrypoints are retained in Git.
 
 | Resource | When to use it |
 | --- | --- |
-| [references/generated-artifacts.md](../references/generated-artifacts.md) | Inspect the corresponding decision or exact example only when it is in scope. |
-| [references/hygiene.md](../references/hygiene.md) | Inspect the corresponding decision or exact example only when it is in scope. |
-| [references/mise-aube.md](../references/mise-aube.md) | Inspect the corresponding decision or exact example only when it is in scope. |
-| [references/packaging.md](../references/packaging.md) | Inspect the corresponding decision or exact example only when it is in scope. |
-| [references/performance.md](../references/performance.md) | Inspect the corresponding decision or exact example only when it is in scope. |
-| [references/releases.md](../references/releases.md) | Inspect the corresponding decision or exact example only when it is in scope. |
-| [references/toolchains.md](../references/toolchains.md) | Inspect the corresponding decision or exact example only when it is in scope. |
+| [references/generated-artifacts.md](../references/generated-artifacts.md) | Generated versus authored files, check/write modes, deterministic registry output, vendored-utility resync drift. |
+| [references/hygiene.md](../references/hygiene.md) | Ignored files, caches, `.output/`, secrets, worktrees and archive contents. |
+| [references/mise.md](../references/mise.md) | DeepScope's Mise tools and file tasks, and how to add or change a task. |
+| [references/performance.md](../references/performance.md) | Experiment protocol, statistical gates, correctness oracles and protected workflows. |
+| [references/releases.md](../references/releases.md) | Versions, immutable revisions, provenance, multi-target publication, rollback and recovery. |
+| [references/toolchains.md](../references/toolchains.md) | Which tool owns each concern and how to keep local and CI paths the same. |

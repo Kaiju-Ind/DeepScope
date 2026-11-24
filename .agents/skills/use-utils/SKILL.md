@@ -1,97 +1,101 @@
 ---
-name: use-kaiju-utils
-description: Select, adopt, verify, or debug the Kaiju Utils packages (`@kaiju-ind/*`, from the Kaiju-Ind/utils repository) before writing a generic utility. Use for context, task, activity, workflow and history, dispatch, scheduler, pool, worker and process, storage (queue, workflow, outbox, state), server, endpoint, gateway, HTTP, query, schema and codecs, result, failure and fault, env, runtime, telemetry, format (CSV, sitemap), streams, hash, duration, dispose, capability (resource, requirement, effect, resilience), authz and input.
+name: use-utils
+description: Select, adopt, verify, resync or debug the vendored utility packages (`@utils/*` in `utils/`, copied from Kaiju-Ind/Utils) before writing a generic utility. Use for context, task, activity, workflow and history, dispatch, scheduler capacity and queue, pool, worker threads and protocol, IndexedDB and memory stores, result, failure and fault, duration and Temporal, dispose, schema, collection, telemetry and capability, and for `scripts/utils/sync.ts`.
 ---
 
-# Use the Kaiju Utils packages
+# Use the vendored utility packages
 
 ## Reading boundary
 
 Minimum: read this entrypoint and the linked shared software-quality contract.
 Read a reference only when its decision is in scope. Stop when the package, its
-version and its exports for the decision are known; report any source you could
-not read.
+vendored exports and the context that loads it are known; report any source you
+could not read.
 
 ## Shared obligations
 
 Read [software quality](../../guides/software-quality.md) before this
 capability's work, and [applying standards](../../guides/applying-standards.md)
-before domain work. This skill selects and verifies a Utils package. The skill
-that owns the change (`build-apis`, `build-data`, `build-workflows`,
-`build-clis`, `build-libraries`) still owns its design and verdict.
+before domain work. This skill selects and verifies a utility package. The skill
+that owns the change (`build-workflows`, `build-extensions`, `build-libraries`)
+still owns its design and verdict.
 
 ## Utility authority
 
-The [Kaiju-Ind/utils](https://github.com/Kaiju-Ind/utils) repository owns the
-generic utilities of every Kaiju project. Its `packages/*` workspace publishes
-the `@kaiju-ind/<package>` packages to GitHub Packages.
+DeepScope's generic utilities come from the `@utils/*` workspace packages in
+[`utils/`](../../../utils/README.md). They are copied from Kaiju-Ind/Utils
+(MIT) at a recorded commit, renamed from the upstream `@kaiju-ind/*` scope, and
+resynced with `scripts/utils/sync.ts`, so the public repository builds and
+publishes without access to private packages.
 
 1. Before you write a generic utility, find its owner in the
-   [package map](references/packages.md). A local copy of a Utils capability is
-   a defect, not a shortcut.
-2. Use the published package at an exact version. The Utils source on `main`
-   can be ahead of the release; the installed package is the contract.
-3. If no package fits, write the smallest local code that the task needs, name
-   the gap, and propose it to Kaiju-Ind/utils. Do not grow a local generic
-   library.
+   [package map](references/packages.md). A second local copy of a vendored
+   capability is a defect, not a shortcut.
+2. Never add a `@kaiju-ind/*` dependency, registry scope or token. The
+   vendored copy is the contract; Utils `main` can differ from it.
+3. If no vendored package fits, check whether upstream has one that was not
+   copied, and vendor it through `utils/sync.json` rather than by hand.
+   Otherwise write the smallest local code that the task needs and name the gap.
 
-`@okikio/*` libraries are a separate, personal ecosystem (`@okikio/undent`,
-`@okikio/observables`, `@okikio/sparql`, `@okikio/wikitext`, `@okikio/opfs`).
-Use `use-okikio` for them. They never replace a Utils package, and Okikio's
-personal utility workspace is not a source for Kaiju work.
+`@okikio/*` libraries are a separate ecosystem (DeepScope uses
+`@okikio/observables` through the vendored packages). Use `use-okikio` for
+them. They never replace a vendored package, and Okikio's personal utility
+workspace is not a source.
 
 ## Procedure
 
-1. Name the need in plain words, such as "bound active downloads to four" or
-   "save workflow progress beside business state".
+1. Name the need in plain words, such as "bound matcher workers to two" or
+   "save scan progress so a restarted background can resume it".
 2. Find the package and subpath in the [package map](references/packages.md),
-   then read its README and the guide that the map links.
-3. Check the consumer: its manifest pins, lockfile, registry configuration and
-   the installed package's `exports` map. Follow
+   then read its README in `utils/<package>/`.
+3. Check which extension context imports it: the content script imports no
+   vendored package; a service worker cannot `import()` dynamically; matcher
+   workers load only what the worker entry needs. Follow
    [adoption](references/adoption.md).
-4. Import the narrowest public subpath, for example `@kaiju-ind/format/csv`
-   rather than the `@kaiju-ind/utils` umbrella.
+4. Import the narrowest public subpath, for example `@utils/scheduler/capacity`
+   rather than `@utils/scheduler`.
 5. Keep the package's ownership model: callers keep injected resources, a
    `Context` scopes lifetime and cancellation, and cleanup has one owner.
-6. Prove the integration in the consumer: types, the main path, the rejection
-   path and cleanup.
+6. Prove the integration in DeepScope: types (`mise run check`), the main path,
+   the rejection path and cleanup, and, for stores, private-tab memory-only use.
 
 ## Reference routing
 
-- [packages.md](references/packages.md): the published packages, their
-  versions, their main subpaths and the Utils guide for each.
-- [adoption.md](references/adoption.md): registry setup, exact versions, export
-  checks, replacing a local utility, and reporting a gap.
-- [services.md](references/services.md): server, endpoint, gateway, HTTP,
-  query and effect contracts.
+- [packages.md](references/packages.md): the vendored packages, their status
+  (adopted, transitive, DeepScope's own), subpaths and READMEs.
+- [adoption.md](references/adoption.md): using a vendored package, vendoring
+  more, the resync script, replacing DeepScope code, and reporting a gap.
 - [workflows.md](references/workflows.md): context, task, activity, workflow,
-  history, dispatch, storage and outbox contracts.
+  history, dispatch and the IndexedDB stores.
 
 ## Failure review
 
 Watch for:
 
-- a local generic utility, or a copy of a Utils module, where a published
+- a local generic utility, or a hand copy of a Utils module, where a vendored
   package fits;
-- an `@okikio/*` import, or Okikio's personal utility workspace, used for a
-  Kaiju-Ind Utils capability;
-- an export claimed from Utils `main` that the pinned release does not have;
-- an umbrella or `/all` import where a focused subpath is enough;
-- a version range where the consumer pins exact versions;
+- a `@kaiju-ind/*` import, dependency or registry entry anywhere in DeepScope;
+- a hand edit to a vendored file (one with the "Vendored from" header) instead
+  of a patch in `utils/patches/`;
+- an export used from Utils `main` that the vendored copy does not have;
+- a whole-package import where a focused subpath is enough;
+- a vendored package pulled into the content script or a service-worker bundle
+  that cannot load it;
 - a library that configures LogTape or OpenTelemetry globally, which only the
-  application may do;
-- an in-memory dispatch, history or emitter presented as durable.
+  extension entrypoint may do;
+- an in-memory queue or history presented as durable, or a durable store used
+  for private-tab work.
 
 ## Completion gate
 
-Do not call a Utils integration complete until the package and exact version
-are verified in the consumer, the import is a public subpath of that version,
-the ownership and cleanup model is intact, and the main and failure paths are
-tested in the consumer's runtimes.
+Do not call a utility integration complete until the import is a public subpath
+of the vendored package, `node scripts/utils/sync.ts --check` passes when
+vendored files changed, the ownership and cleanup model is intact, and the main
+and failure paths are tested under the Vitest project that owns the code.
 
 ## Kaiju projects
 
-In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Service readiness](../../../docs/kaiju/services/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).
+In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Platform readiness](../../../docs/kaiju/platforms/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).
 
 ## Resource navigation
 

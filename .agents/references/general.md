@@ -131,13 +131,13 @@ Benchmark representative workloads. Preserve benchmark fixtures and configuratio
 
 Before adding a dependency or second tool path, inspect what the repository already selected for the concern. Reuse it when it directly supports the requirement.
 
-Examples include LogTape for diagnostics, Optique for CLI grammar, Oxc for selected compiler/lint/format work, Unplugin for selected build-tool integrations, Mise for development tasks, Playwright for browser behavior, and Mitata for cross-runtime benchmarks.
+In DeepScope these include LogTape for diagnostics, `comctx` for typed messages between extension contexts, WXT for entrypoints and manifests, Oxc (`oxc-parser`) for source checks, Unplugin for icons, Mise for development tasks, WebDriver drivers in `scripts/verify/` for real-browser behavior, and Vitest for tests and benchmarks.
 
 These tools are not universal requirements. They are owners only where the repository has selected them.
 
 ## Validate the behavior you claim
 
-The current Okikio/Kaiju default for package tests is `node:test` with `@std/expect`. The same source should run in Deno and Node when the package claims both. Runtime-specific suites remain necessary for behavior that only exists in browsers, workers, Deno, Bun, Node, databases, containers, or other concrete environments.
+DeepScope tests run on Vitest (the vendored `utils/` tests keep upstream `node:test` through a shim). Runtime-specific checks remain necessary for behavior that only exists in a real browser, extension context, worker or store.
 
 A type-only green check is not enough for runtime behavior. Run the relevant formatter, lint, strict type checks, tests, builds, runtime smoke tests, output inspection, public consumer/type fixtures, and user flows.
 

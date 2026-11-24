@@ -1,4 +1,4 @@
 interface:
-  display_name: "Use Kaiju Utils"
-  short_description: "Use the @kaiju-ind Utils packages before writing a utility."
-  default_prompt: "Use $use-kaiju-utils to find, adopt and verify the Kaiju Utils package for this need."
+  display_name: "Use the vendored utilities"
+  short_description: "Use the vendored @utils packages before writing a utility."
+  default_prompt: "Use $use-utils to find, adopt and verify the vendored @utils package for this need."

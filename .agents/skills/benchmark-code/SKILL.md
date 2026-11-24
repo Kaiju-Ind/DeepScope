@@ -65,7 +65,7 @@ obligations apply. Select companions when their specialized decisions change.
    authorize unrelated optimization, installs, external writes or publication.
 2. Inspect the real public API, caller, selected harness and installed version.
    Identify runtime/domain owners and resource requirements. Use the repository
-   runner; Mitata is the default where selected, not a second benchmark stack.
+   runner (Vitest `bench` in DeepScope), not a second benchmark stack.
 3. Establish an independent correctness oracle before timing. Compare full
    outputs and meaningful edge cases, including duplicates, order, mutation,
    errors, cancellation and cleanup where part of the contract. A sum or length

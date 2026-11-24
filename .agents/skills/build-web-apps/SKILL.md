@@ -1,6 +1,6 @@
 ---
 name: build-web-apps
-description: Design, implement, refactor, review, diagnose, or verify stateful web applications with routing, URL state, server functions, remote query caches, sessions, authorization, local interaction state, complex forms, tables, virtualization, product UI, accessibility, and browser lifecycles. Use especially when SolidJS, TanStack Start/Router/Query/Form/Table/Virtual, Better Auth, Zod, Zaidan, Kobalte, Corvu, shadcn-style generation, or Solid Primitives are installed or under review. Do not use as the primary skill for a content-only marketing or documentation site. Compose with build-web for renderer reactivity, browser semantics, accessibility, and their verification, including a single-app logic fix. Add deno-software when Deno runs the repository or its tests, and design-interfaces when visual hierarchy, layout, or polish changes.
+description: Design, implement, refactor, review, diagnose, or verify stateful web applications with routing, URL state, remote state from another context, local interaction state, complex forms, tables, virtualization, product UI, accessibility, and browser lifecycles. Use for DeepScope's panel application (Summary, Technologies, History, Diagnostics, Settings) and especially when SolidJS, TanStack Router/Virtual, Zod, Zaidan, Kobalte, Corvu, shadcn-style generation, or Solid Primitives are installed or under review. Compose with build-web for renderer reactivity, browser semantics, accessibility, and their verification, including a single-app logic fix. Add build-extensions when state crosses extension contexts (background, content script, storage), and design-interfaces when visual hierarchy, layout, or polish changes.
 ---
 
 # Build stateful web applications
@@ -44,9 +44,16 @@ Select `build-web` when the task changes or verifies renderer reactivity,
 component lifetimes, browser semantics, keyboard/focus behavior, or browser
 security, even in one application. Application state and renderer behavior are
 separate decisions; load both owners before editing a reactive computation.
-A server-only cache-key review need not load browser guidance. Select
-`deno-software` when Deno runs the repository or tests, even when no manifest
-changes. the shared quality contract owns repository completion.
+Select `build-extensions` when the state lives in another extension context
+(the background's snapshots, the content script's observation session) or in
+extension storage. the shared quality contract owns repository completion.
+
+In DeepScope the panel owns no detection state: it renders stored snapshots,
+subscribes to their revisions, and asks the background for work through the
+`comctx` API. It applies only revisions that still match its target tab; a
+stale response for a previous tab must never overwrite the current target. The
+side panel and sidebar follow the active tab of their window; the popup takes
+the active tab when opened; the full page keeps the tab id in its URL.
 
 For visual creation, redesign, or polish, select `design-interfaces` when
 installed. It owns visual judgment; this skill retains its implementation
@@ -65,8 +72,9 @@ A stateful application should have one understandable owner for each state class
 | Draft input before commit | Framework-local form/interaction state |
 | Dialogs, row selection, ephemeral controls | Framework-local state |
 | Derived local values | Framework-native derivation/memo |
-| Session and organization scope | Auth/session owner plus server authorization |
-| Durable business records | Service/database owner |
+| Target tab and window | Surface (side panel, sidebar, popup, full page) |
+| Detection results and progress | Background snapshot revisions in extension storage |
+| Settings | Extension storage, read through the panel's settings owner |
 
 Do not put all state in signals, all state in Query, or all state in the URL.
 Choose by authority, lifetime, shareability, invalidation, and persistence.
@@ -161,8 +169,7 @@ browser flow when the claim is about navigation, hydration, focus, or lifecycle.
   Table, Virtual, SSR, cache ownership, and ecosystem integration.
 - [solid.md](references/solid.md): Solid reactivity, owners, cleanup, SSR,
   primitives, resources, and renderer-specific behavior.
-- [auth.md](references/auth.md): Better Auth, server/client plugin symmetry,
-  sessions, organizations, cookies, authorization, and failure states.
+
 - [forms.md](references/forms.md): validated form state, async races, mutations,
   errors, accessibility, and server trust.
 - [data-views.md](references/data-views.md): URL/query ownership, tables,

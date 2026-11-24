@@ -219,9 +219,9 @@ Project-owned TypeScript and JSON fields normally use `camelCase`. Preserve exte
 
 ## JavaScript and TypeScript defaults
 
-Assume Deno v2, strict TypeScript, ESM, explicit file extensions, and JavaScript-native TypeScript unless the local project says otherwise.
+Assume strict TypeScript (TypeScript 7), ESM, explicit file extensions where the bundler allows them, and JavaScript-native TypeScript unless the local project says otherwise. DeepScope's code runs in browser extension contexts (service worker, event or background page, content script, offscreen document, workers, panel pages); Node 26 runs only the build, scripts and Vitest.
 
-Prefer one TypeScript implementation across Deno, Node, Bun, browsers, and workers where the capability overlaps. Put runtime-specific integrations behind explicit modules or adapters instead of forking the domain implementation.
+Prefer one TypeScript implementation across extension contexts, browsers and workers where the capability overlaps. Put runtime-specific integrations behind explicit modules or adapters instead of forking the domain implementation.
 
 Prefer JavaScript-native constructs when JavaScript already expresses the intent clearly. Avoid TypeScript-only ceremony unless it adds real value. Prefer constant objects plus derived types over `enum` when both express the same runtime model.
 
@@ -229,7 +229,7 @@ Keep modules tree-shakeable and import-safe. Avoid hidden global state, provider
 
 Prefer Web APIs, then focused standard-library packages, then existing project utilities whose stronger semantics match the need, then focused maintained third-party libraries. Review existing dependencies before adding another implementation.
 
-In shared code, count direct Node/Deno globals and static runtime-module imports
+In shared code, count direct Node globals and static runtime-module imports
 as portability smells. Inspect existing `utils/` or focused env/file/process
 owners before introducing another host dependency. Classify actual consumer
 breakage separately from intentional executable adapters and test-runner

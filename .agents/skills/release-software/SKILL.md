@@ -36,7 +36,7 @@ For multiple targets, capture independent immutable results. If one succeeds and
 
 ## Kaiju projects
 
-In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Procedures](../../../docs/kaiju/procedures/README.md), [Failure catalogue](../../../docs/kaiju/failures/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).
+In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Procedures](../../../docs/kaiju/procedures/README.md), [Platform readiness](../../../docs/kaiju/platforms/README.md), [Failure catalogue](../../../docs/kaiju/failures/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).
 
 ## Resource navigation
 

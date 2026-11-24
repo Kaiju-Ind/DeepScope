@@ -15,9 +15,11 @@ public API. Document test helpers when they own a non-obvious invariant, not to
 meet a mechanical comment quota. Runtime schemas own validated serialized data,
 not every ephemeral local object or live behavioral interface.
 
-Use the published Kaiju Utils packages (`@kaiju-ind/*`), their exports and their tests for utility contracts.
-Core utilities and older application snapshots supply historical context when
-that source is explicitly the task. They do not override the forward contract.
+In DeepScope, use the vendored `@utils/*` packages in `utils/` (copied from
+Kaiju Utils at a recorded commit; see `utils/README.md`), their exports and
+their tests for utility contracts. DeepScope never depends on a private
+`@kaiju-ind/*` package. Older application snapshots supply historical context
+when that source is explicitly the task. They do not override the forward contract.
 Read the selected skill's current utility reference and verify the consumer's
 resolved revision before adapting an example.
 
@@ -139,17 +141,19 @@ name does not make them product capabilities. Use the existing repository's
 layout and dependency graph rather than adding a second `utils/` tree.
 
 ```text
-utils/
-  generic programming models and mechanics
+utils/            @utils/* vendored generic mechanics (today and planned)
+src/utils/        DeepScope's own generic primitives (fence, generation, dictionary)
 
-packages/
-  concrete capabilities and domain semantics
+src/lib/          concrete capabilities: collection, dom, detection, matcher,
+                  scheduler, storage, messaging (planned: packages/{dom,registry,
+                  detection} as @deepscope/*)
 
-registry/
-  declarative definitions interpreted by packages or applications
+src/registry/     declarative technology definitions interpreted by the compiler
+                  and matcher (planned: packages/registry)
 
-clis/ and apps/
-  executable composition, user interaction, and product policy
+src/entrypoints/  WXT entrypoints: background, content, offscreen, panel pages;
+src/app/          composition, user interaction and product policy
+                  (planned: apps/extension)
 ```
 
 ### Generic mechanics remain useful outside the product
@@ -914,27 +918,9 @@ Use `@logtape/testing` when log behavior is part of the contract. Recorder and f
 
 ### Sinks and reusable writers stay runtime-neutral
 
-Reusable CLI output code should accept a small writer contract instead of calling `Deno.stdout`, `Deno.stderr`, or Node streams directly. The executable adapter can bind those host streams.
+Reusable output code should accept a small writer contract instead of calling `console`, `process.stdout`, or another host stream directly. The executable adapter can bind those host streams.
 
 Current LogTape 2.3.1 keeps a plain `Sink` synchronous. When output requires async backpressure or I/O, use `AsyncSink` plus `fromAsyncSink()`. The resulting sink uses asynchronous disposal, so configure and shut it down through the async LogTape lifecycle. Verify the installed LogTape version before copying version-specific code.
-
-## Optique is selected per CLI, not imposed on every library
-
-Kaiju CLIs that use Optique should let Optique own command grammar, choices, aliases, typo suggestions, source-aware parsing, help, completion, and manuals instead of duplicating those systems. Use `@optique/logtape` when its logging grammar matches the CLI instead of hand-building equivalent verbosity/output options.
-
-That does not make Optique the parser for every project. A project can deliberately own a native parser. Luchalibre is an example of the distinction:
-
-```text
-@luchalibre/cli
-  owns native argv parsing
-
-@luchalibre/optique
-  optional compatibility / reference / conformance adapter
-```
-
-The reusable core must not depend on Optique parser types merely because one executable uses Optique.
-
-As of 2026-08-19, Optique 1.2.1 is the current stable release and 1.3.0 is unreleased. Treat 1.3 documentation as future behavior until it ships. Always inspect the repository lockfile and current official docs before using version-specific APIs.
 
 ## Parsing, resolution, and execution are separate responsibilities
 
@@ -1050,7 +1036,7 @@ Test origin, interruption, keyboard use, touch use, reduced motion, offscreen wo
 Before writing a custom implementation, inspect:
 
 1. Web platform APIs;
-2. `@std/*` packages;
+2. `@std/*` packages already in the manifest;
 3. existing project utilities;
 4. existing project dependencies;
 5. focused well-maintained ecosystem libraries.
@@ -1059,26 +1045,24 @@ A dependency is useful when its contract matches the problem. Do not add a depen
 
 For adapters, bridges, and protocols, inspect the upstream source and official documentation. When the contract is subtle, review relevant issues, pull requests, or conformance tests too.
 
-## Tests use `node:test` and `@std/expect` by default
+## Tests use Vitest in DeepScope
 
-Deno-first package tests should normally import:
-
-```ts
-import { describe, it } from 'node:test';
-import { expect } from '@std/expect';
-```
-
-Use the same test source in Deno and Node when the behavior is portable.
+DeepScope tests run on Vitest 5 with globals, in the `runtime`, `utils` and
+`ui` projects of `vitest.config.ts`, which discover files by glob. Import
+`describe`, `it` and `expect` from `vitest` or use the globals. The vendored
+`utils/` tests keep their upstream `node:test` and `@std/expect` imports; a
+shim (`utils/vitest.node-test.ts`) runs them under Vitest, so do not rewrite
+them.
 
 Public type inference is part of the API. Compile small consumer fixtures that must type-check and fixtures that must fail with the intended type error when a generic, schema-derived authoring helper, overload, or discriminated union exposes non-trivial inference.
 
 Use `fast-check` when generated adversarial inputs can prove an invariant.
 
-Use Playwright for actual browser behavior.
+Use the real browsers for actual extension behavior (`mise run verify firefox|safari`, WebDriver; Chrome through a loaded unpacked build).
 
-Use Mitata for benchmarks.
+Use Vitest `bench` for benchmarks (`src/benchmarks/*.bench.ts`).
 
-A frontend application that already uses Vitest can keep Vitest. The rule is not to replace a deliberate local runner only for stylistic consistency.
+Do not replace a deliberate local runner only for stylistic consistency.
 
 ## Test contracts at several levels
 
@@ -1137,7 +1121,7 @@ The oracle must be independent. Do not compute the expected value by reusing the
 
 ## Benchmarks use representative workloads
 
-Use Mitata to measure a real performance question.
+Use Vitest `bench` to measure a real performance question.
 
 Record the physical metrics that matter:
 
@@ -1220,13 +1204,14 @@ documentation checks
 consumer flow
 ```
 
-Use the repository's canonical Deno tasks when available. Record every native gate as **passed**, **failed**, **blocked**, or **not applicable**. A blocked runtime check is not success. State the exact runtime/tool that was unavailable.
+Use the repository's Mise tasks (`mise run check`, `mise run test`, `mise run build <browser>`, `mise run zip <browser>`, `mise run verify <browser>`). Record every native gate as **passed**, **failed**, **blocked**, or **not applicable**. A blocked runtime check is not success. State the exact runtime/tool that was unavailable, such as Safari without Remote Automation.
 
-When Deno or JSR is unavailable in an agent host, keep production imports unchanged. Use disposable `.agents/` validation with Node tooling only to prove what can be proved. Do not migrate production code to Node to satisfy the validation host.
+When a browser is unavailable in an agent host, keep production code unchanged. Use disposable `.tmp/` validation only to prove what can be proved. Do not change extension code to satisfy the validation host.
 
-## `.agents/` is disposable validation infrastructure
+## `.tmp/` is disposable validation infrastructure
 
-`.agents/` can hold:
+`.agents/` holds the skills and guides. Disposable work goes in `.tmp/`, which
+Git ignores. `.tmp/` can hold:
 
 - temporary host shims;
 - generated test builds;
@@ -1240,9 +1225,11 @@ Canonical repository tests should remain in the repository's normal test archite
 
 ## `.mise/tasks/` owns repository tasks
 
-Do not add a root `scripts/` dumping directory for normal developer
+Do not grow a root `scripts/` dumping directory for normal developer
 operations. Use `.mise/tasks/` for repository tasks when Mise is the selected
-task runner. Prefer short shell file tasks that directly invoke the real tool
+task runner. DeepScope's project-owned programs live in `scripts/` today
+(registry, release, utils sync, browser verification) and are planned to move
+to `tools/`; a task invokes them, it does not reimplement them. Prefer short shell file tasks that directly invoke the real tool
 or project-owned CLI. Do not create another task planner or `.mise/lib/`
 application around them. Required GitHub checks should guard failures relevant
 to the changed source or artifact; benchmarking and production apply are
@@ -1250,7 +1237,7 @@ separate deliberate workflows.
 
 ## A deliverable is verified only after the artifact is verified
 
-For a source change that produces a ZIP, npm package, JSR package, executable, bundle, or generated site, verify both:
+For a source change that produces a browser ZIP, Safari Xcode project, npm package, executable, bundle, or generated registry artifact, verify both:
 
 ```text
 working tree
@@ -1301,7 +1288,6 @@ Do not call work complete when a claimed behavior remains untested.
 These cross-project rules were rechecked on 2026-08-19. Repository lockfiles and current primary documentation still decide version-specific implementation details.
 
 - LogTape: https://logtape.org/ and https://logtape.org/changelog. LogTape 2.3.1 is the current release verified for this refresh. A plain `Sink` remains synchronous; asynchronous output uses `AsyncSink` and `fromAsyncSink()`.
-- Optique: https://optique.dev/ and its changelog. Optique 1.2.1 is the current stable release verified for this refresh; 1.3.0 material is unreleased and must not be presented as current stable behavior.
 - Oxc: https://oxc.rs/docs/. Reuse the repository-selected Oxc parser, transform, lint, format, or resolver path when it satisfies the need instead of silently creating a parallel compiler stack.
 - Standard Schema: https://standardschema.dev/. Standard Schema validator interoperability and Standard JSON Schema representation are separate contracts.
 - Unplugin Icons: https://github.com/unplugin/unplugin-icons. Verify the exact bundler/framework compiler and generated SSR/SSG output rather than assuming an integration is correct because the package is installed.

@@ -1,6 +1,6 @@
 ---
 name: use-okikio
-description: Research, select, integrate, review, or debug Okikio-maintained libraries and recurring project patterns without inventing private APIs. Use for @okikio/undent, @okikio/wikitext, @okikio/sparql, @okikio/observables, @okikio/opfs and related storage work, RDF/SPARQL architecture, MediaD, package generation and related personal repositories. For the Kaiju Utils packages (@kaiju-ind/*), use use-kaiju-utils instead.
+description: Research, select, integrate, review, or debug Okikio-maintained libraries and recurring project patterns without inventing private APIs. Use for @okikio/observables (which the vendored @utils packages use) and @okikio/undent. For the vendored utility packages (@utils/*), use use-utils instead.
 ---
 
 # Use Okikio libraries and patterns
@@ -43,23 +43,21 @@ that are ahead of published packages. Treat every remembered package, export, or
 pattern as a hypothesis until current source and tests prove it.
 
 This skill owns exact personal-library knowledge and recurring project patterns.
-It does not replace the API, library, data, workflow, CLI, web, or delivery skill
-that owns the implementation domain. Select `deno-software` for Deno/JSR
-consumer exports or publication decisions and for work run/tested with Deno;
-knowing the utility API does not resolve those package/runtime contracts.
+It does not replace the library, workflow, web, extension, or delivery skill
+that owns the implementation domain.
 
 ## Scope
 
-This skill covers the libraries that Okikio maintains as a personal ecosystem:
-`@okikio/undent`, `@okikio/observables`, `@okikio/sparql`, `@okikio/wikitext`,
-`@okikio/opfs`, the RDF/SPARQL packages and MediaD.
+This skill covers the Okikio libraries DeepScope can reach: `@okikio/observables`
+(a pinned dependency of the vendored `utils/*` packages) and `@okikio/undent`.
+The other libraries of that ecosystem have no DeepScope consumer; their
+references were not copied.
 
-Generic utilities for Kaiju work belong to the Kaiju-Ind/utils repository and its
-`@kaiju-ind/*` packages: select `use-kaiju-utils` for context, task, activity,
-workflow, scheduler, storage, server, HTTP, query, schema, result, env, runtime,
-telemetry and the other utility packages. Okikio's personal utility workspace is
-not a source for Kaiju work, and an `@okikio/*` library never replaces a Kaiju Utils
-package.
+Generic utilities come from the vendored `@utils/*` packages in `utils/`:
+select `use-utils` for context, task, activity, workflow, scheduler, storage,
+pool, worker, schema, result, duration, dispose, telemetry and the other
+vendored packages. Okikio's personal utility workspace is not a source, and an
+`@okikio/*` library never replaces a vendored utility package.
 
 ## Package status gate
 
@@ -98,8 +96,8 @@ Okikio work strongly tends toward:
 - behavior interfaces/classes named after the domain concept;
 - direct schema/type imports rather than namespace hiding;
 - Standard Schema at validator-neutral integration seams;
-- Deno-first strict ESM with explicit file extensions and the same core source
-  shared across Deno/Node/Bun/browser when claimed;
+- strict ESM with explicit file extensions and the same core source shared
+  across every claimed runtime;
 - generic mechanisms, domain capabilities, declarative definitions, and
   executable composition separated by ownership; the utility workspace uses
   `packages/*` for generic mechanisms, so directory names are not universal;
@@ -107,10 +105,8 @@ Okikio work strongly tends toward:
 - `AbortSignal` cancellation distinct from disposal/cleanup;
 - `AsyncDisposable`/disposal stacks where they improve ownership;
 - LogTape categories in reusable packages while applications own configuration;
-- `node:test` + `@std/expect` as the common portable test style, plus actual
+- the repository's selected test runner (Vitest in DeepScope) plus actual
   runtime-specific validation for every claimed runtime;
-- Mitata for selected cross-runtime benchmarks and Playwright for real browser
-  capability tests;
 - extensive TSDoc/comments for important internal state, schemas, fields,
   parser tables, regular expressions, resource factories, caches, generations,
   leases, retry rules, and cleanup paths;
@@ -138,13 +134,7 @@ repository before applying them.
    tokens/events -> retained model/tree -> higher-level findings. Do not
    materialize the expensive representation when a lower layer answers the
    question.
-7. For OPFS/storage work, keep client/driver/adapter/filesystem/bridge concepts
-   distinct when the repository uses that model. Capabilities, limits,
-   partitioning, metrics, lifecycle, and provider semantics stay inspectable.
-8. For RDF/SPARQL work, separate core data model/serialization/query building
-   from optional engines and adapters. Do not make a comparison library a runtime
-   dependency unless it is intentionally an adapter.
-9. If source is unavailable, state the exact inspection needed. Provide an
+7. If source is unavailable, state the exact inspection needed. Provide an
    integration/discovery plan, not invented imports.
 
 ## Failure review
@@ -176,22 +166,12 @@ For a public Okikio integration, verify at the strongest available level:
 
 ## Reference routing
 
-- [packages.md](references/packages.md): package identity, evidence classes,
-  publication/generation protocol, dual-release behavior, and unresolved targets.
+- [packages.md](references/packages.md): which packages DeepScope reaches,
+  evidence classes and the verification workflow.
 - [undent.md](references/undent.md): dedentation, interpolation, newline and
   Unicode display-width behavior.
-- [wikitext.md](references/wikitext.md): data-oriented token/event/tree cost
-  ladder, source spans, malformed input, sessions, and maturity limits.
 - [observables.md](references/observables.md): published Observable/operators,
   error modes, EventBus, pull/backpressure, teardown, and interop.
-- [sparql.md](references/sparql.md): query/value/expression construction,
-  execution seam, safe mapping, federation/security, and engine differences.
-- [opfs.md](references/opfs.md): OPFS/storage clients, drivers, adapters, filesystem
-  semantics, bridges, capabilities, limits, partitioning, and lifecycle.
-- [mediad.md](references/mediad.md): MediaD library-first package ownership, media
-  cost ladders, task lifecycle, streaming parsers, HLS/DASH, and verification.
-- [rdf.md](references/rdf.md): RDF/SPARQL standards packages, streaming parsers,
-  stores, conformance, differential tests, and benchmark rules.
 
 Compose with the skill that owns the actual change. This skill supplies verified
 personal-library context; it does not override repository-local architecture or

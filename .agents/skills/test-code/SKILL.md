@@ -38,7 +38,7 @@ expected policy needs independent authority.
 
 Preserve visible setup and scenario intent. Test failure, cancellation, partial acquisition, cleanup, ordering, concurrency and serialization when they are part of the contract. Direct runner/assertion imports are legitimate. Document important fixtures and units, but do not require essays on trivial private glue. Use the owner's disposable fixtures for real integration; never fall back to ambient credentials. Inspect TestKit/Testcontainers APIs and cleanup in the actual installed version before changing provisioning.
 
-Keep diagnosis separate from a fix unless both are authorized. Start with the smallest useful reproduction, then affected full checked gates. Use build-devtools for runner/container/CI mechanics, the actual domain owner for semantics, and deno-software or python-software for runtime proof. Tests do not replace verify-behavior when the claimed CLI, artifact or workflow can run.
+Keep diagnosis separate from a fix unless both are authorized. Start with the smallest useful reproduction, then affected full checked gates. Use build-devtools for runner/CI mechanics, the actual domain owner for semantics, and build-extensions for proof in a real browser or extension context. Tests do not replace verify-behavior when the claimed CLI, artifact or workflow can run.
 
 For browser rendered-content fixtures, read the shared [Break UI catalog](../design-interfaces/references/rendered-content.md) with build-web. Pure contract tests do not need that browser detail or a visual redesign companion.
 

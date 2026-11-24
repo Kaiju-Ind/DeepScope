@@ -4,16 +4,17 @@
 
 | Need                                                        | Owner                                                    | What it does not give you                          |
 | ----------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------- |
-| Cancellation, deadline and cleanup for one scope            | `@kaiju-ind/context`                                     | Persisted execution                                |
-| Pause, resume or cancel one local operation, await cleanup  | `@kaiju-ind/task`                                        | Restart in another process                         |
-| A typed job with resources and placement                    | `@kaiju-ind/activity` and a selected engine              | Durable dispatch without a durable adapter         |
-| A named program whose steps are recorded                    | `@kaiju-ind/workflow`                                    | Exactly-once effects at an arbitrary external sink |
-| Recorded completions                                        | `@kaiju-ind/workflow/history`                            | Atomicity with an external write                   |
-| Admission, claims and attempts                              | `@kaiju-ind/workflow/dispatch`                           | Persistence from the in-memory implementation      |
-| Durable history, queues and state in PostgreSQL             | `@kaiju-ind/storage/{workflow,queue,state}/postgres`     | Correct fencing in the code that calls them        |
-| A required consequence announcement                         | `@kaiju-ind/capability/effect` with an outbox            | A transaction with an earlier business write       |
-| Bounded concurrency and capacity                            | `@kaiju-ind/scheduler`                                   | Durable admission                                  |
-| Optional lifecycle diagnostics                              | `@kaiju-ind/telemetry`                                   | An authoritative result                            |
+| Cancellation, deadline and cleanup for one scope            | `@utils/context`                                     | Persisted execution                                |
+| Pause, resume or cancel one local operation, await cleanup  | `@utils/task`                                        | Restart in another process                         |
+| A typed job with resources and placement                    | `@utils/activity` and a selected engine              | Durable dispatch without a durable adapter         |
+| A named program whose steps are recorded                    | `@utils/workflow`                                    | Exactly-once effects at an arbitrary external sink |
+| Recorded completions                                        | `@utils/workflow/history`                            | Atomicity with an external write                   |
+| Admission, claims and attempts                              | `@utils/workflow/dispatch`                           | Persistence from the in-memory implementation      |
+| Durable queue and workflow history in IndexedDB             | `@utils/storage/{queue,workflow/history}/indexeddb`  | Correct fencing in the code that calls them        |
+| Memory-only queue for private tabs                          | `@utils/storage/queue/memory`                        | Anything that survives the background unloading    |
+| A required consequence announcement                         | `@utils/capability/effect`                           | A transaction with an earlier business write       |
+| Bounded concurrency and capacity                            | `@utils/scheduler`                                   | Durable admission                                  |
+| Optional lifecycle diagnostics                              | `@utils/telemetry`                                   | An authoritative result                            |
 
 Choose these public contracts instead of an application-specific worker loop.
 
@@ -40,7 +41,11 @@ workflow recovers. A new definition with the same ID is not automatically the or
 
 In-memory dispatch and history reuse completed work while the process lives. They do not survive the loss of the
 process, and they do not cover a crash between an external write and its recorded completion. Production needs
-durable history and dispatch (`@kaiju-ind/storage/workflow/postgres`), attempt fencing and replay-safe effects.
+durable history and dispatch, attempt fencing and replay-safe effects. In DeepScope that is
+`@utils/storage/workflow/history/indexeddb` fenced on an `@utils/storage/queue/indexeddb` claim, in one database so
+one transaction can check both. A Chrome service worker, a Firefox event page and a Safari background page can all be
+unloaded mid-scan; design for that loss. Private-tab work uses `@utils/storage/queue/memory` and the workflow history
+`memory()` only, so nothing it does reaches disk.
 
 ## Acceptance and crash windows
 
@@ -64,5 +69,8 @@ persistence. Use the real adapter and sink for transaction and fencing claims.
 
 ## Sources and freshness
 
-Inspected 2026-11-22: the published `@kaiju-ind/context`, `task`, `activity`, `workflow`, `capability` and `storage`
-packages and the Kaiju-Ind/utils task, workflow, PostgreSQL and effect guides.
+Written from the Kaiju-Ind/Utils task, workflow and effect guides (inspected 2026-11-22) and checked against the
+vendored copies in `utils/` (base `47d2c0f`; see [utils/README.md](../../../../utils/README.md)). The IndexedDB and
+labeled memory stores are DeepScope's own (`utils/storage/`); upstream PostgreSQL storage is not vendored. In a fake
+IndexedDB test (`fake-indexeddb`), a claim proves fencing logic, not real browser durability; check the real browser
+before claiming persistence across a background unload.

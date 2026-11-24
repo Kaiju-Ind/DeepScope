@@ -69,8 +69,9 @@ planned -> prepared -> tagged/release-created -> built -> published-per-target
                          \-> failed-partial -> repair/deprecate/supersede
 ```
 
-Persist target-specific state. A GitHub release existing does not mean npm, JSR,
-container, binary, documentation, or deployment succeeded. Never infer completion
+Persist target-specific state. A GitHub release existing does not mean the ghcr
+OCI artifact, the attestations, the Chrome Web Store upload, the AMO submission,
+the App Store Connect build, or documentation succeeded. Never infer completion
 from one green job when another target was skipped or conditionally false.
 
 ## Semver is a compatibility decision
@@ -171,15 +172,15 @@ Minimum provenance record:
 
 ```json
 {
-  "name": "@scope/package",
-  "version": "1.2.3",
+  "name": "deepscope",
+  "version": "0.2.0",
   "revision": "4e1c0f7...",
-  "target": "npm",
-  "artifact": "package-1.2.3.tgz",
+  "target": "firefox",
+  "artifact": "deepscope-0.2.0-firefox.zip",
   "sha256": "...",
-  "runtime": "deno 2.8.x / node 26",
+  "runtime": "node 26 / pnpm 12",
   "lockDigest": "...",
-  "buildCommand": "deno task build:npm",
+  "buildCommand": "mise run release:archives firefox",
   "workflowRun": "..."
 }
 ```
@@ -194,16 +195,16 @@ artifact, not rebuild it from a mutable branch. If a registry requires a build
 inside its publish job, compare the rebuilt digest to the prepared artifact and
 fail on mismatch.
 
-The attached Undent workflows use a useful separation:
+DeepScope's release workflow (`.github/workflows/release.yml`) uses a useful
+separation:
 
-- the release workflow creates a GitHub release from main;
-- the publish workflow reacts to a published release or an explicit existing
-  tag and can retry JSR, npm, or both;
-- concurrency does not cancel an in-progress publication;
-- JSR and npm have separate jobs/permissions;
-- npm can bootstrap with a token for first publication then use trusted
-  publishing; JSR uses OIDC;
-- release version is injected into generated artifacts from the validated tag.
+- `release:check-version` fails unless the tag matches `package.json`;
+- `release:archives` zips every browser once and writes `SHA256SUMS`;
+- the same archives go to the GitHub Release, to ghcr as one OCI artifact
+  (`release:push-oci`) and to attestations; nothing is rebuilt per target;
+- store uploads (`release:store-upload`) are separate steps with their own
+  credentials; the Chrome upload stays unpublished until a person submits it;
+- concurrency must not cancel an in-progress publication.
 
 The example still needs project-specific review. `--allow-dirty` for a manifest
 projection must be constrained and explained, and published bytes/digests should
@@ -226,7 +227,8 @@ resolved. A topological publish order is not enough if a registry has propagatio
 delay; clean install after each dependency becomes available or use bounded
 retry with exact versions.
 
-For npm plus JSR or other multi-registry releases:
+For several targets (GitHub Release, ghcr, Chrome Web Store, AMO, App Store
+Connect):
 
 - generate both from the same release identity;
 - record different expected transforms rather than demanding byte equality;
@@ -298,7 +300,7 @@ should not be force-moved. Prefer a corrected version and transparent notes.
 | Tag, manifest, and CLI version differ | multiple version authorities | release-input propagation |
 | Generated notes omit a breaking change | commit grammar used as impact model | public diff and compatibility fixtures |
 | Re-run produces different tarball | rebuild from mutable/nondeterministic inputs | retained artifact and build provenance |
-| npm succeeds, JSR missing | target state collapsed into one job/result | per-target ledger and retry |
+| GitHub Release exists, AMO submission missing | target state collapsed into one job/result | per-target ledger and retry |
 | Clean install gets old behavior | mutable channel/cache or wrong registry | exact version/digest and registry metadata |
 | Package exists but release job wants to republish | retry not idempotent | compare existing artifact and skip/repair |
 | Provenance exists but package is broken | attestation mistaken for validation | consumer behavior and semver gates |

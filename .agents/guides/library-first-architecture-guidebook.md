@@ -6,8 +6,16 @@
 
 **Status:** Architecture guide and refactoring handoff  
 **Audience:** Library authors, CLI engineers, platform engineers, and implementation agents  
-**Runtime baseline:** Deno v2, strict TypeScript, ESM, explicit file extensions  
+**Runtime baseline:** strict TypeScript, ESM, explicit file extensions  
 **Research reviewed:** July 23, 2026
+
+> **DeepScope note:** the worked examples come from a domain-analysis command
+> line tool (`@kaiju/*` names are illustrative, not packages). In DeepScope the
+> composition roots are the WXT entrypoints (background, content script,
+> offscreen document, panel pages), not a CLI; the reusable capabilities are
+> `src/lib/*` (planned `@deepscope/*` packages) and the generic mechanics are
+> the vendored `@utils/*` packages. Apply the ownership rules, not the CLI
+> layout.
 
 > **Working definition**  
 > A good library is a coherent, selectively adoptable capability. It composes at the value, protocol, policy, lifecycle, ecosystem, package, and operational levels without erasing the semantics of the systems around it. Its public data shapes reflect the real workload. Its resources have visible owners. Its package graph lets consumers pay only for the work, dependencies, data, and lifetimes they choose.
@@ -1192,7 +1200,7 @@ Do not make required domain results lazy merely to improve logging. Diagnostics 
 
 ## Benchmark representative stories
 
-Deno's benchmark tool reports distributions and supports explicit critical sections and baseline groups.[^deno-bench] The project skills recommend mitata by default where its controls are useful. Whichever harness is selected, benchmark stories should include:
+Vitest `bench` (Tinybench) reports distributions and supports baseline comparisons; DeepScope's benchmarks live in `src/benchmarks/*.bench.ts`. Whichever harness is selected, benchmark stories should include:
 
 - common input;
 - large realistic input;
@@ -1478,7 +1486,7 @@ const exitCode = await runProgram(parser, {
   },
 });
 
-Deno.exit(exitCode);
+process.exitCode = exitCode;
 ```
 
 The precise APIs will differ. The ownership should not.
@@ -1621,7 +1629,7 @@ Do not refactor every command simultaneously.
 Create a failing integration test that expresses the target library API:
 
 ```ts
-Deno.test("analyzes domains without the CLI", async () => {
+it("analyzes domains without the CLI", async () => {
   await using fixture = await createAnalysisFixture();
 
   const analysis = createDomainAnalysis(fixture.capabilities);
@@ -1630,7 +1638,7 @@ Deno.test("analyzes domains without the CLI", async () => {
     policy: fixture.policy,
   });
 
-  assertEquals(result.summary.targetCount, 1);
+  expect(result.summary.targetCount).toBe(1);
 });
 ```
 
@@ -1839,7 +1847,7 @@ Symptoms:
 - functions read environment variables or current working directory;
 - output format is selected inside domain code;
 - errors are terminal strings;
-- handlers call `Deno.exit()`;
+- handlers call `process.exit()`;
 - a browser package exports `runBrowserPackage...()`.
 
 Correction: move process interaction to the CLI and expose domain requests and results.
@@ -1998,7 +2006,6 @@ Before introducing an abstraction, answer:
 
 [^mdn-erm]: MDN, “JavaScript resource management” and compatibility notes. https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Resource_management
 
-[^deno-bench]: Deno documentation, `deno bench`, distributions, baselines, and critical sections. https://docs.deno.com/runtime/reference/cli/bench/
 
 [^temporal-workflow]: Temporal documentation, Workflow Execution and replay. https://docs.temporal.io/workflow-execution
 

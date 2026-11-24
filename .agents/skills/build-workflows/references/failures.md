@@ -2,7 +2,7 @@
 
 ## Snapshot scope (2026-10-14)
 
-Use the published Kaiju Utils packages (`use-kaiju-utils`) for utility contracts. Query parsing,
+Use the vendored `@utils/*` packages (`use-utils`) for utility contracts. Query parsing,
 local Task control, recorded workflow instructions, and durable external
 execution have distinct owners and guarantees. Inspect the selected package and
 adapter; apply transaction, authorization, and recovery criteria to the actual
@@ -111,9 +111,9 @@ Workflow runtimes do not make external effects atomic. Each activity needs an ef
 | Poll returns undefined indefinitely | running/suspended/missing ambiguous | runtime state/heartbeat/deadline classification |
 | Registration names differ across deployments | queued state cannot resolve workflow | deployment compatibility/version gate |
 | Workflow code changes with in-flight executions | replay/version compatibility unknown | pin version or migration strategy |
-| Effect/Temporal API assumed from guide | alpha/version drift | inspect installed exports and executable fixture |
+| Workflow or queue API assumed from upstream Utils `main` | vendored copy is older or newer | inspect the vendored exports in `utils/` and an executable fixture |
 
-Do not label an adapter durable because its interface uses `Effect` or its name contains `sql`. Trace actual persistence, claim ownership, and fresh-owner reconstruction; an interface or placeholder cannot satisfy those guarantees.
+Do not label an adapter durable because its name contains `indexeddb` or `history`. Trace actual persistence, claim ownership, and fresh-owner reconstruction; an interface or placeholder cannot satisfy those guarantees.
 
 ## Recovery protocol
 
@@ -180,7 +180,7 @@ Unit tests against a memory store/adapter are useful for control logic but do no
 
 ## Deliberate exclusions
 
-- Do not force Effect, `@effect/workflow`, Temporal, or any one workflow implementation.
+- Do not force a workflow engine on work that may simply be re-collected.
 - Do not call types, tables, adapters, or definitions implemented behavior.
 - Do not call a memory adapter durable.
 - Do not claim external side effects are atomic because workflow state is durable.
@@ -191,4 +191,4 @@ Unit tests against a memory store/adapter are useful for control logic but do no
 
 ## Sources and freshness
 
-Grounded in a retained product application's workflow README, definitions, control plane, store interfaces, PostgreSQL store, schema, workers, memory and placeholder SQL Effect adapters, endpoint helpers, and PopModern multi-stage/multi-sink ETL counterexamples, reviewed 2026-07-17. The retained workflow documentation describes intended behavior more strongly than several code paths currently guarantee; source inspection and failpoint tests take precedence. Runtime and driver behavior is version-sensitive.
+Grounded in a retained server application's workflow README, definitions, control plane, store interfaces, workers and placeholder adapters, and multi-stage ETL counterexamples, reviewed 2026-07-17, plus DeepScope's scheduler review findings (stale `host-idle` closing a busy offscreen host, leaked admission reservations, startup reconciliation that must resume both schedulers). The retained workflow documentation describes intended behavior more strongly than several code paths currently guarantee; source inspection and failpoint tests take precedence. Runtime and driver behavior is version-sensitive.

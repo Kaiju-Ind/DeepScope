@@ -37,7 +37,7 @@ interaction cost. Distinctiveness is useful when it serves that brief.
 Read [applying standards](../../guides/applying-standards.md) to select companions and
 apply conventions by purpose. If installed, the shared quality contract owns code,
 tests, naming, documentation, and delivery. This skill owns visual judgment;
-`build-sites` owns publishing and `build-web-apps` owns application state.
+`build-web-apps` owns application state.
 Use `build-web` when the task changes or verifies semantics, renderer, motion
 execution, keyboard/focus behavior, or browser resources. Verification planning
 also needs that owner even when the visible design is only a proposal. A visual review does not authorize implementation.

@@ -128,7 +128,7 @@ Do not assume the root manifest lists the public packages or that directory name
 equal published names.
 
 1. Find actual workspace config (`package.json`, `pnpm-workspace.yaml`,
-   `deno.json`, Cargo/Go/Python equivalents, custom generation).
+   workspace manifests, other language equivalents, custom generation).
 2. Expand workspace globs with exclusions; detect missing/ignored/nested roots.
 3. Read every material package manifest: name, version strategy, private flag,
    exports/bin/files, peers/optional/runtime dependencies, engines, publish config.
@@ -195,8 +195,8 @@ framework version x renderer x server adapter x bundler x runtime x deployment
 ```
 
 An icon loader's Astro integration and its React/Solid compiler can have different
-imports, SSR output, styling, and bundler hooks. A database ORM's PostgreSQL
-dialect cannot be inferred to support ClickHouse because SQL methods look alike.
+imports, SSR output, styling, and bundler hooks. WXT's cross-browser types
+cannot be inferred to mean a browser supports an API because the call compiles.
 A Better Auth plugin may require both server and client registration and an
 adapter/schema migration. Map exact peer ranges and integration tests.
 
@@ -204,8 +204,9 @@ Official examples are topology evidence, not universal compatibility proof.
 
 ## Private, personal, and generated ecosystems
 
-For `@kaiju-ind/*` (private GitHub Packages; see `use-kaiju-utils`), `@okikio/*`,
-custom adapters, or unpublished packages:
+For the vendored `@utils/*` packages (copied from the private `@kaiju-ind/*`
+packages; see `use-utils`), `@okikio/*`, custom adapters, or unpublished
+packages:
 
 - search consuming workspaces, lockfiles, local registries, import maps, source
   directories, docs, tests, and package metadata;
@@ -244,8 +245,8 @@ owners; alternatives overlap. Explicit examples:
   connects verbosity/configuration: companion.
 - LogTape and another process-wide logger both owning diagnostics: alternative
   unless one is a bounded bridge.
-- PostgreSQL owns transactional state, ClickHouse owns analytical projections:
-  companion with a delivery/reconciliation contract.
+- The IndexedDB queue owns scheduler claims, extension storage owns detection
+  snapshots: companion with a rebuild/reconciliation contract.
 - Two ORMs both writing the same schema/migrations: duplicate authority.
 
 Include connected systems: build, generated code, package manager, CI, runtime,

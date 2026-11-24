@@ -87,10 +87,10 @@ tree.
 
 Common local-only candidates include:
 
-- `node_modules`, Deno/npm/pnpm/Aube caches and global stores;
+- `node_modules`, `.wxt/`, `.output/`, npm/pnpm caches and global stores;
 - framework/build directories, coverage, temporary declarations/maps;
 - `.DS_Store`, editor state, preview screenshots, local logs;
-- temporary SQLite/ClickHouse/Postgres volumes and test run artifacts;
+- temporary browser profiles, Xcode projects and test run artifacts;
 - compiled binaries downloaded by editors/tool managers;
 - benchmark scratch reports not selected for the permanent study record.
 
@@ -125,7 +125,7 @@ Intentional binary/vendored material needs:
 - tests that load/execute the shipped artifact on supported targets.
 
 Do not commit a downloaded tool merely to make one editor or sandbox work. Use
-Mise/Aube/runtime setup or a documented bootstrap with integrity. If offline or
+Mise/pnpm/runtime setup or a documented bootstrap with integrity. If offline or
 supply-chain constraints justify vendoring, store a manifest and scripts rather
 than an unexplained binary. Never execute an unverified binary during inspection.
 

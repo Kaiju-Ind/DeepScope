@@ -2,7 +2,7 @@
 
 ## Snapshot scope (2026-10-14)
 
-Use the published Kaiju Utils packages (`use-kaiju-utils`) for utility contracts. Query parsing,
+Use the vendored `@utils/*` packages (`use-utils`) for utility contracts. Query parsing,
 local Task control, recorded workflow instructions, and durable external
 execution have distinct owners and guarantees. Inspect the selected package and
 adapter; apply transaction, authorization, and recovery criteria to the actual
@@ -186,9 +186,8 @@ consequence, visible audit evidence, and a finite terminal/manual state.
 - Attachments, verified 2026-07-17: `evidence/app/product/utils/workflows/`,
   especially store, worker loops, timelines, and tests (observed and
   counterexample evidence).
-- Temporal TypeScript testing and replay guidance:
-  https://docs.temporal.io/develop/typescript/testing-suite and
-  https://docs.temporal.io/develop/typescript/debugging (primary sources;
-  verify current SDK tooling).
-- PostgreSQL locking documentation: https://www.postgresql.org/docs/current/explicit-locking.html
-  (primary source; fencing and checkpoint schemas are application design).
+- Extension background lifetimes: Chrome service worker lifecycle
+  (https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)
+  and Firefox event pages (https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/Background_scripts);
+  DeepScope's restart drill is in `scripts/verify/` (background unload after
+  30 s idle, then wake).

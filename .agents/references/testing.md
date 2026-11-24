@@ -2,25 +2,24 @@
 
 ## Canonical tools
 
-For Deno-first TypeScript libraries, default to the same source tests across runtimes:
+DeepScope runs every test on Vitest 5:
 
 ```ts
-import { describe, it } from "node:test";
-import { expect } from "@std/expect";
-import * as fc from "fast-check";
+import { describe, expect, it } from "vitest"; // or the configured globals
+import { fc, test } from "@fast-check/vitest";
 ```
 
 Use:
 
-- `node:test` for `describe`, `it`, lifecycle hooks, and the normal test runner contract;
-- `@std/expect` for Jest-style expectations;
-- `fast-check` for high-value properties and adversarial generated inputs;
-- Playwright Test for real browser capabilities and browser lifecycle behavior;
-- Mitata for benchmarks.
+- Vitest for `describe`, `it`, lifecycle hooks and expectations. `vitest.config.ts` has three projects that discover files by glob: `runtime` (`src/tests/**`, Node environment), `ui` (`src/tests/app/**`, with the Solid transform) and `utils` (`utils/**/*.test.ts`);
+- `fast-check` (through `@fast-check/vitest`) for high-value properties and adversarial generated inputs;
+- `fake-indexeddb` for IndexedDB stores, and jsdom where a DOM is needed;
+- the real browsers for extension behavior: `mise run verify firefox|safari` (WebDriver scenarios in `scripts/verify/`) and a loaded unpacked build for Chrome;
+- Vitest `bench` for benchmarks (`src/benchmarks/*.bench.ts`).
 
-Preserve a repository's established runner when the project deliberately uses another one, such as Vitest for a frontend application. Do not create duplicate test implementations just to satisfy Deno and Node.
+The vendored `utils/` tests keep their upstream `node:test` and `@std/expect` imports; `utils/vitest.node-test.ts` maps `node:test` onto Vitest. Do not rewrite them, and do not create duplicate test implementations.
 
-Runtime-specific tests are appropriate when they prove a capability that cannot exist in the other runtime, such as OPFS, WebCodecs, a Node filesystem adapter, or a Bun-specific API.
+Runtime-specific tests are appropriate when they prove a capability that cannot exist in Node, such as a matcher `Worker` in a background page, an offscreen document, `storage.session`, or a content script on a real page.
 
 ## Apply the convention to its actual role
 
@@ -82,8 +81,8 @@ Find the live resource and its creation owner: a listener, pool, worker, timer,
 subscription or unjoined task. Register cleanup immediately after acquisition,
 make it run after setup/body failure, and await shutdown. Rerun the isolated
 scenario and its affected checked lane. Use runner diagnostics available in the
-installed version; Node-only handle diagnostics are optional and do not replace
-Deno sanitizers. Do not hide ownership with process.exit, arbitrary sleeps or
+installed version; Node handle diagnostics are optional and do not replace a
+test that awaits the cleanup. Do not hide ownership with process.exit, arbitrary sleeps or
 forced shutdown. A finite timeout makes failure observable; it does not fix it.
 
 ## Property-based tests
@@ -106,36 +105,36 @@ A property needs an independent oracle or invariant. Do not generate the expecte
 
 ## Browser tests
 
-Use Playwright for actual browser APIs instead of reproducing browser policy in Node.
+Use the real browsers for actual browser and extension APIs instead of reproducing browser policy in Node. DeepScope's drivers speak WebDriver directly (`scripts/verify/`); Safari needs Remote Automation and an unsigned-extension setting first.
 
-Probe capabilities rather than hard-code browser brand assumptions. Test fresh and persistent contexts when persistence matters. Use real workers, iframes, service workers, user activation, storage, media, or permission flows where those are part of the contract.
+Probe capabilities rather than hard-code browser brand assumptions. Test fresh and persistent contexts when persistence matters. Use real workers, iframes, service workers, event pages, user activation, storage, private windows or permission flows where those are part of the contract.
 
-Keep portable algorithms in `node:test`; do not move path math, record adapters, or pure planners into Playwright merely because the final application runs in a browser.
+Keep portable algorithms in Vitest; do not move selector routing, record adapters, or pure planners into a browser run merely because the final extension runs in a browser.
 
 ## Benchmarks
 
 Benchmarks answer performance questions; tests answer correctness questions. Keep them separate.
 
-Use Mitata with representative inputs. Measure the physical work that matters, such as throughput, latency, allocations, heap growth, requests, writes, process count, or cancellation latency. Compare against a baseline or alternative when the result is meant to justify an optimization.
+Use Vitest `bench` with representative inputs (for the matcher: a realistic page's observations against the real shards). Measure the physical work that matters, such as throughput, latency, allocations, heap growth, requests, writes, process count, or cancellation latency. Compare against a baseline or alternative when the result is meant to justify an optimization.
 
 Do not tune implementation on a tiny benchmark that does not resemble the production access pattern.
 
 ## Cross-runtime validation
 
-When a package claims Deno, Node, Bun, browser, or worker support, use separate type/runtime views so one environment cannot accidentally provide globals for another.
+When code claims to run in several extension contexts or browsers, use separate type/runtime views so one environment cannot accidentally provide globals for another (a service worker has no `Worker` and no DOM; a content script has no extension-only APIs).
 
 The normal goal is:
 
 ```text
 same deterministic TypeScript source
         |
-        +-- Deno runtime tests
-        +-- Node runtime tests
-        +-- Bun runtime tests
-        `-- browser tests where Web APIs require a browser
+        +-- Vitest under Node (logic, stores with fake-indexeddb)
+        +-- Chrome build (service worker + offscreen document)
+        +-- Firefox build (event page)
+        `-- Safari build (background page)
 ```
 
-If the current host lacks a runtime, record that check as blocked. Do not replace production imports with host-specific shims merely to make an agent environment green. Validation-only shims belong in disposable validation infrastructure such as `.agents/`.
+If the current host lacks a browser, record that check as blocked. Do not replace production imports with host-specific shims merely to make an agent environment green. Validation-only shims belong in disposable validation infrastructure such as `.tmp/`.
 
 ## Artifact tests
 

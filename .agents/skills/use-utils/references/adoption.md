@@ -1,52 +1,54 @@
-# Adopt a Kaiju Utils package
+# Adopt a vendored utility package
 
-## Registry
+DeepScope is public and builds without access to Kaiju-Ind/Utils or its package registry. The packages are copied
+into `utils/` and resolved as pnpm workspace packages (`pnpm-workspace.yaml` lists `utils/*`). No `.npmrc` scope, no
+registry token and no `@kaiju-ind/*` dependency is ever added; one would break every public build.
 
-The packages are on GitHub Packages. The consumer's `.npmrc` maps the scope; the token comes from the environment, never
-from a tracked file:
+## Use a package that is already vendored
 
-```ini
-@kaiju-ind:registry=https://npm.pkg.github.com
-```
+1. Read the vendored `package.json` `exports` and the package README. Import only those subpaths.
+2. Add `"@utils/<package>": "workspace:*"` to the root `package.json` when DeepScope code imports a package it did
+   not depend on before, then `mise exec -- pnpm install`.
+3. Check the bundle: the package must load in the context that imports it. The content script imports none of them;
+   a background service worker cannot use dynamic `import()`; `duration` imports `temporal-polyfill`, which
+   `wxt.config.ts` aliases to native Temporal for every browser except Safari (see the utils README, "Temporal").
+4. Run `mise run check` and the tests of the code that uses the package, plus `mise run test --project utils`
+   when the vendored files changed.
 
-A token with `read:packages` reads them. In GitHub Actions, give the job `packages: read` and pass the workflow token;
-on a workstation, keep the token in a private user configuration outside the repository. A token in a lockfile, a
-log or a committed `.npmrc` is a leak; rotate it.
+## Vendor more of Utils
 
-## Pin and verify
+1. Add the entry points to `utils/sync.json#entries`. Transitive files and tests that stay inside the copied set
+   follow automatically.
+2. Resync from a local Utils checkout and check the result:
 
-1. Add the package with an exact version, as the consumer pins its other dependencies, and refresh the lockfiles. A
-   Deno workspace that reads `package.json` resolves the same npm package.
-2. Read the installed package's `package.json` `exports`. Import only those subpaths. Utils `main` can have entries
-   that the release does not.
-3. Read the installed README and types for the operation. Do not copy a signature from memory or from another
-   repository.
-4. Run the consumer's type check and the tests of the code that uses the package.
+   ```sh
+   node scripts/utils/sync.ts --source ../kaiju-utils
+   mise exec -- pnpm install && mise run check && mise run test --project utils
+   ```
 
-To see the published versions without installing:
+3. `node scripts/utils/sync.ts --check` writes nothing and fails when `utils/` differs from a fresh sync. Run it
+   before reviewing a change to vendored files.
+4. Keep the attribution header on every copied file and the MIT `utils/LICENSE`. Never hand-edit a vendored file; a
+   needed change goes in `utils/patches/*.patch` and `utils/sync.json#patches`, and is proposed upstream.
 
-```sh
-pnpm view @kaiju-ind/<package> versions --json
-```
+## Replace DeepScope code with a package
 
-## Replace a local utility
-
-A repository that grew its own generic helpers moves them to Utils one family at a time:
+`utils/README.md` ("Migrating DeepScope code") holds the order. For each step:
 
 1. List the local module's exports and every importer.
-2. Map each export to a Utils subpath, or mark it as product code that stays.
+2. Map each export to an `@utils/*` subpath, or mark it as product code that stays.
 3. Change one family's imports, delete the local module in the same change, and run the affected tests.
-4. Where the Utils behavior differs, keep the consumer's tests as the contract. Report the difference to Kaiju-Ind/utils
-   instead of keeping a patched local copy.
+4. Where the package behaves differently, DeepScope's tests are the contract. Report the difference upstream instead
+   of keeping a patched copy.
 
-Product rules stay in the product. A crawl budget, a credit policy or a site key is not a utility, even when it uses
-Utils packages.
+Product rules stay in the product. A scan budget, tab fairness or a page-controlled key policy is not a utility, even
+when it uses one.
 
 ## Report a gap
 
-When no package fits:
+When no vendored package fits:
 
-1. Check the Utils changelog and open issues for planned work.
+1. Check whether Utils has it upstream but it was not vendored (the utils README lists what was left out and why).
 2. Write the smallest local code that the task needs, in the module that uses it, with a comment that names the gap.
-3. Propose the generic version to Kaiju-Ind/utils with the use case, the API you needed and the tests that prove it.
-   When it is released, replace the local code.
+3. If it is generic, write it so it can be proposed upstream unchanged, as `utils/storage/` and
+   `utils/scheduler/queue/extensions.ts` were.

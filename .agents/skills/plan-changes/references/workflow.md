@@ -60,18 +60,13 @@ script only if the repository has a recurring operation and a clear owner.
 Where Mise already owns repository tasks, keep `.mise/tasks/` as small shell
 entry points. Put substantial reusable logic in the appropriate package or a
 focused typed CLI, not a second `scripts/` or `.mise/lib/` task framework.
-Use Deno and TypeScript when they fit the repository; do not introduce Deno
-into an unrelated project solely for a temporary edit.
+In DeepScope, write such scripts in TypeScript or `.mjs` run by the pinned Node
+(`mise exec -- node script.ts`), and keep them in `.tmp/` unless they become a
+recurring project program (today `scripts/`, planned `tools/`).
 
-Feel free to use `jsr:` and `npm:` packages when they improve clarity, safety, or reviewability.
-
-Prefer `jsr:@std/*` modules when they fit the task, especially for:
-- filesystem work
-- encodings
-- buffers
-- collections
-- paths
-- related standard utilities
+Prefer `node:` built-ins and the `@std/*` packages already in the manifest
+before adding a dependency for filesystem work, encodings, buffers,
+collections or paths.
 
 Keep scripts narrow and task-specific.
 

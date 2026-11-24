@@ -50,7 +50,7 @@ Then map ownership:
 | output transport | LogTape | another logger | duplicate | keep LogTape |
 | config discovery/layers | c12 | c12 | none | retain |
 | config merge algebra | generic defu | custom c12 merger | partial | explicit arrays/provenance tests |
-| package build | dnt | unbuild | target-dependent | Deno-to-Node output contract |
+| package build | tsc | unbuild | target-dependent | built output and clean-consumer contract |
 
 Do not let package availability redefine the task. A sibling may have excellent
 capabilities that are unnecessary here.
@@ -78,10 +78,14 @@ Examples:
   contract. Standard Schema does not replace optional Zod metadata automatically.
 - c12 owns layer loading; defu/custom merger implements merge mechanics. Neither
   should apply application defaults a second time after final validation.
-- PostgreSQL and ClickHouse can be transactional owner plus analytical projection,
-  provided delivery/reconciliation is explicit. They are not interchangeable.
-- Astro and Solid can be page-rendering owner plus interactive-island owner;
-  renderer-specific packages remain in their host.
+- WXT and Vite are owner plus host: WXT owns entrypoints, manifests and
+  per-browser builds on top of Vite; a Vite plugin added directly must not
+  fight WXT's entrypoint handling.
+- `comctx` and `browser.runtime` messaging are adapter plus transport: `comctx`
+  types the calls, extension messaging carries them. A second ad hoc message
+  union beside `comctx` is a duplicate owner.
+- Kobalte and Corvu are companions under the Zaidan catalogue: each owns
+  different primitives; neither replaces `src/ui/`.
 
 If two selected nodes both configure/log/cache/migrate/persist the same concern,
 write an ordering/authority rule or remove one. Bridges should not create a
@@ -196,32 +200,32 @@ Selection:
 - c12 for project/user/package/environment/extends layers; custom merger using
   defu only where defaults semantics match, with explicit array operations;
 - Zod as application schema; Standard Schema only at library interoperability;
-- dnt for a Deno-source Node artifact when its transform matches, or unbuild for
-  a Node library build. Do not layer both over the same output without purpose.
+- one build tool for the package output. Do not layer two over the same output
+  without purpose.
 
 Exclusions: Citty as duplicate grammar owner; `@logtape/config` when c12/application
 schema already owns config; every UnJS utility not on the capability path; remote
 presets by default when installed versioned packages are safer.
 
-### Durable work
+### Durable work in an extension
 
-Required: resumable orchestration, durable state, external side effects, recovery.
+Required: scheduling that survives the background unloading, fenced claims,
+private-tab work that never persists.
 
-Choose among local workflow runtime, `@effect/workflow` experimental line, and
-Temporal based on durability authority and deployment. Effect services/Layers
-provide typed capability composition but do not by themselves persist workflow
-history. `@effect/workflow` is alpha/version-sensitive and must be pinned/isolated.
-Temporal introduces a service, deterministic workflow constraints, workers,
-activities, versioning, and operations. Do not select both durable engines as
-co-equal owners.
+DeepScope chose the vendored `@utils/scheduler/queue` and `@utils/workflow`
+with IndexedDB stores (behind a narrow port so an OPFS backend could replace
+them) over a port of a server workflow engine. IndexedDB is the only durable
+store every background context can reach (Chrome's service worker has no
+`localStorage` and no synchronous OPFS handles). Do not select two durable
+engines as co-equal owners.
 
-### Data and ORM
+### Fonts with reproducible builds
 
-Required: transactional state plus analytics. Keep PostgreSQL/Drizzle as OLTP
-schema/query/migration owner and ClickHouse as projection. A custom Drizzle-like
-ClickHouse adapter must be derived from actual driver/dialect/session/query
-contracts and ClickHouse semantics; never infer compatibility from API shape.
-Exclude a generic SQL adapter that claims no ClickHouse dialect support.
+Required: self-hosted fonts and byte-identical archives for every browser.
+Fontless downloaded fonts at build time and ordered `@font-face` rules by
+download completion, so two builds of one commit differed. DeepScope replaced it
+with pinned `@fontsource*` npm packages and a hand-written `fonts.css`.
+Exclude any font tool that fetches from a CDN during the build.
 
 ## Exclusion records
 

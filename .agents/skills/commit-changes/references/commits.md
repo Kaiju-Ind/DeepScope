@@ -97,7 +97,7 @@ Prefer:
 ```text
 Registry describes technologies and their evidence rules.
 Browser stores the extractor ID attached to each compiled content probe.
-The report builder reads one published semantic commit from ClickHouse.
+The matcher worker loads only the shard for its observation kind.
 The Account service resolves membership before loading the workspace.
 ```
 
@@ -122,12 +122,13 @@ Write this as smooth prose. Do not force headings such as `Previous behavior:`, 
 A useful body often needs only two paragraphs:
 
 ```text
-The importer previously treated every normalized CSV header as if the generic
-CSV package understood company fields. Import now assigns company, domain,
-email, website, and unknown roles after structural CSV parsing.
+The badge was written only after a complete pipeline run and cleared on
+every URL change, so a same-document navigation left it blank. It now follows
+published snapshot revisions and ignores revisions older than the last one
+written for that tab and document.
 
-That keeps CRM vocabulary in the import feature. A caller can reuse @utils/csv
-without inheriting Kaiju account-column semantics.
+That keeps the badge correct when results arrive from live observation or
+after the background restarts, without a second owner writing it.
 ```
 
 The body should answer the natural follow-up questions created by the subject. Do not repeat the subject with more words.
