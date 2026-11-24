@@ -54,6 +54,10 @@ export default defineConfig({
 				},
 			},
 			{
+				// Repository checks under `tools/`, such as the guidance consistency test.
+				test: { name: 'guidance', environment: 'node', globals: true, include: ['tools/**/*.test.ts'] },
+			},
+			{
 				plugins: [solid()],
 				resolve,
 				test: { name: 'ui', environment: 'node', globals: true, include: [UI_TESTS] },
