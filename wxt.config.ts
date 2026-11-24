@@ -53,6 +53,10 @@ export default defineConfig({
 		 * A service worker cannot construct a `Worker`, and Safari has no offscreen
 		 * documents, so the matcher workers could not run anywhere. Safari accepts a
 		 * non-persistent background page with the same script, which can own them.
+		 *
+		 * No `persistent` key: WebKit already treats every V3 background page as
+		 * non-persistent (and rejects `true`), while the Safari packager warns that
+		 * the key is unsupported. Omitting it keeps the same event-page lifecycle.
 		 */
 		'build:manifestGenerated': (wxt, manifest) => {
 			if (wxt.config.browser !== 'safari' || !manifest.background) return;
@@ -61,7 +65,6 @@ export default defineConfig({
 			manifest.background = {
 				scripts: [background.service_worker],
 				...(background.type ? { type: background.type } : {}),
-				persistent: false,
 			} as typeof manifest.background;
 		},
 	},
