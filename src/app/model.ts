@@ -83,16 +83,6 @@ export type AnalysisActivity = {
 	readonly progress: AnalysisProgress;
 };
 
-/** Panel workflow state owned by visible tab/session transitions. */
-export type SessionState =
-	| { readonly kind: 'empty' }
-	| { readonly kind: 'loading-visible-tab' }
-	| { readonly kind: 'showing-snapshot'; readonly revision: VisibleRevision }
-	| { readonly kind: 'requesting-analysis'; readonly previous?: VisibleRevision }
-	| { readonly kind: 'streaming-revisions'; readonly revision: VisibleRevision }
-	| { readonly kind: 'stopped'; readonly revision?: VisibleRevision }
-	| { readonly kind: 'failed'; readonly message: string };
-
 /** Replay state normalized for side panel rendering. */
 export type ReplayState =
 	| { readonly kind: 'none' }
@@ -545,16 +535,6 @@ export function getReplayState(revision: VisibleRevision): ReplayState {
 
 	return { kind: 'none' };
 }
-
-/**
- * Input used when the side panel decides whether observation state should trigger a refresh.
- */
-export type ShouldRefreshObservedChangeInput = {
-	/** Latest content-script observation state reported by the background. */
-	session: observe.StateType;
-	/** Current rendered analysis, if the side panel has one. */
-	analysis: SiteAnalysis | null;
-};
 
 /**
  * Groups detections by their primary category for the current side panel layout.
