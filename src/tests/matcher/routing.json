@@ -1,26 +1,26 @@
 {
 	"page": {
-		"candidateRuleCount": 48912,
+		"candidateRuleCount": 27227,
 		"keyedRuleCount": 5151,
-		"fallbackRuleCount": 43243,
-		"literalRuleCount": 518,
-		"literalRejectedRuleCount": 374901,
+		"fallbackRuleCount": 21018,
+		"literalRuleCount": 1058,
+		"literalRejectedRuleCount": 396586,
 		"matchCount": 713
 	},
 	"curated": {
-		"candidateRuleCount": 17741,
+		"candidateRuleCount": 5883,
 		"keyedRuleCount": 0,
-		"fallbackRuleCount": 17556,
-		"literalRuleCount": 185,
-		"literalRejectedRuleCount": 143986,
+		"fallbackRuleCount": 5594,
+		"literalRuleCount": 289,
+		"literalRejectedRuleCount": 155844,
 		"matchCount": 35
 	},
 	"miss": {
-		"candidateRuleCount": 3582518,
+		"candidateRuleCount": 2089847,
 		"keyedRuleCount": 957876,
-		"fallbackRuleCount": 2619542,
-		"literalRuleCount": 5100,
-		"literalRejectedRuleCount": 27297783,
+		"fallbackRuleCount": 1116650,
+		"literalRuleCount": 15321,
+		"literalRejectedRuleCount": 28790454,
 		"matchCount": 134
 	},
 	"pass": {

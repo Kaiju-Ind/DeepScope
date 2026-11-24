@@ -1,7 +1,8 @@
 import type { MatchObservationBatchInput, ObservationPatternMatch, ObservationPatternMatchBatch } from './observation-match-types';
-import type { DetectionPatternType, DetectionRule, DetectionRunOptions, MatcherTechnologyType, PatternDetectionRule } from './types';
+import type { DetectionRule, DetectionRunOptions, MatcherTechnologyType, PatternDetectionRule } from './types';
 import type { NormalizedObservation, NormalizedObservationKind } from '../observations';
 import { matchObservationRule } from './observation-matcher';
+import { requiredLiteral } from './match/extract';
 import { scan, tableFor } from './match/literal';
 // Relative, not `@/`: the build-time registry module loads this file outside Vite's alias resolution.
 import * as dictionary from '../../utils/dictionary';
@@ -438,19 +439,19 @@ function createLinkRoute(rule: Extract<DetectionRule, { kind: 'link' }>): Observ
 		return { kind: 'link', key: canonicalLinkRel(rule.rel) };
 	}
 
-	const requiredLiteral = extractTopLevelRegexLiteral(rule.hrefPattern);
-	return requiredLiteral
-		? { kind: 'link', requiredLiteral }
+	const literal = requiredLiteral(rule.hrefPattern);
+	return literal
+		? { kind: 'link', requiredLiteral: literal }
 		: { kind: 'link' };
 }
 
 function createPatternRoute(rule: PatternDetectionRule): ObservationRuleRoute {
-	const requiredLiteral = isLiteralPrefilterSupported(rule.kind)
-		? extractTopLevelRegexLiteral(rule.pattern)
+	const literal = isLiteralPrefilterSupported(rule.kind)
+		? requiredLiteral(rule.pattern)
 		: undefined;
 
-	return requiredLiteral
-		? { kind: rule.kind, requiredLiteral }
+	return literal
+		? { kind: rule.kind, requiredLiteral: literal }
 		: { kind: rule.kind };
 }
 
@@ -478,166 +479,6 @@ function isLiteralPrefilterSupported(kind: NormalizedObservationKind): boolean {
         default:
             return false;
     }
-}
-
-/**
- * Extract one provably required top-level literal from a regex source.
- *
- * The parser intentionally leaves money on the table. It ignores literals inside
- * groups and character classes, rejects patterns containing alternation, and
- * discards a literal run when `?`, `*`, or `{...}` can make its final atom
- * optional. Escaped classes such as `\d` and `\s`, backreferences, and encoded
- * escapes are never interpreted as source text. Unclear cases remain fallback
- * rules, so this prefilter cannot turn a true regex match into a false negative.
- */
-function extractTopLevelRegexLiteral(pattern: DetectionPatternType | undefined): string | undefined {
-    if (!pattern || pattern.source.includes('|')) {
-        return undefined;
-    }
-
-    const tokens: string[] = [];
-    let token = '';
-    let depth = 0;
-    let inCharacterClass = false;
-
-    for (let index = 0; index < pattern.source.length; index += 1) {
-        const char = pattern.source[index]!;
-
-        if (char === '\\') {
-            const next = pattern.source[index + 1];
-            if (next === undefined) {
-                flushToken();
-                break;
-            }
-
-            if (depth === 0 && !inCharacterClass && isEscapedLiteralCharacter(next)) {
-                token += next;
-                index += 1;
-            } else {
-                flushToken();
-                index = skipNonLiteralEscape(pattern.source, index);
-            }
-            continue;
-        }
-
-        if (inCharacterClass) {
-            if (char === ']') {
-                inCharacterClass = false;
-            }
-            continue;
-        }
-        if (char === '[') {
-            flushToken();
-            inCharacterClass = true;
-            continue;
-        }
-        if (char === '(') {
-            flushToken();
-            depth += 1;
-            continue;
-        }
-        if (char === ')') {
-            flushToken();
-            depth = Math.max(0, depth - 1);
-            continue;
-        }
-
-        if (depth > 0) {
-            continue;
-        }
-
-        if (isPlainLiteralCharacter(char)) {
-            token += char;
-            continue;
-        }
-
-        switch (char) {
-            case '?':
-            case '*':
-                discardToken();
-                break;
-            case '{':
-                discardToken();
-                index = skipBraceExpression(pattern.source, index);
-                break;
-            default:
-                flushToken();
-        }
-    }
-    flushToken();
-
-    return tokens.sort((left, right) => right.length - left.length)[0];
-
-    function flushToken(): void {
-        const normalized = token.toLowerCase();
-        if (isUsefulLiteralToken(normalized)) {
-            tokens.push(normalized);
-        }
-        token = '';
-    }
-
-    function discardToken(): void {
-        token = '';
-    }
-}
-
-function isPlainLiteralCharacter(char: string): boolean {
-    return /^[a-zA-Z0-9_~:/@%-]$/.test(char);
-}
-
-function isEscapedLiteralCharacter(char: string): boolean {
-    return '.\\^$*+?(){}[]|/-'.includes(char);
-}
-
-/** Skip escape payloads whose text is regex syntax rather than required source text. */
-function skipNonLiteralEscape(source: string, slashIndex: number): number {
-    const escapeType = source[slashIndex + 1];
-    if (escapeType === undefined) {
-        return slashIndex;
-    }
-
-    switch (escapeType) {
-        case 'x':
-            return Math.min(source.length - 1, slashIndex + 3);
-        case 'u':
-            return source[slashIndex + 2] === '{'
-                ? skipBraceExpression(source, slashIndex + 2)
-                : Math.min(source.length - 1, slashIndex + 5);
-        case 'c':
-            return Math.min(source.length - 1, slashIndex + 2);
-        case 'p':
-        case 'P':
-            return source[slashIndex + 2] === '{'
-                ? skipBraceExpression(source, slashIndex + 2)
-                : slashIndex + 1;
-        case 'k': {
-            if (source[slashIndex + 2] !== '<') {
-                return slashIndex + 1;
-            }
-            const closing = source.indexOf('>', slashIndex + 3);
-            return closing < 0 ? source.length - 1 : closing;
-        }
-        default:
-            if (!/^[0-9]$/.test(escapeType)) {
-                return slashIndex + 1;
-            }
-
-            let end = slashIndex + 1;
-            while (end + 1 < source.length && /^[0-9]$/.test(source[end + 1]!)) {
-                end += 1;
-            }
-            return end;
-    }
-}
-
-/** Skip a brace-delimited quantifier or escape payload so its digits cannot become literals. */
-function skipBraceExpression(source: string, openingBraceIndex: number): number {
-    const closing = source.indexOf('}', openingBraceIndex + 1);
-    return closing < 0 ? source.length - 1 : closing;
-}
-
-function isUsefulLiteralToken(token: string): boolean {
-	return token.length >= 4 && /[a-z0-9]/.test(token);
 }
 
 function findLiteralPrefilteredRules(

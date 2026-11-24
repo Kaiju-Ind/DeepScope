@@ -13,9 +13,13 @@ import { loadShards } from '../support/shards';
  * A rule whose required literal is absent from a value is never evaluated, so
  * the prefilter is only correct if every value its regex accepts contains the
  * literal under the matcher's case rules (both sides lowercased). Samples come
- * from `fc.stringMatching`, are re-cased at random for `i` patterns, and get
- * Unicode look-alikes (`ſ` for `s`, Kelvin `K` for `k`) that case-fold to ASCII
- * under `iu`; only samples the real regex accepts are checked.
+ * from `fc.stringMatching`, which only produces matching strings, and ASCII
+ * letters are re-cased at random for `i` patterns (which still match).
+ *
+ * Samples are not re-run through the real regex: several catalog patterns
+ * backtrack catastrophically (e.g. `(?:[^"'\s]{0,200}\s*)*`), so testing a
+ * sample can take minutes. Unicode case-fold look-alikes (`ſ`, Kelvin `K`) are
+ * covered by `extract.test.ts`.
  */
 
 const registry = technologyDefinitions as readonly TechnologyDefinition[];
@@ -42,15 +46,13 @@ function pairs(): { readonly source: string; readonly flags: string; readonly li
 	return [...seen.values()];
 }
 
-/** Re-case a sample and swap in Unicode case-fold look-alikes, driven by `bits`. */
-function recase(value: string, bits: readonly number[]): string {
+/** Swap the case of ASCII letters where `bits` says so; an `i` pattern still matches. */
+function recase(value: string, bits: readonly boolean[]): string {
 	let out = '';
-	for (const [index, char] of [...value].entries()) {
-		const bit = bits[index % bits.length] ?? 0;
-		if (bit === 1) out += char === char.toLowerCase() ? char.toUpperCase() : char.toLowerCase();
-		else if (bit === 2 && (char === 's' || char === 'S')) out += 'ſ';
-		else if (bit === 2 && (char === 'k' || char === 'K')) out += 'K';
-		else out += char;
+	for (let index = 0; index < value.length; index += 1) {
+		const char = value[index]!;
+		const ascii = /[a-zA-Z]/.test(char);
+		out += ascii && bits[index % bits.length] ? (char === char.toLowerCase() ? char.toUpperCase() : char.toLowerCase()) : char;
 	}
 	return out;
 }
@@ -60,7 +62,7 @@ function arbitrary(source: string, flags: string): fc.Arbitrary<string> | undefi
 	try {
 		const plain = fc.stringMatching(new RegExp(source, flags.replace(/[gy]/g, '')), { size: 'small' });
 		return flags.includes('i')
-			? fc.tuple(plain, fc.array(fc.integer({ min: 0, max: 2 }), { minLength: 1, maxLength: 8 })).map(([value, bits]) => recase(value, bits))
+			? fc.tuple(plain, fc.array(fc.boolean(), { minLength: 1, maxLength: 8 })).map(([value, bits]) => recase(value, bits))
 			: plain;
 	} catch {
 		return undefined;
@@ -74,7 +76,7 @@ describe('literal prefilter soundness', () => {
 		expect(all.length).toBeGreaterThan(1_000);
 	});
 
-	it('only drops a rule when its regex cannot match: regex match implies literal present', () => {
+	it('only drops a rule when its regex cannot match: every match contains the literal', () => {
 		let checked = 0;
 		let skipped = 0;
 		for (const { source, flags, literal, id } of all) {
@@ -83,9 +85,7 @@ describe('literal prefilter soundness', () => {
 				skipped += 1;
 				continue;
 			}
-			const regex = new RegExp(source, flags.replace(/[gy]/g, ''));
 			fc.assert(fc.property(values, (value) => {
-				if (!regex.test(value)) return true;
 				checked += 1;
 				return value.toLowerCase().includes(literal);
 			}), { numRuns: 6, seed: 42, examples: [], verbose: 0, reporter: (details) => {
@@ -94,6 +94,6 @@ describe('literal prefilter soundness', () => {
 		}
 		// Most registry regexes are inside fast-check's supported subset.
 		expect(skipped).toBeLessThan(all.length / 10);
-		expect(checked).toBeGreaterThan(all.length * 3);
+		expect(checked).toBeGreaterThan(all.length * 5);
 	}, 120_000);
 });
