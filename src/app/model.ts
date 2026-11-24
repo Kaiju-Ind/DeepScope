@@ -8,6 +8,7 @@ import type {
 } from '@/lib/messaging/analysis';
 import {
 	DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION,
+	evidenceRank,
 	type DetectionReplaySummary,
 	type DetectionEvidenceState,
 	type MatcherProgressType,
@@ -15,7 +16,7 @@ import {
 	type DetectionSessionStatus,
 	type DetectionSessionSnapshot,
 } from '@/lib/storage/session';
-import type { CategoryId, ConfidenceScore, DetectionResult, SiteAnalysis } from '@/lib/detection/types';
+import type { CategoryId, ConfidenceScore, DetectionResult, Evidence, SiteAnalysis } from '@/lib/detection/types';
 import {
 	filterReplayHistoryForAnalysis,
 	isDetectionReplayTraceForAnalysis,
@@ -730,31 +731,13 @@ function isLowerCompletenessDetectorRevision(
 		return false;
 	}
 
-	if (snapshot.evidence && getEvidenceCompletenessRank(snapshot.evidence) < 5) {
+	if (snapshot.evidence && evidenceRank(snapshot.evidence) < 5) {
 		return true;
 	}
 
 	return snapshot.replaySummary === undefined;
 }
 
-/** Rank evidence coverage so recovered or partial passes cannot visibly replace richer runs. */
-function getEvidenceCompletenessRank(state: DetectionEvidenceState | undefined): number {
-	switch (state?.level) {
-		case 'full':
-			return 5;
-		case 'enriched':
-			return 4;
-		case 'incremental':
-			return 3;
-		case 'initial':
-			return 2;
-		case 'recovered-initial':
-			return 1;
-		case 'unknown':
-		default:
-			return 0;
-	}
-}
 
 /**
  * Preserve replay UI when a lifecycle-only snapshot repeats the same analysis.
@@ -839,10 +822,11 @@ function createExplanationHeadline(explanation: DetectionExplanation): string {
 	return `Matched ${explanation.directEvidenceCount} direct signal${explanation.directEvidenceCount === 1 ? '' : 's'}.`;
 }
 
-function createEvidencePreview(evidence: DetectionExplanationEvidenceSummary): EvidencePreview {
+/** Safe preview of one evidence row, from a replay explanation or from stored detection evidence. */
+export function createEvidencePreview(evidence: DetectionExplanationEvidenceSummary | Evidence): EvidencePreview {
 	return {
 		kind: evidence.kind,
-		direct: evidence.direct,
+		direct: evidence.direct !== false,
 		...(evidence.matchedValue ? { matchedValue: evidence.matchedValue } : {}),
 		...(evidence.version ? { version: evidence.version } : {}),
 		...(evidence.sourceTechnologyId ? { sourceTechnologyId: evidence.sourceTechnologyId } : {}),
