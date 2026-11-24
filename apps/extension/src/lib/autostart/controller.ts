@@ -13,7 +13,16 @@ export type AutoScanControllerDependencies = {
 	readonly getVisibleTabIdentity: BackgroundApi['getVisibleTabIdentity'];
 	readonly analyzeVisibleTab: BackgroundApi['analyzeVisibleTab'];
 	readonly log?: (event: string, details?: Record<string, unknown>) => void;
+	/** How long one scan may stay unsettled before it is released and retried once. */
+	readonly watchdogMs?: number;
 };
+
+/**
+ * Default watchdog bound. It is longer than the analysis lane's own timeout
+ * (`LANE_TIMEOUT_MS`), so it fires only when a scan's completion was lost
+ * rather than slow; a retry of work that is merely queued joins it again.
+ */
+export const AUTO_SCAN_WATCHDOG_MS = 150_000;
 
 /** One-shot scans scheduled from the background's tab lifecycle listeners. */
 export type AutoScanController = {
@@ -34,6 +43,8 @@ type ScanRequest = {
 	/** A queued refresh takes precedence over snapshot-first for the same generation. */
 	mode: AnalyzeVisibleTabMode;
 	reason: string;
+	/** True for the one retry the watchdog starts after a stalled scan. */
+	retry?: boolean;
 	readonly promise: Promise<void>;
 	readonly resolve: () => void;
 };
@@ -128,10 +139,10 @@ export function createAutoScanController(
 		});
 	}
 
-	/** Release the active callers and start a successor only while this tab entry still owns it. */
-	function finishScan(tabId: number, scans: TabScans): void {
-		scans.active.resolve();
-		if (scansByTab.get(tabId) !== scans) return;
+	/** Release the request's callers and start a successor only while it still owns the tab entry. */
+	function finishScan(tabId: number, scans: TabScans, request: ScanRequest): void {
+		request.resolve();
+		if (scansByTab.get(tabId) !== scans || scans.active !== request) return;
 		if (!scans.pending) {
 			scansByTab.delete(tabId);
 			return;
@@ -141,9 +152,32 @@ export function createAutoScanController(
 		startScan(tabId, scans);
 	}
 
+	/**
+	 * Release a scan that has not settled within the watchdog bound.
+	 *
+	 * Nothing else would: re-activating a tab that is already active fires no
+	 * event, and every later request for the page joins the stuck one. A newer
+	 * page's pending request takes over; otherwise the same page is retried once
+	 * and, if that also stalls, the tab is released for the next tab event.
+	 */
+	function releaseStalledScan(tabId: number, scans: TabScans, request: ScanRequest): void {
+		if (scansByTab.get(tabId) !== scans || scans.active !== request) return;
+		const retry = !scans.pending && !request.retry && request.generation === scans.generation;
+		dependencies.log?.('auto-scan-stalled', { tabId, mode: request.mode, reason: request.reason, retry });
+		if (retry) {
+			scans.pending = createScanRequest(scans.generation, scans.windowId, request.mode, request.reason);
+			scans.pending.retry = true;
+		}
+		finishScan(tabId, scans, request);
+	}
+
 	/** Keep rejected settings, lookup, and analysis calls from blocking the next page. */
 	function startScan(tabId: number, scans: TabScans): void {
 		const request = scans.active;
+		const watchdog = setTimeout(
+			() => releaseStalledScan(tabId, scans, request),
+			dependencies.watchdogMs ?? AUTO_SCAN_WATCHDOG_MS,
+		);
 		void scanVisiblePage(tabId, scans, request)
 			.catch((error: unknown) => {
 				dependencies.log?.('auto-scan-threw', {
@@ -155,7 +189,10 @@ export function createAutoScanController(
 						: { errorType: diagnosticErrorType(error) }),
 				});
 			})
-			.finally(() => finishScan(tabId, scans));
+			.finally(() => {
+				clearTimeout(watchdog);
+				finishScan(tabId, scans, request);
+			});
 	}
 
 	return {

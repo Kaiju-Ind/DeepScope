@@ -9,6 +9,7 @@ export type ExtensionErrorCode =
 	| 'VALIDATION_ERROR'
 	| 'PAYLOAD_TOO_LARGE'
 	| 'BROWSER_UNSUPPORTED'
+	| 'ANALYSIS_TIMEOUT'
 	| 'UNKNOWN';
 
 /** Serializable expected failure returned by extension capabilities. */

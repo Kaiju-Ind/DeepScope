@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createAutoScanController } from '@/lib/autostart/controller';
+import { AUTO_SCAN_WATCHDOG_MS, createAutoScanController } from '@/lib/autostart/controller';
 import type { AnalyzeVisibleTabInput, AnalyzeVisibleTabOutput, VisibleTabIdentity } from '@/lib/messaging';
 import { errorResponse, ok } from '@/lib/messaging/result';
 
@@ -310,5 +310,63 @@ describe('automatic scan controller', () => {
 		expect(analyzeVisibleTab).toHaveBeenCalledOnce();
 		await controller.scanVisibleTab(7, 3, 'refresh', 'page-load');
 		expect(analyzeVisibleTab).toHaveBeenCalledTimes(2);
+	});
+
+	// Found by the Firefox stress run: a tab logged `auto-scan-start` with no
+	// analysis after it, then `auto-scan-already-in-flight` for every later
+	// request, and stayed blank while it remained the active tab.
+	describe('watchdog', () => {
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it('releases a scan that never settles, retries it once, then frees the tab', async () => {
+			vi.useFakeTimers();
+			const log = vi.fn();
+			const analyzeVisibleTab = vi.fn(() => new Promise<never>(() => undefined));
+			const controller = createAutoScanController({
+				getEnabled: async () => true,
+				getVisibleTabIdentity: async () => ok(VISIBLE_IDENTITY),
+				analyzeVisibleTab,
+				log,
+			});
+
+			let settled = false;
+			void controller.scanVisibleTab(7, 3, 'snapshot-first', 'tab-activated').then(() => {
+				settled = true;
+			});
+			await vi.advanceTimersByTimeAsync(0);
+			expect(analyzeVisibleTab).toHaveBeenCalledOnce();
+			await vi.advanceTimersByTimeAsync(AUTO_SCAN_WATCHDOG_MS - 1);
+			expect(settled).toBe(false);
+
+			await vi.advanceTimersByTimeAsync(1);
+			expect(settled).toBe(true);
+			expect(log).toHaveBeenCalledWith('auto-scan-stalled', { tabId: 7, mode: 'snapshot-first', reason: 'tab-activated', retry: true });
+			expect(analyzeVisibleTab).toHaveBeenCalledTimes(2);
+
+			await vi.advanceTimersByTimeAsync(AUTO_SCAN_WATCHDOG_MS);
+			expect(log).toHaveBeenCalledWith('auto-scan-stalled', { tabId: 7, mode: 'snapshot-first', reason: 'tab-activated', retry: false });
+			expect(analyzeVisibleTab).toHaveBeenCalledTimes(2);
+
+			// Released: the next tab event starts a new scan instead of joining the stuck one.
+			void controller.scanVisibleTab(7, 3, 'snapshot-first', 'tab-activated');
+			await vi.advanceTimersByTimeAsync(0);
+			expect(analyzeVisibleTab).toHaveBeenCalledTimes(3);
+		});
+
+		it('does not fire for a scan that settles in time', async () => {
+			vi.useFakeTimers();
+			const log = vi.fn();
+			const controller = createAutoScanController({
+				getEnabled: async () => true,
+				getVisibleTabIdentity: async () => ok(VISIBLE_IDENTITY),
+				analyzeVisibleTab: async () => ok(makeOutput()),
+				log,
+			});
+			await controller.scanVisibleTab(7, 3, 'refresh', 'page-load');
+			await vi.advanceTimersByTimeAsync(AUTO_SCAN_WATCHDOG_MS * 2);
+			expect(log.mock.calls.map(([event]) => event)).not.toContain('auto-scan-stalled');
+		});
 	});
 });

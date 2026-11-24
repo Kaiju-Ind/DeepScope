@@ -8,6 +8,7 @@ import { errorResponse, type ExtensionResult } from '@/lib/messaging/result';
 import * as database from './database';
 import * as fairness from './fairness';
 import * as generation from '@/utils/generation';
+import * as lane from './lane';
 import * as priority from './priority';
 import * as session from './session';
 import * as fence from '@/utils/fence';
@@ -113,6 +114,8 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 	const tabCleanup = fence.create<number>();
 	let foregroundDispatches = 0;
 	let draining: Promise<void> | undefined;
+	/** A `drain()` joined a running lane, which must claim again (or restart) before it stops. */
+	let wake = false;
 	let paused = false;
 
 	/** Queued in-memory background tasks in insertion order, keyed for deduplication. */
@@ -131,14 +134,22 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 		| Readonly<{ kind: 'analysis'; work: WorkType }>
 		| Readonly<{ kind: 'background'; task: QueuedBackgroundTask }>;
 
+	/** Run the lane until nothing is left; work committed while it read an empty store sets `wake`. */
 	async function drain(): Promise<void> {
 		if (paused) return;
-		if (draining) return draining;
+		if (draining) {
+			wake = true;
+			return draining;
+		}
 		const task = (async () => {
 			const browserSessionId = await session.get();
 			while (!paused) {
+				wake = false;
 				const next = await claimNext(browserSessionId);
-				if (!next) return;
+				if (!next) {
+					if (wake) continue;
+					return;
+				}
 				if (next.kind === 'background') {
 					foregroundDispatches = 0;
 					await runBackgroundTask(next.task);
@@ -153,6 +164,7 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 			}
 		})().finally(() => {
 			if (draining === task) draining = undefined;
+			if (wake && !paused) void drain();
 		});
 		draining = task;
 		return task;
@@ -225,7 +237,9 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 		try {
 			const target = await options.resolveTarget(work);
 			const result = target.ok
-				? await options.analyze({ target: target.value, mode: work.mode, observe: work.observe })
+				? await lane.bound(options.analyze({ target: target.value, mode: work.mode, observe: work.observe }), () => {
+					options.log?.('scheduler-analysis-timeout', { workId: work.id, tabId: work.tabId });
+				})
 				: target;
 			const cleanup = await removeClaim(work.id, claimToken);
 			if (!canPublish(work, executionGeneration, cleanup, 'completion')) {
@@ -319,9 +333,7 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 		return completion;
 	}
 
-	function canceled(message: string): ExtensionResult<AnalyzeVisibleTabOutput> {
-		return errorResponse('VALIDATION_ERROR', message);
-	}
+	const canceled = (message: string): ExtensionResult<AnalyzeVisibleTabOutput> => errorResponse('VALIDATION_ERROR', message);
 
 	return {
 		async analyze(input, source = 'interactive') {
@@ -457,7 +469,6 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 				}
 			});
 		},
-
 
 		async reconcile() {
 			paused = true;
