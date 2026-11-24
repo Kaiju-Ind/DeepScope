@@ -31,6 +31,7 @@ import {
   BACKGROUND_RPC_NAMESPACE,
   createBackgroundClientAdapter,
 } from "@/lib/messaging";
+import { same as sameTab } from "@/lib/messaging/identity";
 import {
   buildAnalysisUpdate,
   createVisibleRevisionFromAnalysisResponse,
@@ -133,19 +134,6 @@ function getMatcherStatus(
   }
 
   return revision.analysis.results.length > 0 ? "matching" : "recording";
-}
-
-/** Compare tab, frame, visible location, and privacy mode before applying a response. */
-function sameTab(left: VisibleTabIdentity | null, right: VisibleTabIdentity): boolean {
-  return Boolean(
-    left &&
-      left.windowId === right.windowId &&
-      left.tabId === right.tabId &&
-      left.frameId === right.frameId &&
-      left.originHash === right.originHash &&
-      left.urlHash === right.urlHash &&
-      left.incognito === right.incognito,
-  );
 }
 
 

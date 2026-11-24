@@ -59,6 +59,7 @@ import {
 	getObservationRefreshBlockReason,
 	shouldStartObservationForAnalysis,
 } from '@/lib/lifecycle/observation';
+import * as tabIdentity from '@/lib/messaging/identity';
 import { errorResponse, ok, type ExtensionResult } from '@/lib/messaging/result';
 import {
 	MatcherError,
@@ -689,17 +690,6 @@ export function createBackgroundRuntime(
 		};
 	}
 
-	function isSameVisibleTabIdentity(left: VisibleTabIdentity, right: VisibleTabIdentity): boolean {
-		return (
-			left.windowId === right.windowId &&
-			left.tabId === right.tabId &&
-			left.frameId === right.frameId &&
-			left.originHash === right.originHash &&
-			left.urlHash === right.urlHash &&
-			left.incognito === right.incognito
-		);
-	}
-
 	async function getInspectableVisibleTab(target: VisibleTabIdentity): Promise<ExtensionResult<InspectableTab>> {
 		return validateInspectableTarget(target, await getInspectableActiveTab(target.tabId, target.windowId));
 	}
@@ -735,7 +725,7 @@ export function createBackgroundRuntime(
 	): ExtensionResult<InspectableTab> {
 		if (!targetTab.ok) return targetTab;
 		const targetIdentity = createVisibleTabIdentity(targetTab.value);
-		if (isSameVisibleTabIdentity(targetIdentity, target)) return targetTab;
+		if (tabIdentity.same(targetIdentity, target)) return targetTab;
 
 		logBackgroundEvent('visible-tab-target-mismatch', {
 			requestedWindowId: target.windowId,
