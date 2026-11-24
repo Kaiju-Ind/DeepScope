@@ -60,3 +60,76 @@ describe('content runtime injection', () => {
 		expect(executeContentScript).toHaveBeenCalledOnce();
 	});
 });
+
+/**
+ * Found by the Firefox stress run: `scripting.executeScript` rejected once
+ * with "An unexpected error occurred" on an ordinary page and the scan ended
+ * CONTENT_SCRIPT_UNAVAILABLE. Generic browser errors get one retry; a refusal
+ * by permission never does.
+ */
+describe('transient injection failures', () => {
+	/** A page whose first `count` injections reject with `message`, then load a script that answers at once. */
+	function flaky(message: string, count = 1) {
+		let failures = 0;
+		let injected = false;
+		const executeContentScript = vi.fn(async () => {
+			if (failures < count) {
+				failures += 1;
+				throw new Error(message);
+			}
+			injected = true;
+		});
+		const contentApi = {
+			getObservationSessionState: () => injected ? Promise.resolve(ok({ status: 'idle' })) : new Promise<never>(() => undefined),
+		} as unknown as ContentApi;
+		const log = vi.fn();
+		const injector = injection.create({ executeContentScript, createContentApiClient: () => contentApi, log });
+		return { injector, executeContentScript, log };
+	}
+
+	const settle = injection.PING_TIMEOUT_MS * 3 + 1_000;
+
+	it.each([
+		'An unexpected error occurred',
+		'An unknown error occurred.',
+		'Frame with ID 0 was removed.',
+		'Tabs cannot be edited right now (user may be dragging a tab).',
+	])('retries once after "%s"', async (message) => {
+		vi.useFakeTimers();
+		const { injector, executeContentScript, log } = flaky(message);
+
+		const ready = injector.ensure({ id: 7, incognito: false });
+		await vi.advanceTimersByTimeAsync(settle);
+
+		await expect(ready).resolves.toMatchObject({ ok: true });
+		expect(executeContentScript).toHaveBeenCalledTimes(2);
+		expect(log).toHaveBeenCalledWith('content-runtime-inject-transient', { tabId: 7 });
+	});
+
+	it('gives up after the one retry', async () => {
+		vi.useFakeTimers();
+		const { injector, executeContentScript } = flaky('An unexpected error occurred', 2);
+
+		const ready = injector.ensure({ id: 7, incognito: false });
+		await vi.advanceTimersByTimeAsync(settle);
+
+		await expect(ready).resolves.toMatchObject({ ok: false, failure: { code: 'CONTENT_SCRIPT_UNAVAILABLE' } });
+		expect(executeContentScript).toHaveBeenCalledTimes(2);
+	});
+
+	it.each([
+		'Missing host permission for the tab',
+		'Frame not found, or missing host permission',
+		'Cannot access contents of url "https://chromewebstore.google.com/". Extension manifest must request permission to access this host.',
+		'No tab with id: 7.',
+	])('never retries "%s"', async (message) => {
+		vi.useFakeTimers();
+		const { injector, executeContentScript } = flaky(message);
+
+		const ready = injector.ensure({ id: 7, incognito: false });
+		await vi.advanceTimersByTimeAsync(settle);
+
+		await expect(ready).resolves.toMatchObject({ ok: false });
+		expect(executeContentScript).toHaveBeenCalledOnce();
+	});
+});

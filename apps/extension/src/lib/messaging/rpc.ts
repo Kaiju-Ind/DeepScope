@@ -191,7 +191,7 @@ export function contentScriptFailure(error: unknown): ExtensionFailure {
  * quarantined domains, the built-in PDF viewer) and when the user has turned
  * off DeepScope's site access; Chrome says "Cannot access contents of ...".
  */
-const SCRIPTING_REFUSED = /missing host permission|cannot access contents of|cannot be scripted|extensions gallery|cannot access a chrome/i;
+export const SCRIPTING_REFUSED = /missing host permission|cannot access contents of|cannot be scripted|extensions gallery|cannot access a chrome/i;
 
 /** Map a failed content-script injection to the error the panel shows. */
 export function injectionFailure(error: unknown): ExtensionFailure {

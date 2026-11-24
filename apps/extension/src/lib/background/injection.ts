@@ -1,6 +1,7 @@
 import type { ContentApi } from '@/lib/messaging';
 import {
 	CONTENT_SCRIPT_TIMEOUT_MS,
+	SCRIPTING_REFUSED,
 	injectionFailure,
 	withTimeout,
 } from '@/lib/messaging/rpc';
@@ -15,6 +16,23 @@ export const PING_TIMEOUT_MS = 750;
  * longer than one ping to answer even though it loaded.
  */
 export const INJECT_RETRY_PING_MS = 2_500;
+
+/** How long a transient injection failure waits before its one retry. */
+export const TRANSIENT_RETRY_DELAY_MS = 250;
+
+/**
+ * `scripting.executeScript` failures that say nothing about the page or
+ * DeepScope's access, and that a second attempt usually gets past: Firefox's
+ * and WebKit's generic internal errors, Chrome's frame removed mid-navigation,
+ * and Chrome's tab strip locked while the user drags a tab.
+ */
+const TRANSIENT_INJECTION = /an (unexpected|unknown|internal) error (has )?occurred|frame with id \d+ was removed|the frame was removed|tabs cannot be edited right now/i;
+
+/** Whether a failed injection is worth one retry. A refusal by permission never is. */
+export function isTransientInjectionError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return !SCRIPTING_REFUSED.test(message) && TRANSIENT_INJECTION.test(message);
+}
 
 export interface ContentInjectorDependencies {
 	readonly executeContentScript: (tabId: number) => Promise<void>;
@@ -53,11 +71,28 @@ export function create(dependencies: ContentInjectorDependencies): ContentInject
 		}
 	}
 
+	async function execute(tabId: number, signal?: AbortSignal): Promise<void> {
+		signal?.throwIfAborted();
+		await dependencies.executeContentScript(tabId);
+		signal?.throwIfAborted();
+	}
+
+	/**
+	 * Inject once, and once more after a transient failure. The failed call may
+	 * still have started the script, so the retry injects only if a ping after
+	 * the delay finds nothing listening.
+	 */
 	async function inject(tabId: number, signal?: AbortSignal): Promise<ExtensionResult<void>> {
 		try {
-			signal?.throwIfAborted();
-			await dependencies.executeContentScript(tabId);
-			signal?.throwIfAborted();
+			await execute(tabId, signal);
+			return ok(undefined);
+		} catch (error) {
+			if (signal?.aborted || !isTransientInjectionError(error)) return injectionFailure(error);
+			log('content-runtime-inject-transient', { tabId });
+		}
+		try {
+			await new Promise((resolve) => setTimeout(resolve, TRANSIENT_RETRY_DELAY_MS));
+			if (!await ping(tabId, signal)) await execute(tabId, signal);
 			return ok(undefined);
 		} catch (error) {
 			return injectionFailure(error);
