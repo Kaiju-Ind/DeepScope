@@ -75,6 +75,8 @@ type BackgroundApiHarnessOptions = {
 	siteAccess?: boolean;
 	contentApi?: Partial<ContentApi>;
 	cachedAnalysis?: SiteAnalysis | null;
+	/** Lifecycle status of the stored snapshot built from `cachedAnalysis`. */
+	cachedStatus?: DetectionSessionSnapshot['status'];
 	cachedReplayTrace?: DetectionReplayTrace | null;
 	cachedReplayHistory?: DetectionReplayTrace[];
 	collectionPlan?: CollectionPlan;
@@ -306,7 +308,10 @@ function makeAnalysis(signals = makeSignals()): SiteAnalysis {
 	};
 }
 
-function makeDetectionSnapshotFromAnalysis(analysis: SiteAnalysis): DetectionSessionSnapshot {
+function makeDetectionSnapshotFromAnalysis(
+	analysis: SiteAnalysis,
+	status: DetectionSessionSnapshot['status'] = 'complete',
+): DetectionSessionSnapshot {
 	return {
 		key: {
 			tabId: VISIBLE_TAB_TARGET.tabId,
@@ -318,7 +323,7 @@ function makeDetectionSnapshotFromAnalysis(analysis: SiteAnalysis): DetectionSes
 		revision: 1,
 		urlHash: VISIBLE_TAB_TARGET.urlHash,
 		hostname: analysis.hostname,
-		status: 'complete',
+		status,
 		source: analysis.source === 'cache' ? 'cache' : 'background',
 		updatedAt: analysis.analyzedAt,
 		detectionCount: analysis.results.length,
@@ -445,7 +450,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	})));
 	const updateMatcherJobRecord = vi.fn(matcherStore?.updateMatcherJob ?? input.updateMatcherJobRecord ?? (async () => null));
 	const getBestVisibleDetectionSessionSnapshot = vi.fn(async () => input.cachedAnalysis
-		? makeDetectionSnapshotFromAnalysis(input.cachedAnalysis)
+		? makeDetectionSnapshotFromAnalysis(input.cachedAnalysis, input.cachedStatus)
 		: null);
 	const getLatestDetectionSessionSnapshot = vi.fn(async () => null);
 	const saveDetectionSessionSnapshot = vi.fn(input.saveSnapshot ?? (async (snapshot: DetectionSessionSnapshot) => ({
@@ -484,6 +489,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	const logEvent = vi.fn();
 	const logAnalysisSummary = vi.fn();
 	const setBadge = vi.fn(async () => undefined);
+	const refreshStaleSnapshot = vi.fn();
 	const { createBackgroundRuntime } = await import('@/lib/background/runtime');
 	const runtime = createBackgroundRuntime({
 		getTab,
@@ -517,6 +523,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 		logEvent,
 		logAnalysisSummary,
 		setBadge,
+		refreshStaleSnapshot,
 	});
 
 	return {
@@ -547,6 +554,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 			saveMatcherJobRecord,
 			saveReplayTrace,
 			setBadge,
+			refreshStaleSnapshot,
 			updateMatcherJobRecord,
 		},
 	};
@@ -982,6 +990,28 @@ describe('background analyzeVisibleTab messaging hardening', { concurrent: false
 		expect(harness.contentApi.getObservationSessionState).not.toHaveBeenCalled();
 		expect(harness.contentApi.beginObservationSession).not.toHaveBeenCalled();
 		expect(harness.mocks.getCachedReplayTrace).toHaveBeenCalledWith(HTTP_TAB.url);
+	});
+
+	it('paints a stale snapshot at once but refreshes it and keeps its count off the badge', async () => {
+		// A same-document navigation marked this document's stored result stale.
+		const cachedAnalysis = makeAnalysis();
+		const harness = await loadBackgroundApiHarness({ tab: HTTP_TAB, cachedAnalysis, cachedStatus: 'stale' });
+
+		const result = await harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'none' });
+
+		expect(result).toMatchObject({ ok: true, value: { snapshot: { status: 'hit' } } });
+		expect(harness.mocks.refreshStaleSnapshot).toHaveBeenCalledOnce();
+		expect(harness.mocks.refreshStaleSnapshot).toHaveBeenCalledWith(VISIBLE_TAB_TARGET);
+		expect(harness.mocks.setBadge).not.toHaveBeenCalled();
+	});
+
+	it('serves a current snapshot without a refresh and restores its badge', async () => {
+		const harness = await loadBackgroundApiHarness({ tab: HTTP_TAB, cachedAnalysis: makeAnalysis() });
+
+		await expect(harness.api.analyzeVisibleTab({ target: VISIBLE_TAB_TARGET, mode: 'snapshot-first', observe: 'none' }))
+			.resolves.toMatchObject({ ok: true, value: { snapshot: { status: 'hit' } } });
+		expect(harness.mocks.refreshStaleSnapshot).not.toHaveBeenCalled();
+		expect(harness.mocks.setBadge).toHaveBeenCalledWith(7, expect.any(Number), undefined);
 	});
 
 	it('returns stored snapshot analysis without reopening observation when observation is disabled', async () => {

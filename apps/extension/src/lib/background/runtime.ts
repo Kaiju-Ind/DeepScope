@@ -141,6 +141,8 @@ export interface BackgroundRuntimeDependencies {
 	readonly logAnalysisSummary: (analysis: SiteAnalysis) => void;
 	/** Update the toolbar count and optional highest-confidence finding for one tab. */
 	readonly setBadge: (tabId: number, count: number, finding?: string) => Promise<void>;
+	/** Queue a refresh for a document whose stored snapshot a navigation marked stale. */
+	readonly refreshStaleSnapshot?: (target: VisibleTabIdentity) => void;
 }
 
 /** Public surface owned by one isolated background runtime instance. */
@@ -753,10 +755,9 @@ export function createBackgroundRuntime(
 				reason: 'no-exact-session-or-matching-origin-snapshot',
 				targetUrlHash: target.urlHash,
 			});
-		} else if (snapshot.urlHash === target.urlHash) {
+		} else if (snapshot.urlHash === target.urlHash && snapshot.status !== 'stale') {
 			// A stored result for this exact URL restores the badge after navigation
-			// cleared it. A same-site fallback snapshot describes another page, so its
-			// count would be wrong here.
+			// cleared it. A stale one predates a navigation, so its count is not current.
 			void dependencies.setBadge(target.tabId, snapshot.analysis.results.length, getFinding(snapshot.analysis));
 		}
 
@@ -2761,17 +2762,11 @@ export function createBackgroundRuntime(
 						analyzedAt: snapshot.analysis.analyzedAt,
 						timingTraceId: requestTimingTraceId,
 					});
-					const output = createAnalysisOutput(
-						snapshot.analysis,
-						'hit',
-						undefined,
-						getReplayTraceForAnalysis(replayTrace, snapshot.analysis),
-						getReplayHistoryForAnalysis(replayHistory, snapshot.analysis),
-						undefined,
-						undefined,
-						snapshot.evidence,
-					);
-					return ok(output);
+					// A stale snapshot still paints at once; the refresh replaces it for the current document.
+					if (snapshot.status === 'stale') dependencies.refreshStaleSnapshot?.(input.target);
+					const trace = getReplayTraceForAnalysis(replayTrace, snapshot.analysis);
+					const history = getReplayHistoryForAnalysis(replayHistory, snapshot.analysis);
+					return ok(createAnalysisOutput(snapshot.analysis, 'hit', undefined, trace, history, undefined, undefined, snapshot.evidence));
 				}
 
 				logBackgroundEvent('analysis-snapshot-miss', {

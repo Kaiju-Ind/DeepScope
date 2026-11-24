@@ -2,6 +2,7 @@ import { defineProxy } from 'comctx';
 import { browser } from 'wxt/browser';
 
 import { registerBackgroundLifecycleListeners } from '@/lib/background/lifecycle';
+import { refreshReason } from '@/lib/background/navigation';
 import { createAutoScanController } from '@/lib/autostart/controller';
 import { getAutoScanEnabled } from '@/lib/autostart/settings';
 import { createBackgroundRuntime } from '@/lib/background/runtime';
@@ -194,6 +195,11 @@ export default defineBackground(() => {
 		logEvent: logBackgroundEvent,
 		logAnalysisSummary,
 		setBadge: (tabId, count, finding) => badges.set(tabId, { count, ...(finding ? { finding } : {}) }),
+		refreshStaleSnapshot(target) {
+			void analysisQueue.analyze({ target, mode: 'refresh', observe: 'none' }, 'automatic').catch((error: unknown) => {
+				logBackgroundEvent('stale-refresh-failed', { tabId: target.tabId, errorType: diagnosticErrorType(error) });
+			});
+		},
 	});
 	const analysisQueue = analysisScheduler.create({
 		resolveTarget: (work) => backgroundRuntime.resolveScheduledTab({
@@ -291,11 +297,8 @@ export default defineBackground(() => {
 			notifySidePanelTab(tabId, tab.windowId, 'updated');
 		}
 
-		if (changeInfo.status !== 'complete') {
-			return;
-		}
-
-		void autoScanController.scanVisibleTab(tabId, tab.windowId, 'refresh', 'page-load');
+		const reason = refreshReason(changeInfo, tab);
+		if (reason) void autoScanController.scanVisibleTab(tabId, tab.windowId, 'refresh', reason);
 	});
 	browser.tabs.onActivated.addListener(({ tabId, windowId }) => {
 		void analysisQueue.activateTab(tabId, windowId);

@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 	reconcileAnalysis: vi.fn(async () => undefined),
 	resumeAnalysis: vi.fn(),
 	resumeMatcher: vi.fn(),
+	runtimeDependencies: undefined as undefined | { refreshStaleSnapshot?: (target: VisibleTabIdentity) => void },
 }));
 
 vi.mock('comctx', () => ({ defineProxy: () => [vi.fn(), vi.fn()] }));
@@ -59,7 +60,7 @@ vi.mock('@/lib/scheduler/matcher', () => ({
 vi.mock('@/lib/registry/packaged-runtime', () => ({ createPackagedRuntimeTechnologyRegistryProvider: () => ({}) }));
 vi.mock('@/lib/autostart/settings', () => ({ getAutoScanEnabled: async () => true }));
 vi.mock('@/lib/background/runtime', () => ({
-	createBackgroundRuntime: () => ({
+	createBackgroundRuntime: (dependencies: typeof mocks.runtimeDependencies) => (mocks.runtimeDependencies = dependencies, {
 		api: { getVisibleTabIdentity: mocks.getVisibleTabIdentity, analyzeVisibleTab: mocks.analyzeVisibleTab },
 		onTabNavigation: mocks.onTabNavigation,
 		onTabRemoved: vi.fn(),
@@ -152,6 +153,43 @@ describe('background entrypoint navigation wiring', () => {
 
 		await vi.waitFor(() => expect(mocks.analyzeVisibleTab).toHaveBeenCalledTimes(2));
 		expect(mocks.analyzeVisibleTab).toHaveBeenLastCalledWith({ target: replacement, mode: 'refresh', observe: 'none' });
+	});
+
+	it('refreshes the active tab when a same-document navigation changes its URL', async () => {
+		const pushed = { ...firstDocument, url: 'https://example.com/first?view=2', urlHash: 'pushed-url' };
+		mocks.getVisibleTabIdentity.mockResolvedValue(ok(pushed));
+		mocks.analyzeVisibleTab.mockResolvedValue(ok({ analysis: { results: [] }, snapshot: { status: 'bypassed' } }));
+		vi.stubGlobal('defineBackground', (setup: () => void) => setup());
+		await import('@/entrypoints/background');
+
+		// history.pushState: only the URL changes, and the loaded tab stays complete.
+		const tab = { id: pushed.tabId, windowId: pushed.windowId, active: true, status: 'complete' };
+		for (const [listener] of mocks.onUpdated.mock.calls) listener(tab.id, { url: pushed.url }, tab);
+
+		expect(mocks.onTabNavigation).toHaveBeenCalledWith(tab.id);
+		await vi.waitFor(() => expect(mocks.analyzeVisibleTab).toHaveBeenCalledWith({ target: pushed, mode: 'refresh', observe: 'none' }));
+	});
+
+	it('waits for the load to complete when a URL change starts a new document', async () => {
+		vi.stubGlobal('defineBackground', (setup: () => void) => setup());
+		await import('@/entrypoints/background');
+
+		const tab = { id: firstDocument.tabId, windowId: firstDocument.windowId, active: true, status: 'loading' };
+		for (const [listener] of mocks.onUpdated.mock.calls) listener(tab.id, { url: firstDocument.url, status: 'loading' }, tab);
+		for (const [listener] of mocks.onUpdated.mock.calls) listener(tab.id, { url: firstDocument.url }, tab);
+
+		await Promise.resolve();
+		expect(mocks.getVisibleTabIdentity).not.toHaveBeenCalled();
+	});
+
+	it('queues a refresh when a stale snapshot was served', async () => {
+		mocks.analyzeVisibleTab.mockResolvedValue(ok({ analysis: { results: [] }, snapshot: { status: 'bypassed' } }));
+		vi.stubGlobal('defineBackground', (setup: () => void) => setup());
+		await import('@/entrypoints/background');
+
+		mocks.runtimeDependencies?.refreshStaleSnapshot?.(firstDocument);
+
+		await vi.waitFor(() => expect(mocks.analyzeVisibleTab).toHaveBeenCalledWith({ target: firstDocument, mode: 'refresh', observe: 'none' }));
 	});
 
 	it('resumes both schedulers in degraded mode when startup reconciliation fails', async () => {
