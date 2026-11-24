@@ -69,6 +69,9 @@ observation batch merging to `lib/observations/merge.ts`, log summaries to
 
 ## Rules
 
+These rules are also carried in [`AGENTS.md`](../../AGENTS.md) and the
+[naming guide](../../.agents/guides/naming-and-folder-structure-guide.md).
+
 - Files aim for ≤300 lines; review above 400; hard cap 500 (tests, generated
   files, `src/registry`, `src/ui` excluded). A ratchet test lists today's
   oversized files and only lets them shrink.

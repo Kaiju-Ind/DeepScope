@@ -15,10 +15,13 @@ this file tracks what is being changed and why.
 - **Base:** branch `integrate/cross-browser-runtime`, started from PR #5
   (`origin/codex/ci-cache-and-stack-checks`, which contains PR #4) with
   `main` (b3f4467a) merged in. PR #5's privacy fixes are preserved.
-- **Authority:** owner decisions recorded below; engineering guidance from the
-  finance `.agents` skills (`review-code`, `plan-changes`, `build-web`,
-  `build-workflows`, `build-devtools`, `release-software`) and the Kaiju
-  project playbook (`agent-execution.md`, `engineering-ci.md`).
+- **Authority:** owner decisions recorded below; engineering guidance from
+  the skills in [`.agents/`](../../.agents/START.md) (`review-code`,
+  `plan-changes`, `build-extensions`, `build-web`, `build-workflows`,
+  `build-devtools`, `release-software`) and the
+  [Kaiju project playbook](../kaiju/README.md) (agent execution, engineering
+  and CI), routed by [`AGENTS.md`](../../AGENTS.md). Lessons from this plan
+  are kept in the [failure catalogue](../kaiju/failures/README.md).
 - **Authorization:** implement on this branch and commit locally. Pushing,
   opening pull requests, creating releases, and store submissions have not
   been authorized.

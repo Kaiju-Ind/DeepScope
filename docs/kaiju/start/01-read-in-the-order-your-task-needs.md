@@ -1,0 +1,20 @@
+# Read in the order your task needs
+
+The chapter names the procedure and its gates. The skills in `.agents/skills/` say how to do the engineering inside it;
+read each skill's entrypoint when the task reaches its decision.
+
+| Your task                                                        | Read                                                                                                                              | Skills that carry it out                         |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Understand the system and choose ownership or placement          | [Handbook](../handbook/README.md)                                                                                                 | `plan-changes`, `build-extensions`               |
+| Start a piece of work and identify owner actions immediately     | [Procedure P01](../procedures/01-p01-open-the-project-and-report-prerequisites.md), then [project template](../project/README.md) | `plan-changes`                                   |
+| Check a browser API, a store account or the release channel      | [Platform readiness](../platforms/README.md)                                                                                      | `build-extensions`, `verify-behavior`            |
+| Adopt or resync a shared utility                                 | [Vendored packages](../platforms/01-private-tooling-packages-and-runnable-artifacts.md)                                           | `use-utils`, `explore-ecosystems`                |
+| Give a reviewer a build they can load                            | [Procedure P03](../procedures/03-p03-deliver-a-usable-preview.md)                                                                 | `build-extensions`, `verify-behavior`            |
+| Release a reviewed commit                                        | [Procedure P04](../procedures/04-p04-promote-the-reviewed-candidate.md)                                                           | `release-software`                               |
+| Update a dependency, the vendored utilities or the catalog       | [Procedure P07](../procedures/07-p07-update-upstream-artifacts-and-dependencies.md)                                               | `explore-ecosystems`, `use-utils`                |
+| Diagnose a known failure                                         | [Failure catalogue](../failures/README.md)                                                                                        | `test-code`, `review-code`                       |
+| Keep an agent aligned through long work or a resumed session     | [Agent execution controls](../agents/README.md)                                                                                   | `plan-changes`                                   |
+| Improve CI, test discovery, caching, builds or package ownership | [Engineering changes and CI](../engineering/README.md), especially E03/E04                                                        | `build-devtools`, `test-code`, `benchmark-code`  |
+| Start a session on one CI, test, cache, build or utility task    | [Task prompts](../tasks/README.md)                                                                                                | `build-devtools`, `test-code`, `use-utils`       |
+| Write or improve a procedure                                     | [Procedure research](../procedures/writing/README.md)                                                                             | `write-docs`                                     |
+| Route an agent through this playbook                             | [Routing fragment](agents-fragment.md)                                                                                            |                                                  |
