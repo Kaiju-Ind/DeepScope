@@ -1,5 +1,11 @@
 # Detection rules layout
 
+## Provenance
+
+The catalog derives from Wappalyzer's technology fingerprint data. It was converted to this TypeScript format, and rules have been added and revised since. It is kept in sync with the Intelligence Registry (`packages/registry/catalog` in the Intelligence repository), which shares the same lineage and file layout. `scripts/registry/intelligence-diff.mjs` and `intelligence-convert.mjs` compare and port between the two; see `docs/registry/intelligence-diff.md`.
+
+## Layout
+
 Rules are organized by normalized category first, then by technology file:
 
 ```txt
