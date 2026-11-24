@@ -184,3 +184,39 @@ describe('routed DOM selector matching properties', () => {
 		}
 	});
 });
+
+describe('routed DOM selector matching regressions', () => {
+	it.each([
+		['an escaped tab', 'div id="a&#9;b"', '#a\\\tb'],
+		['a hex escape ended by a tab', 'div class="1a"', '.\\31\ta'],
+		['a hex escape ended by a newline', 'div class="1a"', '.\\31\na'],
+		['a hex escape ended by CRLF', 'div data-x="1b"', '[data-x=\\31\r\nb]'],
+		['an escaped line break in a string', 'div data-x="xy"', '[data-x="x\\\ny"]'],
+	])('matches a selector the parser misreads: %s', async (_name, tag, selector) => {
+		const plan = dom.create([selector]);
+		const document = parse(`<!doctype html><html><body><${tag}></div></body></html>`);
+		stub(document);
+
+		const { matches } = await scan(plan, document);
+
+		expect(truth(plan, document)).toEqual({ [selector]: true });
+		expect(matches).toEqual({ [selector]: true });
+	});
+
+	it('reads every attribute that shares one qualified name', async () => {
+		const selectors = ['.real', '[data-x="plain"]', '#plain'];
+		const plan = dom.create(selectors);
+		const document = parse('<!doctype html><html><body><div></div></body></html>');
+		const element = document.querySelector('div')!;
+		for (const name of ['class', 'data-x', 'id']) {
+			element.setAttributeNS('urn:x', name, 'other');
+			element.setAttributeNS(null, name, name === 'class' ? 'real' : 'plain');
+		}
+		stub(document);
+
+		const { matches } = await scan(plan, document);
+
+		expect(truth(plan, document)).toEqual({ '.real': true, '[data-x="plain"]': true, '#plain': true });
+		expect(matches).toEqual(truth(plan, document));
+	});
+});

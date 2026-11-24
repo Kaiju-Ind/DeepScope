@@ -122,7 +122,8 @@ let last: { readonly key: string; readonly route: RouteType } | undefined;
 export function get(selectors: readonly string[]): RouteType {
 	const known = byList.get(selectors);
 	if (known) return known;
-	const key = selectors.join('\n');
+	// JSON keeps `['a\nb']` and `['a', 'b']` distinct; a newline is valid selector whitespace.
+	const key = JSON.stringify(selectors);
 	const route = last?.key === key ? last.route : compile(selectors);
 	last = { key, route };
 	byList.set(selectors, route);
@@ -229,11 +230,30 @@ export function read(element: Element): SignalsType {
 	return { ...signals, ids, classes };
 }
 
-/** Return folded values for one folded attribute name, reading the DOM once. */
+/**
+ * Return folded values for one folded attribute name, reading the DOM once.
+ *
+ * `getAttribute(raw)` returns the first attribute with that qualified name and,
+ * on HTML elements, lowercases `raw` first. Both lose values when an element
+ * carries several attributes with one qualified name (for example a namespaced
+ * `class` added by `setAttributeNS()` before the plain one) or a mixed-case
+ * name set through `setAttributeNS(null, ...)`. Those rare cases read every
+ * `Attr` node instead, so routing still sees every value `matches()` can see.
+ */
 function values(signals: SignalsType, name: string): readonly string[] {
 	let result = signals.values.get(name);
 	if (result) return result;
-	result = (signals.names.get(name) ?? []).map((raw) => fold(signals.element.getAttribute(raw) ?? ''));
+	const raws = signals.names.get(name) ?? [];
+	const raw = raws[0];
+	if (raws.length === 1 && raw !== undefined && raw === name) {
+		result = [fold(signals.element.getAttribute(raw) ?? '')];
+	} else {
+		const list: string[] = [];
+		for (const attribute of signals.element.attributes) {
+			if (fold(attribute.name) === name) list.push(fold(attribute.value));
+		}
+		result = list;
+	}
 	signals.values.set(name, result);
 	return result;
 }
@@ -316,7 +336,26 @@ function compare(condition: TestType, value: string): boolean {
 	}
 }
 
-/** Parse one selector into routed branches; invalid selectors yield none. */
+/**
+ * Source text that postcss-selector-parser reads differently from CSS Syntax.
+ *
+ * CSS lets a hex escape end with any single whitespace and lets `\` escape a
+ * tab, so `.\31\ta` is the class `1a` and `#a\<tab>b` is the id `a<tab>b`.
+ * postcss-selector-parser ends those escapes early and reads a descendant
+ * combinator instead, which would make routing require the wrong subject.
+ * Escaped line breaks in strings, a trailing `\`, NUL, CR, FF, and lone
+ * surrogates are also normalized by CSS preprocessing but not by the parser.
+ */
+const DIVERGENT = /[\0\r\f]|\\(?:[0-9a-fA-F]{1,6})?(?:[\t\n]|$)|[\ud800-\udfff]/u;
+
+/**
+ * Parse one selector into routed branches; invalid selectors yield none.
+ *
+ * Invalid means postcss-selector-parser rejects it, which is the same test that
+ * marks a probe invalid in `plan.ts`, so no pending selector is ever dropped
+ * here. Selectors whose source the parser may misread get one condition-free
+ * branch and are checked on every element.
+ */
 function parse(selector: string): BranchType[] {
 	let root: selectorParser.Root;
 	try {
@@ -324,6 +363,7 @@ function parse(selector: string): BranchType[] {
 	} catch {
 		return [];
 	}
+	if (DIVERGENT.test(selector)) return [{ selector, classes: [], tests: [] }];
 	return root.nodes.map((branch) => reduce(selector, branch.nodes));
 }
 
