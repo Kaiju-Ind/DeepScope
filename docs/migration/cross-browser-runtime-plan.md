@@ -379,6 +379,19 @@ with site access revoked Firefox hides `tab.url` and the user sees the wrong
 error; a re-injected script leaves the old listener registered; snapshots
 record `offscreen-worker-pool` when background workers ran.
 
+**Routing correctness audit (independent, 2026-11-24).** Line-by-line
+soundness review, a property test (if `matches()` is true, routing must admit
+the selector), 30,000 jsdom and 10,000 Firefox fuzz cases, the full registry
+plus mutated variants in Firefox (22,257 matching pairs), and 36 live sites:
+0 lost matches on real pages or registry selectors; old build vs new build gave
+identical technology lists. Two holes in hand-written inputs were fixed:
+escapes postcss misparses (tab or newline after a hex escape, escaped line
+breaks) now fall back to checking every element, and duplicate or mixed-case
+attribute names set by script are read from every attribute node. Follow-up:
+a registry lint that rejects selectors postcss cannot parse but browsers
+accept (none in the registry today), and the pre-existing exact-case id/class
+check on the mutation path in quirks mode.
+
 **Safari was not verified.** SafariDriver needs Develop > Allow Remote
 Automation (or `safaridriver --enable`, which asks for an admin password),
 and the unsigned app built by `scripts/verify/safari-package.sh` needs
