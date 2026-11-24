@@ -2,6 +2,7 @@ import type { MatchObservationBatchInput, ObservationPatternMatch, ObservationPa
 import type { DetectionPatternType, DetectionRule, DetectionRunOptions, MatcherTechnologyType, PatternDetectionRule } from './types';
 import type { NormalizedObservation, NormalizedObservationKind } from '../observations';
 import { matchObservationRule } from './observation-matcher';
+import { scan, tableFor } from './match/literal';
 // Relative, not `@/`: the build-time registry module loads this file outside Vite's alias resolution.
 import * as dictionary from '../../utils/dictionary';
 
@@ -195,13 +196,13 @@ export function createObservationMatcherIndex(
 		}
 	}
 
-	return {
+	return prepareLiteralScanners({
 		technologyCount: registry.length,
 		ruleCount: sequence,
 		fallbackRules: freezeRuleBuckets(fallbackRules),
 		keyedRules: freezeKeyBuckets(keyedRules),
 		literalRules: freezeLiteralBuckets(literalRules),
-	};
+	});
 }
 
 /**
@@ -648,18 +649,31 @@ function findLiteralPrefilteredRules(
 		return { rules, rejectedCount: 0 };
 	}
 
+	// One scan of the value answers `value.includes(literal)` for every literal
+	// in the bucket at once (see `match/literal.ts` for the exactness argument).
 	const value = String(observation.value).toLowerCase();
+	const scanner = tableFor(rules);
+	const found = scan(scanner, value);
+	const ids = scanner.ids;
 	const matched: LiteralPrefilteredObservationRule[] = [];
 	let rejectedCount = 0;
-	for (const rule of rules) {
-		if (value.includes(rule.requiredLiteral)) {
-			matched.push(rule);
+	for (let position = 0; position < rules.length; position += 1) {
+		if (found[ids[position]!] === 1) {
+			matched.push(rules[position]!);
 		} else {
 			rejectedCount += 1;
 		}
 	}
 
 	return { rules: matched, rejectedCount };
+}
+
+/** Build every literal bucket's scanner now, so the first observation does not pay for it. */
+export function prepareLiteralScanners(index: ObservationMatcherIndex): ObservationMatcherIndex {
+	for (const rules of Object.values(index.literalRules)) {
+		if (rules && rules.length > 0) tableFor(rules);
+	}
+	return index;
 }
 
 /** Return exact routing keys in the same canonical form used when rules are indexed. */

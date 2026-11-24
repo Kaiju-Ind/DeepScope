@@ -1,5 +1,6 @@
 import {
 	createObservationMatcherIndex,
+	prepareLiteralScanners,
 	type IndexedObservationRule,
 	type LiteralPrefilteredObservationRule,
 	type ObservationMatcherIndex,
@@ -82,13 +83,13 @@ export function hydrateMatcherIndex(
 	technologies: readonly MatcherTechnologyType[],
 	packaged: PackagedMatcherIndex,
 ): ObservationMatcherIndex {
-	return {
+	return prepareLiteralScanners({
 		technologyCount: packaged.technologyCount,
 		ruleCount: packaged.ruleCount,
 		fallbackRules: hydrateRuleBuckets(packaged.fallbackRules, technologies),
 		keyedRules: hydrateKeyBuckets(packaged.keyedRules, technologies),
 		literalRules: hydrateLiteralBuckets(packaged.literalRules, technologies),
-	};
+	});
 }
 
 /** Internal lookup from the exact build-time rule object to its shard-local coordinates. */
@@ -208,9 +209,10 @@ function hydrateLiteralBuckets(
 ): ObservationMatcherIndex['literalRules'] {
 	return dictionary.fromEntries(Object.entries(buckets).map(([kind, rules]) => [
 		kind,
-		(rules ?? []).map((reference) => ({
+		// Frozen because the bucket's literal scanner is cached by array identity.
+		Object.freeze((rules ?? []).map((reference) => ({
 			...hydrateRule(reference, technologies),
 			requiredLiteral: reference.requiredLiteral ?? '',
-		})),
+		}))),
 	])) as ObservationMatcherIndex['literalRules'];
 }
