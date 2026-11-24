@@ -762,6 +762,15 @@ export async function runStress(session, harness, context) {
 	await delay(2000);
 	const sweep = await readWorld();
 	const byId = new Map([...tabs.values()].map((t) => [t.id, t]));
+	// A tab that failed its visit may have been slow rather than lost: say which.
+	for (const failure of failures.filter((f) => f.phase === 'final-visit')) {
+		const tab = sweep.find((t) => t.id === failure.tabId);
+		const current = tab && currentSnapshot(tab);
+		const expect = tab && expectation(tab.url, byId.get(tab.id)?.extras ?? []);
+		failure.laterSweep = !tab ? 'tab gone' : current && expect && expect.must.every((n) => current.names.includes(n))
+			? `results arrived after the visit timed out (badge ${tab.badge || 'blank'})`
+			: 'still no results for the current document';
+	}
 	for (const tab of sweep) {
 		if (!byId.has(tab.id) || tab.status !== 'complete') continue;
 		for (const problem of evaluateTab(tab, byId.get(tab.id))) fail(problem.invariant, { phase: 'final-sweep', tabId: tab.id, url: tab.url, ...problem.detail });

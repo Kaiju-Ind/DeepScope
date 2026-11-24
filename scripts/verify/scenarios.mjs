@@ -13,7 +13,7 @@ const EXPECTED = /canceled|navigated away|no longer owns|inspectable URL yet|^ta
 // Logged once each time the background page or worker starts.
 const BACKGROUND_START_EVENT = 'matcher-executor-selected';
 
-export const SCENARIOS = ['preinstall', 'active-load', 'background-tab', 'spa', 'real-sites', 'busy-page', 'navigate-mid-scan', 'close-mid-scan', 'idle-wake', 'panel-page', 'reinstall', 'restricted', 'heavy', 'history', 'nav-loop', 'reload-storm', 'stress', 'permission-revoked'];
+export const SCENARIOS = ['preinstall', 'active-load', 'background-tab', 'spa', 'real-sites', 'busy-page', 'navigate-mid-scan', 'close-mid-scan', 'idle-wake', 'panel-page', 'reinstall', 'restricted', 'heavy', 'history', 'nav-loop', 'reload-storm', 'spa-self-navigate', 'stress', 'permission-revoked'];
 
 /**
  * In-page helper every control-page script can call: the stored entries whose
@@ -377,6 +377,17 @@ export async function runScenarios(session, harness, context) {
 			if (loaded.timedOut) failures.push({ round, reloads: 1 + (round % 4), ...summarize(loaded.state, true) });
 		}
 		record('reload-storm-then-wait', failures.length === 0, { rounds: 8, failures });
+	}
+
+	if (want('spa-self-navigate')) {
+		// An app that changes its URL with pushState right after it loads (a
+		// redirect to /home, a router normalizing the path). The user opens it
+		// and waits; nothing else happens.
+		const since = Date.now();
+		await go(wpTab.id, `${origin}/spa-rewrite.html?views=2&every=300`);
+		await delay(3000);
+		const loaded = await waitForResults(wpTab.id, since, { url: `${origin}/spa-rewrite.html?view=2`, expect: ['Astro'], timeoutMs: 20_000 });
+		record('spa-self-navigate-after-load', !loaded.timedOut, summarize(loaded.state, loaded.timedOut));
 	}
 
 	if (want('stress')) {
