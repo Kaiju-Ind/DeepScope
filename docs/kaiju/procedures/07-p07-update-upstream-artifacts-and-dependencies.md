@@ -17,7 +17,7 @@ immediately and holds the Solid 2 major until Kobalte, Corvu and the Solid plugi
 proposes versions; it does not prove compatibility.
 
 **Vendored utilities.** Change `utils/sync.json` (base commit, overlays, entries), run
-`node scripts/utils/sync.ts --source <path to Kaiju-Ind/Utils checkout>`, then `pnpm install`, `pnpm compile` and
+`node tools/utils/sync.ts --source <path to Kaiju-Ind/Utils checkout>`, then `pnpm install`, `pnpm compile` and
 `pnpm vitest run --project utils`. Drop an overlay once its upstream pull request merges. See
 [`utils/README.md`](../../../utils/README.md#resync).
 

@@ -287,7 +287,7 @@ CI should run the repository's true check command with only required permissions
 For a committed artifact:
 
 ```sh
-node scripts/utils/sync.ts --check --source ../kaiju-utils
+node tools/utils/sync.ts --check --source ../kaiju-utils
 mise run test --project utils
 git diff --exit-code -- utils/
 ```

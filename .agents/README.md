@@ -33,7 +33,7 @@ the same pack; they hold nothing that this copy lacks and DeepScope needs.
 | Change | Skills |
 | --- | --- |
 | Kept and adapted | accessibility, benchmark-code, build-devtools, build-libraries, build-web, build-web-apps, build-workflows, commit-changes, design-interfaces, explore-ecosystems, plan-changes, prepare-pull-requests, refactor-code, release-software, review-code, shadcn, test-code, use-okikio, verify-behavior, write-docs |
-| Renamed | use-kaiju-utils is now use-utils: it covers the vendored `@utils/*` packages and `scripts/utils/sync.ts` instead of the private registry |
+| Renamed | use-kaiju-utils is now use-utils: it covers the vendored `@utils/*` packages and `tools/utils/sync.ts` instead of the private registry |
 | Added | build-extensions: Manifest V3 rules learned across Chrome, Firefox and Safari |
 
 Not taken, because DeepScope has no part they govern. Restore one from Crawl

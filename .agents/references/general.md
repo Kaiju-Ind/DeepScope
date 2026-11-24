@@ -131,7 +131,7 @@ Benchmark representative workloads. Preserve benchmark fixtures and configuratio
 
 Before adding a dependency or second tool path, inspect what the repository already selected for the concern. Reuse it when it directly supports the requirement.
 
-In DeepScope these include LogTape for diagnostics, `comctx` for typed messages between extension contexts, WXT for entrypoints and manifests, Oxc (`oxc-parser`) for source checks, Unplugin for icons, Mise for development tasks, WebDriver drivers in `scripts/verify/` for real-browser behavior, and Vitest for tests and benchmarks.
+In DeepScope these include LogTape for diagnostics, `comctx` for typed messages between extension contexts, WXT for entrypoints and manifests, Oxc (`oxc-parser`) for source checks, Unplugin for icons, Mise for development tasks, WebDriver drivers in `tools/verify/` for real-browser behavior, and Vitest for tests and benchmarks.
 
 These tools are not universal requirements. They are owners only where the repository has selected them.
 

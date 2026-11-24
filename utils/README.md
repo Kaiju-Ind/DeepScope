@@ -25,11 +25,12 @@ Each directory with a `package.json` is a pnpm workspace package
 (`pnpm-workspace.yaml` lists `utils/*`). A package is named `@utils/<package>`,
 is `private`, and its `exports` keep the upstream subpaths that were copied, so
 `@kaiju-ind/scheduler/queue` becomes `@utils/scheduler/queue`. Packages ship
-TypeScript source, which Vite (WXT), Vitest and `tsc` compile like `src/`.
+TypeScript source, which Vite (WXT), Vitest and `tsc` compile like the app source;
+`utils/tsconfig.json` type-checks the whole folder (including tests) on its own.
 
 Real package boundaries (rather than a path alias) keep each package's
 dependencies declared where they are used, let pnpm enforce them, and leave the
-packages publishable later. The root `package.json` depends only on the
+packages publishable later. `apps/extension/package.json` depends only on the
 packages DeepScope adopts; the others are reached through them.
 
 | Package | Role | Source lines | Test lines (files) |
@@ -87,7 +88,7 @@ Every copied `.ts` file starts with:
 
 ```ts
 // Vendored from Kaiju-Ind/Utils packages/<path> @ <commit>[ (PR #n)].
-// MIT (c) 2026 Okikio, see utils/LICENSE. Local changes: <none|description>. Resync: scripts/utils/sync.ts.
+// MIT (c) 2026 Okikio, see utils/LICENSE. Local changes: <none|description>. Resync: tools/utils/sync.ts.
 ```
 
 Copied READMEs start with an equivalent HTML comment. Apart from the header and
@@ -122,7 +123,7 @@ Temporal, without the alias.
 
 ## Tests
 
-The `utils` project in `vitest.config.ts` collects `utils/**/*.test.ts`, so
+The `utils` project in the root `vitest.config.ts` collects `utils/**/*.test.ts`, so
 `pnpm test` and `vitest run` run them with everything else. Upstream tests use
 `node:test` and `@std/expect`; the project aliases `node:test` to
 `vitest.node-test.ts`. Type tests (`types.test.ts`, `*.types.test.ts`) contain
@@ -140,7 +141,7 @@ sync script prints the list with the reason for each.
 ```sh
 git -C ../kaiju-utils fetch origin
 # edit utils/sync.json: base, overlays, entries, pinned versions
-node scripts/utils/sync.ts --source ../kaiju-utils
+node tools/utils/sync.ts --source ../kaiju-utils
 pnpm install && pnpm compile && pnpm vitest run --project utils
 ```
 

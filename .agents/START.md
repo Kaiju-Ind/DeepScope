@@ -41,7 +41,7 @@ Choose companions by changed decisions, not every technology mentioned.
 | Durable scan jobs, queues, replay, recovery after a background unload | `build-workflows` |
 | Reusable module API, exports, workspace packages and resource ownership | `build-libraries` |
 | Mise, CI, WXT build hooks, scripts, registry build and packaging mechanics | `build-devtools` |
-| Vendored utility packages (`@utils/*`) and `scripts/utils/sync.ts` | `use-utils` |
+| Vendored utility packages (`@utils/*`) and `tools/utils/sync.ts` | `use-utils` |
 | Okikio libraries such as `@okikio/observables` | `use-okikio` |
 | Material dependency comparison or integration | `explore-ecosystems` |
 | Renderer (Solid)/browser/focus/motion/asset execution in a panel surface | `build-web` |

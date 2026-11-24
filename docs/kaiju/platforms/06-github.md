@@ -12,7 +12,7 @@ provenance attestations and the same files pushed to ghcr.io as one OCI artifact
 - Choose runners. Release jobs stay on GitHub-hosted runners so provenance names GitHub's runner.
 - Update required status checks to the job names in [`docs/ci.md`](../../ci.md#required-checks-and-branch-settings).
 
-**Per release.** The tag equals the `package.json` version (`mise run release:check-version <tag>`). The `build` job
+**Per release.** The tag equals the `apps/extension/package.json` version (`mise run release:check-version <tag>`). The `build` job
 installs cold with no caches and runs `mise run check`, `mise run test`, `mise run release:archives` and
 `mise run lint:firefox`. Later jobs attest every file in `SHA256SUMS`, create a draft release with every asset, push and
 attest the OCI artifact, then publish the draft and run `gh release verify`.

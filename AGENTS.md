@@ -35,7 +35,7 @@ Always read [.agents/guides/software-quality.md](.agents/guides/software-quality
 | Plan or restructure work, move toward the monorepo layout        | `plan-changes`, `refactor-code`                          | [Handbook](docs/kaiju/handbook/README.md)                                          |
 | Extension contexts, manifests, messaging, badge, storage areas   | `build-extensions`                                       | [Platform readiness](docs/kaiju/platforms/README.md)                               |
 | Scan jobs, scheduler, queue, recovery after a background unload  | `build-workflows`, `use-utils`                           | [Agent execution](docs/kaiju/agents/README.md)                                     |
-| Vendored utilities (`@utils/*`), `scripts/utils/sync.ts`         | `use-utils`                                              | [Vendored packages](docs/kaiju/platforms/01-private-tooling-packages-and-runnable-artifacts.md) |
+| Vendored utilities (`@utils/*`), `tools/utils/sync.ts`           | `use-utils`                                              | [Vendored packages](docs/kaiju/platforms/01-private-tooling-packages-and-runnable-artifacts.md) |
 | Panel UI (side panel, sidebar, popup, full page, options)        | `build-web`, `build-web-apps`, `design-interfaces`       |                                                                                   |
 | `src/ui` primitives, accessibility                               | `shadcn`, `accessibility`                                |                                                                                   |
 | Registry catalog, compiler, artifacts and matcher                | `build-libraries`, `benchmark-code`                      | [Engineering and CI](docs/kaiju/engineering/README.md)                             |
@@ -55,22 +55,24 @@ Tools are pinned in `mise.toml` (pnpm 12, Node 26). Commands are thin Mise tasks
 | Command                                          | What it does                                                                     |
 | ------------------------------------------------ | -------------------------------------------------------------------------------- |
 | `mise install`, `mise exec -- pnpm install --frozen-lockfile` | Install tools and dependencies                                       |
-| `mise run check`                                 | Type-check (`tsc --noEmit`, TypeScript 7)                                         |
-| `mise run test`                                  | Vitest 5, every project (`runtime`, `utils`, `guidance`, `ui`); add `--project <name>` |
+| `mise run check`                                 | Type-check app, utils and tools (`tsc --noEmit` per project, TypeScript 7)        |
+| `mise run test`                                  | Vitest 5, every project (`extension (runtime)`, `extension (ui)`, `utils`, `guidance`); add `--project <name>` |
 | `mise run build <chrome\|firefox\|safari>`        | Unpacked Manifest V3 build in `.output/<browser>-mv3`                             |
 | `mise run zip <browser>`                         | Store archive (Firefox also emits a sources zip)                                  |
-| `mise run verify <firefox\|safari>`               | Real-browser scenarios against an existing build (`scripts/verify/README.md`)     |
+| `mise run verify <firefox\|safari>`               | Real-browser scenarios against an existing build (`tools/verify/README.md`)     |
 | `mise run lint:firefox`, `mise run lint:workflows` | `web-ext lint`; actionlint and zizmor                                           |
 | `mise run safari-project`                        | macOS: wrap the Safari build in an Xcode project                                  |
 | `mise run release:archives`, `release:check-version`, `release:push-oci`, `release:store-upload` | Release steps run by `release.yml` |
 
-Benchmarks run with `pnpm bench` and the `bench:rules*` scripts (Vitest `bench`, `src/benchmarks/*.bench.ts`).
+Benchmarks run with `pnpm bench` and the `bench:rules*` scripts (Vitest `bench`, `apps/extension/bench/*.bench.ts`).
 
-Layout today: `src/entrypoints/` (WXT entrypoints), `src/app/` (panel), `src/lib/` (extension capabilities),
-`src/registry/` (catalog), `src/ui/` (component catalogue), `src/utils/`, `src/tests/`, `utils/` (vendored `@utils/*`),
-`scripts/`, `modules/` (WXT modules), `docs/`. The planned direction is a monorepo: `apps/extension/` for the WXT app,
-`packages/{dom,registry,detection}` published as `@deepscope/*`, `utils/*` as `@utils/*`, `scripts/` becoming
-`tools/`, and `docs/adr/` for decisions. New code should fit that direction; see
+Layout: a pnpm workspace. `apps/extension/` is the WXT app (`@deepscope/extension`, the release version's source):
+`src/entrypoints/` (WXT entrypoints), `src/app/` (panel), `src/lib/` (extension capabilities), `src/registry/` (catalog),
+`src/ui/` (component catalogue), `src/utils/`, `src/tests/`, `bench/`, `modules/` (WXT modules), `public/`. Beside it:
+`utils/` (vendored `@utils/*`), `tools/` (verify, release, registry, utils sync, lint), `docs/`; build output stays in
+the root `.output/`. In this file, `src/` paths are under `apps/extension/`. The planned direction adds
+`packages/{dom,registry,detection}` as `@deepscope/*` and `docs/adr/` for decisions
+([monorepo plan](docs/migration/monorepo-plan.md)). New code should fit that direction; see
 [the source layout plan](docs/migration/source-layout-plan.md).
 
 ## Repository rules

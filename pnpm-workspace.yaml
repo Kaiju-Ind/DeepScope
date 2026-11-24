@@ -1,5 +1,7 @@
-# Vendored Kaiju Utils packages (@utils/*); see utils/README.md.
+# apps/*: the extension (@deepscope/extension). utils/*: vendored Kaiju Utils
+# packages (@utils/*); see utils/README.md.
 packages:
+  - apps/*
   - utils/*
 
 allowBuilds:

@@ -54,7 +54,7 @@ Layout today and the planned direction:
 | Capabilities | `src/lib/*` | `packages/{dom,registry,detection}` (`@deepscope/*`) |
 | Declarative definitions | `src/registry/` | `packages/registry` |
 | Composition | `src/entrypoints/`, `src/app/` | `apps/extension` (WXT) |
-| Project programs | `scripts/` | `tools/` |
+| Project programs | `tools/` | `tools/` |
 | Decisions | `docs/architecture/`, `docs/migration/` | `docs/adr/` |
 
 ## Core principle

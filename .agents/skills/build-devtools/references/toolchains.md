@@ -8,15 +8,15 @@ Before changing tooling, map the current owners:
 
 | Concern | Evidence to inspect | Typical owner examples |
 | --- | --- | --- |
-| Runtime and dependency graph | `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `mise.toml` `[tools]` | pnpm 12 and Node 26, pinned by Mise |
+| Runtime and dependency graph | root and `apps/extension/package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `mise.toml` `[tools]` | pnpm 12 and Node 26, pinned by Mise |
 | Task execution | `.mise/tasks/` file tasks, `package.json` scripts | Mise tasks that call pnpm scripts or the real tool |
-| Type checking | `tsconfig.json` (extends `.wxt/tsconfig.json`) | TypeScript 7 (`mise run check`) |
+| Type checking | `tsconfig.base.json`; `apps/extension/tsconfig.json` (adds `.wxt/tsconfig.json`), `utils/` and `tools/` tsconfigs | TypeScript 7 (`mise run check`) |
 | Lint and format | repository tasks/config | `web-ext lint` for Firefox builds, actionlint and zizmor for workflows |
-| Transform and bundle | `wxt.config.ts`, `modules/`, Rolldown | WXT 0.21 on Vite, Unplugin Icons, Tailwind |
-| Browser tests | `scripts/verify/` | WebDriver drivers for Firefox and Safari |
-| Package tests | `vitest.config.ts` projects | Vitest 5 (`runtime`, `utils`, `ui`) |
-| Benchmarks | `src/benchmarks/*.bench.ts` | Vitest `bench` |
-| Release | `.github/workflows/release.yml`, `.mise/tasks/release/*`, `scripts/release/` | per-browser zips, `SHA256SUMS`, attestations, ghcr, store uploads |
+| Transform and bundle | `apps/extension/wxt.config.ts`, `apps/extension/modules/`, Rolldown | WXT 0.21 on Vite, Unplugin Icons, Tailwind |
+| Browser tests | `tools/verify/` | WebDriver drivers for Firefox and Safari |
+| Package tests | root `vitest.config.ts` projects | Vitest 5 (`extension (runtime)`, `extension (ui)`, `utils`, `guidance`) |
+| Benchmarks | `apps/extension/bench/*.bench.ts` | Vitest `bench` |
+| Release | `.github/workflows/release.yml`, `.mise/tasks/release/*`, `tools/release/` | per-browser zips, `SHA256SUMS`, attestations, ghcr, store uploads |
 
 Do not infer the owner from a dependency name alone. Verify the task that actually runs in development and CI.
 
@@ -30,7 +30,7 @@ Good:
 Oxc
   lint + format + transform
 
-WebDriver drivers (scripts/verify)
+WebDriver drivers (tools/verify)
   real browser execution
 
 Vitest bench

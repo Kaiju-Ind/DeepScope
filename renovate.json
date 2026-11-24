@@ -36,6 +36,11 @@
       "pinDigests": true
     },
     {
+      "description": "Vendored Kaiju Utils pins are owned by tools/utils/sync.ts (utils/sync.json), not Renovate.",
+      "matchFileNames": ["utils/**"],
+      "enabled": false
+    },
+    {
       "description": "Solid 2 is held back until Kobalte, Corvu and the WXT Solid module support it (docs/migration/cross-browser-runtime-plan.md).",
       "matchPackageNames": ["solid-js"],
       "matchUpdateTypes": ["major"],

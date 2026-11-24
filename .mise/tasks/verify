@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-#MISE description="Run the real-browser scenarios against an existing build (see scripts/verify/README.md)"
+#MISE description="Run the real-browser scenarios against an existing build (see tools/verify/README.md)"
 #USAGE arg "<browser>" help="Browser to drive" {
 #USAGE   choices "firefox" "safari"
 #USAGE }
-#USAGE arg "[driver_args]..." help="Options for scripts/verify/<browser>.mjs, after --, e.g. -- --only active-load --stp"
+#USAGE arg "[driver_args]..." help="Options for tools/verify/<browser>.mjs, after --, e.g. -- --only active-load --stp"
 # Build first with `mise run build <browser>`. Safari needs the one-time
-# settings in scripts/verify/README.md; it exits 2 while they are missing.
+# settings in tools/verify/README.md; it exits 2 while they are missing.
 set -euo pipefail
 browser="${1:?}"
 shift
@@ -14,4 +14,4 @@ if [ "$browser" = firefox ] && [ -z "${GECKODRIVER:-}" ]; then
 	export GECKODRIVER
 fi
 [ "${1:-}" = -- ] && shift
-exec node "scripts/verify/$browser.mjs" "$@"
+exec node "tools/verify/$browser.mjs" "$@"

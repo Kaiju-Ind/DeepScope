@@ -6,7 +6,7 @@ secret as `WEB_EXT_API_KEY` and `WEB_EXT_API_SECRET` in the `addons-mozilla-org`
 
 **Procedure.** The Release workflow's `firefox-addons` job runs `mise run release:store-upload firefox <dir> <version>`,
 which calls `web-ext sign --channel listed` with the sources zip attached. AMO reviewers rebuild from that sources zip
-on Ubuntu 24.04 with `pnpm install --frozen-lockfile && pnpm exec wxt zip -b firefox --mv3`, so the build must be
+on Ubuntu 24.04 with `pnpm install --frozen-lockfile && pnpm zip:firefox`, so the build must be
 reproducible: no build timestamp, no network fetch during the build, deterministic output order. See
 [`docs/release/README.md`](../../release/README.md#reproducibility).
 

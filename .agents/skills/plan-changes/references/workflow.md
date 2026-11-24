@@ -62,7 +62,7 @@ entry points. Put substantial reusable logic in the appropriate package or a
 focused typed CLI, not a second `scripts/` or `.mise/lib/` task framework.
 In DeepScope, write such scripts in TypeScript or `.mjs` run by the pinned Node
 (`mise exec -- node script.ts`), and keep them in `.tmp/` unless they become a
-recurring project program (today `scripts/`, planned `tools/`).
+recurring project program (`tools/`).
 
 Prefer `node:` built-ins and the `@std/*` packages already in the manifest
 before adding a dependency for filesystem work, encodings, buffers,

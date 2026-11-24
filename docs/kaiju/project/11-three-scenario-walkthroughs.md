@@ -11,7 +11,7 @@ possible, `mise run verify safari`, and check Chrome's side panel by hand. Inclu
 touched.
 
 **A dependency or Utils update.** Read the upstream changes, update coupled packages together, run check, test and all
-builds. For Utils, resync with `scripts/utils/sync.ts` and run the `utils` Vitest project. Deliver a preview when runtime
+builds. For Utils, resync with `tools/utils/sync.ts` and run the `utils` Vitest project. Deliver a preview when runtime
 behavior can change.
 
 These are walkthroughs, not exercised procedures; label a run preview- or release-exercised only with its evidence.

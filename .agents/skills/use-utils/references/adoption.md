@@ -22,11 +22,11 @@ registry token and no `@kaiju-ind/*` dependency is ever added; one would break e
 2. Resync from a local Utils checkout and check the result:
 
    ```sh
-   node scripts/utils/sync.ts --source ../kaiju-utils
+   node tools/utils/sync.ts --source ../kaiju-utils
    mise exec -- pnpm install && mise run check && mise run test --project utils
    ```
 
-3. `node scripts/utils/sync.ts --check` writes nothing and fails when `utils/` differs from a fresh sync. Run it
+3. `node tools/utils/sync.ts --check` writes nothing and fails when `utils/` differs from a fresh sync. Run it
    before reviewing a change to vendored files.
 4. Keep the attribution header on every copied file and the MIT `utils/LICENSE`. Never hand-edit a vendored file; a
    needed change goes in `utils/patches/*.patch` and `utils/sync.json#patches`, and is proposed upstream.

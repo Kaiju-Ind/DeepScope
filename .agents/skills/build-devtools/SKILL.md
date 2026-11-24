@@ -47,9 +47,10 @@ the shared quality contract owns overall completion. `build-libraries` owns
 reusable programming models. `build-extensions` owns manifests, browser targets
 and store packages. This skill owns toolchain, generation, scripts, release
 automation, and development-workflow mechanics. In DeepScope that means
-`mise.toml` and `.mise/tasks/`, `wxt.config.ts` and `modules/`,
-`vitest.config.ts`, the GitHub workflows, and the project programs in
-`scripts/` (planned to move to `tools/`).
+`mise.toml` and `.mise/tasks/`, `apps/extension/wxt.config.ts` and
+`apps/extension/modules/`, the root and app `vitest.config.ts`, the workspace
+manifests and tsconfigs, the GitHub workflows, and the project programs in
+`tools/`.
 
 ## Evidence preflight
 
@@ -86,7 +87,7 @@ another tool that overlaps the same responsibility.
 3. **Mise is repository task/tool authority only when selected.** Pin tools and
    keep task semantics in `.mise/tasks/`/configuration as the repository
    defines. Do not add a parallel task framework just because an agent
-   prefers it; `scripts/` holds programs that tasks call, not tasks.
+   prefers it; `tools/` holds programs that tasks call, not tasks.
 4. **Generators have explicit ownership.** Separate generated-only files,
    human-owned files, and mixed-ownership regions. Mixed files require bounded,
    source-preserving edits or generated markers. Never reformat an entire

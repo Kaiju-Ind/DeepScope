@@ -60,7 +60,10 @@ library guide lists that as a failure signature).
 1. **M1 (after cleanup Phase A merges, before Phase B/C):** move the app into
    `apps/extension/` and `scripts/` into `tools/`, with config edits only. Gate:
    check, tests, three zips, identical zip file lists, a byte-identical rebuild
-   from the unzipped sources zip, `web-ext lint`, a release dry run.
+   from the unzipped sources zip, `web-ext lint`, a release dry run. *Done*: app
+   Vitest projects run as `extension (runtime)` and `extension (ui)`; the root
+   keeps delegating `build`/`zip:*` scripts; the sync header template and the
+   `utils/**/*.ts` headers still say `scripts/utils/sync.ts` (change both in one resync).
 2. **Phase B/C** (file splits, short names) inside `apps/extension/src`.
 3. **M2:** extract `@deepscope/dom` after the content-script lane merges.
 4. **M3:** break the cycles, one behaviour-neutral commit each (`ExtensionError`

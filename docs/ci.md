@@ -14,26 +14,27 @@ reproduced with the command shown in the failing step.
 
 Tools are pinned in the root `mise.toml` (Node, pnpm). Task files under
 `.mise/tasks/` are thin wrappers that pass arguments to the package scripts or
-native tools; `package.json` scripts stay the owner of what "compile" and
-"test" mean.
+native tools; the root `package.json` scripts stay the owner of what "compile"
+and "test" mean, delegating to `apps/extension` (`@deepscope/extension`) where
+the app owns the command.
 
 | Command | Runs |
 | --- | --- |
-| `mise run check` | `pnpm run compile` (`tsc --noEmit`) |
-| `mise run test [vitest args]` | `pnpm run test:run` — Vitest discovers every test through the `runtime` and `ui` projects in `vitest.config.ts` |
-| `mise run build <chrome\|firefox\|safari>` | `wxt build -b <browser> --mv3` into `.output/<browser>-mv3` |
+| `mise run check` | `pnpm run compile` (`tsc --noEmit` for `apps/extension`, `utils`, `tools` and the root config files) |
+| `mise run test [vitest args]` | `pnpm run test:run` — Vitest discovers every test through the projects in the root `vitest.config.ts` (`apps/extension` contributes `extension (runtime)` and `extension (ui)`) |
+| `mise run build <chrome\|firefox\|safari>` | `wxt build -b <browser> --mv3` in `apps/extension`, into the root `.output/<browser>-mv3` |
 | `mise run zip <chrome\|firefox\|safari>` | `wxt zip -b <browser> --mv3`; Firefox also writes a sources zip |
 | `mise run lint:firefox [dir]` | Mozilla `web-ext lint` on an unpacked Firefox build |
 | `mise run lint:workflows` | `actionlint` and `zizmor --offline` on `.github/` |
 | `mise run release:archives [browsers]` | zips each browser, then writes release-named archives and `SHA256SUMS` to `.output/release` |
-| `mise run release:check-version <tag>` | fails unless the tag equals the `package.json` version |
+| `mise run release:check-version <tag>` | fails unless the tag equals the `apps/extension/package.json` version |
 | `mise run safari-project` | macOS only: wraps the Safari build in an Xcode project and builds it unsigned |
 
 `--mv3` is passed explicitly because WXT 0.21 builds Firefox and Safari as MV2
 unless `wxt.config.ts` sets `manifestVersion: 3`. It is harmless once it does.
 
 No task lists individual test, source or benchmark files. A new test under
-`src/tests/` is picked up by Vitest without editing any task or workflow.
+`apps/extension/src/tests/` is picked up by Vitest without editing any task or workflow.
 
 ## Verify workflow
 
@@ -96,7 +97,7 @@ Cache layers and their owners:
 | release archives | release workflow artifact | release `build` job | later release jobs |
 
 The pnpm key is `deepscope-pnpm-v2-<os>-<arch>-<node>-<pnpm>-<hash of mise.toml,
-mise.lock, pnpm-lock.yaml, pnpm-workspace.yaml, package.json>`. `prepare`
+mise.lock, pnpm-lock.yaml, pnpm-workspace.yaml and every workspace package.json>`. `prepare`
 recomputes it after a successful install and saves only a miss whose inputs did
 not change. A cache failure never skips the frozen install.
 

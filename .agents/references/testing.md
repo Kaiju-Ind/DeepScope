@@ -14,8 +14,8 @@ Use:
 - Vitest for `describe`, `it`, lifecycle hooks and expectations. `vitest.config.ts` has three projects that discover files by glob: `runtime` (`src/tests/**`, Node environment), `ui` (`src/tests/app/**`, with the Solid transform) and `utils` (`utils/**/*.test.ts`);
 - `fast-check` (through `@fast-check/vitest`) for high-value properties and adversarial generated inputs;
 - `fake-indexeddb` for IndexedDB stores, and jsdom where a DOM is needed;
-- the real browsers for extension behavior: `mise run verify firefox|safari` (WebDriver scenarios in `scripts/verify/`) and a loaded unpacked build for Chrome;
-- Vitest `bench` for benchmarks (`src/benchmarks/*.bench.ts`).
+- the real browsers for extension behavior: `mise run verify firefox|safari` (WebDriver scenarios in `tools/verify/`) and a loaded unpacked build for Chrome;
+- Vitest `bench` for benchmarks (`apps/extension/bench/*.bench.ts`).
 
 The vendored `utils/` tests keep their upstream `node:test` and `@std/expect` imports; `utils/vitest.node-test.ts` maps `node:test` onto Vitest. Do not rewrite them, and do not create duplicate test implementations.
 
@@ -105,7 +105,7 @@ A property needs an independent oracle or invariant. Do not generate the expecte
 
 ## Browser tests
 
-Use the real browsers for actual browser and extension APIs instead of reproducing browser policy in Node. DeepScope's drivers speak WebDriver directly (`scripts/verify/`); Safari needs Remote Automation and an unsigned-extension setting first.
+Use the real browsers for actual browser and extension APIs instead of reproducing browser policy in Node. DeepScope's drivers speak WebDriver directly (`tools/verify/`); Safari needs Remote Automation and an unsigned-extension setting first.
 
 Probe capabilities rather than hard-code browser brand assumptions. Test fresh and persistent contexts when persistence matters. Use real workers, iframes, service workers, event pages, user activation, storage, private windows or permission flows where those are part of the contract.
 

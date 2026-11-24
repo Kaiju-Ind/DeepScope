@@ -8,7 +8,7 @@ Two questions are separate: who owns a piece of code (its artifact strategy), an
 | Strategy                 | What DeepScope maintains                                              | How an update arrives                                   | First checks                                                  |
 | ------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------- |
 | npm dependency           | The exact pin, the lockfile and the integration tests                 | A Renovate pull request                                 | Public exports, browser support, bundle cost, licence         |
-| Vendored `@utils/*`      | The copy, its attribution and DeepScope's own files beside it         | `scripts/utils/sync.ts` from Kaiju-Ind/Utils            | The sync source commit, `--check`, the `utils` Vitest project |
+| Vendored `@utils/*`      | The copy, its attribution and DeepScope's own files beside it         | `tools/utils/sync.ts` from Kaiju-Ind/Utils            | The sync source commit, `--check`, the `utils` Vitest project |
 | Owned source             | Behavior, tests and docs                                              | Ordinary commits                                        | Types, tests, three browser builds, real-browser scenarios    |
 | Catalog data             | `src/registry/` technology definitions derived from upstream data    | Edits or an upstream data import                        | Provenance and licence, golden matcher output, unsafe patterns |
 | Generated output         | Nothing by hand: registry JSON, `.wxt/`, `.output/`                   | The build                                               | Byte-identical rebuild, no committed output                   |
@@ -37,12 +37,12 @@ Node.
 
 ## Layout today and the planned direction
 
-Today the WXT app is at the root: `src/entrypoints/`, `src/app/`, `src/lib/`, `src/registry/`, `src/utils/`,
-`src/tests/`, with `modules/` (WXT modules), `scripts/` (registry, release, utils sync and verify scripts), `utils/`
-(vendored `@utils/*`) and `docs/architecture/`.
+The repository is a pnpm workspace. The WXT app is `apps/extension/` (`@deepscope/extension`): `src/entrypoints/`,
+`src/app/`, `src/lib/`, `src/registry/`, `src/utils/`, `src/tests/`, `bench/` and `modules/` (WXT modules). Beside it
+sit `utils/` (vendored `@utils/*`), `tools/` (registry, release, utils sync, verify and lint programs) and
+`docs/architecture/`.
 
-The planned monorepo moves the WXT app to `apps/extension/`, splits DeepScope's reusable code into `packages/dom`,
-`packages/registry` and `packages/detection` (published as `@deepscope/*`), keeps `utils/*` as `@utils/*`, renames
-`scripts/` to `tools/`, and adds `docs/adr/` for decisions. New code should already respect those boundaries: no
+The planned monorepo splits DeepScope's reusable code into `packages/dom`, `packages/registry` and
+`packages/detection` (published as `@deepscope/*`), keeps `utils/*` as `@utils/*`, and adds `docs/adr/` for decisions. New code should already respect those boundaries: no
 browser API in what will become a package, and no app import from library code. The
 [source layout plan](../../migration/source-layout-plan.md) has the module rules.

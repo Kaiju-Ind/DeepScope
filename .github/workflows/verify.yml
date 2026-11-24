@@ -56,7 +56,7 @@ jobs:
         shell: bash
         env:
           CACHE_PLATFORM: ${{ runner.os }}-${{ runner.arch }}
-          CACHE_INPUTS: ${{ hashFiles('mise.toml', 'mise.lock', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json') }}
+          CACHE_INPUTS: ${{ hashFiles('mise.toml', 'mise.lock', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', 'apps/*/package.json', 'utils/*/package.json') }}
         run: |
           printf 'key=deepscope-pnpm-v2-%s-%s-%s-%s\n' "$CACHE_PLATFORM" \
             "$(mise exec -- node --version)" "$(mise exec -- pnpm --version)" "$CACHE_INPUTS" >> "$GITHUB_OUTPUT"
@@ -96,7 +96,7 @@ jobs:
           persist-credentials: false
       - name: Install toolchain and dependencies
         uses: ./.github/actions/setup
-      # Vitest discovers every runtime and ui project test from vitest.config.ts.
+      # Vitest discovers every workspace project test from the root vitest.config.ts.
       - name: Run tests
         run: mise run test
 

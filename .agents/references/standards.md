@@ -312,7 +312,7 @@ generated-file churn.
 Use repository placement to preserve ownership. The example below describes
 one application layout; it does not reserve `packages/` for domain code. The
 Kaiju Utils workspace owns generic mechanisms upstream; DeepScope vendors the
-ones it uses into `utils/` as `@utils/*` (resynced with `scripts/utils/sync.ts`)
+ones it uses into `utils/` as `@utils/*` (resynced with `tools/utils/sync.ts`)
 so it never depends on a private package. Do not write a second local copy of a
 vendored capability.
 

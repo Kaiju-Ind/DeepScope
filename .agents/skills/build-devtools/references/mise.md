@@ -24,7 +24,7 @@ File tasks live in `.mise/tasks/`; a subfolder becomes a `:` prefix
 | `test` | `pnpm run test:run`: every Vitest project, discovered from `vitest.config.ts` |
 | `build <browser>` | `wxt build -b <browser> --mv3` into `.output/<browser>-mv3` |
 | `zip <browser>` | `wxt zip -b <browser> --mv3` (Firefox also writes a sources zip) |
-| `verify <browser>` | real-browser scenarios in `scripts/verify/` against an existing build |
+| `verify <browser>` | real-browser scenarios in `tools/verify/` against an existing build |
 | `safari-project` | macOS only: wrap a Safari build in an Xcode project and build it unsigned |
 | `lint:firefox`, `lint:workflows` | `web-ext lint`; actionlint and zizmor |
 | `release:archives`, `release:check-version`, `release:push-oci`, `release:store-upload` | release steps used by `.github/workflows/release.yml` |
@@ -35,7 +35,7 @@ File tasks live in `.mise/tasks/`; a subfolder becomes a `:` prefix
   specs; read them with `mise tasks` or `mise run <task> --help` before binding
   a procedure to a command.
 - Pass extra arguments through instead of adding a flag per use
-  (`mise run test --project runtime`).
+  (`mise run test --project 'extension (runtime)'`).
 - CI calls the same tasks as a developer. If CI needs a different step, the
   difference is a defect or a documented exception.
 - `--mv3` is explicit in build and zip because WXT 0.21 builds Firefox and

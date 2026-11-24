@@ -18,8 +18,8 @@ Regenerate the diff with:
 
 ```sh
 git -C ../Intelligence archive origin/main packages/registry | tar -x -C /tmp/intel
-node scripts/registry/intelligence-diff.mjs --intelligence /tmp/intel/packages/registry --out /tmp/diff.md
-node scripts/registry/intelligence-convert.mjs --intelligence /tmp/intel/packages/registry --compare
+node tools/registry/intelligence-diff.mjs --intelligence /tmp/intel/packages/registry --out /tmp/diff.md
+node tools/registry/intelligence-convert.mjs --intelligence /tmp/intel/packages/registry --compare
 ```
 
 | | DeepScope before | Intelligence |
@@ -42,7 +42,7 @@ node scripts/registry/intelligence-convert.mjs --intelligence /tmp/intel/package
 
 ## Detection mistakes found, and fixes
 
-Audit scripts are in `scripts/registry/`. Run `wxt prepare` first.
+Audit scripts are in `tools/registry/`. Run `wxt prepare` first.
 
 | Pattern | Evidence | Fix |
 | --- | --- | --- |

@@ -42,7 +42,7 @@ export interface Finding {
 export const GUIDANCE = /^(AGENTS\.md|CLAUDE\.md|\.agents\/.+\.md|docs\/kaiju\/.+\.md)$/u;
 
 /** Source and manifest files whose package names the authority check reads. */
-export const SOURCES = /^(package\.json|(src|utils|tools)\/.+\.(ts|tsx|json))$/u;
+export const SOURCES = /^((apps\/[^/]+\/)?package\.json|(apps\/[^/]+\/src|utils|tools)\/.+\.(ts|tsx|json))$/u;
 
 /**
  * The libraries that Okikio maintains outside Kaiju-Ind/Utils. Any other `@okikio/<name>` is either a utility package

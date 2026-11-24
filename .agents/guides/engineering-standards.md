@@ -1060,7 +1060,7 @@ Use `fast-check` when generated adversarial inputs can prove an invariant.
 
 Use the real browsers for actual extension behavior (`mise run verify firefox|safari`, WebDriver; Chrome through a loaded unpacked build).
 
-Use Vitest `bench` for benchmarks (`src/benchmarks/*.bench.ts`).
+Use Vitest `bench` for benchmarks (`apps/extension/bench/*.bench.ts`).
 
 Do not replace a deliberate local runner only for stylistic consistency.
 
@@ -1227,9 +1227,8 @@ Canonical repository tests should remain in the repository's normal test archite
 
 Do not grow a root `scripts/` dumping directory for normal developer
 operations. Use `.mise/tasks/` for repository tasks when Mise is the selected
-task runner. DeepScope's project-owned programs live in `scripts/` today
-(registry, release, utils sync, browser verification) and are planned to move
-to `tools/`; a task invokes them, it does not reimplement them. Prefer short shell file tasks that directly invoke the real tool
+task runner. DeepScope's project-owned programs live in `tools/`
+(registry, release, utils sync, browser verification, guidance lint); a task invokes them, it does not reimplement them. Prefer short shell file tasks that directly invoke the real tool
 or project-owned CLI. Do not create another task planner or `.mise/lib/`
 application around them. Required GitHub checks should guard failures relevant
 to the changed source or artifact; benchmarking and production apply are

@@ -22,9 +22,9 @@ The same five files are pushed as one OCI artifact to
 
 ## Cutting a release
 
-1. Update `version` in `package.json` (and the `version` in `wxt.config.ts`
-   while it is still hard-coded there; the release fails if any built manifest
-   disagrees with `package.json`).
+1. Update `version` in `apps/extension/package.json`, the single source:
+   `apps/extension/wxt.config.ts` reads it for every manifest, and the release
+   fails if any built manifest disagrees with it.
 2. Optionally add a `## <version>` (or `## [<version>]`) section to
    `CHANGELOG.md`. It becomes the release notes; without it GitHub generates
    notes from merged PRs.
@@ -110,7 +110,9 @@ the secrets. Values come from the store consoles; nothing here supplies them.
 - **addons.mozilla.org**: `web-ext sign --channel listed` with the sources zip
   attached. Create the listing by hand for the first version. AMO reviewers
   rebuild from the sources zip on Ubuntu 24.04 with Node 24 using
-  `pnpm install --frozen-lockfile && pnpm exec wxt zip -b firefox --mv3`; the
+  `pnpm install --frozen-lockfile && pnpm zip:firefox` (a root script that runs
+  `wxt zip -b firefox --mv3` in `apps/extension`, since `.mise/` is not in the
+  sources zip); the
   build must reproduce the submitted files (see *Reproducibility*).
 - **Safari / App Store Connect**: Apple requires a signed app wrapper. The job
   generates the Xcode project with `xcrun safari-web-extension-packager` on
@@ -130,9 +132,9 @@ full `mise run release:archives chrome firefox safari` runs gave the same
 - The build id is the version plus the commit (`DEEPSCOPE_SOURCE_COMMIT`, else
   `GITHUB_SHA`, else `local`); nothing reads the clock.
 - Registry files carry no build timestamp
-  (`src/tests/registry/reproducible-assets.test.ts` builds the catalog twice).
+  (`apps/extension/src/tests/registry/reproducible-assets.test.ts` builds the catalog twice).
 - Fonts come from pinned npm packages, declared by hand in
-  `src/styles/fonts.css`, so no CDN download decides their order.
+  `apps/extension/src/styles/fonts.css`, so no CDN download decides their order.
 - WXT sorts zip entries and writes no timestamps.
 
 The release job still exports `SOURCE_DATE_EPOCH` for any tool that honours it.

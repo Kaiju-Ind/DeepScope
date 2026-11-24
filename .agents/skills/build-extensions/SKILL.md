@@ -108,7 +108,7 @@ A change to extension behaviour is not complete until `mise run check` and
 `mise run lint:firefox` passes for Firefox changes, and the affected scenario
 has been run in the real browser (`mise run verify firefox`, Chrome by hand or
 `pnpm validate:chrome-artifact`; Safari needs the one-time settings in
-`scripts/verify/README.md`). Report each browser as passed, failed, blocked or
+`tools/verify/README.md`). Report each browser as passed, failed, blocked or
 not checked; a passing Chrome check says nothing about Firefox or Safari.
 
 ## Kaiju projects

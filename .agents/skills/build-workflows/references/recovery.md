@@ -189,5 +189,5 @@ consequence, visible audit evidence, and a finite terminal/manual state.
 - Extension background lifetimes: Chrome service worker lifecycle
   (https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)
   and Firefox event pages (https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/Background_scripts);
-  DeepScope's restart drill is in `scripts/verify/` (background unload after
+  DeepScope's restart drill is in `tools/verify/` (background unload after
   30 s idle, then wake).

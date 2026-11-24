@@ -6,7 +6,7 @@ Automation (or `safaridriver --enable`, which asks for an admin password); an un
 Unsigned Extensions, which resets each launch, plus the extension enabled and website access granted. BiDi
 `webExtension.install` is not implemented (WebKit bug 288348); Safari 26 supports the classic WebDriver install command.
 *Repair:* `mise run verify safari` checks the settings and exits with code 2 naming the missing step;
-`scripts/verify/safari-package.sh` builds an ad-hoc signed app as a fallback. *Prevention:* list these as owner actions
+`tools/verify/safari-package.sh` builds an ad-hoc signed app as a fallback. *Prevention:* list these as owner actions
 at intake ([Safari card](../platforms/05-safari.md)). *Open:* Safari has not yet been verified end to end.
 
 **DS-12 A Mise task cache stored a result but never restored it.** *Symptom:* CI reported `cache miss` and re-ran

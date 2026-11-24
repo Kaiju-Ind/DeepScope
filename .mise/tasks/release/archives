@@ -9,4 +9,4 @@ read -r -a browsers <<< "${usage_browser:-chrome firefox safari}"
 for browser in "${browsers[@]}"; do
   mise run zip "$browser"
 done
-exec node scripts/release/archives.mjs collect --out "${usage_out:?}" "${browsers[@]}"
+exec node tools/release/archives.mjs collect --out "${usage_out:?}" "${browsers[@]}"

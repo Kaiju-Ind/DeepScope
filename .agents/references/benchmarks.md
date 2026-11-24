@@ -2,7 +2,7 @@
 
 Use benchmarks to answer a concrete performance question. A benchmark is not useful because it produces a number. It is useful when its workload, baseline, measurement method, and interpretation are close enough to the real decision that the result can guide engineering work.
 
-DeepScope uses Vitest 5 `bench` (`src/benchmarks/*.bench.ts`, run with `pnpm bench` or the `bench:rules*` scripts). Follow the repository-selected owner instead of creating parallel benchmark stacks.
+DeepScope uses Vitest 5 `bench` (`apps/extension/bench/*.bench.ts`, run with `pnpm bench` or the `bench:rules*` scripts). Follow the repository-selected owner instead of creating parallel benchmark stacks.
 
 ## Start with the claim
 

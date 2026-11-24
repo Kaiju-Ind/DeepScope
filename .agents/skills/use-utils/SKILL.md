@@ -1,6 +1,6 @@
 ---
 name: use-utils
-description: Select, adopt, verify, resync or debug the vendored utility packages (`@utils/*` in `utils/`, copied from Kaiju-Ind/Utils) before writing a generic utility. Use for context, task, activity, workflow and history, dispatch, scheduler capacity and queue, pool, worker threads and protocol, IndexedDB and memory stores, result, failure and fault, duration and Temporal, dispose, schema, collection, telemetry and capability, and for `scripts/utils/sync.ts`.
+description: Select, adopt, verify, resync or debug the vendored utility packages (`@utils/*` in `utils/`, copied from Kaiju-Ind/Utils) before writing a generic utility. Use for context, task, activity, workflow and history, dispatch, scheduler capacity and queue, pool, worker threads and protocol, IndexedDB and memory stores, result, failure and fault, duration and Temporal, dispose, schema, collection, telemetry and capability, and for `tools/utils/sync.ts`.
 ---
 
 # Use the vendored utility packages
@@ -25,7 +25,7 @@ still owns its design and verdict.
 DeepScope's generic utilities come from the `@utils/*` workspace packages in
 [`utils/`](../../../utils/README.md). They are copied from Kaiju-Ind/Utils
 (MIT) at a recorded commit, renamed from the upstream `@kaiju-ind/*` scope, and
-resynced with `scripts/utils/sync.ts`, so the public repository builds and
+resynced with `tools/utils/sync.ts`, so the public repository builds and
 publishes without access to private packages.
 
 1. Before you write a generic utility, find its owner in the
@@ -89,7 +89,7 @@ Watch for:
 ## Completion gate
 
 Do not call a utility integration complete until the import is a public subpath
-of the vendored package, `node scripts/utils/sync.ts --check` passes when
+of the vendored package, `node tools/utils/sync.ts --check` passes when
 vendored files changed, the ownership and cleanup model is intact, and the main
 and failure paths are tested under the Vitest project that owns the code.
 

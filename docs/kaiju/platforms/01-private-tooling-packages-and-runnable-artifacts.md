@@ -8,8 +8,8 @@ and overlays, the local files and the resync steps. The `use-utils` skill says h
 **Rules.**
 
 1. Never add a `@kaiju-ind/*` dependency, registry route or token. A utility that DeepScope needs is vendored.
-2. Do not patch a vendored file by hand. Change it upstream and resync with `scripts/utils/sync.ts`, or record a patch in
-   `utils/sync.json#patches` and `utils/patches/`. `node scripts/utils/sync.ts --check` fails when `utils/` differs
+2. Do not patch a vendored file by hand. Change it upstream and resync with `tools/utils/sync.ts`, or record a patch in
+   `utils/sync.json#patches` and `utils/patches/`. `node tools/utils/sync.ts --check` fails when `utils/` differs
    from a fresh sync.
 3. DeepScope's own files under `utils/` (the browser stores, the queue conformance suite, native Temporal) carry no
    vendored header and say so in their first comment.
@@ -25,4 +25,4 @@ the Verify workflow run for the commit. **Invalidated by** a resync, a new utili
 lockfile change.
 
 The planned monorepo keeps this shape: `utils/*` stay `@utils/*`, DeepScope's own packages become `@deepscope/*` under
-`packages/`, and the sync script moves with `scripts/` to `tools/`.
+`packages/`, and the sync script lives at `tools/utils/sync.ts`.

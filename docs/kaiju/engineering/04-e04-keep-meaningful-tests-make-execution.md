@@ -17,7 +17,7 @@ local time or leaked resources. Re-run all relevant tests with real cleanup, fai
 results.
 
 Use runner-native file discovery and shard selection instead of passing every current file path manually. Vitest
-discovers files from each project's globs, and `--shard` splits test **files**; `mise run test --project runtime` selects
+discovers files from each project's globs, and `--shard` splits test **files**; `mise run test --project 'extension (runtime)'` selects
 a project. Filter by affected package, import graph or stable test pattern, then let the runner
 enumerate files within that scope. For benchmark shards, keep measurement samples fresh, group comparable workloads and
 document CPU contention, warmup, isolation and sample count. Do not equate greater shard count with lower cost.

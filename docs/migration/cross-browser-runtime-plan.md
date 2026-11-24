@@ -189,7 +189,7 @@ Milestone 2 notes:
 - PR #5's autostart controller was kept as is (it already coalesces one active
   and one pending scan per tab). The perf branch's controller, and with it the
   shadowing `generation` parameter, was not brought over.
-- The perf branch's `src/benchmarks/registry-json-hydration.bench.ts` deletion
+- The perf branch's `apps/extension/bench/registry-json-hydration.bench.ts` deletion
   was not taken; the APIs it measures still exist.
 - Panel requests may set `follow: 'pinned'` to target an inactive tab (for the
   full-page surface). The default still requires the active tab.
@@ -378,8 +378,8 @@ license and NOTICE, or rewrite the copied text.
 
 ## Real-browser verification (2026-11-23)
 
-Driver: `scripts/verify/firefox.mjs` (WebDriver, no dependencies; see
-`scripts/verify/README.md`). Firefox 160 headless passed: tabs open before
+Driver: `tools/verify/firefox.mjs` (WebDriver, no dependencies; see
+`tools/verify/README.md`). Firefox 160 headless passed: tabs open before
 install, active and background loads, SPA navigation, navigation and tab close
 mid-scan, background unload after 30 s idle and wake, add-on upgrade with
 open tabs, back/forward cache, full page, and real sites (example.com,
@@ -414,7 +414,7 @@ check on the mutation path in quirks mode.
 
 **Safari was not verified.** SafariDriver needs Develop > Allow Remote
 Automation (or `safaridriver --enable`, which asks for an admin password),
-and the unsigned app built by `scripts/verify/safari-package.sh` needs
+and the unsigned app built by `tools/verify/safari-package.sh` needs
 Develop > Allow Unsigned Extensions (resets each launch) plus enabling the
 extension and granting site access. WebDriver cannot install extensions in
 Safari yet (WebKit bug 288348).

@@ -1,6 +1,7 @@
 # Component and ownership map
 
-Record each extension context the work touches, even when contexts share code.
+Record each extension context the work touches, even when contexts share code. `src/`, `modules/` and `bench/` paths
+below are under `apps/extension/`.
 
 | Context or component         | Source today                                       | Planned home                         | Owner and rules                                             |
 | ---------------------------- | -------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------- |
@@ -11,7 +12,7 @@ Record each extension context the work touches, even when contexts share code.
 | Panel surfaces               | `src/app/`, `src/ui/`                              | `apps/extension/`                    | Renders snapshots; persistence only through `app/browser/`  |
 | Registry                     | `src/registry/`, `src/lib/registry/`, `modules/`   | `packages/registry`                  | Deterministic build; provenance recorded                    |
 | Vendored utilities           | `utils/`                                           | `utils/`                             | Resync only; see `utils/README.md`                          |
-| Tools                        | `scripts/`                                         | `tools/`                             | Thin Mise tasks call them                                   |
+| Tools                        | `tools/`                                           | `tools/`                             | Thin Mise tasks call them                                   |
 
 Check the paths against the tree before relying on them; the [source layout plan](../../migration/source-layout-plan.md)
 is moving modules.

@@ -11,4 +11,4 @@ browser="${usage_browser:?}"
 # up a stale zip from an earlier build.
 rm -f .output/*-"$browser".zip
 if [ "$browser" = firefox ]; then rm -f .output/*-sources.zip; fi
-exec pnpm exec wxt zip -b "$browser" --mv3
+exec pnpm --dir apps/extension exec wxt zip -b "$browser" --mv3

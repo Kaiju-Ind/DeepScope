@@ -104,7 +104,8 @@ describe('utility authority', () => {
 	});
 
 	it('holds for the sources and manifests of this repository', () => {
-		const self = new Set(['tools/lint/guidance.ts', 'tools/lint/guidance.test.ts']);
+		// The utils sync script rewrites the upstream `@kaiju-ind/` scope, so it names it.
+		const self = new Set(['tools/lint/guidance.ts', 'tools/lint/guidance.test.ts', 'tools/utils/sync.ts']);
 		const found = [...paths]
 			.filter((path) => guidance.SOURCES.test(path) && !self.has(path))
 			.flatMap((file) => guidance.authority(file, read(file)));

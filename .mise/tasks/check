@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Type-check the extension through the package compile script"
+#MISE description="Type-check the extension, utils and tools through the root compile script"
 # Extra arguments are passed to the compiler, e.g. `mise run check --pretty false`.
 set -euo pipefail
 exec pnpm run compile "$@"

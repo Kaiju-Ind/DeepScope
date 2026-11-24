@@ -52,7 +52,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           DRY_RUN_INPUT: ${{ inputs.dry-run }}
         run: |
-          version=$(jq -r .version package.json)
+          version=$(jq -r .version apps/extension/package.json)
           if [ "$EVENT" = push ]; then
             mise run release:check-version "$GITHUB_REF_NAME"
             tag="$GITHUB_REF_NAME"; dry_run=false
@@ -90,7 +90,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           status=0
-          node scripts/release/archives.mjs notes "$VERSION" .output/release-notes.md || status=$?
+          node tools/release/archives.mjs notes "$VERSION" .output/release-notes.md || status=$?
           if [ "$status" -eq 3 ]; then
             echo "No CHANGELOG.md section for $VERSION; GitHub will generate notes."
           elif [ "$status" -ne 0 ]; then

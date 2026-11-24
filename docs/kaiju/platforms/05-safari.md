@@ -14,7 +14,7 @@ web developers", then Settings > Developer > "Allow remote automation" (or `safa
 admin password). An unsigned build also needs Develop > "Allow Unsigned Extensions", which resets each time Safari quits,
 and DeepScope enabled with website access in Settings > Extensions. Safari 26 can install an extension through
 WebDriver's classic command; BiDi `webExtension.install` is not implemented (WebKit bug 288348). `mise run verify safari`
-exits with code 2 and names the missing step. See [`scripts/verify/README.md`](../../../scripts/verify/README.md).
+exits with code 2 and names the missing step. See [`tools/verify/README.md`](../../../tools/verify/README.md).
 
 **Evidence.** Safari version, whether the run used Safari or Safari Technology Preview, the scenario results, and the
 Xcode build log. **Invalidated by** a new Safari release, a manifest change or a bundle id change.

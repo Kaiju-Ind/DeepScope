@@ -1200,7 +1200,7 @@ Do not make required domain results lazy merely to improve logging. Diagnostics 
 
 ## Benchmark representative stories
 
-Vitest `bench` (Tinybench) reports distributions and supports baseline comparisons; DeepScope's benchmarks live in `src/benchmarks/*.bench.ts`. Whichever harness is selected, benchmark stories should include:
+Vitest `bench` (Tinybench) reports distributions and supports baseline comparisons; DeepScope's benchmarks live in `apps/extension/bench/*.bench.ts`. Whichever harness is selected, benchmark stories should include:
 
 - common input;
 - large realistic input;

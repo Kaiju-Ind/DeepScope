@@ -21,7 +21,7 @@ Build every browser the change can affect. A Chrome-only check misses Firefox's 
 Reuse the exact build for diagnosis instead of rebuilding. The Verify workflow's `extension-<browser>` artifacts are the
 same build for review.
 
-Use synthetic pages for repeatable checks (the fixtures in `scripts/verify/fixtures.mjs`) and a few real sites for
+Use synthetic pages for repeatable checks (the fixtures in `tools/verify/fixtures.mjs`) and a few real sites for
 coverage. Keep page data out of committed files.
 
 Only then give the reviewer the preview receipt: commit, build, browsers and versions, journey result, limitations. A

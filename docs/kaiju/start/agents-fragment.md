@@ -20,7 +20,7 @@ For CI, builds, test runners or package imports, read [engineering](../engineeri
 discovery (the Vitest projects in `vitest.config.ts`); never list test files in `package.json`, Mise tasks or
 workflows. Keep one root `mise.toml` and thin argument-bearing tasks under `.mise/tasks/`.
 
-Utilities come from the vendored `@utils/*` packages under `utils/`, resynced with `scripts/utils/sync.ts`. DeepScope
+Utilities come from the vendored `@utils/*` packages under `utils/`, resynced with `tools/utils/sync.ts`. DeepScope
 never depends on a private `@kaiju-ind/*` package.
 
 Verify in the browsers the change affects. Mark checks passed, failed, blocked, not checked or not required. A green

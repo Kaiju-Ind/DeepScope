@@ -30,14 +30,14 @@ STEPS
 2. Map every local symbol and its consumers. Keep DeepScope policy (budgets, fairness, private-tab rules) local.
 3. Write a symbol-level mapping: old symbol, @utils export, behavior differences and missing API.
 4. Move one family per commit: add the workspace dependency, update every consumer and test, then delete the local copy. Persisted values, storage keys and log event names stay byte-identical.
-5. Never import a private @kaiju-ind package and never patch a vendored file by hand. If the package lacks something, propose it upstream to Kaiju-Ind/Utils and resync with scripts/utils/sync.ts, or record a patch in utils/sync.json.
+5. Never import a private @kaiju-ind package and never patch a vendored file by hand. If the package lacks something, propose it upstream to Kaiju-Ind/Utils and resync with tools/utils/sync.ts, or record a patch in utils/sync.json.
 6. Run mise run check, mise run test and every browser build.
 
 DELIVERABLE
 The mapping, the removed code and the test and build results.
 
 EXIT
-Every moved symbol resolves from a vendored @utils export, all consumers pass, node scripts/utils/sync.ts --check passes, and no local copy or orphaned caller remains.
+Every moved symbol resolves from a vendored @utils export, all consumers pass, node tools/utils/sync.ts --check passes, and no local copy or orphaned caller remains.
 
 STOPPING POINT
 Record the last command, its result, the SHA, the checks you did not run and the next task. Stop after this task.

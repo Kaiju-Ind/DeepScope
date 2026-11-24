@@ -16,7 +16,7 @@ table rather than a copy; it records which items still need a real-browser check
 4. Build every browser (`mise run build chrome`, `firefox`, `safari`) and lint Firefox (`mise run lint:firefox`).
 5. Load the build in each affected browser. `mise run verify firefox` drives the shared scenarios in Firefox;
    `mise run verify safari` does the same in Safari once the one-time settings are on (see
-   [`scripts/verify/README.md`](../../../scripts/verify/README.md)). Chrome has no driver yet; check it by hand.
+   [`tools/verify/README.md`](../../../tools/verify/README.md)). Chrome has no driver yet; check it by hand.
 
 **Evidence.** Browser name and version, build commit, scenario list and result file. A Chrome result does not prove
 Firefox or Safari, and a normal window does not prove a private window. **Invalidated by** a new minimum version, a new
