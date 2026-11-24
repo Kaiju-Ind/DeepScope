@@ -263,8 +263,9 @@ scopes are contexts). New npm dependencies: `@okikio/observables`,
 
 Vendored (2026-11-24) as `@utils/*` workspace packages under `utils/`, with
 PR #29's queue, dispatch and record fixes; see `utils/README.md` for the
-package list, resync script and migration order. Nothing in `src/` imports
-them yet.
+package list, resync script and migration order. Since source cleanup phase
+A, `src/` uses `result`, `context` (RPC timeouts), `dispose` (matcher worker
+slots) and `scheduler/capacity` (matcher admission); see the table there.
 
 ### Browser store for workflow and queue (design, 2026-11-23)
 

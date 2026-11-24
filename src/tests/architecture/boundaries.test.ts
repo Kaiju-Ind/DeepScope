@@ -29,16 +29,16 @@ const ENTRYPOINT_CAP = 120;
 
 /** Modules over the cap when the ratchet was added (lines as `wc -l` counts them). Shrink only. */
 const OVERSIZED: Readonly<Record<string, number>> = {
-	'lib/background/runtime.ts': 3169,
-	'app/provider.tsx': 1361,
-	'app/model.ts': 995,
+	'lib/background/runtime.ts': 3124,
+	'app/provider.tsx': 1349,
+	'app/model.ts': 935,
 	'lib/detection/engine.ts': 987,
-	'lib/storage/detection-snapshots.ts': 956,
+	'lib/storage/detection-snapshots.ts': 939,
 	'lib/content/observe/runtime.ts': 947,
 	'lib/candidates/refine.ts': 861,
 	'lib/detection/observation-matcher-index.ts': 708,
 	'lib/scheduler/matcher.ts': 649,
-	'entrypoints/content.ts': 662,
+	'entrypoints/content.ts': 649,
 	'lib/detection/rule-performance-profile.ts': 655,
 	'lib/diagnostics/journal.ts': 628,
 	'lib/content/collect-page-signals.ts': 624,
@@ -47,8 +47,8 @@ const OVERSIZED: Readonly<Record<string, number>> = {
 
 /** Entrypoints over the entrypoint cap when the ratchet was added. Shrink only. */
 const THICK_ENTRYPOINTS: Readonly<Record<string, number>> = {
-	'entrypoints/background.ts': 347,
-	'entrypoints/content.ts': 662,
+	'entrypoints/background.ts': 332,
+	'entrypoints/content.ts': 649,
 };
 
 /** Import-time statements in `app/model` that predate the rule (moves to `app/artifact.ts`). */
