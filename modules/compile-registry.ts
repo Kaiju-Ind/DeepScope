@@ -117,6 +117,9 @@ async function loadRegistrySources(root: string, wxtDir: string): Promise<Regist
 		input: resolve(root, 'modules/registry-sources.ts'),
 		platform: 'node',
 		logLevel: 'silent',
+		// The project tsconfig extends `.wxt/tsconfig.json`, which `wxt prepare` has not
+		// written yet on a fresh checkout. The alias below is all this bundle needs.
+		tsconfig: false,
 		resolve: { alias: { '@': resolve(root, 'src'), '~': resolve(root, 'src') } },
 	});
 	try {
