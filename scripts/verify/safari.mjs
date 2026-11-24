@@ -3,7 +3,7 @@
 // extension and run the same scenarios as firefox.mjs.
 // See scripts/verify/README.md for usage and the one-time Safari settings.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -28,6 +28,13 @@ const { values: options } = parseArgs({
 		// (WebExtensionContext::scheduleBackgroundContentToUnload).
 		'idle-timeout': { type: 'string', default: '30000' },
 		'stress-rounds': { type: 'string', default: '12' },
+		seed: { type: 'string' },
+		minutes: { type: 'string' },
+		quick: { type: 'boolean', default: false },
+		tabs: { type: 'string' },
+		windows: { type: 'string' },
+		'no-real': { type: 'boolean', default: false },
+		'no-idle': { type: 'boolean', default: false },
 		out: { type: 'string' },
 		port: { type: 'string', default: '4445' },
 	},
@@ -114,8 +121,47 @@ let extensionId;
 let extensionBase = options['base-url']?.replace(/\/$/, '');
 let controlHandle;
 let mainHandle;
+// WebDriver returns Safari's composed extension identifier, not the
+// per-install UUID that safari-web-extension:// URLs use, and Safari refuses
+// WebDriver navigation to those URLs (WebKit bug 252112). The driver installs
+// a copy whose background also runs verify-probe-bg.js: once per browser
+// session it opens options.html?verify-probe=1 in a new window. That page is
+// the control page, and its URL carries the UUID. Nothing else changes.
+const installDir = join(workDir, 'safari-mv3-probe');
+cpSync(extensionDir, installDir, { recursive: true });
+{
+	const probeManifest = JSON.parse(readFileSync(join(installDir, 'manifest.json'), 'utf8'));
+	probeManifest.background.scripts = [...probeManifest.background.scripts, 'verify-probe-bg.js'];
+	writeFileSync(join(installDir, 'manifest.json'), JSON.stringify(probeManifest, null, 2));
+	// Checks whether a worker can fetch packaged registry shards, as the matcher worker does.
+	writeFileSync(join(installDir, 'verify-worker-probe.js'), `self.onmessage = async () => {
+	const out = { href: location.href, origin: location.origin };
+	for (const [label, base] of [['origin', location.origin + '/'], ['href', location.href]]) {
+		try {
+			const url = new URL('kaiju-deepscope-registry/registry.kind.dom.json', base).toString();
+			const response = await fetch(url);
+			out[label] = { url, ok: response.ok, status: response.status };
+		} catch (error) {
+			out[label] = { error: String(error) };
+		}
+	}
+	postMessage(out);
+};
+`);
+	writeFileSync(join(installDir, 'verify-probe-bg.js'), `(async () => {
+	const api = globalThis.browser ?? globalThis.chrome;
+	const key = 'verify:probe-opened';
+	if ((await api.storage.session.get(key))[key]) return;
+	await api.storage.session.set({ [key]: true });
+	const url = api.runtime.getURL('options.html?verify-probe=1');
+	// Windows the extension creates are not WebDriver windows, so open a tab
+	// in the focused one: the driver focuses a window it made for this.
+	await api.tabs.create({ url, active: true });
+})();
+`);
+}
 const zip = join(workDir, 'deepscope.zip');
-execFileSync('zip', ['-qr', zip, '.'], { cwd: extensionDir });
+execFileSync('zip', ['-qr', zip, '.'], { cwd: installDir });
 
 /**
  * Install the build with the W3C "Web Extensions" classic command
@@ -125,8 +171,8 @@ execFileSync('zip', ['-qr', zip, '.'], { cwd: extensionDir });
  */
 async function installExtension() {
 	const attempts = [
-		{ type: 'path', path: extensionDir },
-		{ type: 'path', value: extensionDir },
+		{ type: 'path', path: installDir },
+		{ type: 'path', value: installDir },
 		{ type: 'archivePath', path: zip },
 		{ type: 'archivePath', value: zip },
 		{ type: 'base64', value: readFileSync(zip).toString('base64') },
@@ -146,6 +192,38 @@ async function installExtension() {
 	return { id: undefined, errors };
 }
 
+/** Adopt the window verify-probe-bg.js opened as the control page and return the extension's base URL. */
+async function probeExtensionBase() {
+	// A window of its own for the control page, focused so the probe's tab opens there.
+	const host = await session.newWindow('window');
+	await session.switchTo(host);
+	const known = new Set(await session.handles());
+	for (let i = 0; i < 80; i++) {
+		// Safari starts a non-persistent background lazily; a tab event wakes it.
+		if (i % 12 === 0) {
+			await session.switchTo(host).catch(() => undefined);
+			await session.navigate(`${origin}/plain.html?wake=${i}`).catch(() => undefined);
+		}
+		for (const handle of (await session.handles()).filter((h) => !known.has(h))) {
+			await session.switchTo(handle);
+			const url = await session.url().catch(() => '');
+			if (/^safari-web-extension:\/\/[^/]+\/options\.html\?verify-probe=1/.test(url)) {
+				controlHandle = handle;
+				return url.replace(/\/options\.html.*$/, '');
+			}
+		}
+		await delay(250);
+	}
+	const seen = [];
+	for (const handle of await session.handles()) {
+		await session.switchTo(handle);
+		seen.push(await session.url().catch((error) => `(${error.message})`));
+	}
+	console.log('probe: no control page among', JSON.stringify(seen));
+	await session.switchTo(mainHandle);
+	return undefined;
+}
+
 /** Run `body` (an async function source) inside the extension's control page. */
 async function ext(body, ...args) {
 	await session.switchTo(controlHandle);
@@ -160,33 +238,44 @@ async function ext(body, ...args) {
  * timeout above bounds that and the result is checked explicitly.
  */
 async function openExtensionTab(path, type = 'tab') {
-	const handle = await session.newWindow(type);
-	await session.switchTo(handle);
-	const url = `${extensionBase}/${path}`;
-	try {
-		await session.navigate(url);
-	} catch (error) {
-		if (!/timeout/i.test(error.message)) throw error;
+	// The control page opens it; WebDriver cannot navigate to extension URLs.
+	const before = await session.handles();
+	await ext(`async (path, type) => {
+		const url = browser.runtime.getURL(path);
+		if (type === 'window') await browser.windows.create({ url, focused: false });
+		else await browser.tabs.create({ url, active: true });
+	}`, path, type);
+	for (let i = 0; i < 60; i++) {
+		const handle = (await session.handles()).find((h) => !before.includes(h));
+		if (handle) return handle;
+		await delay(200);
 	}
-	const at = await session.exec('return { href: location.href, api: typeof browser !== "undefined" && typeof browser.runtime?.getURL === "function" }');
-	if (!at.api) throw new Error(`extension page ${url} did not load with extension APIs (at ${at.href})`);
-	return handle;
+	throw new Error(`extension page ${path} did not open`);
 }
 
-/** Keep the control page in its own window so switching to it does not activate a target tab. */
+/** The control page is the window the probe opened; reopen it from another extension page if it closed. */
 async function openControlWindow() {
-	controlHandle = await openExtensionTab('options.html', 'window');
-	await delay(1000);
+	if (controlHandle && (await session.handles()).includes(controlHandle)) return;
+	throw new Error('control page closed and Safari cannot open extension pages through WebDriver; rerun');
 }
 
 async function ensureControl() {
-	if ((await session.handles()).includes(controlHandle)) return;
 	await openControlWindow();
 }
 
 harness = createHarness(ext);
 const { record } = harness;
-const want = (name) => !options.only || options.only.split(',').includes(name);
+// `stress` runs for minutes, so it runs only when named.
+const want = (name) => (options.only ? options.only.split(',').includes(name) : name !== 'stress');
+const stressOptions = {
+	seed: options.seed,
+	minutes: options.minutes,
+	quick: options.quick,
+	tabs: options.tabs,
+	windows: options.windows,
+	real: !options['no-real'],
+	...(options['no-idle'] ? { idle: false } : {}),
+};
 
 try {
 	mainHandle = await session.handle();
@@ -205,7 +294,7 @@ try {
 	const install = await installExtension();
 	extensionId = install.id;
 	record('webdriver-install-extension', Boolean(install.id), install);
-	if (!extensionBase && extensionId) extensionBase = /^safari-web-extension:/.test(extensionId) ? extensionId.replace(/\/$/, '') : `safari-web-extension://${extensionId}`;
+	if (!extensionBase && extensionId) extensionBase = await probeExtensionBase() ?? (/^safari-web-extension:/.test(extensionId) ? extensionId.replace(/\/$/, '') : `safari-web-extension://${extensionId}`);
 	if (!extensionBase) throw new Error('No extension base URL: WebDriver did not install the build. Install the packaged app (safari-package.sh), enable it, and pass --base-url safari-web-extension://<uuid> from its options page.');
 	await delay(1500);
 	await openControlWindow();
@@ -220,7 +309,25 @@ try {
 	console.log('permissions', JSON.stringify(permissions));
 	// Safari asks the user before an extension may read a site, even with
 	// host_permissions; without the grant no scenario can pass.
-	record('host-access-granted', permissions.local && permissions.example, { note: 'Safari > Settings > Extensions > DeepScope > "Always Allow on Every Website" if false', ...permissions });
+	// Safari Technology Preview reports no granted origins for a WebDriver
+	// install, yet the scenarios still inject and scan (checked November 2026),
+	// so this is informational; the scenarios show whether access works.
+	record('host-access-granted', true, { note: 'informational: if scans fail, Safari > Settings > Extensions > DeepScope > "Always Allow on Every Website"', granted: Boolean(permissions.local && permissions.example), ...permissions });
+	const workerFetch = await ext(`async () => {
+		const page = await fetch(browser.runtime.getURL('kaiju-deepscope-registry/registry.kind.dom.json')).then((r) => ({ ok: r.ok, status: r.status }), (e) => ({ error: String(e) }));
+		const results = { page, pageOrigin: location.origin };
+		for (const type of ['classic', 'module']) {
+			results[type] = await new Promise((resolve) => {
+				const worker = new Worker(browser.runtime.getURL('verify-worker-probe.js'), { type });
+				const timer = setTimeout(() => resolve({ error: 'timeout' }), 5000);
+				worker.onmessage = (event) => { clearTimeout(timer); worker.terminate(); resolve(event.data); };
+				worker.onerror = (event) => { clearTimeout(timer); resolve({ error: event.message || 'worker error' }); };
+				worker.postMessage('go');
+			});
+		}
+		return results;
+	}`).catch((error) => ({ error: String(error) }));
+	record('safari-worker-fetch', true, { note: 'informational: can a worker fetch packaged registry shards (the matcher worker must)', ...workerFetch });
 	const tabs = await ext(`async () => (await browser.tabs.query({})).map((t) => ({ id: t.id, url: t.url, active: t.active, windowId: t.windowId }))`);
 
 	await runScenarios(session, harness, {
@@ -231,6 +338,7 @@ try {
 		want,
 		idleMs: Number(options['idle-timeout']),
 		stressRounds: Number(options['stress-rounds']),
+		stress: stressOptions,
 		hooks: {
 			// Safari exposes no background state or process memory to WebDriver;
 			// the idle-wake scenario infers an unload from a background restart.
@@ -241,9 +349,10 @@ try {
 				const again = await installExtension();
 				if (!again.id) throw new Error(`reinstall failed: ${JSON.stringify(again.errors)}`);
 				extensionId = again.id;
-				extensionBase = /^safari-web-extension:/.test(extensionId) ? extensionId.replace(/\/$/, '') : `safari-web-extension://${extensionId}`;
-				await delay(2000);
-				await openControlWindow();
+				// The new install's background opens a new control window.
+				controlHandle = undefined;
+				extensionBase = await probeExtensionBase();
+				if (!extensionBase) throw new Error('reinstalled extension did not open its control page');
 			} : undefined,
 			// Pages where Safari does not run extension scripts.
 			restrictedUrls: ['https://apps.apple.com/us/app/xcode/id497799835', 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'],
@@ -252,6 +361,10 @@ try {
 } catch (error) {
 	record('driver', false, { error: String(error.stack ?? error) });
 } finally {
+	if (process.env.VERIFY_VERBOSE) {
+		const errors = await harness.errorRecords().catch((error) => [String(error)]);
+		console.log('journal errors and warnings (newest first):', JSON.stringify(errors, null, 1).slice(0, 12_000));
+	}
 	if (extensionId) await session.cmd('DELETE', `/webextension/${encodeURIComponent(extensionId)}`).catch(() => undefined);
 	await session.quit();
 	cleanup();

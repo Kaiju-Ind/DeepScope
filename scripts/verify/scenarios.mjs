@@ -4,6 +4,8 @@
 // page, and passes the browser-specific operations in as hooks.
 import { setTimeout as delay } from 'node:timers/promises';
 
+import { runStress } from './stress.mjs';
+
 const BAD_EVENT = /unavailable|failed|timeout|error|mismatch/i;
 // Work for a document the tab already left is canceled by design; so is an
 // identity lookup while the tab is between documents.
@@ -11,7 +13,7 @@ const EXPECTED = /canceled|navigated away|no longer owns|inspectable URL yet|^ta
 // Logged once each time the background page or worker starts.
 const BACKGROUND_START_EVENT = 'matcher-executor-selected';
 
-export const SCENARIOS = ['preinstall', 'active-load', 'background-tab', 'spa', 'real-sites', 'busy-page', 'navigate-mid-scan', 'close-mid-scan', 'idle-wake', 'panel-page', 'reinstall', 'restricted', 'heavy', 'history', 'stress', 'permission-revoked'];
+export const SCENARIOS = ['preinstall', 'active-load', 'background-tab', 'spa', 'real-sites', 'busy-page', 'navigate-mid-scan', 'close-mid-scan', 'idle-wake', 'panel-page', 'reinstall', 'restricted', 'heavy', 'history', 'nav-loop', 'stress', 'permission-revoked'];
 
 /** Wrap an async function source so `execAsync` runs it and reports its result or error. */
 export function asyncScript(body) {
@@ -102,7 +104,16 @@ export function createHarness(ext) {
 		console.log(`${pass ? 'PASS' : 'FAIL'} ${scenario} ${JSON.stringify(details).slice(0, 600)}`);
 	}
 
-	return { ext, results, tabState, backgroundStarts, waitForResults, record };
+	/** Error and warning journal records with their properties, for VERIFY_VERBOSE diagnosis. */
+	function errorRecords(limit = 20) {
+		return ext(`async (limit) => Object.values(await browser.storage.local.get(null))
+			.filter((v) => v && typeof v === 'object' && 'surface' in v && (v.level === 'error' || v.level === 'warning'))
+			.sort((a, b) => b.timestamp - a.timestamp)
+			.slice(0, limit)
+			.map((v) => ({ t: v.timestamp, surface: v.surface, level: v.level, message: v.message, properties: v.properties }))`, limit);
+	}
+
+	return { ext, results, tabState, backgroundStarts, waitForResults, record, errorRecords };
 }
 
 /**
@@ -299,7 +310,7 @@ export async function runScenarios(session, harness, context) {
 		record('history-back (bfcache)', !restored.timedOut && problems(restored.state).length === 0, summarize(restored.state, restored.timedOut));
 	}
 
-	if (want('stress')) {
+	if (want('nav-loop')) {
 		const urls = [`${origin}/wp.html`, 'https://example.com/', `${origin}/busy.html`, 'https://wordpress.org/', `${origin}/spa.html`, 'https://react.dev/'];
 		const rounds = context.stressRounds;
 		const failures = [];
@@ -313,7 +324,12 @@ export async function runScenarios(session, harness, context) {
 			if (loaded.timedOut || bad.length) failures.push({ url, timedOut: Boolean(loaded.timedOut), problems: bad.slice(0, 4), contentRuntime: summarize(loaded.state, loaded.timedOut).contentRuntime });
 			else ok++;
 		}
-		record(`stress-navigation x${rounds}`, failures.length === 0, { ok, failures });
+		record(`nav-loop x${rounds}`, failures.length === 0, { ok, failures });
+	}
+
+	if (want('stress')) {
+		// Heavy random use; see stress.mjs. Runs only when named in --only.
+		await runStress(session, harness, context);
 	}
 
 	if (want('permission-revoked')) {
