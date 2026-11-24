@@ -17,7 +17,7 @@ export interface RegisterBackgroundLifecycleListenersInput {
 	readonly snapshots: DetectionSnapshotLifecycleStore;
 	/** Invalidate volatile state before the same tab update can schedule an automatic scan. */
 	readonly onTabNavigation?: BackgroundTabCleanup;
-	/** Remove volatile tab-scoped maps when Chrome reports a closed tab. */
+	/** Remove volatile tab-scoped maps when a tab closes or its id is replaced. */
 	readonly onTabRemoved: BackgroundTabCleanup;
 	/** Optional summary logger for lifecycle events and cleanup failures. */
 	readonly log?: BackgroundLifecycleLogger;
@@ -44,12 +44,22 @@ export function registerBackgroundLifecycleListeners(
 			.catch((error: unknown) => logCleanupFailure(input.log, tabId, 'tab-navigation', error));
 	});
 
-	browser.tabs.onRemoved.addListener((tabId) => {
+	/** Release everything a tab id owns: volatile state first, then its stored sessions. */
+	function forgetTab(tabId: number): void {
 		input.onTabRemoved(tabId);
 		void (async () => {
 			await markTabSnapshots(input.snapshots, tabId, 'stopped', 'tab-removed', input.log);
 			await input.snapshots.removeSessionIndex(tabId);
 		})().catch((error: unknown) => logCleanupFailure(input.log, tabId, 'tab-removed', error));
+	}
+
+	browser.tabs.onRemoved.addListener((tabId) => forgetTab(tabId));
+	// A prerendered or restored page can replace a tab id. The old id never
+	// receives another event, and its stored sessions describe a document no
+	// tab shows any more, so it is forgotten exactly as if the tab closed.
+	browser.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
+		input.log?.('tab-replaced', { addedTabId, removedTabId });
+		forgetTab(removedTabId);
 	});
 }
 

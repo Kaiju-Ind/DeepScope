@@ -20,6 +20,7 @@ async function loadLifecycleHarness() {
 	vi.resetModules();
 	const onUpdated = createListenerRegistry<[number, { status?: string; url?: string }]>();
 	const onRemoved = createListenerRegistry<[number]>();
+	const onReplaced = createListenerRegistry<[number, number]>();
 	const snapshots: DetectionSnapshotLifecycleStore = {
 		markTabSnapshots: vi.fn(async () => []),
 		removeSessionIndex: vi.fn(async () => undefined),
@@ -29,6 +30,7 @@ async function loadLifecycleHarness() {
 			tabs: {
 				onUpdated,
 				onRemoved,
+				onReplaced,
 			},
 		},
 	}));
@@ -37,6 +39,7 @@ async function loadLifecycleHarness() {
 		...(await import('@/lib/background/lifecycle')),
 		onUpdated,
 		onRemoved,
+		onReplaced,
 		snapshots,
 	};
 }
@@ -142,5 +145,19 @@ describe('background lifecycle listeners', { concurrent: false }, () => {
 		expect(onTabRemoved).toHaveBeenCalledWith(7);
 		expect(harness.snapshots.markTabSnapshots).toHaveBeenCalledWith(7, 'stopped', 'tab-removed');
 		expect(harness.snapshots.removeSessionIndex).toHaveBeenCalledWith(7);
+	});
+
+	it('forgets the old id of a replaced tab as if it closed', async () => {
+		const harness = await loadLifecycleHarness();
+		const onTabRemoved = vi.fn();
+		const log = vi.fn();
+		harness.registerBackgroundLifecycleListeners({ snapshots: harness.snapshots, onTabRemoved, log });
+
+		harness.onReplaced.emit(10, 7);
+		await vi.waitFor(() => expect(harness.snapshots.removeSessionIndex).toHaveBeenCalledWith(7));
+
+		expect(onTabRemoved).toHaveBeenCalledExactlyOnceWith(7);
+		expect(harness.snapshots.markTabSnapshots).toHaveBeenCalledExactlyOnceWith(7, 'stopped', 'tab-removed');
+		expect(log).toHaveBeenCalledWith('tab-replaced', { addedTabId: 10, removedTabId: 7 });
 	});
 });

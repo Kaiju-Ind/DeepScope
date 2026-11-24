@@ -264,6 +264,7 @@ export default defineBackground(() => {
 			backgroundRuntime.onTabNavigation(tabId);
 			void analysisQueue.cancelTab(tabId);
 		},
+		// Also called for the old id of a replaced tab.
 		onTabRemoved(tabId) {
 			badges.forget(tabId);
 			autoScanController.onTabRemoved(tabId);
@@ -272,16 +273,6 @@ export default defineBackground(() => {
 			void analysisQueue.cancelTab(tabId);
 		},
 		log: logBackgroundEvent,
-	});
-	// A prerendered or restored page can replace a tab id. The old id never
-	// receives another event, so release its work as if the tab closed.
-	browser.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
-		badges.forget(removedTabId);
-		autoScanController.onTabRemoved(removedTabId);
-		matcherRecoveryTabs.delete(removedTabId);
-		backgroundRuntime.onTabRemoved(removedTabId);
-		void analysisQueue.cancelTab(removedTabId);
-		logBackgroundEvent('tab-replaced', { addedTabId, removedTabId });
 	});
 	browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 		// Any tab can be scanned, so any tab's badge must clear when its page changes.

@@ -152,14 +152,14 @@ describe('replaced and removed tab cleanup', () => {
 		expect(memory(replaced)).toEqual(memory(removed));
 	});
 
-	// Current behaviour, pinned so a shared `forgetTab` does not change it silently:
-	// only a closed tab marks its stored snapshots stopped and drops its session
-	// index; a replaced tab id leaves both for the next startup to reconcile.
-	it('marks stored snapshots only for a removed tab', async () => {
+	// Decision: a replaced tab id is forgotten exactly like a closed tab. No event
+	// ever names the old id again, so stored sessions left under it would only
+	// leak (the stress harness counts them as closed-tab leftovers).
+	it('marks stored snapshots stopped and drops the index for a removed or replaced tab', async () => {
 		await start();
-		expect((await fire('tabs.onRemoved', 9)).filter((call) => call.startsWith('snapshots.')))
-			.toEqual(['snapshots.mark(9,stopped)', 'snapshots.removeSessionIndex(9)']);
-		expect((await fire('tabs.onReplaced', 10, 9)).filter((call) => call.startsWith('snapshots.'))).toEqual([]);
+		const stored = (calls: string[]) => calls.filter((call) => call.startsWith('snapshots.'));
+		expect(stored(await fire('tabs.onRemoved', 9))).toEqual(['snapshots.mark(9,stopped)', 'snapshots.removeSessionIndex(9)']);
+		expect(stored(await fire('tabs.onReplaced', 10, 9))).toEqual(['snapshots.mark(9,stopped)', 'snapshots.removeSessionIndex(9)']);
 	});
 
 	it('runs navigation cleanup before the snapshot is marked stale', async () => {
