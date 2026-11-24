@@ -22,7 +22,17 @@ class FakeElement {
 	}
 
 	getAttributeNames(): string[] {
-		return [...this.#attributes];
+		return [
+			...(this.id ? ['id'] : []),
+			...(this.classList.length ? ['class'] : []),
+			...this.#attributes,
+		];
+	}
+
+	getAttribute(name: string): string | null {
+		if (name === 'id') return this.id || null;
+		if (name === 'class') return this.classList.join(' ') || null;
+		return this.#attributes.includes(name) ? '' : null;
 	}
 }
 
@@ -126,7 +136,8 @@ describe('live DOM selector matching', () => {
 		expect(onStats).toHaveBeenCalledOnce();
 		expect(onStats).toHaveBeenCalledWith(expect.objectContaining({
 			elementCount: 2,
-			selectorCheckCount: 2,
+			selectorCheckCount: 1,
+			routeCheckCount: 1,
 			matchCount: 1,
 			yieldCount: 2,
 			aborted: false,
@@ -137,7 +148,7 @@ describe('live DOM selector matching', () => {
 		vi.stubGlobal('Element', FakeElement);
 		vi.stubGlobal('document', {});
 		const elements = Array.from({ length: 6 }, () => (
-			new FakeElement('div', '', [], [], new Set())
+			new FakeElement('div', '', ['missing'], [], new Set())
 		));
 		const controller = new AbortController();
 		const yieldControl = vi.fn(async () => { controller.abort(); });
@@ -153,6 +164,19 @@ describe('live DOM selector matching', () => {
 		expect(yieldControl).toHaveBeenCalledOnce();
 		expect(elements.slice(0, 2).every((element) => element.matches.mock.calls.length === 1)).toBe(true);
 		expect(elements.slice(2).every((element) => element.matches.mock.calls.length === 0)).toBe(true);
+	});
+
+	it('skips selectors whose right-most compound cannot match the element', async () => {
+		vi.stubGlobal('Element', FakeElement);
+		vi.stubGlobal('document', {});
+		const link = new FakeElement('link', '', [], ['href'], new Set());
+		const anchor = new FakeElement('a', '', [], ['href'], new Set());
+		const plan = dom.create(["link[href]", "a[data-x]", '.widget']);
+
+		await dom.match(plan, new FakeRoot([link, anchor]) as unknown as ParentNode);
+
+		expect(link.matches.mock.calls).toEqual([["link[href]"]]);
+		expect(anchor.matches).not.toHaveBeenCalled();
 	});
 
 	it('rechecks only an element root for structural invalidation', async () => {
