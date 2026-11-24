@@ -318,6 +318,36 @@ came from (the original MIT-era Wappalyzer data and the GPL-3.0
 `enthec/webappanalyzer` fork have different terms), then add a compatible
 license and NOTICE, or rewrite the copied text.
 
+## Real-browser verification (2026-11-23)
+
+Driver: `scripts/verify/firefox.mjs` (WebDriver, no dependencies; see
+`scripts/verify/README.md`). Firefox 160 headless passed: tabs open before
+install, active and background loads, SPA navigation, navigation and tab close
+mid-scan, background unload after 30 s idle and wake, add-on upgrade with
+open tabs, back/forward cache, full page, and real sites (example.com,
+wordpress.org, react.dev, github.com). Matcher workers ran in the background
+page. Extension process memory: about 180-233 MiB active, 100-115 MiB while
+the background was unloaded.
+
+**"Can't find the content script" in Firefox:** on very large pages the
+content script was alive but busy. Its DOM scan on Wikipedia made about 430
+`Element.matches` calls per element (9.4 million, 17.9 s); the background gave
+up after 10 s. Stopgap merged: a busy-but-alive script is waited for up to
+60 s, and pages Firefox refuses to script now report `PERMISSION_DENIED`. The
+real fix, cheaper selector routing in `src/lib/dom/match.ts`, is in progress.
+
+Open: the later evidence passes still time out at 10 s each on huge pages;
+with site access revoked Firefox hides `tab.url` and the user sees the wrong
+error; a re-injected script leaves the old listener registered; snapshots
+record `offscreen-worker-pool` when background workers ran.
+
+**Safari was not verified.** SafariDriver needs Develop > Allow Remote
+Automation (or `safaridriver --enable`, which asks for an admin password),
+and the unsigned app built by `scripts/verify/safari-package.sh` needs
+Develop > Allow Unsigned Extensions (resets each launch) plus enabling the
+extension and granting site access. WebDriver cannot install extensions in
+Safari yet (WebKit bug 288348).
+
 ## Dependency status
 
 WXT 0.21.5, `@wxt-dev/module-solid` 1.1.4 and `@wxt-dev/browser` 0.3.7 are the
