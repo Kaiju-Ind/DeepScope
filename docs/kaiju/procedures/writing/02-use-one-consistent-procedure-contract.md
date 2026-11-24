@@ -31,3 +31,5 @@ Use a short step table where the result changes the next action:
 | Exercise the agreed journey.           | The intended user completes the outcome.                | Keep the deployment incomplete and record the failed stage.   |
 
 A timeout does not prove that an external operation did nothing. Recovery must start by inspecting actual state.
+
+[hse-operations]: https://www.hse.gov.uk/comah/sragtech/techmeasoperatio.htm

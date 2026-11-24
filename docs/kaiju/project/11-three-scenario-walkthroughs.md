@@ -1,18 +1,17 @@
 # Three scenario walkthroughs
 
-**Upstream image on Kubernetes.** Select a pinned supported image and read its actual ports, state and migration
-requirements. Reuse the platform ingress and database capability. Omit Magic Containers/Tailscale bridge files unless
-the network contract needs them. Test the image and first-value journey. Keep version/digest updates grouped and avoid
-creating a fake application source workspace.
+**A detection change.** Add or change catalog rules, or matcher code. Run the golden matcher test
+(`src/tests/matcher/golden.test.ts`) and the registry tests; check new patterns for nested unbounded quantifiers. Build
+Chrome and Firefox, load a page that should match and one that should not, and compare the technology list with the
+previous build.
 
-**Published package in a small image.** Verify the package's executable or public API and actual Deno/Node support. Keep
-a minimal launcher and exact dependency lock. Test the installed package, graceful exit and final image. Deploy through
-the selected placement. Update the package with Renovate, then repeat its actual consumer tests.
+**A browser API or surface change.** Check browser-compat-data for every supported minimum, choose by capability, and
+keep listeners registered synchronously. Build all three browsers, lint Firefox, run `mise run verify firefox` and, where
+possible, `mise run verify safari`, and check Chrome's side panel by hand. Include a private window if storage is
+touched.
 
-**Owned application source.** Preserve upstream framework/runtime conventions, verified ancestry/import record and Kaiju
-customizations. Check the full source delta on upstream updates. Keep native infrastructure dependencies separate.
-Validate builds, migrations and user journeys, then reuse admitted artifacts for preview and promotion where
-configuration and the source/provenance contract permit.
+**A dependency or Utils update.** Read the upstream changes, update coupled packages together, run check, test and all
+builds. For Utils, resync with `scripts/utils/sync.ts` and run the `utils` Vitest project. Deliver a preview when runtime
+behavior can change.
 
-These are document walkthroughs. Real onboarding must bind commands and exercise the chosen scenario before it can be
-labeled preview- or production-exercised.
+These are walkthroughs, not exercised procedures; label a run preview- or release-exercised only with its evidence.

@@ -1,5 +1,29 @@
 # Changelog
 
+## DeepScope adaptation (November 24, 2026)
+
+Copied from Kaiju-Ind/Crawl `docs/kaiju/` at `a00f0036d` (its guidance is identical to `baee4f46a`) and adapted to
+DeepScope, a browser extension with no servers. Open Crawl branches were checked for newer guidance; the only change
+not in Crawl's main is a Crawl-specific handbook section on `claude/inngest-worker` about giving a built dependency
+(such as a scheduler image) its own package, which was not taken.
+
+- **Start, handbook, procedures, project, agents, engineering:** kept and rewritten for extension work. Preview means a
+  per-browser build loaded in real browsers; promotion means a tagged GitHub Release with checksums, attestations and
+  the ghcr copy, then store submissions; recovery means fixing forward with a new version. The handbook describes
+  placement across extension contexts and the planned monorepo (`apps/extension`, `packages/*` as `@deepscope/*`,
+  `utils/*` as `@utils/*`, `tools/`, `docs/adr/`). Engineering uses pnpm, Node 26, Vitest projects and the Verify and
+  Release workflows; Deno, BuildKit and container images were removed.
+- **Services → platforms:** the Kubernetes and KubeBlocks, Bunny, Tailscale, Resend, Backblaze B2, model and user-access
+  cards were removed. New cards cover vendored packages, browser runtimes, Chrome Web Store, AMO, Safari and App Store
+  Connect, and GitHub Releases with ghcr. `references.md` lists browser and store documentation.
+- **Project record:** records live in the owning plan under `docs/migration/`; the model and agent selection record was
+  removed.
+- **Task prompts:** T12 (container image layers) removed; T16 rewritten to adopt the vendored `@utils/*` packages; T18
+  rewritten for the Vitest projects; `deno-software` removed from every prompt; `use-kaiju-utils` is now `use-utils`.
+- **Failure catalogue:** Crawl's 46 deployment entries and the ItsAPlan and OpenATS retrospective coverage were removed.
+  DeepScope's own entries DS-01 to DS-13 were added.
+- **Skills:** folders name `build-extensions` and `use-utils`; `build-data` and `deno-software` are no longer named.
+
 ## Unreleased
 
 [Task prompts](tasks/README.md) T01 to T18 return as project-agnostic prompts. They replace the 24 Core CI prompts that

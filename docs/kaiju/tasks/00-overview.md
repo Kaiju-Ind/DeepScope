@@ -8,19 +8,21 @@ Nothing outside the fenced block is needed once it is copied.
 
 1. Pick the prompt for the work. Start with [T01](01-t01-map-source-owners.md) when the owners of the change are not yet
    known.
-2. Copy the fenced block into a new session and replace `<owner/name>` and `<name>`.
+2. Copy the fenced block into a new session and replace `<owner/name>` and `<name>`. For DeepScope the repository is
+   this one; name the branch.
 3. Let the session finish and record its stopping point before starting the next prompt.
 
 T01 to T03 and T06 are read-only. They produce the ownership map, the capability audit, the baseline and the task
-register that the other prompts depend on. Run T07 before T08, and T13 before T14. A prompt whose inputs do not exist
+register that the other prompts depend on. Run T07 before T08, and T13 before T14. T12 (container image layers) was dropped: DeepScope builds no images. A prompt whose inputs do not exist
 yet is not ready; run the read-only prompt that produces them instead.
 
-A prompt never authorizes a merge, a deployment, a change in another repository or a paid workflow run. The owner grants
+A prompt never authorizes a merge, a tag, a release, a store submission, a change in another repository or a costly
+workflow run. The owner grants
 those separately.
 
 ## How the prompts are checked
 
-The repository's guidance check (`tools/lint/guidance.ts`) reads every prompt in this folder. A prompt fails the check
+The repository's guidance check (see `AGENTS.md`) reads every prompt in this folder. A prompt fails the check
 when:
 
 - its `Skills:` line is missing or names a skill that does not exist in `.agents/skills/`;

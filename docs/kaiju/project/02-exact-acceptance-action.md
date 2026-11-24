@@ -1,15 +1,14 @@
 # Exact acceptance action
 
-| Field                             | Value to establish before a live test                                                          |
-| --------------------------------- | ---------------------------------------------------------------------------------------------- |
-| User action and result            | The actual reported or requested UI/API action, visible result and persisted effect            |
-| Originating process and target    | Web/API/worker, deployed runtime, environment, current source/artifact                         |
-| Human access                      | Current account, secure retrieval path, available session and unavoidable consent              |
-| Recipient or external destination | Exact authorized recipient/account/endpoint and permitted test count/data                      |
-| Evidence stages                   | Persistence, callback, provider acceptance, delivery/receipt and user completion as applicable |
-| Partial failure and retry         | Existing record/effect to retain; ambiguity to inspect before repeating an action              |
+| Field                          | Value to establish before the test                                                                   |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| User action and result         | The toolbar click, page load, navigation or panel action, and the visible result                     |
+| Browser, version and context   | For example Firefox 160 event page with a sidebar, or Safari 26 background page with a popup         |
+| Build                          | Commit and build (`.output/<browser>-mv3`, a Verify artifact or a release archive)                   |
+| Page                           | A fixture from `scripts/verify/fixtures.mjs` or a named real site                                    |
+| Window kind                    | Normal or private; private must persist nothing                                                       |
+| Evidence stages                | Content-script reachability, observations, matcher work, snapshot, badge, panel render                |
+| Partial failure and retry      | What to inspect before repeating (diagnostics journal, stored snapshots)                              |
 
-For cross-repository journeys, add one activation row per owner: exact code merged, configuration applied, valid content
-published, artifact deployed, runtime request observed and accepted user action. Keep empty data distinct from an
-unavailable upstream. Public MCP connectivity does not establish authenticated edits or a successful connection from
-every intended client.
+A store submission or a release is a different action with its own record; see the
+[release receipt](09-candidate-preview-and-production-receipts.md).

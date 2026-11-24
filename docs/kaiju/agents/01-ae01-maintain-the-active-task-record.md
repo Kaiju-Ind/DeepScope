@@ -4,7 +4,8 @@ Record the user's goal before implementation choices. Distinguish the requested 
 Treat a status question or clarification as steering the active task unless the user cancels it or replaces it with an
 incompatible objective. Record new scope explicitly and retain the earlier completion criteria that still apply.
 
-Use the following ordinary Markdown example in the project's existing work record. Replace every placeholder. It is a
+Use the following ordinary Markdown example in the project's existing work record (in DeepScope, the plan under
+`docs/migration/` that owns the work). Replace every placeholder. It is a
 handoff format, not executable configuration, a new required filename or a substitute for the full plan.
 
 ```markdown

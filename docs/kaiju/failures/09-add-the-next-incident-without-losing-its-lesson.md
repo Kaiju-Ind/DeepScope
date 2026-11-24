@@ -1,10 +1,11 @@
 # Add the next incident without losing its lesson
 
-Under [P08](../procedures/08-p08-validate-and-maintain-a-procedure.md), add a stable entry with the exact symptom, first
-failed operation, cause confidence, source/artifact/target identities, repair, evidence and earlier prevention. Mark
-unknowns as unknown. Link a provider defect, upstream issue or current limitation when relevant. Keep the diagnostic
-path usable without rerunning unrelated expensive stages.
+Under [P08](../procedures/08-p08-validate-and-maintain-a-procedure.md), add an entry with the next `DS-*` number to the
+file for its class (content scripts and catalog, builds, background runtime, verification and CI; add a file for a new
+class). Give the exact symptom, first failed operation, cause and its confidence, commit, browser and context, repair,
+evidence and earlier prevention, and add a row to the [symptom table](02-start-from-the-symptom.md). Mark unknowns as
+unknown. Link the browser bug, upstream issue or plan section when relevant.
 
-Record closure only when the claimed behavior has been checked at the intended level. “Committed,” “CI passed,” “plan
-accepted,” “workload healthy,” and “user completed the journey” should remain separate fields in the incident and
+Record closure only when the claimed behavior has been checked at the intended level. "Committed", "tests passed",
+"Verify passed", "loaded in the browser" and "user completed the journey" stay separate fields in the incident and
 release records.

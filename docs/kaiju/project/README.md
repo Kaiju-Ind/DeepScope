@@ -1,20 +1,20 @@
 # Project record
 
-The project contract and the operating records that each project keeps.
+The work contract and the records each piece of DeepScope work keeps, in the plan under `docs/migration/` that owns it.
+Crawl's model and agent selection record was removed: DeepScope calls no AI models.
 
 Skills: `plan-changes`, `write-docs`.
 
-| Part                                                                                          | What it covers                                                                                                                                                                                           |
-| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Overview](00-overview.md)                                                                    | Copy this template for a new project.                                                                                                                                                                    |
-| [Project identity and first value](01-project-identity-and-first-value.md)                    | Describe the journey in a way another person can execute.                                                                                                                                                |
-| [Exact acceptance action](02-exact-acceptance-action.md)                                      | For cross-repository journeys, add one activation row per owner: exact code merged, configuration applied, valid content published, artifact deployed, runtime request observed and accepted user act... |
-| [Component and ownership map](03-component-and-ownership-map.md)                              | Record each process role separately even when images are shared.                                                                                                                                         |
-| [Owner actions before long implementation](04-owner-actions-before-long-implementation.md)    | Send this table as soon as known blockers appear.                                                                                                                                                        |
-| [Bind procedures to real commands](05-bind-procedures-to-real-commands.md)                    | Before running an operation, verify its current `--help`, task source and caller.                                                                                                                        |
-| [CI and engineering change evidence](06-ci-and-engineering-change-evidence.md)                | Use this compact record when the project modifies tests, packages, builds or CI.                                                                                                                         |
-| [Service readiness record](07-service-readiness-record.md)                                    | Make one record per contract, environment and principal.                                                                                                                                                 |
-| [Model and agent selection record](08-model-and-agent-selection-record.md)                    | A cheaper advertised token rate does not prove a cheaper successful task.                                                                                                                                |
-| [Candidate, preview and production receipts](09-candidate-preview-and-production-receipts.md) | The records should link to one another without conflating their identities.                                                                                                                              |
-| [Timing and incident records](10-timing-and-incident-records.md)                              | Record these timestamps in one time zone: request accepted, first prerequisite report, prerequisite ready, candidate ready, URL ready, journey passed, production selected, production deployed and p... |
-| [Three scenario walkthroughs](11-three-scenario-walkthroughs.md)                              | These are document walkthroughs.                                                                                                                                                                         |
+| Part                                                                                       | What it covers                                                                  |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| [Overview](00-overview.md)                                                                 | Where the records live: the owning plan and `.tmp/`.                            |
+| [Work identity and first value](01-project-identity-and-first-value.md)                    | Branch, journey, browsers and surfaces, reviewer.                               |
+| [Exact acceptance action](02-exact-acceptance-action.md)                                   | Browser, context, build, page, window kind and evidence stages.                 |
+| [Component and ownership map](03-component-and-ownership-map.md)                           | Extension contexts, their source today and their planned home.                  |
+| [Owner actions before long implementation](04-owner-actions-before-long-implementation.md) | Licence, rights, store accounts, Apple, repository settings.                    |
+| [Bind procedures to real commands](05-bind-procedures-to-real-commands.md)                 | Every Mise task and script, with its owning file and side effect.               |
+| [CI and engineering change evidence](06-ci-and-engineering-change-evidence.md)             | The record for test, package, build and CI changes.                             |
+| [Platform readiness record](07-service-readiness-record.md)                                | One record per browser or store, version and identity.                          |
+| [Build and release receipts](09-candidate-preview-and-production-receipts.md)              | Candidate, preview, release and store submission records.                       |
+| [Timing and incident records](10-timing-and-incident-records.md)                           | Timestamps, wait categories and incident fields.                                |
+| [Three scenario walkthroughs](11-three-scenario-walkthroughs.md)                           | Detection change, browser API change, dependency or Utils update.               |

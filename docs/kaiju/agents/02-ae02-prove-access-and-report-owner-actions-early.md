@@ -15,11 +15,12 @@ Keep four credential states separate:
 | Accepted by the destination | The required minimal operation succeeds against the intended service.                   |
 
 Prove the earliest useful states before expensive work. Some runtime observations require deployment; leave them pending
-until that runtime exists. A laptop result does not establish hosted-runner access or deployed network behavior. Follow
-the applicable [service contract](../services/README.md).
+until that runtime exists. A laptop result does not establish hosted-runner access or store acceptance. Follow the
+applicable [platform card](../platforms/README.md).
 
-Report owner actions as soon as known: exact package/version to publish, native generation job, package-to-repository
-grant, missing account entitlement, deployment identity or named credential reference. State what the action enables and
+Report owner actions as soon as known: a licence decision, catalog redistribution rights, a store listing or developer
+account, an Apple Developer Program membership, a repository setting (immutable releases, tag rules, environments), or
+a named credential reference. State what the action enables and
 what work can continue. Do not leave these until final delivery.
 
 Reuse already-granted authorization. If a new action, recipient, destination or scope needs authority, make the proposed

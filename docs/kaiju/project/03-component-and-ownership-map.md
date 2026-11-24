@@ -1,13 +1,17 @@
 # Component and ownership map
 
-| Component          | Role                                           | Artifact strategy                   | Immutable source/artifact           | Runtime/platform               | Configuration owner | State and cleanup                       |
-| ------------------ | ---------------------------------------------- | ----------------------------------- | ----------------------------------- | ------------------------------ | ------------------- | --------------------------------------- |
-| Required component | API, web, background work, migration or runner | Image, package/file or owned source | Commit/package version/image digest | Exact runtime and architecture | Schema/module/path  | Retention, credential owner and removal |
+Record each extension context the work touches, even when contexts share code.
 
-Record each process role separately even when images are shared. Mark shared namespaces, controllers, StorageClasses,
-BackupRepos, DNS zones and registry connections as borrowed. State which application resources the stack may create or
-delete.
+| Context or component         | Source today                                       | Planned home                         | Owner and rules                                             |
+| ---------------------------- | -------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------- |
+| Background                   | `src/entrypoints/background.ts`, `src/lib/background/` | `apps/extension/`                | Listeners register synchronously; no browser API at import  |
+| Offscreen document (Chrome)  | `src/entrypoints/offscreen/`                       | `apps/extension/`                    | Hosts the matcher pool only where the background cannot    |
+| Matcher workers              | `src/lib/matcher/`                                 | `packages/detection`                 | No browser API; per-partition deadline                      |
+| Content script               | `src/entrypoints/content.ts`, `src/lib/content/`   | `apps/extension/`, `packages/dom`    | Prototype-safe keys; stays responsive on huge pages         |
+| Panel surfaces               | `src/app/`, `src/ui/`                              | `apps/extension/`                    | Renders snapshots; persistence only through `app/browser/`  |
+| Registry                     | `src/registry/`, `src/lib/registry/`, `modules/`   | `packages/registry`                  | Deterministic build; provenance recorded                    |
+| Vendored utilities           | `utils/`                                           | `utils/`                             | Resync only; see `utils/README.md`                          |
+| Tools                        | `scripts/`                                         | `tools/`                             | Thin Mise tasks call them                                   |
 
-For an image, record the upstream release, registry, index/child digests, platform, entrypoint, arguments, ports and
-writable paths. For a package, record public exports or its executable, version, runtime, lock and packaging entry
-point. For owned source, record upstream ancestry or the verified source-import contract and maintained customizations.
+Check the paths against the tree before relying on them; the [source layout plan](../../migration/source-layout-plan.md)
+is moving modules.

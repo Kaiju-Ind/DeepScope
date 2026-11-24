@@ -15,3 +15,6 @@ Skills: `write-docs`.
 | [Convert failures into prevention](06-convert-failures-into-prevention.md)                                 | Keep incident records factual and searchable.                                                                                                         |
 | [Make the knowledge available where the work happens](07-make-the-knowledge-available-where-the-work.md)   | Keep a short `AGENTS.md` route to the detailed procedures.                                                                                            |
 | [Primary sources and their limits](08-primary-sources-and-their-limits.md)                                 | [iso]: https://committee.iso.org/files/live/sites/tc176sc1/files/Terms%20in%20TC%20176%20Standards%20Alphabetical%20Listing%20V1%202022%2009%2029.pdf |
+
+[epa]: https://www.epa.gov/sites/default/files/2015-06/documents/g6-final.pdf
+[metrics]: https://dora.dev/guides/dora-metrics/

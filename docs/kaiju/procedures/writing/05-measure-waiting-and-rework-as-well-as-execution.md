@@ -10,11 +10,11 @@ The [current DORA guide][metrics] defines five delivery metrics:
 | Change fail rate                | Share of deployments that need immediate intervention.                       |
 | Deployment rework rate          | Share of deployments that are unplanned responses to production incidents.   |
 
-Kaiju also needs **request-to-preview** and **preview-to-production** measurements. These are additional measures with
+DeepScope also needs **request-to-preview** and **preview-to-release** measurements. These are additional measures with
 their own start and end events. Do not relabel them as DORA change lead time.
 
 Record request acceptance, prerequisite report, prerequisite completion, candidate creation, preview readiness,
-production selection, and production acceptance. Keep total wall time visible. Separately record waiting, queueing,
+release selection, and release acceptance. Keep total wall time visible. Separately record waiting, queueing,
 active work, rework, and failure class. A credential delay must remain part of the total, even if an execution-only
 measure is also useful.
 
@@ -26,3 +26,6 @@ Measure a service against its own earlier runs. Report sample counts; use indivi
 small for useful percentiles. Any time targets in the handbook are proposed operating targets, not measured performance
 or provider guarantees. DORA warns against one-dimensional goals that encourage gaming. A target miss should expose the
 slow stage, never justify a skipped check.
+
+[metrics]: https://dora.dev/guides/dora-metrics/
+[value-stream]: https://dora.dev/capabilities/work-visibility-in-value-stream/

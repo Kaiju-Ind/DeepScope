@@ -1,11 +1,10 @@
 # E05 Measure representative change scenarios and protect releases
 
-Record a before/after matrix with at least these relevant changes: source-only service/backend, shared utility and
-downstream consumer, type-only import, database/schema/migration, unit test, browser test, benchmark, published package
-or lockfile, frontend, worker, documentation, workflow/shared tooling, Dockerfile/build-context and release
-configuration. For each, compare the full-work oracle to the selected work, and record _why_ a task executed, reused a
-cache or was skipped. Expand the matrix for the project's actual components; the Core CI v20 `SCENARIO-MATRIX.csv` is a
-research reference, not a universal test count.
+Record a before/after matrix with at least these relevant changes: background or content-script source, a vendored
+utility and its consumer, type-only import, catalog data, unit test, UI test, benchmark, dependency or lockfile, panel
+UI, matcher worker, documentation, workflow or Mise task, `wxt.config.ts` and release configuration. For each, compare the full-work oracle to the selected work, and record _why_ a task executed, reused a
+cache or was skipped. Expand the matrix for the project's actual components; Kaiju's Core CI scenario matrix is a research
+reference, not a universal test count.
 
 In the change-impact matrix, include a new test under an existing discovered directory, a new nested package, test
 rename/deletion, two unrelated changes within a formerly monolithic test file, and changes to shared fixtures, runner
@@ -20,7 +19,7 @@ calculate currency cost; otherwise report runner-seconds, not invented dollars. 
 time. Moving tests to manual reduces automatic work but does not prove a faster equal-work execution.
 
 Before declaring an implementation done, run and inspect the applicable strict type checks, meaningful tests, frozen
-installs, builds, produced artifact contents, installed-package consumers, target-runtime checks and deployment/user
-journeys. Protected release security checks, exact-source provenance and migration compatibility survive every
-optimization. State exactly what remains blocked, skipped or unverified. Do not dispatch expensive workflows, mutate
-infrastructure or merge another PR without applicable authorization.
+installs, builds, produced artifact contents, installed-package consumers, real-browser checks and user journeys in
+each affected browser. Protected release security checks, exact-source provenance and migration compatibility survive every
+optimization. State exactly what remains blocked, skipped or unverified. Do not dispatch expensive workflows (the macOS
+Safari job costs ten times Linux), publish, or merge another PR without applicable authorization.

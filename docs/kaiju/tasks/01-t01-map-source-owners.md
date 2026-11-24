@@ -13,10 +13,10 @@ T01 Map the source owners of a change
 
 CONTEXT
 - Repository: <owner/name>. Branch or pull request: <name>. Verify the live head and base before editing. A remembered SHA is not permission to overwrite newer work.
-- Read AGENTS.md, .agents/START.md and docs/kaiju/start/README.md. Then load each skill named below when the task reaches its decision, and read each rule named below before acting on it.
+- Read AGENTS.md, .agents/START.md, docs/kaiju/start/README.md and the plan under docs/migration/ that owns the work. Then load each skill named below when the task reaches its decision, and read each rule named below before acting on it.
 - Keep the active task record (AE01). Report missing access and owner actions before long work (AE02).
 - Make one coherent change per commit and keep a recoverable handoff (E06): commands, results, the SHA and the next step.
-- Do not merge, deploy, edit another repository, reset shared data or start a paid workflow unless the owner asked for it.
+- Do not merge, tag, publish a release, submit to a store, edit another repository or start a costly workflow (the macOS Safari job) unless the owner asked for it.
 - An unknown input, edge or owner means real work, never a skipped success. Label every check you did not run.
 
 SKILLS AND RULES
@@ -28,8 +28,8 @@ SKILLS AND RULES
 
 STEPS (read-only)
 1. List every changed path on the branch against its base, with the commit that changed it.
-2. For each path, find the owning package or project from the real manifests (deno.json, package.json, Cargo.toml, mise.toml), not from folder names.
-3. Trace callers and consumers with the language's own graph (deno info, cargo metadata, a TypeScript or Oxc AST), including type-only and dynamic imports.
+2. For each path, find the owning package or project from the real manifests (package.json, pnpm-workspace.yaml, the workspace packages under utils/, mise.toml, wxt.config.ts, vitest.config.ts), not from folder names.
+3. Trace callers and consumers with the language's own graph (a TypeScript or Oxc AST; oxc-parser is already a dev dependency), including type-only and dynamic imports.
 4. Name open pull requests and branches that touch the same owners, and how this branch relates to them.
 5. Record unknown relationships as unknown, with what would resolve them.
 

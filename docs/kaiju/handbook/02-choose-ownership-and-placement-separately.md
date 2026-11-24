@@ -1,95 +1,48 @@
 # Choose ownership and placement separately
 
-Classify each component. One repository can contain several strategies.
+Two questions are separate: who owns a piece of code (its artifact strategy), and which extension context runs it
+(its placement).
 
-| Artifact strategy                           | What Kaiju maintains                                                              | How an update arrives                                            | First checks                                                                                                      | Typical adaptation                                                                 |
-| ------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Upstream image                              | Deployment, supported configuration, optional thin image layer, integration tests | Grouped Renovate change to version and digest                    | Actual image architecture, entrypoint, health, writable paths, migration command, license/edition features        | Configure environment, mount a supported config file, provision a supported plugin |
-| Published JavaScript package or pinned file | Small launcher or adapter, exact dependency lock, packaging and integration tests | Dependency update or an explicitly reviewed source-file revision | Public exports or executable entry point, runtime support, installed artifact, startup/exit, dependency integrity | A Deno or Node entry point, then a thin OCI image when the host requires one       |
-| Owned application source                    | Application behavior and patch set as well as deployment                          | Upstream source integration plus Kaiju changes                   | Real upstream ancestry or import record, framework/runtime, licenses, migrations, tests and extension seams       | Maintained fork or source import with a controlled update procedure                |
+## Ownership
 
-Do not download a moving JavaScript URL at container startup. Pin the file's source revision and integrity, keep
-dependencies reproducible, and package the verified result. If a published package lacks the needed public entry point,
-do not invent one or import private source paths. Select a supported image, an extension API, or owned source.
+| Strategy                 | What DeepScope maintains                                              | How an update arrives                                   | First checks                                                  |
+| ------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------- |
+| npm dependency           | The exact pin, the lockfile and the integration tests                 | A Renovate pull request                                 | Public exports, browser support, bundle cost, licence         |
+| Vendored `@utils/*`      | The copy, its attribution and DeepScope's own files beside it         | `scripts/utils/sync.ts` from Kaiju-Ind/Utils            | The sync source commit, `--check`, the `utils` Vitest project |
+| Owned source             | Behavior, tests and docs                                              | Ordinary commits                                        | Types, tests, three browser builds, real-browser scenarios    |
+| Catalog data             | `src/registry/` technology definitions derived from upstream data    | Edits or an upstream data import                        | Provenance and licence, golden matcher output, unsafe patterns |
+| Generated output         | Nothing by hand: registry JSON, `.wxt/`, `.output/`                   | The build                                               | Byte-identical rebuild, no committed output                   |
 
-Prove each requirement before it creates maintenance work. An imported database version floor, copied scaffold or
-familiar example does not establish what the application needs. Trace the actual client, migration and compatibility
-requirements, then try the existing supported platform contract. A new database image, source fork or shared package
-needs a demonstrated gap, an owner, an upgrade path and a removal condition.
-[The supplied OpenATS retrospective](../failures/retrospectives/README.md) records how an unproved PostgreSQL patch
-floor created a custom-image workstream that was later removed.
+Prove each requirement before it creates maintenance. A familiar example or a copied default does not establish what
+DeepScope needs. A new dependency, polyfill or fork needs a demonstrated gap, an owner, an update path and a removal
+condition. Never infer a provider from a framework: seeing Next.js on a page does not mean Vercel.
 
-ItsAPlan combines upstream application images, a locally prepared image consuming `@itsaplan/runner` and OpenCode, and
-owned Deno/Pulumi tooling. OpenATS owns application source. The inspected Grafana and Twenty projects are image
-wrappers; their npm manifests also manage infrastructure or supporting tools. Running `node` inside an image does not
-establish a package-based application integration. The primary files of each example:
+## Placement
 
-| Example                                    | Primary files                                                                                                                                                                                                                                                                                                                                                                            | Interpretation                                                                                       |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| ItsAPlan upstream app plus packaged runner | [images](https://github.com/Kaiju-Ind/ItsAPlan/blob/8dbe104fff3ca8b5f930aecbe2891eaeb2e0a2c5/infra/images.json), [runner owner](https://github.com/Kaiju-Ind/ItsAPlan/tree/8dbe104fff3ca8b5f930aecbe2891eaeb2e0a2c5/agents/runner)                                                                                                                                                       | Classify each component separately                                                                   |
-| Grafana image wrapper                      | [Dockerfile](https://github.com/Kaiju-Ind/Grafana/blob/855411210234b958872d4806c8b71376a3dc8a4e/Dockerfile), [root package](https://github.com/Kaiju-Ind/Grafana/blob/855411210234b958872d4806c8b71376a3dc8a4e/package.json), [infra package](https://github.com/Kaiju-Ind/Grafana/blob/855411210234b958872d4806c8b71376a3dc8a4e/infra/package.json)                                     | Grafana Foundation SDK generates supporting configuration; it is not the Grafana server distribution |
-| Twenty image wrapper                       | [Dockerfile](https://github.com/Kaiju-Ind/Twenty/blob/51e7fabdb445b79adc24b73f1fada8f7fd497498/Dockerfile), [package](https://github.com/Kaiju-Ind/Twenty/blob/51e7fabdb445b79adc24b73f1fada8f7fd497498/package.json)                                                                                                                                                                    | A Node entry point inside an upstream image does not establish a published application package       |
-| OpenATS owned source/import                | [requested source](https://github.com/Kaiju-Ind/OpenATS/blob/3b30f7e34a16dca68fe1ac354438ea93ef6fad26/upstream/requested.env), [integrated source](https://github.com/Kaiju-Ind/OpenATS/blob/3b30f7e34a16dca68fe1ac354438ea93ef6fad26/upstream/integrated.env), [upgrade procedure](https://github.com/Kaiju-Ind/OpenATS/blob/3b30f7e34a16dca68fe1ac354438ea93ef6fad26/docs/upgrades.md) | A Renovate proposal must be followed by actual source integration                                    |
+Each piece of runtime code has one owning context. The [cross-browser plan](../../migration/cross-browser-runtime-plan.md)
+records which context exists in which browser.
 
-Now choose placement:
+| Context                         | Owns                                                                       | Constraints                                                                          |
+| ------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Background                      | Scheduling, tab identity, content-script calls, snapshots, the badge      | Chrome: service worker (no `Worker`, no DOM). Firefox: event page. Safari: non-persistent background page. All can unload while idle. |
+| Offscreen document (Chrome)     | The matcher worker pool when the background cannot create workers         | Chromium only                                                                        |
+| Matcher workers                 | Rule matching over observation shards                                     | Created only from a page (offscreen document or background page); per-partition deadline |
+| Content script                  | Reading the page: DOM scan, metadata, resources, observation              | Runs in every frame it is injected into; page-controlled keys; must stay responsive  |
+| MAIN-world probe                | Page JavaScript globals                                                   | Cannot import modules; builds its own null-prototype record                          |
+| Panel surfaces                  | One Solid app: side panel, sidebar, popup, full page, options             | Never the source of truth; renders published snapshots                               |
 
-| Placement             | Use when                                                                                                           | Owned application resources                                                                                                | Extra checks                                                                                                                        |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Kubernetes-only       | The application fits the existing cluster, ingress and data path; a separate edge runtime adds little value        | Deployment/StatefulSet/Job as appropriate, Service, existing ingress integration, app secrets, database/storage allocation | Cluster identity/RBAC, probes, persistence, ingress/TLS, rollout and actual user flow                                               |
-| Bunny plus Kubernetes | Public application workloads benefit from the existing Bunny setup while data or durable work stays in the cluster | Bunny application and endpoints; Kubernetes data/background workloads; explicit private connection                         | Bunny process semantics, registry pulls, Tailscale identities/bridge, health-probe reachability, DNS/CDN/cookies and runtime egress |
+Choose by capability, not by browser name: if the background has `Worker`, run the pool there; otherwise use the
+offscreen document. Put logic that needs no browser API in modules with no browser imports, so it runs under Vitest in
+Node.
 
-Kubernetes-only does not require Magic Containers, a Tailscale bridge or a new sandbox provider. It can still use an
-existing Bunny edge arrangement if that is the platform's exposure contract. Select the supported path with the fewest
-new dependencies for the requested outcome. Keep existing platform choices unless a traced limitation requires change.
+## Layout today and the planned direction
 
-## Keep shared platform work off the repeat deployment path
+Today the WXT app is at the root: `src/entrypoints/`, `src/app/`, `src/lib/`, `src/registry/`, `src/utils/`,
+`src/tests/`, with `modules/` (WXT modules), `scripts/` (registry, release, utils sync and verify scripts), `utils/`
+(vendored `@utils/*`) and `docs/architecture/`.
 
-The platform owns the cluster, controllers, storage classes, backup infrastructure, shared network operators and base
-registry/DNS access. An instance owns its application resources and data. The application owns its schema, accounts and
-business behavior.
-
-| Owner                | Examples                                                                                                                                   | Reuse rule                                                                                        |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Shared platform      | Cluster, KubeBlocks operators/catalog, `lair`, data-node pool, StorageClass, BackupRepo, Tailscale operator, registry connection, DNS zone | Borrow through verified outputs. Do not create, adopt or delete these from every app stack.       |
-| Application instance | Named DB/role, workload secrets, Jobs, worker, endpoints, DNS records, B2 allocation and optional runner workspace                         | Give resources explicit instance identity and lifecycle. Retain stateful resources intentionally. |
-| Application          | Migrations, first administrator, memberships, email integration, model configuration and task protocol                                     | Use supported configuration and administration APIs. Do not patch an edition limit away.          |
-| Deployment operation | Candidate identity, saved plan, maintenance, phase record, acceptance and recovery                                                         | One active deployment owner per instance. Preserve partial-state evidence.                        |
-
-This split follows
-[ItsAPlan's repository ownership](https://github.com/Kaiju-Ind/ItsAPlan/blob/8dbe104fff3ca8b5f930aecbe2891eaeb2e0a2c5/AGENTS.md).
-It prevents an application setup from becoming an accidental platform rebuild.
-
-The hybrid example below shows ownership and connectivity. It does not prescribe every component for every project.
-
-```mermaid
-flowchart TD
-  User["Reviewer"] --> Edge["DNS and public endpoint"]
-  Edge --> App["Bunny application"]
-  App --> Bridge["Private connection"]
-  Bridge --> DB["KubeBlocks database"]
-  Jobs["Kubernetes background work"] --> DB
-  App --> Objects["Application objects"]
-  Jobs --> Objects
-  App --> Mail["Transactional email"]
-  Jobs --> Model["Selected model provider"]
-```
-
-The private connection must be tested from the deployed workload. A successful laptop connection does not prove the
-application's route. A background worker is a real process role even when it shares an image with the API. OpenATS's API
-and Worker use the same backend artifact but have different commands and exposure.
-
-## Treat instances, tenants and execution isolation as different contracts
-
-An application workspace is not automatically a strong tenant boundary. Verify upstream edition support, authorization,
-credentials, object paths and data scope. Use separate stacks for ThunderStrike and Kaiju when independent data or
-policy is required and the upstream tenant model is insufficient.
-
-Do not share a bucket merely because credentials differ. ItsAPlan's upstream object keys do not include an installation
-prefix, so independent installations need separate buckets. A schema, namespace or prefix can help organize data, but
-its isolation depends on enforced access controls. Current examples use shared platform infrastructure; they do not
-promise isolation from cluster administrators.
-
-Coding agents need a separate decision. A persistent upstream runner can work without a custom Kubernetes operator.
-Per-task sandboxing adds claims, resource limits, credentials, cancellation, stale-result rejection, artifact custody
-and cleanup. A Pod launcher alone does not supply that execution protocol.
-[Agent source and limits](https://github.com/Kaiju-Ind/ItsAPlan/blob/8dbe104fff3ca8b5f930aecbe2891eaeb2e0a2c5/infra/agents.ts).
+The planned monorepo moves the WXT app to `apps/extension/`, splits DeepScope's reusable code into `packages/dom`,
+`packages/registry` and `packages/detection` (published as `@deepscope/*`), keeps `utils/*` as `@utils/*`, renames
+`scripts/` to `tools/`, and adds `docs/adr/` for decisions. New code should already respect those boundaries: no
+browser API in what will become a package, and no app import from library code. The
+[source layout plan](../../migration/source-layout-plan.md) has the module rules.

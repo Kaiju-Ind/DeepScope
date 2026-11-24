@@ -7,3 +7,5 @@ therefore belongs in ordinary Markdown, with a small instruction entry that tell
 Copy this pack to `docs/kaiju/`, merge [the portable fragment](../../start/agents-fragment.md) into existing repository
 instructions, and verify the active sources in that environment. A Library save does not automatically install those
 files in Codex.
+
+[codex]: https://developers.openai.com/codex/guides/agents-md/

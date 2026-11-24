@@ -12,10 +12,10 @@ T02 Audit custom tooling against native capabilities
 
 CONTEXT
 - Repository: <owner/name>. Branch or pull request: <name>. Verify the live head and base before editing. A remembered SHA is not permission to overwrite newer work.
-- Read AGENTS.md, .agents/START.md and docs/kaiju/start/README.md. Then load each skill named below when the task reaches its decision, and read each rule named below before acting on it.
+- Read AGENTS.md, .agents/START.md, docs/kaiju/start/README.md and the plan under docs/migration/ that owns the work. Then load each skill named below when the task reaches its decision, and read each rule named below before acting on it.
 - Keep the active task record (AE01). Report missing access and owner actions before long work (AE02).
 - Make one coherent change per commit and keep a recoverable handoff (E06): commands, results, the SHA and the next step.
-- Do not merge, deploy, edit another repository, reset shared data or start a paid workflow unless the owner asked for it.
+- Do not merge, tag, publish a release, submit to a store, edit another repository or start a costly workflow (the macOS Safari job) unless the owner asked for it.
 - An unknown input, edge or owner means real work, never a skipped success. Label every check you did not run.
 
 SKILLS AND RULES
@@ -26,7 +26,7 @@ SKILLS AND RULES
 
 STEPS (read-only)
 1. List each custom tool, script and workflow step, with its live callers.
-2. For each one, read the installed and pinned versions of the native tools that could own the job (Mise, Deno, the package manager, the test runner, the build tool, BuildKit) and their command help. Search the current documentation; do not rely on memory.
+2. For each one, read the installed and pinned versions of the native tools that could own the job (Mise, pnpm, Vitest, TypeScript, WXT, Rolldown, the browser itself) and their command help. Search the current documentation; do not rely on memory.
 3. Write down what the native tool does not cover. A gap must be shown with a command, not assumed.
 4. Propose a replacement only with a parity test that runs both and compares results.
 

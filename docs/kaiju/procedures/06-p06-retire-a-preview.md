@@ -1,16 +1,14 @@
 # P06 Retire a preview
 
-**Trigger:** preview expiry, closed work, explicit replacement or owner request. **Outcome:** owned temporary resources
-are removed and retained data is accounted for.
+**Trigger:** a review build is no longer needed, a draft release is abandoned, or a store test item is replaced.
+**Outcome:** temporary artifacts are removed and nothing that users rely on is touched.
 
-1. Confirm the preview's exact environment, resource inventory and ownership labels.
-2. Confirm the target is not production or a borrowed platform resource.
-3. Stop background work and revoke preview-specific external access.
-4. Export only data that the retention contract requires.
-5. Remove the preview's application, routes, identities and temporary data through its owning tool.
-6. Verify object versions, volumes, DNS records and credentials follow the intended retention policy.
-7. Record remaining protected resources and their owner.
+DeepScope previews are files, not environments, so most of this procedure is not needed: Verify workflow artifacts
+expire after seven days, and local `.output/` is ignored. Retire these explicitly when they exist:
 
-If identity or ownership is ambiguous, stop deletion and inspect the original receipt. A prefix match alone is
-insufficient authority to delete resources. A TTL automation must use the same ownership contract as manual cleanup.
-Cleanup failure remains visible even if the preview is no longer reachable.
+1. An abandoned draft GitHub Release and its ghcr package version (never a published one).
+2. An unpublished Chrome Web Store upload that will not be submitted.
+3. A temporary add-on or unsigned Safari build installed in a shared browser profile.
+4. Real-browser result files that hold page data, kept outside `.tmp/`.
+
+Confirm the exact version or tag before deleting; a prefix match is not enough. Record what was removed.

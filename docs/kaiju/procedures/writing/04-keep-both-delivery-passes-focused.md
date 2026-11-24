@@ -5,20 +5,22 @@ owner-only prerequisites before substantial implementation. The report should na
 domain, credential scope, or CI action needed. Continue independent work while that action is completed, and report new
 blockers as they appear.
 
-The preview exit condition is a URL the intended reviewer can use to complete that journey. Deliver the access method,
-exact candidate, passed checks, limitations, and cleanup owner. Keep preview data and external side effects separate
-from production. [DORA's small-batch guidance][small-batches] supports independently useful, testable increments that
+The preview exit condition is a build of the exact commit that the intended reviewer loads in each affected browser to
+complete that journey. Deliver the build location, exact commit, passed checks, browsers and versions, and limitations. [DORA's small-batch guidance][small-batches] supports independently useful, testable increments that
 return feedback quickly.
 
-For **preview to production**, select the reviewed candidate and its configuration. Promote the same immutable
-application artifact where the application permits runtime configuration. If build-time settings require a new artifact,
-treat it as a new candidate and repeat the affected checks. Versioned build inputs and identifiable artifacts follow
+For **preview to release**, select the reviewed commit. The release workflow rebuilds from the tag on a cold runner, so
+the build must be reproducible: the released archives must match what was reviewed byte for byte, or the difference
+must be explained and rechecked. Versioned build inputs and identifiable artifacts follow
 [Google's release-engineering principles][release].
 
-Use the rollout mechanism the platform and application actually support. [Google's canary guidance][canary] describes a
-limited, evaluated rollout with a control; naming a replica “canary” does not supply useful evaluation. A low-traffic
-service may need explicit synthetic journeys and a longer observation period to establish the relevant behavior.
+Stores own the rollout. Chrome Web Store supports a partial rollout percentage; AMO and the App Store do not roll back to
+an older version number. Plan persisted-data compatibility separately from code: an extension update must read what the
+previous version stored in `storage.local` and IndexedDB, and a fixed release must still read what a broken one wrote.
+[Google's rollback guidance][rollback] illustrates staged compatible changes; [canary guidance][canary] describes an
+evaluated partial rollout.
 
-Plan database compatibility separately from code rollback. A previous application version may not understand a new
-schema. [Google's rollback guidance][rollback] illustrates staged compatible releases before features that depend on
-schema changes. Do not translate an application rollback into an automatic destructive database downgrade.
+[small-batches]: https://dora.dev/capabilities/working-in-small-batches/
+[release]: https://sre.google/sre-book/release-engineering/
+[rollback]: https://cloud.google.com/blog/products/gcp/reliable-releases-and-rollbacks-cre-life-lessons
+[canary]: https://sre.google/workbook/canarying-releases/

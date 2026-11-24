@@ -1,16 +1,14 @@
-# Candidate, preview and production receipts
+# Build and release receipts
 
-The records should link to one another without conflating their identities.
+The records link to one another without conflating their identities.
 
-| Record                | Required content                                                                                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Candidate             | Repository/commit/tree, artifact type, immutable image/package/file identity, platform, build-input/lock identity, test evidence and builder run |
-| Preview               | Candidate reference, preview config/plan identity, URL/access route, required service results, passed journey, known limits, owner and expiry    |
-| Production plan       | Candidate reference, target stack/account, current state identity, exact configuration, migration/recovery decision and reviewed plan identity   |
-| Production acceptance | Deployed artifact/configuration, actual apply record, health/convergence/journey/observation evidence, previous identity and recovery owner      |
+| Record            | Required content                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Candidate         | Commit, lockfile, check and test results, Verify run id                                                                   |
+| Preview           | Candidate, build location or Verify artifact, browsers and versions, journey result, real-browser result files, limits    |
+| Release           | Version, tag, commit, Release run id, asset names and SHA-256 digests, attestation and `gh release verify` results, ghcr digest |
+| Store submission  | Store, version, upload or signing result, review state and reviewer messages, date                                       |
 
-If a build-time setting changes bytes, create a new candidate. If only the target environment changes, preserve the
-admitted application artifact when the repository's source/provenance contract permits reuse, and create a new
-infrastructure plan. Otherwise follow the required new-candidate release path; never weaken source admission to avoid
-rebuilding. Credentials with short lifetimes need a current scoped refresh at the actual consumer; do not freeze
-expiring tokens as permanent plan inputs.
+A release rebuilds from the tag. If its archives differ from the reviewed preview build, explain the difference and
+recheck the affected journey; never call different bytes the same candidate. Store review state changes over time:
+record each state with its date rather than overwriting it.

@@ -1,19 +1,24 @@
-# Kaiju project playbook
+# Kaiju project playbook for DeepScope
 
-Release 1.2.1, split into folders of short files. Each folder has a README that lists its parts. The pack routes project
-and deployment work; the skills and guides in `.agents/` say how to do the engineering, and the repository's own files
-decide what applies. Each folder's README names the skills that carry out its work, and each of those skills links back
-to the folder. Start with [Start here](start/README.md).
+Kaiju's project playbook, adapted to DeepScope: a browser extension for Chrome, Firefox and Safari that is built,
+verified in real browsers and released as per-browser archives on GitHub Releases and ghcr, then submitted to the
+stores. It has no servers, so the playbook's deployment chapters were replaced by platform readiness for browsers,
+stores and the release channel. The source is Kaiju-Ind/Crawl `docs/kaiju/` at `a00f0036d` (release 1.2.1 plus
+unreleased changes); the [changelog](CHANGELOG.md) records what changed.
 
-| Folder                                      | Read it to                                                                                          |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| [Start here](start/README.md)               | When the pack applies, what to read for each task, and the first action.                            |
-| [Handbook](handbook/README.md)              | How a Kaiju project is structured: ownership, placement, procedures and files.                      |
-| [Procedures](procedures/README.md)          | The eight procedures P01 to P08, and how to write a procedure.                                      |
-| [Service readiness](services/README.md)     | How to prove email, storage, database, networking, images and AI before deployment depends on them. |
-| [Project record](project/README.md)         | The project contract and the operating records that each project keeps.                             |
-| [Agent execution](agents/README.md)         | Controls AE01 to AE08 that keep agent work aligned through long tasks and resumed sessions.         |
-| [Engineering and CI](engineering/README.md) | Rules E01 to E06 for CI, test selection, caching, builds and package ownership.                     |
-| [Task prompts](tasks/README.md)             | Copyable prompts T01 to T18 that run one engineering task with the right skills and rules.          |
-| [Failure catalogue](failures/README.md)     | Known deployment failures, their causes, repairs and prevention, and the retrospective coverage.    |
-| [Service references](references.md)         | The provider documentation behind the service readiness cards.                                      |
+Each folder has a README that lists its parts and names the skills that carry out its work; each of those skills in
+`.agents/skills/` links back. The root `AGENTS.md` routes the playbook, the skills and DeepScope's own records. Start
+with [Start here](start/README.md).
+
+| Folder                                      | Read it to                                                                                     |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [Start here](start/README.md)               | What the playbook is for, what to read for each task, and the first action.                    |
+| [Handbook](handbook/README.md)              | Ownership, placement across extension contexts, files, and the planned monorepo layout.        |
+| [Procedures](procedures/README.md)          | P01 to P08: from opening work to a usable preview, a release, recovery and maintenance.        |
+| [Platform readiness](platforms/README.md)   | How to prove browsers, stores and the release channel are ready.                               |
+| [Project record](project/README.md)         | The records each piece of work keeps in its plan under `docs/migration/`.                      |
+| [Agent execution](agents/README.md)         | Controls AE01 to AE08 that keep agent work aligned through long tasks and resumed sessions.    |
+| [Engineering and CI](engineering/README.md) | Rules E01 to E06 for CI, test discovery, caching, builds and package ownership.                |
+| [Task prompts](tasks/README.md)             | Copyable prompts that run one engineering task with the right skills and rules.                |
+| [Failure catalogue](failures/README.md)     | DeepScope's known failures, causes, repairs and prevention.                                    |
+| [Platform references](references.md)        | The browser, store and GitHub documentation behind the platform cards.                         |
