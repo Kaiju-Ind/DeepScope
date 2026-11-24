@@ -261,6 +261,45 @@ scopes are contexts). New npm dependencies: `@okikio/observables`,
 `@std/async` (via `npm:@jsr/std__async`), `@standard-schema/spec`,
 `temporal-polyfill` for Safari only (Chrome's minimum is now 144).
 
+### Browser store for workflow and queue (design, 2026-11-23)
+
+Utils contracts are stable on `47d2c0f` (open PRs only change Postgres
+internals). Recommended design:
+
+- **IndexedDB first.** It is the only durable store every background context
+  can reach (Chrome's service worker has no `localStorage` and no OPFS sync
+  handles). IndexedDB serialises readwrite transactions across the extension
+  origin, so the service worker and the offscreen document claim atomically.
+- **OPFS later, behind the same port.** OPFS wins on bulk reads of large
+  datasets; DeepScope's scheduler holds tens to hundreds of small rows. In
+  Chrome it would need a worker hop plus WebAssembly and `'wasm-unsafe-eval'`.
+  The Linear claim did not check out: Linear's sync engine persists to
+  IndexedDB; the verified OPFS case is Notion (SQLite WASM on the OPFS
+  SyncAccessHandle pool behind a SharedWorker, 20% faster navigation).
+- **Queue:** an IndexedDB adapter of `scheduler/queue` (`items` store keyed
+  `[namespace, id]`, lane-based indexes replacing Postgres partial indexes,
+  one readwrite transaction per claim, fencing by claim token, owner and
+  expiry). A scratch prototype passed 8 contract tests under fake-indexeddb,
+  including 20 concurrent claimers with no double lease.
+- **Workflow:** the in-process `workflow.scheduler` with an IndexedDB
+  `History` in the same database as the queue, so a history write can check
+  the queue claim in one transaction. The Postgres `ExecutionStore` (27
+  methods, about 3,000 lines) is not ported; if full `serve()` durability is
+  needed later, run the unchanged Postgres stores on PGlite in a worker.
+- **Private tabs** use `queue.memory()` and `history.memory()` only.
+- **Upstream first:** add the adapters to Kaiju Utils as
+  `storage/queue/indexeddb.ts` and `storage/workflow/history/indexeddb.ts`,
+  with a shared queue conformance suite and small contract extensions
+  (labels, `cancelWhere`, `reprioritize`, `abandon`, `next`; History
+  `forget`/`prune`), then vendor them. A DeepScope-only store would fork the
+  contract.
+
+DeepScope mapping: `scheduler/database.ts` is replaced by the IndexedDB queue
+(admit, claim, recover, tab removal and window reprioritisation map to add,
+claim, abandon, cancelWhere and reprioritize with labels); `analysis.ts`
+becomes a workflow; matcher batches stay transient, only control records use
+the queue; `fairness.ts` and `budget.ts` stay as DeepScope policy.
+
 ### Registry scope (owner decision, 2026-11-23)
 
 The registry (catalog, compiler, artifact formats) stays as it is. Only the
