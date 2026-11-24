@@ -131,8 +131,20 @@ function mergeTechnologyDefinitions(definitions: readonly TechnologyDefinition[]
 		const implies = mergeOptionalStrings(existing.implies, definition.implies);
 		const requires = mergeOptionalStrings(existing.requires, definition.requires);
 		const excludes = mergeOptionalStrings(existing.excludes, definition.excludes);
+		const metadata = mergeMetadata(existing.metadata, definition.metadata);
+		// The first fragment owns the display identity. Later fragments only fill
+		// fields it left empty, so a CPE or icon authored once is not lost.
+		const description = existing.description ?? definition.description;
+		const icon = existing.icon ?? definition.icon;
+		const versioning = existing.versioning ?? definition.versioning;
+		const component = existing.component ?? definition.component;
 		merged.set(definition.id, {
 			...existing,
+			...(description ? { description } : {}),
+			...(icon ? { icon } : {}),
+			...(metadata ? { metadata } : {}),
+			...(versioning ? { versioning } : {}),
+			...(component ? { component } : {}),
 			categories: uniqueValues([...existing.categories, ...definition.categories]),
 			rules: mergeRules(existing.rules, definition.rules),
 			...(implies ? { implies } : {}),
@@ -161,6 +173,25 @@ function mergeRules(existingRules: readonly DetectionRule[], incomingRules: read
 	}
 
 	return merged;
+}
+
+/** Merge descriptive metadata without discarding a later fragment's CPE, pricing, or booleans. */
+function mergeMetadata(
+	existing: TechnologyDefinition['metadata'],
+	incoming: TechnologyDefinition['metadata'],
+): TechnologyDefinition['metadata'] {
+	if (!existing) return incoming;
+	if (!incoming) return existing;
+	const saas = existing.saas ?? incoming.saas;
+	const oss = existing.oss ?? incoming.oss;
+	const cpe = existing.cpe ?? incoming.cpe;
+	const pricing = mergeOptionalStrings(existing.pricing, incoming.pricing);
+	return {
+		...(saas !== undefined ? { saas } : {}),
+		...(oss !== undefined ? { oss } : {}),
+		...(pricing ? { pricing } : {}),
+		...(cpe ? { cpe } : {}),
+	};
 }
 
 function mergeOptionalStrings(
