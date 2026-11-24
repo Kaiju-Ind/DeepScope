@@ -81,6 +81,7 @@ import { diagnosticErrorType } from '@/lib/privacy/redaction';
 import type { RuntimeTechnologyRegistryArtifact } from '@/lib/registry/runtime-artifact';
 import * as revision from '@/lib/background/revision';
 import * as rank from '@/lib/detection/rank';
+import * as fence from '@/utils/fence';
 import * as url from '@/utils/url';
 import {
 	STORAGE_LIMITS,
@@ -378,7 +379,7 @@ export function createBackgroundRuntime(
 	const activeMatcherProgressByJob = new Map<string, ActiveMatcherProgressContext>();
 
 	/** Background snapshot writes are serialized per exact visible session. */
-	const snapshotWriteQueueBySession = new Map<string, Promise<void>>();
+	const snapshotWrites = fence.create<string>();
 
 	/** Retain one full observation batch only for a live content observation session. */
 	function retainObservationRefreshBaseline(
@@ -1073,7 +1074,7 @@ export function createBackgroundRuntime(
 		}
 
 		const key = createDetectionSessionKeyForOutput(tab, output);
-		await queueSnapshotWrite(key, async () => {
+		await snapshotWrites.run(getSnapshotQueueKey(key), async () => {
 			// A matcher can lose ownership while this revision waits in the write queue.
 			if (ownsPublication?.() === false) return;
 			const existing = await getLatestDetectionSessionSnapshot(key);
@@ -1130,26 +1131,6 @@ export function createBackgroundRuntime(
 	/** Build a stable key for ordered writes to one exact visible page session. */
 	function getSnapshotQueueKey(key: DetectionSessionKey): string {
 		return `${key.tabId}:${key.frameId}:${key.originHash}:${key.documentId}`;
-	}
-
-	/** Serialize revision assignment and storage writes for one exact session. */
-	function queueSnapshotWrite(
-		key: DetectionSessionKey,
-		operation: () => Promise<void>,
-	): Promise<void> {
-		const queueKey = getSnapshotQueueKey(key);
-		const previous = snapshotWriteQueueBySession.get(queueKey) ?? Promise.resolve();
-		const next = previous
-			.catch(() => undefined)
-			.then(operation)
-			.finally(() => {
-				if (snapshotWriteQueueBySession.get(queueKey) === next) {
-					snapshotWriteQueueBySession.delete(queueKey);
-				}
-			});
-
-		snapshotWriteQueueBySession.set(queueKey, next);
-		return next;
 	}
 
 	/** Explain why storage rejected a write so count regressions are diagnosable. */
