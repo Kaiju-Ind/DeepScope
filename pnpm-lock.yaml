@@ -604,6 +604,43 @@ importers:
         specifier: npm:@jsr/std__expect@1.0.20
         version: '@jsr/std__expect@1.0.20'
 
+  utils/storage:
+    dependencies:
+      '@okikio/observables':
+        specifier: 1.4.0
+        version: 1.4.0
+      '@utils/context':
+        specifier: workspace:*
+        version: link:../context
+      '@utils/duration':
+        specifier: workspace:*
+        version: link:../duration
+      '@utils/result':
+        specifier: workspace:*
+        version: link:../result
+      '@utils/scheduler':
+        specifier: workspace:*
+        version: link:../scheduler
+      '@utils/telemetry':
+        specifier: workspace:*
+        version: link:../telemetry
+      '@utils/workflow':
+        specifier: workspace:*
+        version: link:../workflow
+      idb:
+        specifier: 8.0.4
+        version: 8.0.4
+    devDependencies:
+      '@std/expect':
+        specifier: npm:@jsr/std__expect@1.0.20
+        version: '@jsr/std__expect@1.0.20'
+      '@utils/schema':
+        specifier: workspace:*
+        version: link:../schema
+      fake-indexeddb:
+        specifier: 6.2.8
+        version: 6.2.8
+
   utils/task:
     dependencies:
       '@okikio/observables':
