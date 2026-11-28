@@ -20,7 +20,7 @@ the app owns the command.
 
 | Command | Runs |
 | --- | --- |
-| `mise run check` | `pnpm run compile` (`tsc --noEmit` for `apps/extension`, `utils`, `tools` and the root config files) |
+| `mise run check` | `pnpm run compile`: native checks for every `packages/*` and `tools/*` workspace, then TypeScript for `apps/extension`, `utils` and the root config files |
 | `mise run test [vitest args]` | `pnpm run test:run` — Vitest discovers every test through the projects in the root `vitest.config.ts` (`apps/extension` contributes `extension (runtime)` and `extension (ui)`) |
 | `mise run build <chrome\|firefox\|safari>` | `wxt build -b <browser> --mv3` in `apps/extension`, into the root `.output/<browser>-mv3` |
 | `mise run zip <chrome\|firefox\|safari>` | `wxt zip -b <browser> --mv3`; Firefox also writes a sources zip |
@@ -63,9 +63,11 @@ Workflow lint runs independently of these jobs.
   the add-on id; the lint result still depends on the generated archive.
 - **smoke-chrome** runs `pnpm run validate:chrome-artifact` against the CI
   Chrome build. It requires exactly one downloaded Chrome archive and fails if
-  the script or a compatible browser is unavailable. Set `CHROME_BIN` when the
-  runner needs an explicit Chromium or Chrome for Testing executable. A static
-  artifact check does not replace this browser startup check.
+  the script or a compatible browser is unavailable. The step sets
+  `CHROME_BIN=/usr/bin/chromium` and prints that executable's version before
+  validation. The hosted image owns Chromium installation; no second browser
+  download is needed. A static artifact check does not replace this browser
+  startup check.
 - **safari-xcode** is an optional packaging check that needs Apple's macOS
   tools. It runs when a PR carries the `ci:safari` label or a manual run sets
   the `safari-xcode` input.
@@ -86,6 +88,14 @@ repository's standard runners. The previous workflow used
 Ubicloud's `ubicloud-standard-2`; to return to it, change `runs-on` in
 `verify.yml` (release jobs should stay GitHub-hosted so provenance does not
 name a third-party runner).
+
+The [Ubuntu image installs both branded Chrome and Chromium](https://github.com/actions/runner-images/blob/main/images/ubuntu/scripts/build/install-google-chrome.sh),
+but its default `CHROME_BIN` points to branded Chrome. Chrome 137 removed
+[`--load-extension` support from branded builds](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY).
+Chromium and Chrome for Testing retain that development flag. The smoke job
+therefore selects the image's Chromium explicitly. Its version follows the
+hosted image and is recorded in each run; it is not a separately pinned browser
+release. Local runs must select a supported executable in the same way.
 
 ### Concurrency
 

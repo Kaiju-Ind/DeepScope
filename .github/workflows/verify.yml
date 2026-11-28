@@ -180,12 +180,17 @@ jobs:
           path: ${{ runner.temp }}/chrome-zips
       - name: Validate the Chrome build
         shell: bash
+        env:
+          # The image's default CHROME_BIN is branded Chrome, which cannot
+          # load this unpacked extension through --load-extension.
+          CHROME_BIN: /usr/bin/chromium
         run: |
           shopt -s nullglob
           zips=("$RUNNER_TEMP"/chrome-zips/*-chrome.zip)
           [ "${#zips[@]}" -eq 1 ] || { echo "::error::expected one *-chrome.zip, found ${#zips[@]}"; exit 1; }
           rm -rf .output/chrome-mv3
           unzip -q "${zips[0]}" -d .output/chrome-mv3
+          "$CHROME_BIN" --version
           mise exec -- pnpm run validate:chrome-artifact
 
   workflows:
