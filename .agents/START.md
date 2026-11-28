@@ -86,6 +86,9 @@ authority, not model compliance or human comprehension.
 The complete shared handbook above remains applicable. Use these retained
 project companions for the extension contracts in
 [the DeepScope profile](../docs/kaiju/profiles/deepscope.md).
+Read [the current project record](project.md) for the release owners, measured
+review coverage, unresolved gates and next semantic review. It routes the shared
+guidance; it does not replace the original skills or guides.
 
 | Decision | Capability |
 | --- | --- |

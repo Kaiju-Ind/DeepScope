@@ -1,12 +1,22 @@
 # Verification workflow
 
-Use package scripts to check source and build the WXT extension. Inspect generated output and test extension behavior in Chrome before release. Record the commands that ran, their results, and any checks that remain unrun.
+Use the native package scripts and Mise tasks to check source and build the WXT
+extension. Inspect each affected browser's output and run its actual extension
+flows before release. Record commands, source/output identity, results and checks
+that remain unrun.
 
 ## Validation layers
 
-Start with tests for the changed subsystem. Run the full Vitest suite and TypeScript check when the change crosses source owners. Build the Chrome extension for changes to entrypoints, UI, dependencies, manifests, or bundling. Inspect the generated files, then exercise the affected user flows in Chrome.
+Start with tests for the changed subsystem. Run the full discovered Vitest suite
+and native source checks when a change crosses owners. Build every affected
+browser for changes to entrypoints, UI, dependencies, manifests or bundling.
+Inspect generated files, then exercise the affected flows in those browsers.
 
-The package scripts finish at WXT output generation. Runtime checks of that output and manual Chrome checks require separate execution.
+The build scripts finish at WXT output generation. Hosted Chrome artifact smoke
+checks the packaged pages' startup; full manual or driver scenarios remain
+separate. Firefox and Safari background pages use local matcher workers, while
+Chrome's service worker uses an offscreen host. Verify the actual owner selected
+by capabilities rather than applying a Chrome-only lifecycle to every browser.
 
 ## Required command set
 
@@ -16,9 +26,10 @@ The package scripts finish at WXT output generation. Runtime checks of that outp
 | `pnpm test:run` | Runs the Vitest suite non-interactively. | Runtime, contract, detector, collector, side-panel, storage, or test-support changes. | The command exits successfully. |
 | `pnpm compile` | Runs each portable/tool package check, then extension, Utils and root TypeScript without emitting files. | Any TypeScript or TSX change. | The command exits successfully after WXT preparation exists. |
 | `pnpm build:chrome` | Runs TypeScript, then builds through WXT for Chrome. | Side-panel, WXT, manifest, content, background, or build-sensitive changes. | Both stages exit successfully and `.output/chrome-mv3` is produced. |
+| `mise run build <browser>` | Runs WXT for `chrome`, `firefox` or `safari`; native source checks are separate. | Changes affecting that browser's emitted extension. | WXT succeeds, the generated manifest/assets are inspected, and preceding source checks are recorded. |
 | `pnpm check:release` | Runs TypeScript, the full Vitest suite, then a Chrome WXT build. | Every release candidate. | All three stages exit successfully. |
 | `pnpm zip:chrome` | Runs the extension package TypeScript and Vitest checks, then creates the Chrome zip through WXT. Run root checks separately for portable/tool changes. | Release packaging. | All three stages exit successfully and the Chrome package is created. |
-| `pnpm validate:chrome-artifact` | Optional. Checks an existing `.output/chrome-mv3` build: registry/HTML surfaces statically, then loads the side-panel and options pages in a local Chromium. Not part of `build:chrome` or `check:release`. | Build-sensitive changes when a Chromium binary is available (`CHROME_BIN`). | Every check in its JSON report passes, including the browser check; a missing browser is a failure, not a pass. |
+| `pnpm validate:chrome-artifact` | Checks an existing `.output/chrome-mv3` build, then opens its generated panel/options pages in Chromium or Chrome for Testing. The hosted Chrome artifact smoke job runs it. | Build-sensitive changes; run separately from local build scripts with a compatible `CHROME_BIN`. | Every JSON assertion passes, including actual startup and cleanup; a missing browser is a failure. |
 
 When a command cannot be run or cannot complete, record the exact reason. Do not describe a partial command as passed.
 
@@ -28,8 +39,9 @@ Root checks select `./packages/*` and `./tools/*` through pnpm with
 `--fail-if-no-match`; package names are not required. Vitest discovers native
 project configurations for these packages. To check one owner, use
 `pnpm --filter ./packages/detection --fail-if-no-match run check`. A successful
-selector proves only the tasks that actually ran. JavaScript-only tool checks
-prove syntax, not JavaScript type safety.
+selector proves only the tasks that actually ran. A Node `--check` loop proves
+syntax. The release package also enables strict `checkJs`; do not describe
+syntax-only checks in other packages as JavaScript type safety.
 
 ## Targeted subsystem checks
 
@@ -38,7 +50,7 @@ Run targeted tests when the full suite is unavailable or when the patch only tou
 ```bash
 pnpm exec vitest run apps/extension/src/tests/app/model.test.ts --reporter=verbose
 pnpm exec vitest run apps/extension/src/tests/storage/cache.test.ts --reporter=verbose
-pnpm exec vitest run packages/detection/collection/planning.test.ts --reporter=verbose
+pnpm exec vitest run packages/detection/collection/plan.test.ts --reporter=verbose
 pnpm exec vitest run apps/extension/src/tests/messaging/messages.test.ts --reporter=verbose
 ```
 
@@ -63,7 +75,7 @@ Run this checklist after changes that touch side panel, background, content, lif
 3. Pin the side panel, switch between two supported tabs in the same browser window, and confirm the panel follows the active tab without showing the previous tab or `NO_ACTIVE_TAB`. With automatic scanning disabled, confirm tab switching alone does not start a new analysis or observer.
 4. Open a second browser window, keep its active tab changing, and confirm those activations do not retarget the panel mounted in the first window.
 5. Open an unsupported page such as `chrome://extensions` and confirm the side panel shows `UNSUPPORTED_URL` without hanging.
-6. Close the side panel while observation is active and confirm that exact panel-owned observation stops. Reopen on the same origin and confirm a snapshot hit renders without creating an observer. On a snapshot miss, confirm the fresh panel-open analysis can start one panel-owned observation.
+6. Close the side panel while observation is active and confirm the exact panel-owned stop request and UI unsubscription. Record any remote stop failure; immediate remote cleanup is best-effort. Reopen on the same origin and confirm a snapshot hit renders without creating an observer. On a snapshot miss, confirm the fresh panel-open analysis can start one panel-owned observation.
 7. Click Refresh and confirm analysis bypasses stored snapshot reuse and starts observation again.
 8. Switch away from a tab with panel observation active and confirm the old tab's observer stops. Switch repeatedly with automatic scanning disabled and confirm only retained snapshots change the UI until Refresh is pressed.
 9. Test a page that lazy-loads scripts, links, or meta tags and confirm late detections can appear while the side panel is subscribed to storage revisions.
@@ -81,6 +93,21 @@ Run this checklist after changes that touch side panel, background, content, lif
 21. Start observation session A, start a newer session B for the same tab/document, then deliver a delayed stop for A. Confirm content returns `OBSERVATION_SESSION_UNAVAILABLE` and B remains observing.
 
 If a step cannot be verified, record the browser, page URL type, and failure mode in the pull request notes.
+
+## Firefox and Safari scenarios
+
+Use `mise run verify firefox` or `mise run verify safari` against the respective
+built output and the setup in [the driver guide](../../tools/verify/README.md).
+The shared scenario dispatcher includes local pre-install/load, panel, privacy,
+navigation, observation and stress paths. Record the selected scenarios; a
+filtered run does not establish every scenario. Safari requires a macOS host,
+its native driver and the extension setup described there.
+
+For these background-page builds, check local worker disposal/restart instead
+of expecting a Chrome offscreen document. Test the supported sidebar, popup or
+full-page surface. Keep browser setup failures separate from extension failures,
+and preserve cleanup errors as failed results. A Safari ZIP or unsigned Xcode
+project alone does not prove Safari runtime behavior.
 
 ## Pull request acceptance checklist
 
@@ -105,8 +132,10 @@ Validation:
 - pnpm test:run: <result, test counts or failure>
 - pnpm compile: <result or reason not run>
 - pnpm build:chrome: <result or reason not run>
+- Other affected browser builds: <browser and result, or not run>
 - Generated-output inspection: <files inspected and result, or not run>
 - Chrome runtime scenarios: <browser, scenarios and result, or not run>
+- Firefox/Safari scenarios: <versions, selected scenarios and result, or not run>
 
 Notes:
 - Benchmark: <measured change and baseline, or why it was not needed>

@@ -196,7 +196,8 @@ private preset):
 
 ## Timing
 
-Not yet measured on GitHub-hosted runners for this layout. Locally (Apple
-silicon, warm pnpm store): `mise run release:archives chrome firefox` took 17 s
-wall clock; `web-ext lint` 7 s. Record the first hosted run's wall clock and
-the sum of job durations here, with the run id, before tuning the job split.
+The [active migration record](migration/monorepo-plan.md) records an identified
+successful hosted run with actual job timestamps, elapsed wall time and summed
+executed-job duration. These measure one source/tool/cache condition; they are
+not a general performance guarantee or billing-rounded usage. Compare the same
+conditions and retain failed runs before changing the job split or adding caches.

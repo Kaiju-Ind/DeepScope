@@ -1,376 +1,193 @@
-# Monorepo layout plan
+# DeepScope continuation and action list
 
-## Active task: review and save the existing PR 7 migration
+## Active task: finish the review on existing PR #7
 
-The 2026-11-28 continuation uses `integrate/cross-browser-runtime`, the existing
-PR #7 head, at `1f439b9c33134cbb9755c231db3ced6024f3074b`. The recovered batch5
-source has tree `5ec68fe6020da894ec8bed8bcadfaffb2094f30a`; its source ZIP has
-SHA-256 `40c6f7222a9769f0e7e13db013d8468da39d4db57eeb47d99e044e92595f20d0`.
-All 9,906 recovered files matched their saved bytes and modes before editing.
-The separate stress branch remains unmerged. The user authorized continuation
-and updates to this existing PR; release creation and store submission are
-separate actions.
+The user authorized the complete repository review, guidance adoption and
+refactors, with changes saved to `integrate/cross-browser-runtime` in
+[PR #7](https://github.com/Kaiju-Ind/DeepScope/pull/7). The published starting
+point for this action list is `dfd1e73e3e45cb89575317fcdbafa9685f3e8d5c`, tree
+`eebff4c62f40358acbb2cf74a58054947945a593`. `main` remains
+`b3f4467ac13542dfba447499a92089a77a05c2bc`. The separate `fix/stress-green`
+branch at `a5d97fba98566b7fd7e38dad8658c3be4b4b69e1` is unmerged; this record
+does not declare either line canonical or authorize a merge, tag or store release.
 
-The supplied handbook attachment resolves to distribution 1.5.0 at
-`7b299bb14a97fe33b6254c8206cdf491b3d7528d`. All 663 installation paths are
-retained alongside the extension's project-specific guidance. The review
-corrects references that claimed the restored shared incident chapters were
-absent, routes local incidents to the extension procedures, and distinguishes
-Safari's classic WebDriver extension commands from BiDi support.
+The maintainer's goal is to trace a browser action through collection, matching,
+persistence and the panel, with one explicit owner for each state and lifetime.
+The [source map](../architecture/source-layout.md) describes the current code.
+The [layout action list](source-layout-plan.md) records completed cuts and the
+owners still requiring semantic review.
 
-### Current implementation and validation
+The supplied handbook is distribution 1.5.0 at
+`7b299bb14a97fe33b6254c8206cdf491b3d7528d`. All 663 original installation paths
+remain present: 650 are byte-identical and 13 retain project adaptations. The
+extra extension guidance remains alongside them. These comparisons prove
+installation provenance; they do not prove every implementation follows every
+rule. Use the original skills and guides, the public-source-build
+[Utils decision](../adr/01-public-source-builds.md), and the repository's own
+contracts together. Read-only package access does not by itself decide a
+published-package migration. The [.agents project record](../../.agents/project.md)
+routes the current release owners and review coverage without replacing those
+original sources.
 
-Three reproduced defects have focused repairs. The installed comctx package
-kept a reply listener after browser delivery rejected; the pinned dependency
-patch releases that request before preserving its transport error. Registry
-validation accepted inherited Object names as categories; it now requires an
-own category entry. Chrome artifact validation could wait forever after a
-debugger socket closed; `tools/verify/chrome/cdp.mjs` owns bounded commands and
-releases their promises, timers and event subscriptions on closure.
+## Published work and its evidence
 
-The CI Chrome job requires its existing validator and exactly one downloaded
-archive. Its success can no longer mean that the validation script was absent.
-The workflow and CI guide also stop applying an old fixed macOS billing
-multiplier to the public repository's standard GitHub-hosted runners.
+Fifteen coherent commits follow the original PR head `1f439b9c`. The recovered
+workspace migration and each focused repair were saved as native binary patches
+and exact bundles. The connected writer produced separate commit identities
+with matching trees; its exact objects and patches were also preserved and read
+back before each guarded, non-force update of PR #7. The published source is
+remotely recoverable. The [historical record](history/monorepo.md) preserves the
+earlier plan, original native identities, failed probes and recovered batch5 work.
 
-| Check before the executor reset | Recorded result and limit |
+| Owner or behavior | Implemented result |
 | --- | --- |
-| Frozen baseline install, Node 26.13.0 / pnpm 12.19.0 | Passed before the new changes. |
-| Native baseline `mise run check` | Passed for recovered tree `5ec68fe6`. This is not a pass for later edits. |
-| RPC adapter regression | Unpatched comctx fails 4 of 8 cases. The patched package passes all 8, including concurrent calls and original error identity. |
-| Registry category regression | Four inherited-name cases fail before the repair. All 9 schema cases pass after it. |
-| Filtered Vitest projects | 116 cases in 13 files pass across `registry`, `dom`, `extension (ui)`, `guidance` and `verify`. The separate 8 RPC cases bring the reviewed selection to 124 cases in 14 files. |
-| Changed-test type check | The strict native TypeScript check for the RPC and registry-schema tests and their imported source closure passes. It does not load the full registry catalog or replace the root gate. |
-| Native workflow lint | actionlint 1.7.12 and offline zizmor 1.32.0 pass; the existing single ignored audit remains. |
-| Current native root type check | Failed when the registry compiler was killed with exit 137. Serial execution also failed. The new verify package's TypeScript and syntax checks passed before that failure. |
-| Timed registry type check | Killed after 7.65 seconds; maximum recorded child RSS was 433,856 KiB. A 256 MiB Go target and one CPU did not resolve the host kill. No compiler diagnostic was produced. |
-| Registry file discovery | Native `--listFilesOnly` succeeds: 8,591 files, including 8,173 catalog paths and 8,182 repository TypeScript files. No incremental/composite option or `.tsbuildinfo` was found. |
-| Whole Vitest suite | Three bounded attempts were killed with exit 137 before reporting a test file. The focused passing selection does not replace the whole suite. |
-| Current native Chrome build | Killed by SIGKILL during WXT startup. No current bundle, archive or source rebuild is claimed. |
-| Restored frozen install | Relinked 491 packages from cache; WXT prepare then exited 137. Scoped dependency-patch installation with lifecycle scripts disabled passed, which does not replace the failed prepare step. |
-| Real browsers | Chrome for Testing download returned HTTP 403 on this host. Chrome and Firefox journeys have not run on the current candidate. Safari needs a macOS host. |
+| Workspace | `apps/extension`, portable DOM/registry/detection packages, vendored Utils and native tool packages have explicit owners and consumers. |
+| Catalog | 8,173 TypeScript catalog paths were relocated with mapped imports and AST/data parity. This was not a JSON conversion or a semantic revalidation of every third-party fingerprint. |
+| Messaging and schemas | Rejected comctx sends release their own listener while preserving concurrent calls and error identity; category lookup requires an own category entry. |
+| Stress scenario | The former 962-line module has eight owners. Forty-eight moved functions and 1,024 selected replay actions were compared; denied initial-window attempts and post-action confirmation have separate repairs. |
+| DOM fixtures | Every owned JSDOM closes through `finally`, including property iterations and registry chunks. This repairs lifetime ownership without claiming the cause of earlier host kills. |
+| Chrome verification | Process/profile/HTTP, CDP requests and page reporting have separate owners. Startup errors retain stderr and process status; cancellation and cleanup have real-process regressions. |
+| Hosted browser setup | The clean extraction directory is explicit. Chromium uses an executable-specific AppArmor user-namespace profile after protected-path checks, with its own sandbox and the host's global restriction retained. |
+| Build imports and local fixtures | Explicit local imports replace automatic local export discovery while WXT presets remain. Pre-install tabs use the existing local fixture; real-site scenarios remain separate. |
 
-The process kills are observed failures; their exact host cause remains
-unconfirmed. The earlier successful source check does not justify weakening
-current discovery, assertions or schemas. The old batch4/batch5 archive and
-runtime receipts below retain their original source identities.
+[Hosted run 46136715183](https://github.com/Kaiju-Ind/DeepScope/actions/runs/46136715183)
+checked out merge `14d38a83fd88c9572081ba87077dad7b498ef38e`, whose tree exactly
+matches the published `dfd1e73e` tree above. Nine executed jobs passed: dependency
+setup, workflow lint, types, tests, all three browser builds, Firefox add-on lint
+and Chrome artifact smoke. Tests passed in 250 files with 1,786 cases and four
+skips. Optional Safari Xcode generation was skipped.
 
-The recovered source is now committed as
-`b28d7cf3ce2b84572fa64b061d9e6c9b318bb377`, with the exact saved tree.
-The reviewed fixes follow it as `cbca1870` (RPC listener cleanup), `1e4db848`
-(category validation) and `ad84805e` (Chrome artifact verification). These
-commits preserve the native PR ancestry. Local commits do not establish that
-the remote PR was updated or its current checks passed.
+Those nine jobs totalled 441 seconds of execution time. The interval from the
+first job's start to the last job's completion was 166 seconds (10:46:06 to
+10:48:52 UTC). These are actual job timestamps, not queue-inclusive wall time,
+billing-rounded minutes or a measured improvement over another source state.
 
-### Action list and stopping point
+Chromium 158.0.8127.0 loaded the scoped profile, started DevTools and passed all
+25 artifact, availability and generated-page assertions. The side panel and
+options page had their expected root elements and no reported exceptions. This
+establishes packaged-page startup; the full navigation, observation, private-tab,
+cleanup and stress journeys remain separate acceptance work.
 
-#### Restored source and stress ownership action list
+Earlier local compiler/test/build exits with SIGKILL remain recorded failures
+with an unconfirmed host cause. Earlier hosted runs failed on the missing
+extraction parent, missing DevTools startup, a reported unusable sandbox, and
+the helper/version-drift attempt. The last helper guard did not print a stat,
+so it did not establish a specific observed helper mode. Image source, explicit
+ShellCheck probes and the successful scoped profile informed the final repair.
+Those failures are preserved, not replaced by the later pass.
 
-The five saved commits through `480500ea365e928f46738d24903723ecec248672`
-have been restored from the native bundle. Independent recovery patches
-reproduce all five exact trees, and the complete checkpoint and patches have
-passed independent read-back. On the restored host, a fresh frozen install
-including WXT prepare and the complete native `mise run check` pass for tree
-`9bd1c68bc90250cbb2cccbde1083cbb7cd9e4a74`. The failed attempts above remain
-historical evidence. The same tree now also builds Chrome successfully. A full
-test run passed 242 files and 1,745 cases with four skips; one DOM worker hit
-the explicit 512 MiB heap cap. All 17 cases in that file pass when its heap
-limit is 1,536 MiB. This union covers the discovered cases on that source;
-the aggregate full rerun on the final tree remains open.
+A separate fresh Firefox-source rebuild used source ZIP SHA-256
+`ff1b13a48f899b323d98e02b1a18feb0b59df3e0fdbb9b3d9a6303c272380531`, the pinned
+Node/pnpm tools, an empty package user configuration and a frozen offline install.
+All 56 emitted files and the resulting ZIP matched the retained candidate;
+the ZIP SHA-256 was `2f122a8c23327d9416165546b362a374a5cf76ef89df6cdd5e0030fb6b072800`.
+That record used build identity `0.1.0+local`. It does not establish identical
+bytes for every later commit or a network-isolated build. Five selected local
+Firefox scenarios also passed with Firefox 161.0 and geckodriver 0.37.1. Full
+stress and Safari runtime acceptance remain open.
 
-The stress harness change serves the maintainer who must reproduce a browser
-failure and identify which action or invariant owns it. `scenarios.mjs` is its
-only production caller. The change separates the former 962-line owner
-without changing the seeded schedule, browser scripts, persisted storage keys,
-fixture expectations, grace periods or JSON result contract:
+## Release preparation action list
 
-| Owner under `tools/verify/stress/` | Responsibility |
-| --- | --- |
-| `index.mjs` | Compose one run, seed browser contexts, schedule activity and idle periods, then request final checks. |
-| `schedule.mjs` | Interpret the existing options and own the single seeded random stream. |
-| `pages.mjs` | Select fixture/real URLs, share the URL counter with history changes, and describe allowed page markers. |
-| `model.mjs` | Own stable tab/window labels, privacy identities, closure times and disruptive-action times. |
-| `actions.mjs` | Mutate the browser and reconcile its reported contexts with that model. |
-| `observations.mjs` | Read extension state, confirm repeated violations and sample diagnostics/memory. |
-| `checks.mjs` | Visit settled tabs, drain work and evaluate cleanup, journal and memory invariants. |
-| `report.mjs` | Retain ordered actions and failure evidence, then emit the existing result records. |
+The next reproduced defects affect a maintainer preparing a release. Native
+disposable fixtures showed that `collect --out .` deleted source before failing,
+and `--out .output` deleted its archive inputs. Notes for `0.1.0+build.1` were
+missing, while a request for `0.1.0` incorrectly selected that suffixed section.
+A failed inert Firefox submission retained exit 17 but leaked its extraction.
+The actual checkout was never a destructive probe destination.
 
-1. Characterize the existing seeded choices and state transitions before the
-   move. Use Oxc to retain each function's controlling body and trace every
-   captured owner. Shared URLs and `pushState` must consume one counter;
-   random choices must keep their current draw order.
-2. Move the complete owners, migrate the scenario caller and every current
-   document/comment link, then delete `stress.mjs`. Keep no forwarding alias.
-   Retain the actual extension-script strings and storage/database names.
-3. Verify the new public scenario path, seeded action traces, tab/window
-   cleanup and repeated-observation contract. Run the discovered verify tests,
-   native syntax/type gates, full suite and browser stress scenarios.
-4. Keep the behavior repair separate from the source move. A denied initial
-   window now records a failed startup result and returns control to the driver,
-   which owns cleanup.
-   An unchanged bad result now starts a new confirmation pair after a touch;
-   it cannot remain suppressed by the old pre-action sample indefinitely.
+The selected contract protects the resolved source/input owners, accepts an
+absent or empty destination or an intact checksum-described collection, and
+stages every archive before replacing the previous candidate. A path denylist
+alone would not prove ownership of external files; refusing every existing
+directory would prevent a normal rerun. The documented external temporary-path
+use and `.output/release` default remain supported. Parent aliases are resolved
+before checking containment. Failed restoration retains both named candidates.
+One command owns a destination at a time; two directory renames are not a
+crash-atomic transaction.
 
-The source split and caller cutover are implemented. Oxc checks all 48 moved
-functions: 46 bodies are unchanged, one export is renamed, and `pushState`
-delegates its existing counter to the page owner. Eight controlled replays,
-each with 128 selected actions, retain identical command arguments, URL choices,
-model state, logs and error counts. The discovered verify project passes all
-16 cases in four files, including the real scenario dispatcher; its native
-TypeScript and JavaScript syntax checks pass. Two failure-path regressions
-fail on that structural commit: startup retries after a denied window, and a
-touch permanently suppresses an unchanged bad result. Their focused repair
-follows separately. The final full gates and real-browser acceptance remain
-open.
+1. Keep the existing CLI and Mise tasks; give collection ownership to
+   `tools/release/collection.mjs`. Preserve public archive names and exact
+   browser/source selection. Check unknown files, changed checksums, links,
+   source/input aliases and partial copy/publication failure before replacement.
+2. Match complete literal changelog versions with the pinned runtime's native
+   `RegExp.escape`, including prerelease and build suffix boundaries. Preserve
+   missing/empty-section status 3 for generated notes.
+3. Retain the shell's Firefox extraction owner until unzip or submission
+   settles, then remove it while preserving success/failure status. Exercise
+   the actual task with inert adapters; do not submit to a store.
+4. Discover the `release` Vitest project through the existing root configuration.
+   Check strict types and JavaScript in the native release package. The first
+   36 behavioral cases and the later 84 release/guidance/verify cases pass; the
+   strict package check passes after correcting its initially exposed
+   missing-argument types. The frozen release source, all release fixtures and
+   actual callers have an independent review with no blocking finding. Preserve
+   that scoped result separately from the unfinished whole-repository review.
+5. Collect the real built browser archives into a fresh owned candidate and
+   validate checksums and unchanged inputs. Run the full discovered test suite,
+   guidance and workflow/shell lint. Preserve every passed, failed and skipped
+   result with its source tree. No external release target is changed.
+6. Review the complete frozen diff independently, save native and writer
+   recoveries with full read-back, then update the existing PR with an exact
+   expected-parent guard. Verify the new remote head and hosted merge tree.
 
-1. Verify independent read-back of the binary-capable patches, native history
-   and current checkpoint records, then publish the coherent commit batch to
-   existing PR #7 and verify its full remote head. Preserve the completed
-   migration and each focused repair as separate reviewable commits.
-2. Run the complete native type and test gates on a host with sufficient
-   resources. Keep the current failed receipts. Rebuild all three browser
-   archives and inspect their output; the Firefox sources archive must include
-   `patches/` and rebuild without private package credentials.
-3. Run the affected generated panel, observation, navigation, private-window,
-   cleanup and search/focus journeys in the actual browsers. A CDP connection
-   unit test or static archive inspection does not complete those journeys.
-4. Finish stress failure-path review and browser acceptance for the owner split
-   above. The application/package size guard does not cover tools; the split's
-   explicit owner and replay checks remain necessary. Keep the startup repair
-   separate from structural extraction.
-5. Review cancellation separately from transport failure. The comctx patch
-   fixes rejected sends. A caller timeout does not by itself cancel the remote
-   operation or settle its RPC promise; preserve late-response cleanup when a
-   panel closes. Chrome's HTTP startup polling and process teardown also need
-   their own failure-path review beyond the repaired WebSocket owner.
-6. Reproduce the vendor header refresh only from its exact recorded upstream
-   objects. Do not replace the pinned closure with a newer Utils branch or
-   replay the already incorporated follow-up/artifact patches.
+The local 512 MiB aggregate passed 252 of 253 files and 1,805 cases, with four
+skips; the remaining 17 DOM matcher cases hit the explicit V8 heap limit.
+Isolated runs reproduce that limit on both clean `dfd1e73e` and the release
+candidate. The extension, portable packages, Utils, lockfile and root test/runtime
+configuration have identical Git objects in those two sources. A candidate run
+with a process-only 1,536 MiB budget was separately killed after one case passed.
+That SIGKILL has no established cause. The project limits and assertions remain
+unchanged, and the local aggregate remains failed. The published baseline's
+hosted DOM owner passed all 17 cases in 10,766 ms; the exact new head still needs
+its own hosted suite. The workflow lint check passes on the frozen release source.
 
-Resume from this record, the actual branch/index/worktree and the saved
-validation logs. The prior batch5 follow-up is a delta into the recovered
-candidate, not another patch to apply. Read the source map and the review
-tests before changing ownership. This restructure is not marked complete while
-the current full gates, tool split and real-browser acceptance remain open.
+Final scoped checks also passed: the release package's strict JavaScript/types
+and syntax checks, ShellCheck 0.11.0 on all three changed release tasks, and all
+15 guidance cases. The native Firefox zip task built the extension and emitted
+a source archive with 9,104 entries. The collector then copied the actual four
+browser/source archives; native checksum verification, ZIP CRC/path checks and
+manifest versions passed, and all input bytes remained unchanged. The Firefox
+extension ZIP still has SHA-256
+`2f122a8c23327d9416165546b362a374a5cf76ef89df6cdd5e0030fb6b072800`.
+These results validate preparation and packaged bytes; no release or store
+submission occurred. The scoped source reviews found no blocking issue, while
+the full audit and exact new-head hosted acceptance remain open.
 
-## Recovered batch5 implementation and evidence
+## Remaining semantic review and continuation
 
-**Outcome.** Keep the extension's existing lifecycle and persisted contracts
-while making each source, dependency and tool owner explicit. The native
-starting commit is `1f439b9c33134cbb9755c231db3ced6024f3074b`; the local branch is
-`codex/deepscope-structure-20261127` in that saved batch. Earlier Phase A and M1 work is retained.
-The independent stress branch remains separate. Source changes are prepared
-for review; no merge or publication is implied by this record.
+The published-baseline ledger inventoried all 9,930 paths and reconciled 61
+explicit full reads. The current release reconciliation covers 9,940 paths and
+89 explicit full reads, including the project routing record, release owners,
+fixtures and retained history. It records catalog parity, 380 application
+syntax/local-binding checks and handbook hashes separately. Unreconciled reads are neither
+credited as completed nor silently described as never read. Each new owner
+needs a source/caller/error/lifetime/test/doc disposition before completion.
 
-| Step | Implemented result | Acceptance still required |
-| --- | --- | --- |
-| Phase B/C | Model, content, background, observer, snapshot, journal, scheduler and panel responsibilities have concrete owners. All existing oversize exceptions are retired; provider composition is under 150 lines. | Finish independent follow-up review and execute real-browser lifecycle scenarios. |
-| M2 | `packages/dom` owns selector planning, routing and matching with native exports, dependency, check and consumer test. | Real browser DOM and cancellation evidence. |
-| M3 | Portable collection/snapshot/replay/failure data removes app dependencies from detection. Registry compiler work is separated from definitions. | Preserve the deliberate wire and dictionary decisions in the ADR; do not claim Failure occurrence adoption. |
-| M4 | Registry and detection moved atomically with actual static, type, dynamic and mock consumers. Obsolete app paths are removed without forwarding shims. Final artifact inspection and clean source rebuild pass. | Keep the recorded source and output identities intact during integration. |
-| M5 | Compiler alias removed; pure tests co-located; Oxc reads imports/exports/manifest ownership. Five tools packages participate through native checks and discovery. Native release archives and checksum collection pass. | Run hosted gates after the reviewed candidate is published. |
-| Handbook | Complete supplied generic guidance merged with retained extension profile, procedures, platform cards and failure records. | Keep all guidance links and native guidance tests green at the final source state. |
-| Design Input | Neutral `surface` and native forwarding contract adopted with existing DeepScope styles, Solid 1.9.18 and Kobalte cohort. | Real search/focus/disabled journey in the built extension. |
-| Clipboard repair | Fallback node removal is protected by `finally`, including selection/copy exceptions. Six regression cases pass. | Real clipboard interaction in a browser remains separate. |
-| Review follow-up | Failed content setup releases acquired hooks; exact-session persistence and lifecycle revisions share a mutation fence; diagnostic category keys retain their dotted format. Named implementation comments are complete. Batch4 is independently preserved. | Keep that immutable recovery separate from later review corrections. |
-| Shared storage follow-up | Origin snapshot and summary promotion, aggregate status refresh, and tab-index update/removal each own their shared mutation slot. Five reproduced races are fixed; 50 focused cases and the native root compile pass. | Finish independent review and preserve batch5 before integration. |
+After the release batch, continue in this order:
 
-**Actual package graph.** Registry depends on `zod`. DOM depends on
-`postcss-selector-parser`. Detection depends on Registry, DOM and graphlib.
-The old target table below proposed `@utils/result` for schema/detection, but
-there is no actual symbol with a compatible contract to adopt in those owners.
-The extension already uses the recorded Utils Result and lifecycle packages.
-See [public source builds](../adr/01-public-source-builds.md) for current
-vendoring, published-release migration options and the plain failure payload.
-The table below is historical planning evidence, not the current manifest.
+1. Trace WebDriver spawn errors, request/body deadlines, process disposal and
+   partial setup in both Firefox and Safari drivers. Respect actual script and
+   navigation timeout contracts. Repair cleanup without masking failed results.
+2. Remove obsolete registry-limit mocks and the dead URL helper, then split the
+   2,043-line background API test by harness and behavior owners. Retain every
+   assertion, deferred lifetime and module-mock boundary through AST and tests.
+3. Review the remaining large detection, snapshot, observation, matcher, panel
+   and test owners. Split by state and consumer responsibility, migrate every
+   caller/export/comment and delete obsolete paths rather than add aliases.
+4. Compare the complete vendored closure with the exact historical Utils base
+   and overlay objects. Their authentic commit/tree receipts are recovered;
+   a newer Utils branch is not a substitute. Retain the credential-free source
+   build unless the recorded adoption decision changes with consumer evidence.
+5. Run the full affected Chrome/Firefox journeys and stress scenario, plus
+   Safari on macOS. Builds and generated-page startup do not replace private
+   windows, observation, navigation, cleanup, clipboard or search/focus checks.
+6. Reconcile every current document, original guidance adaptation and per-file
+   coverage record. Compare the separate stress branch from its verified common
+   ancestor before proposing integration. Keep divergence and failed evidence.
 
-**Native evidence.** Exact Node 26.13.0 and pnpm 12.19.0 run the frozen install,
-root checks and Vitest. The frozen batch4 whole suite passes 241 files with
-1,730 passing and 4 skipped cases. The baseline had 237 files, 1,770 passing
-and 4 skipped cases. Native architecture runs account for the difference:
-126 to 65 generated cases, plus 11 initial behavior/guidance cases and 10
-review regressions, gives `1774 - 61 + 11 + 10 = 1734`. The directory-based
-guards account for the reduction. Batch5 adds 11 shared-storage cases and passes
-50 focused cases across five files, including the actual closed-tab cleanup.
-The complete suite is not rerun for that focused correction. Its native root
-compile passes all existing package, tool, extension, Utils and root projects.
-Release validation records exact source and output identities per captured batch;
-an earlier archive hash does not describe a later candidate.
-
-**Review follow-up.** Same-build content reinjection already reused diagnostic
-hooks. The reproduced leak was partial setup failure before WXT owned cleanup;
-the installer now releases acquired resources and preserves the startup error.
-Snapshot persistence now serializes the read and write for each exact session
-within its owning background context.
-Tab retirement allocates its next revision inside that same fence. The journal
-keeps its established dotted category key, with a regression against the actual
-sink and its retained in-memory rate bucket. Red and green receipts distinguish these
-behavior repairs from the documentation pass.
-
-Independent review then reproduced races between different sessions that share
-an origin, a tab index, or the aggregate status key. Origin comparison, snapshot
-write and matching summary now share one slot. Status enumeration and write have
-their own slot; tab-index merge, retention, eviction and removal share a per-tab
-slot. With the exact-session slot held, the writer acquires and releases origin,
-then status, then index. Shared slots never overlap or call back into session
-mutation. Failed operations release their keys and independent origins and tabs
-still progress. These are background-context fences, not browser-wide locks.
-
-Tab close still refuses new saves before cleanup and performs a second removal
-after admitted saves settle. Index removal joins an update already queued for
-that tab, but does not wait for admitted saves while holding the index slot.
-Five red regressions cover the origin, summary, index, aggregate status and
-pending-index removal cases. Six control cases cover independence and failure
-release. Persisted key strings, ranking, schemas and the 20-entry limit remain
-unchanged. The new TypeScript audit checks the three production owners and their
-regressions; all 13 named production implementations retain purpose comments.
-
-The TypeScript inventory finds 2,316 named function and method implementations,
-all with purpose or contract comments, across app, package and tool sources.
-Unchanged vendored Utils and tests are excluded. Anonymous callbacks and field
-declarations have a separate inventory; this count does not claim an individual
-comment on every such site. Parsed token comparison separates 213 comment-only
-files from seven behavior/regression files and one precise test-mock type change.
-The ordinary-string audit reviews all 170 changed owner records for path-shaped
-literals separately from import and resource edges. Output inspection also
-caught Tailwind utility names in new prose; revised comments preserve the exact
-prior stylesheet bytes in Chrome, Firefox and Safari.
-
-**Experiments and decisions.** Package extraction exposed WXT's textual Solid
-auto-import of a property/parameter named `batch` into renderer-free code.
-The existing Utils exclusion now also covers `packages/`, and the build passes.
-The batch4 AST pass resolves 20,596 imports across 8,990 modules with no syntax
-errors or unresolved local/package source import. Its one runtime cycle is
-retained inside the unchanged vendored capability source. The schema module's
-existing Zod configuration is declared in package `sideEffects`.
-Batch5 adds two resolved imports of the existing keyed fence and removes the
-only cross-file imports of the now-private origin-summary functions.
-
-**Frozen artifact evidence.** Native archives regenerate for all three
-browsers. The release collector produces four archives and verified SHA-256
-checksums. A clean Firefox source extraction installs the frozen public-package
-closure offline from the existing download store, then rebuilds all 56 Firefox
-files byte-for-byte. Chrome static artifact inspection passes 21 checks.
-Firefox web-ext 10.8.0 lint reports 0 errors, 0 notices and 2 warnings: Solid's
-HTML template helper and Zod's disabled evaluation probe. TypeScript symbol
-tracing finds 149 current template calls, all with static HTML literals; the
-actual scheduler schema accepts/rejects data with the global Function constructor
-disabled and makes zero attempted calls. These source checks do not replace
-real browser CSP evidence. actionlint 1.7.12 and offline zizmor 1.32.0 pass.
-Safari's two manifest checks pass; its packager cannot run without `xcrun`.
-
-The final root check runs the unchanged native task with scoped compiler
-resource limits (`GOMAXPROCS=2`, `GOMEMLIMIT=1536MiB`). Earlier concurrent and
-resource-constrained attempts exited 137 and remain recorded. A follow-up test
-worker was killed by the host with two workers; the whole suite passes with one
-worker and unchanged discovery, assertions and timeouts. Earlier rebuild
-dependencies were removed after their receipts were saved. The batch4 source
-rebuild uses the same frozen public lockfile. The focused architecture/UI/guidance suite
-from the earlier batch passed 162 cases; the batch4 whole suite covers those
-owners again. A native Node 26 consumer also resolves the real package
-exports and checks DOM matching/cancellation without the extension runtime.
-
-**Blocked evidence.** Full Chrome for Testing 159.0.8154.6 was installed and its
-archive digest verified, but this host rejected Chrome's local socket creation.
-The normal reviewed execution request was rejected by the current approval
-policy. The extracted browser was removed after its receipts were retained.
-Do not repeat the same denied action through another launcher. Actual
-Chrome, Firefox and Safari journeys remain open; Safari additionally requires
-a macOS host and Apple tools. Source checks and static artifacts do not replace
-them. The historical Utils attribution refresh also needs both exact recorded
-upstream Git objects; the currently recovered Utils checkout contains neither.
-Do not substitute a newer main commit.
-
-**Next action and continuation.** Read this record, the current branch and dirty
-state, the [source map](../architecture/source-layout.md), the
-[source-layout plan](source-layout-plan.md), and the final local validation
-report. Preserve the complete uncommitted recovery before integration, retaining
-immutable batch3 and batch4 plus the separate shared-storage follow-up in batch5.
-Read the five red cases, 50 focused passing cases, and exact acquisition-order
-trace in the shared-storage review record. Finish independent
-review; run browser scenarios
-on a host that permits them; then let the integration owner prepare coherent
-commits and update the existing PR stack. Keep every failed or blocked receipt.
-
-## Original recorded plan (retained)
-
-DeepScope becomes a pnpm monorepo shaped like the Kaiju repositories (Crawl,
-Kaiju Utils), adapted to a single browser-extension product. Recorded
-2026-11-24 against `e9bcd4bc`; Crawl guidance read at `a00f0036d`.
-
-## Target
-
-```text
-apps/extension/        @deepscope/extension, the WXT root
-  wxt.config.ts  vitest.config.ts  tsconfig.json  components.json  package.json
-  modules/             registry build module (WXT autoloads <root>/modules)
-  public/  src/  bench/
-packages/
-  dom/                 @deepscope/dom        selector planning, routing, matching
-  registry/            @deepscope/registry   technology definitions, schema, catalog
-  detection/           @deepscope/detection  observations, evidence, matching, compiler, pipeline
-utils/*                @utils/*              vendored Kaiju Utils (unchanged)
-tools/                 verify/ release/ registry/ utils/ lint/  (from scripts/)
-docs/adr/              decision records
-.output/               build output stays at the repo root
-```
-
-| Package | Depends on | Stays out because |
-| --- | --- | --- |
-| `@deepscope/dom` | `postcss-selector-parser` | — |
-| `@deepscope/registry` | `zod`, `@utils/result` | — |
-| `@deepscope/detection` | registry, dom, `@utils/*` | — |
-| app only: messaging, ui, storage, scheduler, background, content, workers | — | one consumer, or browser APIs (the composition root chooses adapters) |
-
-Dependency direction: `utils` → `dom` → `registry` → `detection` → `apps/extension`.
-Packages export TypeScript source (no build step, nothing is published), use
-relative imports inside a package and package subpaths across packages, and
-never import `wxt`, `comctx`, `@/` or `apps/`; a boundary test enforces it.
-
-## Mechanics
-
-- `pnpm-workspace.yaml`: `apps/*`, `packages/*`, `utils/*`.
-- TypeScript: `tsconfig.base.json` with the strict options; the app extends
-  `.wxt/tsconfig.json`; packages and utils extend the base without WXT types.
-  `mise run check` runs each package's check.
-- Vitest: root `projects: ['apps/extension', 'packages/*', 'utils']`, native
-  discovery in each.
-- WXT: `outDir` at the repo root, `zip.name` unchanged, `zip.sourcesRoot` at
-  the repo root so the AMO sources zip still rebuilds from a clean checkout.
-  The root `package.json` keeps delegating `build:*`/`zip:*` scripts because
-  `.mise/` is not in the sources zip.
-- CI runs the full suite (every package feeds one bundle); cache keys include
-  every workspace manifest. Renovate ignores `utils/**` (the sync script owns
-  those pins).
-
-## Why the move is staged
-
-`src/lib` has import cycles: detection ↔ lib/registry, detection ↔
-observations ↔ evidence, messaging ↔ storage, observations/messaging →
-content/observe types, detection/types → messaging/failure. Moving files into
-packages without breaking them first only relabels the tangle (the Kaiju
-library guide lists that as a failure signature).
-
-1. **M1 (after cleanup Phase A merges, before Phase B/C):** move the app into
-   `apps/extension/` and `scripts/` into `tools/`, with config edits only. Gate:
-   check, tests, three zips, identical zip file lists, a byte-identical rebuild
-   from the unzipped sources zip, `web-ext lint`, a release dry run. *Done*: app
-   Vitest projects run as `extension (runtime)` and `extension (ui)`; the root
-   keeps delegating `build`/`zip:*` scripts; the sync header template and the
-   `utils/**/*.ts` headers still say `scripts/utils/sync.ts` (change both in one resync).
-2. **Phase B/C** (file splits, short names) inside `apps/extension/src`.
-3. **M2:** extract `@deepscope/dom` after the content-script lane merges.
-4. **M3:** break the cycles, one behaviour-neutral commit each (`ExtensionError`
-   onto `@utils/result` failures; observation signal types into detection;
-   registry→collectors edges into detection; redaction into detection).
-5. **M4:** extract `@deepscope/registry` and `@deepscope/detection`, each as one
-   atomic cutover (`git mv` plus an import codemod, no re-export shims).
-6. **M5:** remove the registry build alias, co-locate package tests, add the
-   boundary test.
-
-## Deliberate differences from Crawl
-
-- Utilities are vendored, not depended on: AMO reviewers must rebuild offline
-  without private registries (record as an ADR).
-- No `services/`, `workers/`, `infra/`: one product under `apps/`.
-- pnpm and Vitest, because WXT and Vite own the toolchain.
+Resume by reading this record, the latest user instruction, actual branch,
+index/worktree and running workflows. Do not replay historical patches or
+commands merely because the [retained record](history/monorepo.md) mentions them.
+Preserve meaningful unpushed changes before checks, serialize expensive native
+gates, and save coherent batches to PR #7. The full restructure is still open
+while these semantic and runtime actions remain unfinished.

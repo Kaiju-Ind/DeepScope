@@ -1,30 +1,21 @@
 # Kaiju DeepScope Web Extension
 
-A Chrome-first Manifest V3 technology detector built with WXT, TypeScript, Solid, and `comctx`.
+A Manifest V3 technology detector for Chrome, Firefox and Safari, built with WXT, TypeScript, Solid and `comctx`.
 
-**Browser baseline:** Chrome 144, Firefox 140 and Safari 18.4 or newer. Chrome 144 and Firefox 139 are the first releases with native Temporal, which the vendored utilities use.
+**Declared browser baseline:** Chrome 144, Firefox 140 and Safari 18.4 or newer. Chrome and Firefox builds use native Temporal; Safari retains the declared Temporal polyfill. These manifest requirements do not replace real-browser acceptance for a release.
 
 The extension analyzes active `http` or `https` pages locally, turns collected page facts into normalized observations, runs the shared event pipeline, and caches normalized `SiteAnalysis` output with an optional redacted replay trace. Automatic page-load scanning is enabled by default and can be turned off from Settings. Raw page payloads are used only during local analysis and are not stored as cache records.
 
 ## Current event flow
 
-The runtime now follows one event-shaped detector path for the extension:
-
-```text
-side-panel request
-  -> background tab check
-  -> content-script observation batch
-  -> background-only observation enrichment
-  -> indexed rule matching
-  -> evidence entries
-  -> candidate technologies
-  -> graph refinement
-  -> final SiteAnalysis + replay trace
-```
+The background validates the panel's target tab, then combines content-script
+observations with facts that need extension privileges. Indexed matching turns
+those facts into evidence and candidate technologies. Graph refinement applies
+their relationships before emitting `SiteAnalysis` and the replay trace.
 
 The content script still owns the safe DOM scan because it is the context that can read the page. It returns normalized observations instead of exposing the old detector-ready page snapshot to the background. The background appends the facts that require extension privileges, including page-owned JavaScript globals, same-origin response headers, and bounded same-origin script or stylesheet text. Those observations are then matched by the indexed event pipeline.
 
-Dirty observation refreshes do not merge final detection results. The background keeps the current event batch for the active side-panel session, appends late observer facts, deduplicates repeated observations, and reruns matching, evidence aggregation, graph refinement, and emission over the combined batch. If the Manifest V3 service worker loses memory, the refresh path recollects the current document rather than pretending a late-only batch is enough.
+Dirty observation refreshes do not merge final detection results. The background keeps the current event batch for the active side-panel session, appends late observer facts, deduplicates repeated observations, and reruns matching, evidence aggregation, graph refinement, and emission over the combined batch. If the background context loses memory, the refresh path recollects the current document rather than treating a late-only batch as complete.
 
 ## Current extension behavior
 
@@ -36,22 +27,27 @@ Dirty observation refreshes do not merge final detection results. The background
 6. The side panel follows live updates through storage revisions for the current visible session. Dirty sessions flush late observation batches and rerun the event pipeline over combined observations.
 7. Closing the side panel unsubscribes the UI and requests a best-effort stop for its exact observation target. Content rejects a stale stop when a newer session owns the document. A remote stop failure is logged; it is not a guarantee of immediate cleanup.
 
-The side panel is now task-oriented rather than one long diagnostics surface:
+The panel separates the reader's tasks:
 
-```text
-Summary           current page analysis, refresh, and live observation status
-Technologies      detected technologies for the active tab
-Technology detail evidence, version, confidence, and explanation
-History           retained detector runs and same-page change comparison
-Diagnostics       extension contexts, interrupted work, durable crash journal, support report
-Settings          automatic scanning and local detector-data controls
-```
+| View | Purpose |
+| --- | --- |
+| Summary | Current page analysis, refresh and live observation status |
+| Technologies | Detected technologies for the active tab |
+| Technology detail | Evidence, version, confidence and explanation |
+| History | Retained detector runs and same-page change comparison |
+| Diagnostics | Extension contexts, interrupted work, durable crash journal and support report |
+| Settings | Automatic scanning and local detector-data controls |
 
 The Diagnostics view is also available as an independent extension options page so support data remains accessible when the detector UI or side-panel state is unhealthy.
 
 ## Messaging architecture
 
-The extension uses `comctx` to expose small typed RPC surfaces between the side panel, background service worker, and content script. The background API owns privileged orchestration such as tab validation, runtime injection, cache lookup, fresh analysis, replay storage, and observation-session control. The content API owns page-local observation capture and bounded observation sessions only. Detection logic does not run in the content script.
+The extension uses `comctx` to expose small typed RPC surfaces between the panel, background context and content script. The background API owns privileged orchestration such as tab validation, runtime injection, cache lookup, fresh analysis, replay storage, and observation-session control. The content API owns page-local observation capture and bounded observation sessions only. Detection logic does not run in the content script.
+
+Chrome uses a service worker and an offscreen matcher host. Firefox and Safari
+builds use background pages that can host dedicated matcher workers directly.
+Executor selection checks the available `Worker` and `document` capabilities;
+it does not infer them from the browser name.
 
 `comctx` is used instead of raw `browser.runtime.sendMessage` and `browser.tabs.sendMessage` discriminated unions because each extension context can consume an explicit TypeScript interface while the adapters still route over normal Manifest V3 extension messaging. Runtime calls that cross into the content script are wrapped with a timeout so a missing or stale content script returns `CONTENT_SCRIPT_UNAVAILABLE` instead of leaving the side panel waiting indefinitely.
 
@@ -61,8 +57,8 @@ The current permission model supports both automatic and manual analysis:
 - `activeTab` remains available for explicit toolbar-driven interaction and compatibility with the manual flow.
 - `scripting` is used for runtime content-script injection and MAIN-world JavaScript-global probing.
 - `storage` persists normalized analysis, redacted replay traces, privacy-safe matcher lifecycle summaries (no page URL; never for private tabs), the bounded diagnostic journal, and extension preferences. Small scheduler control records (hashed document identity, priority, claim state; no page content) live in the extension's IndexedDB.
-- `sidePanel` hosts one persistent window-scoped analysis UI. The mounted panel follows active-tab changes in its own browser window instead of creating a different panel instance for each tab.
-- `offscreen` owns the local matcher host so heavier registry matching does not block the panel or depend on service-worker memory.
+- Chrome's `sidePanel` permission hosts a window-scoped analysis UI. The mounted panel follows active-tab changes in its own browser window instead of creating a different panel instance for each tab. Firefox uses its sidebar and Safari uses the popup/full-page surfaces.
+- Chrome's `offscreen` permission provides the dedicated matcher host for its service worker. Background pages use their local worker executor without that permission.
 - `clipboardWrite` is used only after the user presses **Copy report** on Diagnostics. The extension does not read clipboard contents.
 
 ## Manual QA checklist
@@ -95,13 +91,15 @@ Common commands:
 
 ```bash
 mise install
-mise run dev
-mise run build
-mise run zip
+mise exec -- pnpm install --frozen-lockfile
+mise exec -- pnpm dev
+mise run check
+mise run build chrome
+mise run zip firefox
 mise run test
-mise run bench
-mise run bench:rules
-mise run bench:rules:gate
+mise exec -- pnpm bench
+mise exec -- pnpm bench:rules
+mise exec -- pnpm bench:rules:gate
 ```
 
 `bench:rules` profiles curated pass/fail samples plus generated miss cases across the registry. `bench:rules:gate` also enables generated structural pass cases, high-risk hydration miss scans, and failing budget checks through the rule-profile environment flags. Rule gates use the median of five warmed samples and retain the maximum sample only as diagnostics, so an isolated scheduler or garbage-collection pause does not masquerade as sustained regex cost. Use `KAIJU_DEEPSCOPE_RULE_BENCH_PASS_BUDGET_MS`, `KAIJU_DEEPSCOPE_RULE_BENCH_MISS_BUDGET_MS`, and `KAIJU_DEEPSCOPE_RULE_BENCH_REPORT_LIMIT` when a local machine needs different diagnostic thresholds.
@@ -121,9 +119,18 @@ pnpm bench:rules:gate
 
 `pnpm compile` checks all portable and tool owners, then the extension, vendored Utils and root configuration. Native pnpm path filters select these packages. `pnpm build` checks extension types before WXT emits the default browser build. `pnpm build:chrome` selects Chrome. `pnpm check:release` runs TypeScript, the complete Vitest suite, then the Chrome WXT build. `pnpm zip:chrome` runs the extension package checks before packaging Chrome output. Run the root `pnpm compile` and `pnpm test:run` as well for a release candidate that changes portable packages or tools.
 
-`pnpm validate:chrome-artifact` is a separate, optional check of an existing `.output/chrome-mv3` build. It inspects the emitted registry and HTML surfaces and loads the side-panel and options pages in a local Chromium (set `CHROME_BIN` when discovery fails). It is not part of `build:chrome` or `check:release` because it needs a browser binary that CI and most machines do not provide.
+`pnpm validate:chrome-artifact` checks an existing `.output/chrome-mv3` build.
+It inspects the registry and HTML surfaces, then opens the generated panel and
+options pages in Chromium or Chrome for Testing. Set `CHROME_BIN` explicitly
+when needed. It runs as the hosted **Chrome artifact smoke** job and fails if a
+compatible browser cannot start. The local `build:chrome` and `check:release`
+scripts remain separate from that browser check; the [CI guide](docs/ci.md)
+describes the hosted executable and sandbox setup.
 
-Inspect the generated assets and load the output in Chrome to check actual extension behavior. The [verification workflow](docs/architecture/verification-workflow.md) lists the generated-output and browser scenarios. Record those results separately from package command results.
+Inspect each affected browser's generated assets and run its actual extension
+flows. The [verification workflow](docs/architecture/verification-workflow.md)
+lists the output and browser scenarios. Record those results separately from
+package commands and generated-page startup.
 
 If you prefer `mise`, it keeps the repo's Node and pnpm versions aligned before you run the package scripts above.
 
@@ -159,9 +166,14 @@ The bundled registry is generated from the declarative TypeScript technology tre
 - the background loads a rule-free runtime artifact with technology profiles, the collection plan, relationship edges, pattern counts, and compiler diagnostic count;
 - dedicated matcher workers load matcher-only observation-kind shards containing only technology identity and rules for that kind;
 - packaged regular expressions stay as source/flags data until routing admits a rule that actually needs semantic regex evaluation;
-- the offscreen host streams each completed partition once and retains no second complete partition-result array.
+- Chrome's offscreen host streams each completed partition once and retains no second complete partition-result array.
 
-Matcher-worker and offscreen-document retention use one 30-second idle lifecycle owned by the offscreen host. On idle expiry, the host terminates the worker pool and sends a lifecycle event that wakes the background so it can call `offscreen.closeDocument()`. The 120-second queue and execution limits are separate stuck-work deadlines, not additional idle timers.
+Chrome's matcher workers and offscreen document use one 30-second idle lifecycle
+owned by the offscreen host. On idle expiry, the host terminates the worker pool
+and sends a lifecycle event that wakes the background to call
+`offscreen.closeDocument()`. Firefox and Safari use the local background-page
+worker owner. The 120-second queue and execution limits are separate stuck-work
+deadlines, not additional idle timers.
 
 ## Privacy notes
 

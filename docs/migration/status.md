@@ -2,15 +2,10 @@
 
 The active extension runtime is now the storage-backed live revision model. The old command-era phase notes were removed because they described cache-first tab analysis, targetless replay reads, side-panel polling, and direct page-signal fallback paths that no longer exist in the cleaned runtime.
 
-The current implementation has one user-visible contract:
-
-```text
-visible tab identity
-  -> exact session snapshot renders first when available
-  -> origin snapshot is a same-origin recovery fallback
-  -> background/content publish newer snapshot revisions
-  -> side panel applies only revisions that still match the visible tab target
-```
+The visible tab identity selects the exact session snapshot first, with an origin
+snapshot only as a same-origin recovery fallback. Background and content owners
+publish newer revisions. The panel applies a revision only while it still matches
+the visible target.
 
 This status note is intentionally short. Detailed architecture lives in the runtime documents linked from `docs/architecture/README.md`, where each document describes the current ownership model rather than a historical migration phase.
 
@@ -20,8 +15,8 @@ This status note is intentionally short. Detailed architecture lives in the runt
 | --- | --- | --- |
 | Side-panel state | Snapshot-owned live revision workflow | The side panel renders stored snapshots, subscribes to storage revisions, and ignores stale target responses. |
 | Background orchestration | Visible-tab coordinator | Background validates visible tab targets, queues initial matcher work, records matcher diagnostics, and writes snapshot revisions. |
-| Content observation | Page-session snapshot lifecycle | Content writes observation lifecycle revisions instead of feeding an tab cache command path. |
-| Matcher runtime | Durable priority scheduler + partition executor | IndexedDB stores small work control records, the background schedules partitions by current tab priority, and two offscreen DedicatedWorkers execute only selected partitions. Development and packaged builds use the same topology. |
+| Content observation | Page-session snapshot lifecycle | Content writes observation lifecycle revisions instead of feeding a tab cache command path. |
+| Matcher runtime | Durable priority scheduler and partition executor | IndexedDB stores small work control records. The background schedules partitions by tab priority; dedicated workers execute selected partitions. Chrome uses an offscreen host, while capable Firefox/Safari background pages host workers locally. |
 | Replay | Target-owned history reads and snapshot summaries | Replay data is attached to explicit visible analysis targets rather than whichever tab is active when hydration completes. |
 | Storage | Exact session snapshots plus origin summaries | `DetectionSessionSnapshot` is exact page/session state. `DetectionOriginSummary` and the compact status record drive origin counts and warm startup metadata without pretending to be visible-tab state. |
 
@@ -39,4 +34,10 @@ Use these checks when reviewing new patches:
 
 ## Remaining work
 
-Background still contains transitional adapter code around the live revision contracts while the runtime modules continue to settle. New work should keep that plumbing isolated behind exact session snapshots, side-panel revisions, session-keyed matcher jobs, and explicit visible-tab commands instead of reviving targetless command-era paths.
+The [active action list](monorepo-plan.md) records current publication and exact
+validation evidence. Remaining work includes WebDriver setup/disposal, the large
+background API test harness, large detection/storage/observation/UI owners, exact
+Utils provenance and the full browser journeys. Keep those changes behind exact
+session snapshots, session-keyed matcher jobs and explicit visible-tab commands.
+Do not revive targetless command paths or call the semantic review complete
+because a source/build/startup gate passes.
