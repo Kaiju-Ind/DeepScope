@@ -25,7 +25,8 @@ the app owns the command.
 | `mise run build <chrome\|firefox\|safari>` | `wxt build -b <browser> --mv3` in `apps/extension`, into the root `.output/<browser>-mv3` |
 | `mise run zip <chrome\|firefox\|safari>` | `wxt zip -b <browser> --mv3`; Firefox also writes a sources zip |
 | `mise run lint:firefox [dir]` | Mozilla `web-ext lint` on an unpacked Firefox build |
-| `mise run lint:workflows` | `actionlint` and `zizmor --offline` on `.github/` |
+| `mise run lint:workflows` | `actionlint` with pinned ShellCheck, and `zizmor --offline` on `.github/` |
+| `mise run prepare:chromium` | hosted Ubuntu only: verify the selected Chromium path and load its AppArmor user-namespace profile |
 | `mise run release:archives [browsers]` | zips each browser, then writes release-named archives and `SHA256SUMS` to `.output/release` |
 | `mise run release:check-version <tag>` | fails unless the tag equals the `apps/extension/package.json` version |
 | `mise run safari-project` | macOS only: wraps the Safari build in an Xcode project and builds it unsigned |
@@ -73,7 +74,10 @@ Workflow lint runs independently of these jobs.
 - **safari-xcode** is an optional packaging check that needs Apple's macOS
   tools. It runs when a PR carries the `ci:safari` label or a manual run sets
   the `safari-xcode` input.
-- **workflows** lints the workflow files. `.github/zizmor.yml` disables only the
+- **workflows** lints the workflow files with actionlint 1.7.12, ShellCheck 0.11.0
+  and zizmor 1.32.0. The task resolves ShellCheck explicitly, so local and hosted
+  runs use the same version and a missing executable cannot silently skip it.
+  `.github/zizmor.yml` disables only the
   `self-repository` audit: zizmor prefers `uses: $/...`, which actionlint
   1.7.12 still rejects.
 
@@ -99,19 +103,28 @@ therefore selects the image's Chromium explicitly. Its version follows the
 hosted image and is recorded in each run; it is not a separately pinned browser
 release. Local runs must select a supported executable in the same way.
 
-Ubuntu restricts unprivileged user namespaces, so the image's Chromium snapshot
-also needs a discoverable sandbox helper. Before validation, the smoke job checks
-for `chrome-sandbox` beside the Chromium executable. If it is absent, the job
-links the image's existing `/opt/google/chrome/chrome-sandbox` there. It requires
-an executable, root-owned helper with mode 4755 and runs the browser as the
-ordinary hosted user. The job preserves Ubuntu's policy and the browser's
-sandbox checks; it does not download a helper or change its permissions.
+Ubuntu restricts unprivileged user namespaces. Before validation,
+`mise run prepare:chromium` loads one AppArmor profile that grants `userns` to
+`/usr/local/share/chromium/chrome-linux/chrome`, following
+[Chromium's executable-specific configuration](https://github.com/chromium/chromium/blob/158.0.8127.0/docs/security/apparmor-userns-restrictions.md).
+The task requires `CHROME_BIN` to resolve to this exact path and checks that the
+executable and every parent directory belong to root and cannot be written by
+the runner. It prints their ownership and modes before loading the profile.
+An unexpected or writable installation fails before any host policy change.
 
-This follows [Chromium's sandbox guidance](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md).
-The [native discovery code](https://github.com/chromium/chromium/blob/158.0.8127.0/sandbox/linux/suid/client/setuid_sandbox_host.cc)
-requires the adjacent path for a system-owned browser: `CHROME_DEVEL_SANDBOX`
-applies only when the browser executable belongs to its current user. A missing,
-misconfigured or incompatible helper fails the job with the available diagnostics.
+The profile is a specific exception to Ubuntu's user-namespace restriction;
+the global restriction stays enabled. Chromium runs as the ordinary hosted
+user and applies its own namespace and seccomp sandbox. The task loads only
+this profile into the ephemeral runner. It does not download browser code,
+change executable permissions, or disable the browser sandbox. The subsequent
+smoke check must establish actual startup and generated-page behavior.
+
+The earlier SUID-helper attempt failed before launch in
+[run 46135269877](https://github.com/Kaiju-Ind/DeepScope/actions/runs/46135269877).
+The exact image's [system setup](https://github.com/actions/runner-images/blob/ubuntu24/20261122.23/images/ubuntu/scripts/build/configure-system.sh)
+makes `/opt` writable, so the helper under `/opt/google/chrome` is not a suitable
+privileged installation to reuse. The current task does not grant it SUID
+permissions or copy it into a privileged execution path.
 
 ### Concurrency
 

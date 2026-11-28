@@ -61,7 +61,7 @@ Tools are pinned in `mise.toml` (pnpm 12, Node 26). Commands are thin Mise tasks
 | `mise run build <chrome\|firefox\|safari>`        | Unpacked Manifest V3 build in `.output/<browser>-mv3`                             |
 | `mise run zip <browser>`                         | Store archive (Firefox also emits a sources zip)                                  |
 | `mise run verify <firefox\|safari>`               | Real-browser scenarios against an existing build (`tools/verify/README.md`)     |
-| `mise run lint:firefox`, `mise run lint:workflows` | `web-ext lint`; actionlint and zizmor                                           |
+| `mise run lint:firefox`, `mise run lint:workflows` | `web-ext lint`; actionlint with pinned ShellCheck, and zizmor                    |
 | `mise run safari-project`                        | macOS: wrap the Safari build in an Xcode project                                  |
 | `mise run release:archives`, `release:check-version`, `release:push-oci`, `release:store-upload` | Release steps run by `release.yml` |
 
@@ -85,8 +85,10 @@ Chrome artifact verification has three lifetime owners under `tools/verify/chrom
 the browser process, profile and bounded HTTP reads; `cdp.mjs` owns WebSocket requests; `pages.mjs` owns
 the generated-page report and cleanup results. Await disposal and preserve caller cancellation. A failed
 browser start must retain bounded stderr and process status; it must not become a passing static-only check.
-The hosted smoke job owns Chromium sandbox preparation through the image's existing root-owned helper.
-Keep the browser sandbox and Ubuntu policy enabled; the [CI guide](docs/ci.md#runners) records native discovery.
+The hosted smoke job calls `mise run prepare:chromium` to load an AppArmor user-namespace profile for
+the image's exact Chromium executable. Check its ownership and every parent before granting that permission.
+Keep Chromium's sandbox and Ubuntu's global restriction enabled; the [CI guide](docs/ci.md#runners)
+records the scope of the host configuration and the required runtime check.
 
 Local extension modules use explicit imports. WXT excludes local files from automatic export discovery, so
 module-qualified operations such as `fence.create` and `generation.create` cannot compete for one generated

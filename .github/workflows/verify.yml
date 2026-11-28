@@ -182,17 +182,7 @@ jobs:
           name: extension-chrome
           path: ${{ runner.temp }}/chrome-zips
       - name: Prepare the installed Chromium sandbox
-        shell: bash
-        run: |
-          [ "$(id -u)" -ne 0 ] || { echo "::error::Chrome smoke requires an unprivileged runner user"; exit 1; }
-          sandbox="$(dirname "$(readlink -f "$CHROME_BIN")")/chrome-sandbox"
-          if [ ! -e "$sandbox" ]; then
-            chrome_sandbox=/opt/google/chrome/chrome-sandbox
-            [ -x "$chrome_sandbox" ] && [ "$(stat -Lc '%u:%a' "$chrome_sandbox")" = '0:4755' ] || { echo "::error::the installed Chrome sandbox must be executable, root-owned and mode 4755"; exit 1; }
-            sudo ln -s -- "$chrome_sandbox" "$sandbox"
-          fi
-          [ -x "$sandbox" ] && [ "$(stat -Lc '%u:%a' "$sandbox")" = '0:4755' ] || { echo "::error::the Chromium sandbox must be executable, root-owned and mode 4755"; exit 1; }
-          stat -Lc 'Chromium sandbox: %n, owner %U, mode %a' "$sandbox"
+        run: mise run prepare:chromium
       - name: Validate the Chrome build
         shell: bash
         run: |

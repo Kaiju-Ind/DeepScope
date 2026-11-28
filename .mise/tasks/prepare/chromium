@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+#MISE description="Allow the hosted Ubuntu Chromium binary to use its namespace sandbox"
+set -euo pipefail
+
+: "${CHROME_BIN:?CHROME_BIN must select the hosted Chromium executable}"
+if [ "$(id -u)" -eq 0 ]; then
+  echo "::error::Chrome smoke requires an unprivileged runner user"
+  exit 1
+fi
+
+# This profile belongs to one system-installed executable, not a writable tree.
+chromium=/usr/local/share/chromium/chrome-linux/chrome
+if ! selected=$(readlink -e -- "$CHROME_BIN"); then
+  echo "::error::CHROME_BIN does not resolve to an existing executable: $CHROME_BIN"
+  exit 1
+fi
+if [ "$selected" != "$chromium" ]; then
+  echo "::error::unsupported Chromium path: $selected; expected $chromium"
+  exit 1
+fi
+if [ ! -x "$chromium" ]; then
+  echo "::error::the installed Chromium binary is not executable: $chromium"
+  exit 1
+fi
+
+# Protect both the file and its ancestry so another runner process cannot replace
+# an executable that receives this path-specific user-namespace permission.
+for path in / /usr /usr/local /usr/local/share /usr/local/share/chromium \
+  /usr/local/share/chromium/chrome-linux "$chromium"; do
+  stat -Lc 'Chromium path: %n, owner %U, mode %a' "$path"
+  if [ "$(stat -Lc '%u' "$path")" -ne 0 ] || [ -w "$path" ]; then
+    echo "::error::the Chromium binary and its parents must be root-owned and not writable by the runner: $path"
+    exit 1
+  fi
+done
+
+# Load only this profile into the ephemeral runner. Ubuntu's global restriction
+# remains enabled; Chromium uses user namespaces for its own browser sandbox.
+# https://github.com/chromium/chromium/blob/158.0.8127.0/docs/security/apparmor-userns-restrictions.md
+sudo apparmor_parser --replace --skip-cache <<'PROFILE'
+abi <abi/4.0>,
+include <tunables/global>
+
+profile deepscope-chromium "/usr/local/share/chromium/chrome-linux/chrome" flags=(unconfined) {
+  userns,
+}
+PROFILE
+
+echo "Loaded the AppArmor user-namespace profile for $chromium"
