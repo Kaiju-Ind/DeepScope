@@ -15,3 +15,6 @@ overrides:
   # shadcn's CLI (shadcn > ts-morph > @ts-morph/common), a build-time tool;
   # @ts-morph/common calls only `minimatch(path, pattern)`, unchanged in 11.
   '@ts-morph/common>minimatch': ^11.0.1
+
+patchedDependencies:
+  comctx@1.7.7: patches/comctx@1.7.7.patch
