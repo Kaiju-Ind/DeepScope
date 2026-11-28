@@ -68,7 +68,14 @@ export default defineConfig({
 	},
 	// unimport's default excludes plus portable source owners. WXT hands these options
 	// to unimport's Vite plugin, which reads `exclude`, but does not type it.
-	imports: { exclude: [/[\\/]node_modules[\\/]/u, /[\\/]\.git[\\/]/u, portableSources] } as WxtUnimportOptions,
+	imports: {
+		exclude: [/[\\/]node_modules[\\/]/u, /[\\/]\.git[\\/]/u, portableSources],
+		dirsScanOptions: {
+			// Local consumers import their owners explicitly. Registering their exports
+			// would merge fence.create and generation.create into one global name.
+			fileFilter: () => false,
+		},
+	} as WxtUnimportOptions,
 	modules: ['@wxt-dev/module-solid'],
 	// WXT defaults Firefox and Safari to Manifest V2. DeepScope targets V3 everywhere.
 	manifestVersion: 3,

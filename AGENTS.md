@@ -81,6 +81,11 @@ page expectations, browser actions, observations, final checks and report have s
 Preserve the shared random stream, URL counter and persisted-state oracles when changing them; the
 [verify guide](tools/verify/README.md) explains the real-browser command and the limits of controlled tests.
 
+Local extension modules use explicit imports. WXT excludes local files from automatic export discovery, so
+module-qualified operations such as `fence.create` and `generation.create` cannot compete for one generated
+global name. Framework and browser auto-import presets remain available; keep their ownership separate from
+repository source exports.
+
 ## Repository rules
 
 - Names are short. A dash in a file or folder name usually means a missing subfolder (`detection-snapshots.ts` becomes
