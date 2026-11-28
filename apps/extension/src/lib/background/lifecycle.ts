@@ -1,7 +1,7 @@
 import { browser } from 'wxt/browser';
 
-import type { DetectionSnapshotLifecycleStore } from '../persistence';
-import type { TabWrites } from './writes';
+import type { DetectionSnapshotLifecycleStore } from "../persistence/index.ts";
+import type { TabWrites } from "./writes.ts";
 
 /** Reason recorded when a tab lifecycle event updates stored snapshots. */
 type BackgroundTabLifecycleReason = 'tab-navigation' | 'tab-removed';

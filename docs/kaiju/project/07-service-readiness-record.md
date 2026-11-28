@@ -1,24 +1,27 @@
-# Platform readiness record
+# Service readiness record
 
-Make one record per browser or store, version and identity. The [platform cards](../platforms/README.md) say what to
-check. The example is illustrative, not real configuration.
+Make one record per contract, environment and principal. The example below is intentionally incomplete and is not
+production configuration.
 
 ```json
 {
 	"recordVersion": 1,
-	"platform": "firefox",
-	"version": "160",
-	"context": "event page",
-	"build": "commit and .output/firefox-mv3",
-	"checks": ["mise run lint:firefox", "mise run verify firefox -- --only active-load,spa,idle-wake"],
+	"service": "application-objects",
+	"environment": "preview-example",
+	"consumer": "api",
+	"runtimeLocation": "bunny",
+	"principalReference": "approved-secret-reference",
+	"configurationReference": "reviewed-config-path-and-revision",
+	"clientRevision": "exact-lock-or-image-reference",
+	"operations": ["upload", "read", "deny-anonymous-read", "delete"],
 	"result": "not checked",
 	"checkedAt": null,
-	"evidence": [".tmp/verify/firefox.json"],
-	"invalidateOn": ["browser-release", "manifest-change", "minimum-version-change", "new-api"],
-	"owner": "assigned-owner"
+	"evidence": [],
+	"invalidateOn": ["credential-rotation", "endpoint-change", "client-change", "policy-change"],
+	"owner": "assigned-owner",
+	"cleanup": "disposable-test-object-prefix-only"
 }
 ```
 
-For a store, record the account and listing by reference, the credential's four states and the last accepted upload.
-Do not store page content, credentials or personal data in evidence. Avoid one global "browsers ready" result: each
-browser, context and window kind is its own record.
+Use a meaningful test-data policy. Do not store sensitive payloads or credentials in evidence. Avoid one global “storage
+ready” result when state, database backups, public assets and private uploads have different consumers and permissions.

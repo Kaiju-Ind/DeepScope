@@ -1,5 +1,5 @@
-import type { RuntimeDetectionKind } from '../detection/types';
-import * as dictionary from '../../utils/dictionary';
+import type { RuntimeDetectionKind } from "@deepscope/registry/rules";
+import * as dictionary from '@deepscope/detection/observations/dictionary';
 
 /**
  * Describes whether the browser extension can collect a rule source today.

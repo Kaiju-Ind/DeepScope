@@ -14,23 +14,32 @@ The package scripts finish at WXT output generation. Runtime checks of that outp
 | --- | --- | --- | --- |
 | `git diff --check` | Catches whitespace errors in the change. | Before review. | No whitespace warnings are reported. |
 | `pnpm test:run` | Runs the Vitest suite non-interactively. | Runtime, contract, detector, collector, side-panel, storage, or test-support changes. | The command exits successfully. |
-| `pnpm compile` | Runs TypeScript without emitting files. | Any TypeScript or TSX change. | The command exits successfully after WXT preparation exists. |
+| `pnpm compile` | Runs each portable/tool package check, then extension, Utils and root TypeScript without emitting files. | Any TypeScript or TSX change. | The command exits successfully after WXT preparation exists. |
 | `pnpm build:chrome` | Runs TypeScript, then builds through WXT for Chrome. | Side-panel, WXT, manifest, content, background, or build-sensitive changes. | Both stages exit successfully and `.output/chrome-mv3` is produced. |
 | `pnpm check:release` | Runs TypeScript, the full Vitest suite, then a Chrome WXT build. | Every release candidate. | All three stages exit successfully. |
-| `pnpm zip:chrome` | Runs TypeScript and Vitest, then creates the Chrome zip through WXT. | Release packaging. | All three stages exit successfully and the Chrome package is created. |
+| `pnpm zip:chrome` | Runs the extension package TypeScript and Vitest checks, then creates the Chrome zip through WXT. Run root checks separately for portable/tool changes. | Release packaging. | All three stages exit successfully and the Chrome package is created. |
 | `pnpm validate:chrome-artifact` | Optional. Checks an existing `.output/chrome-mv3` build: registry/HTML surfaces statically, then loads the side-panel and options pages in a local Chromium. Not part of `build:chrome` or `check:release`. | Build-sensitive changes when a Chromium binary is available (`CHROME_BIN`). | Every check in its JSON report passes, including the browser check; a missing browser is a failure, not a pass. |
 
 When a command cannot be run or cannot complete, record the exact reason. Do not describe a partial command as passed.
+
+## Native owner selection
+
+Root checks select `./packages/*` and `./tools/*` through pnpm with
+`--fail-if-no-match`; package names are not required. Vitest discovers native
+project configurations for these packages. To check one owner, use
+`pnpm --filter ./packages/detection --fail-if-no-match run check`. A successful
+selector proves only the tasks that actually ran. JavaScript-only tool checks
+prove syntax, not JavaScript type safety.
 
 ## Targeted subsystem checks
 
 Run targeted tests when the full suite is unavailable or when the patch only touches one seam. These commands are examples, not substitutes for full validation before release.
 
 ```bash
-pnpm vitest run src/tests/app/model.test.ts --reporter=verbose
-pnpm vitest run src/tests/storage/cache.test.ts --reporter=verbose
-pnpm vitest run src/tests/collectors/planning.test.ts --reporter=verbose
-pnpm vitest run src/tests/messaging/messages.test.ts --reporter=verbose
+pnpm exec vitest run apps/extension/src/tests/app/model.test.ts --reporter=verbose
+pnpm exec vitest run apps/extension/src/tests/storage/cache.test.ts --reporter=verbose
+pnpm exec vitest run packages/detection/collection/planning.test.ts --reporter=verbose
+pnpm exec vitest run apps/extension/src/tests/messaging/messages.test.ts --reporter=verbose
 ```
 
 Use targeted tests to answer a specific review question. For example, a side-panel page or TSX change should run panel tests and build. A storage mock change should run storage tests and at least one consumer test that imports the shared mock. The generated-name and UI-binding rules use Oxc to inspect TypeScript and TSX syntax. Runtime tests exercise the behavior of the owning APIs.

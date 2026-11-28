@@ -1,26 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createObservationMatcherIndex } from '@/lib/detection/observation-matcher-index';
-import { testDetectionPattern } from '@/lib/detection/pattern';
-import type { DetectionPatternType, TechnologyDefinition } from '@/lib/detection/types';
-import { compileTechnologyRegistry } from '@/lib/registry';
-import { createPackagedBuildTechnologyRegistryProvider } from '@/lib/registry/build-provider';
-import { hydrateMatcherIndex, packageMatcherIndex } from '@/lib/registry/matcher-artifact';
-import {
-	PACKAGED_REGISTRY_ASSET_PATHS,
-	PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
-	createBootstrapTechnologyRegistry,
-	createObservationKindTechnologyRegistry,
-	getPackagedRegistryShardAssetPath,
-	hydratePackagedTechnologyRegistry,
-	isPackagedRuntimeTechnologyRegistryAsset,
-	isPackagedTechnologyRegistryAsset,
-	isPackagedTechnologyRegistryShardAsset,
-	renderPackagedRegistryJson,
-	type PackagedRegistryObservationKind,
-} from '@/lib/registry/packaged-artifacts';
-import { createPackagedMatcherTechnologyRegistryProvider } from '@/lib/registry/packaged-matcher';
-import { createPackagedRuntimeTechnologyRegistryProvider } from '@/lib/registry/packaged-runtime';
+import { createObservationMatcherIndex } from "@deepscope/detection/matcher/routing";
+import { testDetectionPattern } from "@deepscope/detection/pattern";
+import type { DetectionPatternType } from "@deepscope/registry/rules";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
+import { compileTechnologyRegistry } from "@deepscope/detection/compiler";
+import { createPackagedBuildTechnologyRegistryProvider } from "../../lib/registry/build.ts";
+import { hydrateMatcherIndex, packageMatcherIndex } from "@deepscope/detection/artifacts/matcher";
+import { PACKAGED_REGISTRY_ASSET_PATHS, PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION, createBootstrapTechnologyRegistry, createObservationKindTechnologyRegistry, getPackagedRegistryShardAssetPath, hydratePackagedTechnologyRegistry, isPackagedRuntimeTechnologyRegistryAsset, isPackagedTechnologyRegistryAsset, isPackagedTechnologyRegistryShardAsset, renderPackagedRegistryJson, type PackagedRegistryObservationKind } from "@deepscope/detection/artifacts/packaged";
+import { createPackagedMatcherTechnologyRegistryProvider } from "../../lib/registry/matcher.ts";
+import { createPackagedRuntimeTechnologyRegistryProvider } from "../../lib/registry/runtime.ts";
 
 function makeRegistry(): readonly TechnologyDefinition[] {
 	return [

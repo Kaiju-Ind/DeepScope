@@ -4,14 +4,15 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { collectCookieNames } from '@/lib/content/collect-page-signals';
-import { normalizeMetaMap } from '@/lib/detection/normalizers';
-import { createObservationMatcherIndex, matchIndexedObservationBatch } from '@/lib/detection/observation-matcher-index';
-import type { TechnologyDefinition } from '@/lib/detection/types';
-import { normalizePageSignals } from '@/lib/observations';
-import { hydrateMatcherIndex, packageMatcherIndex } from '@/lib/registry/matcher-artifact';
-import * as dictionary from '@/utils/dictionary';
-import { makePageSignals } from '../support/factories';
+import { collectCookieNames } from "../../lib/content/signals/keys.ts";
+import { normalizeMetaMap } from "@deepscope/detection/normalizers";
+import { createObservationMatcherIndex } from "@deepscope/detection/matcher/routing";
+import { matchIndexedObservationBatch } from "@deepscope/detection/matcher";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
+import { normalizePageSignals } from "@deepscope/detection/observations";
+import { hydrateMatcherIndex, packageMatcherIndex } from "@deepscope/detection/artifacts/matcher";
+import * as dictionary from '@deepscope/detection/observations/dictionary';
+import { makePageSignals } from "@deepscope/detection/testing/fixtures";
 
 /**
  * Keys a page can choose that collide with `Object.prototype` members.

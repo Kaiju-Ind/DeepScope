@@ -16,11 +16,12 @@ import {
   untrack,
   type ValidComponent,
 } from "solid-js";
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type SliderProps<T extends ValidComponent = "div"> = PolymorphicProps<T, SliderRootProps<T>> &
   Pick<ComponentProps<T>, "class">;
 
+/** Default the range to zero through 100 and compose thumbs from the supplied value shape; the primitive owns value changes. */
 const Slider = <T extends ValidComponent = "div">(rawProps: SliderProps<T>) => {
   const props = mergeProps({ minValue: 0, maxValue: 100 } as SliderProps<T>, rawProps);
   const [local, others] = splitProps(props as SliderProps, ["class", "defaultValue", "value"]);
@@ -56,6 +57,7 @@ type SliderTrackComponentProps<T extends ValidComponent = "div"> = PolymorphicPr
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Style the track using the surrounding slider's current orientation without adding an independent orientation state. */
 const SliderTrack = <T extends ValidComponent = "div">(props: SliderTrackComponentProps<T>) => {
   const [local, others] = splitProps(props as SliderTrackComponentProps, ["class", "children"]);
   const context = useSliderContext();
@@ -77,6 +79,7 @@ type SliderFillComponentProps<T extends ValidComponent = "div"> = PolymorphicPro
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Position the selected range using the primitive's orientation and fill calculations. */
 const SliderFill = <T extends ValidComponent = "div">(props: SliderFillComponentProps<T>) => {
   const [local, others] = splitProps(props as SliderFillComponentProps, ["class"]);
   const context = useSliderContext();
@@ -99,6 +102,7 @@ type SliderThumbComponentProps<T extends ValidComponent = "span"> = PolymorphicP
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Pair each visual thumb with the primitive's input so keyboard and form behavior remain connected. */
 const SliderThumb = <T extends ValidComponent = "span">(props: SliderThumbComponentProps<T>) => {
   const [local, others] = splitProps(props as SliderThumbComponentProps, ["class"]);
   return (

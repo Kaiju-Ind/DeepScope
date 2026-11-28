@@ -3,13 +3,14 @@ import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 import type { ComponentProps, ValidComponent } from "solid-js";
 import { splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type CollapsibleProps<T extends ValidComponent = "div"> = PolymorphicProps<
   T,
   CollapsiblePrimitive.CollapsibleRootProps<T>
 >;
 
+/** Forward controlled or uncontrolled expansion props to the primitive without adding another state owner. */
 const Collapsible = <T extends ValidComponent = "div">(props: CollapsibleProps<T>) => {
   return <CollapsiblePrimitive.Root data-slot="collapsible" {...props} />;
 };
@@ -19,6 +20,7 @@ type CollapsibleTriggerProps<T extends ValidComponent = "button"> = PolymorphicP
   CollapsiblePrimitive.CollapsibleTriggerProps<T>
 >;
 
+/** Use the primitive's trigger semantics and events for the surrounding collapsible owner. */
 const CollapsibleTrigger = <T extends ValidComponent = "button">(
   props: CollapsibleTriggerProps<T>,
 ) => {
@@ -31,6 +33,7 @@ type CollapsibleContentProps<T extends ValidComponent = "div"> = PolymorphicProp
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Clip expanding content while preserving the primitive's presence and open-state lifecycle. */
 const CollapsibleContent = <T extends ValidComponent = "div">(
   props: CollapsibleContentProps<T>,
 ) => {

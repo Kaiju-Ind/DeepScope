@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import * as fence from '@/utils/fence';
+import * as fence from '../../utils/fence.ts';
 
 describe('keyed mutation fence', () => {
 	it('serializes one key while independent keys can continue', async () => {

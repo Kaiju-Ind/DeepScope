@@ -1,24 +1,13 @@
-import { collectBackgroundObservationBatch, type CollectorLog } from './background-signals';
-import {
-	getCollectionTierPlan,
-	toCollectPageSignalsInput,
-	type CollectionPlan,
-	type CollectionTier,
-	type CollectionTierPlan,
-} from './planning';
-import type { CollectObservationBatchOutput, ContentApi } from '../messaging/analysis';
-import type { ObservationBatch } from '../observations';
-import {
-	CONTENT_SCRIPT_BUSY_LIMIT_MS,
-	CONTENT_SCRIPT_TIMEOUT_MS,
-	contentScriptFailure,
-	withLivenessDeadline,
-	withTimeout,
-} from '../messaging/rpc';
-import { timeAsyncSpan, type TimingContext } from '../diagnostics/timing';
-import { diagnosticErrorType } from '../privacy/redaction';
-import { errorResponse, ok, type ExtensionResult } from '@/lib/messaging/result';
-import * as url from '@/utils/url';
+import { collectBackgroundObservationBatch } from "./background/index.ts";
+import { type CollectorLog } from "./background/types.ts";
+import { getCollectionTierPlan, toCollectPageSignalsInput, type CollectionPlan, type CollectionTier, type CollectionTierPlan } from "@deepscope/detection/collection/plan";
+import type { CollectObservationBatchOutput, ContentApi } from "../messaging/analysis.ts";
+import type { ObservationBatch } from "@deepscope/detection/observations";
+import { CONTENT_SCRIPT_BUSY_LIMIT_MS, CONTENT_SCRIPT_TIMEOUT_MS, contentScriptFailure, withLivenessDeadline, withTimeout } from "../messaging/rpc.ts";
+import { timeAsyncSpan, type TimingContext } from "../diagnostics/timing.ts";
+import { diagnosticErrorType } from "@deepscope/detection/privacy/redaction";
+import { errorResponse, ok, type ExtensionResult } from "../messaging/result.ts";
+import * as url from '../../utils/url.ts';
 
 /** Input needed to collect one visible tab through extension APIs. */
 export type ExtensionPageCollectorInput = {
@@ -101,6 +90,7 @@ export async function collectExtensionObservationBatch(
 					timeoutMs: CONTENT_SCRIPT_TIMEOUT_MS,
 					maxMs: CONTENT_SCRIPT_BUSY_LIMIT_MS,
 					isAlive: input.isContentAlive,
+					/** Report an extended collection wait with its tab and tier while leaving timeout policy with the caller. */
 					onExtended: (elapsedMs) => input.log?.('collect-observation-batch-busy', { tabId: input.tabId, tier, elapsedMs }),
 					...(input.signal ? { signal: input.signal } : {}),
 				});

@@ -1,5 +1,5 @@
-import * as logging from '../diagnostics/logging';
-import { diagnosticErrorType } from '../privacy/redaction';
+import * as logging from './logging.ts';
+import { diagnosticErrorType } from "@deepscope/detection/privacy/redaction";
 
 /** Summary-only timing context shared by background, content, collector, and pipeline code. */
 export type TimingContext = {

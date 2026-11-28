@@ -6,7 +6,7 @@
 import { defineProxy, type Adapter, type Message } from 'comctx';
 import { describe, expect, it } from 'vitest';
 
-import { errorResponse, ok, type ExtensionResult } from '@/lib/messaging/result';
+import { errorResponse, ok, type ExtensionResult } from "../../lib/messaging/result.ts";
 
 type Listener = (message: Partial<Message>) => void;
 

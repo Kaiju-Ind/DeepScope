@@ -9,8 +9,8 @@
  */
 import { fail, type Failure, type Result, type Success } from '@utils/result';
 
-import type { ExtensionError, ExtensionErrorCode } from './failure';
-import { createExtensionError } from './failure';
+import type { ExtensionError, ExtensionErrorCode } from "./failure.ts";
+import { createExtensionError } from "./failure.ts";
 
 export { fail, ok } from '@utils/result';
 

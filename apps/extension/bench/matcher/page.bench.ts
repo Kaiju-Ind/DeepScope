@@ -1,14 +1,14 @@
 import { describe, test } from 'vitest';
 
-import { matchIndexedObservationBatch } from '@/lib/detection/observation-matcher-index';
-import type { TechnologyDefinition } from '@/lib/detection/types';
-import type { NormalizedObservation, ObservationBatch } from '@/lib/observations';
-import { normalizePageSignals } from '@/lib/observations/page-signals';
-import { normalizePackagedRegistryObservationKind, type PackagedRegistryObservationKind } from '@/lib/registry/packaged-artifacts';
-import { technologyDefinitions } from '@/registry/technologies';
+import { matchIndexedObservationBatch } from "@deepscope/detection/matcher";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
+import type { NormalizedObservation, ObservationBatch } from "@deepscope/detection/observations";
+import { normalizePageSignals } from "@deepscope/detection/observations/page";
+import { normalizePackagedRegistryObservationKind, type PackagedRegistryObservationKind } from "@deepscope/detection/artifacts/packaged";
+import { technologyDefinitions } from "@deepscope/registry";
 
-import { page } from '../../src/tests/support/corpus';
-import { loadShard, parseShard, renderShard, type LoadedShard } from '../../src/tests/support/shards';
+import { page } from "../../src/tests/support/corpus.ts";
+import { loadShard, parseShard, renderShard, type LoadedShard } from "../../src/tests/support/shards.ts";
 
 /**
  * Real-catalog matcher cost for one generated store page (about 1,100 observations).
@@ -19,6 +19,7 @@ import { loadShard, parseShard, renderShard, type LoadedShard } from '../../src/
  */
 
 const registry = technologyDefinitions as readonly TechnologyDefinition[];
+/** Choose sorted keyed-rule inputs from the selected packaged shard so benchmark cases remain deterministic. */
 const keys = (kind: 'jsGlobal' | 'dom' | 'htmlMatch') => Object.keys(loadShard(registry, kind).index.keyedRules[kind] ?? {}).sort();
 const signals = page({ globals: keys('jsGlobal'), selectors: keys('dom'), probes: keys('htmlMatch') });
 const observations = normalizePageSignals(signals, { observedAt: 1 }).observations;

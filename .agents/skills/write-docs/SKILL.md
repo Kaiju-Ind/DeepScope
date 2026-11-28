@@ -32,11 +32,21 @@ Read [documentation](../../references/docs.md), [comments](../../references/comm
 
 Start from a real complete example or concrete reader problem, then explain contracts and details in useful order. Preserve technical nuance and distinguish implemented facts, proposals and open questions. Follow source exports, callers, errors, ownership and supported runtime before asserting behavior. Comments include important private invariants, not only exports; avoid narrating trivial syntax.
 
+For plans, discovery notes, or progress updates, use
+[anchors](../../guides/product/anchors.md) and
+[planning](../../guides/product/planning.md). Lead with the customer question,
+actual observation, scope, product meaning, and next decision. Keep raw evidence
+traceable and preserve unsuccessful or inconclusive results. Research claims
+and implementation activity do not become observed product outcomes through
+wording. Use exact commands, paths, and metrics only when verified.
+
 Use tutorials for learning, how-to for completing a task, reference for lookup and explanation for reasoning, without stripping essential context just to enforce a category. Name assumptions and unrun steps. Diagrams must show actual state, authority, failures and recovery; label proposed edges. Check examples, commands, local links and navigation. Review the actual result as a reader without the chat. Documentation work does not authorize product behavior changes or live operational commands.
 
 ## Kaiju projects
 
 In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Project record](../../../docs/kaiju/project/README.md), [Writing procedures](../../../docs/kaiju/procedures/writing/README.md).
+
+For any project using the pack, see [Product development](../../../docs/kaiju/product/README.md) and [Task prompts](../../../docs/kaiju/tasks/README.md).
 
 ## Resource navigation
 

@@ -36,7 +36,7 @@ observe signature
 
 | Signature | Plausible causes | Next discriminating evidence | Unsafe shortcut |
 |---|---|---|---|
-| Package name cannot be resolved | typo, private package, unpublished workspace, different registry | consuming imports/manifests/lock/local source | invent an npm API |
+| Package name cannot be resolved | typo, private package, unpublished workspace, different registry | consuming imports/manifests/lock/local source | invent an npm/JSR API |
 | Repository link and package owner differ | fork, transfer, malicious/similar name, stale metadata | registry provenance, canonical docs, release signer | trust name/README badge |
 | Two archives called old/new look alike | duplicate exports or repackaging | normalized path/content hashes | narrate evolution from filenames |
 | Binary has no source/version | editor download, cache, vendor artifact, malware | file type/digest, installer/config, provenance manifest | execute it for `--version` |
@@ -91,7 +91,8 @@ observe signature
 | Retry duplicates side effect | non-idempotent activity or missing idempotency key | persisted operation/attempt records | increase retries |
 | Workflow restarts from beginning | ordinary Effect service mistaken for durable engine | workflow history/checkpoint/store contract | say Effect is automatically durable |
 | Temporal workflow nondeterminism | I/O/time/random/library in workflow code | replay test and workflow/activity split | catch retry exception |
-| A `chrome.*` call fails in Firefox or Safari | Chromium API or option inferred for every browser | MDN browser-compat-data and a real-browser run | rely on the `webextension-polyfill`-style type surface |
+| ClickHouse projection differs | delivery gap, mutable aggregate, dedup/order assumption | source-of-truth reconciliation/query semantics | treat it as OLTP backup |
+| Drizzle-like ClickHouse adapter emits wrong SQL | relational dialect inferred, AST/session incomplete | generated SQL + ClickHouse integration | rely on query-builder types |
 | Auth plugin exists but schema/session fails | one-sided registration/migration/host cookie config | server/client/plugin/adapter matrix | only add client plugin |
 | Shutdown loses logs/jobs | async sinks/workers not disposed or deadline too short | lifecycle trace and pending queue | call process exit |
 | Offline/cache returns wrong template | cache key omits ref/subdir/integrity | provenance manifest and immutable acquisition | trust `--offline` result |
@@ -151,8 +152,7 @@ Bound claims to the inspected revision and do not fabricate the missing export.
 
 ### Types are not dialect or durability
 
-A query builder with a familiar shape is not a correct dialect. A WXT type for
-`browser.sidePanel` does not mean Firefox or Safari implement it. Effect
+A Drizzle-shaped query builder is not a correct ClickHouse dialect. Effect
 services/Layers are not automatically a durable workflow history. Verify the
 specialized runtime contract.
 

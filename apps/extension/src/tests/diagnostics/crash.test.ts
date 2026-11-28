@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { type DiagnosticCrashHooks, installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
-import { clearDiagnosticJournal, getDiagnosticRecords } from '@/lib/diagnostics/journal';
+import { type DiagnosticCrashHooks, installDiagnosticCrashHooks } from "../../lib/diagnostics/crash.ts";
+import { clearDiagnosticJournal, getDiagnosticRecords } from "../../lib/diagnostics/journal/read.ts";
 
 /** Registrations belong to one isolated execution context and must be disposed after each scenario. */
 const hooks: DiagnosticCrashHooks[] = [];

@@ -1,10 +1,6 @@
-import type {
-	VisibleTabObservationMode,
-	AnalyzeVisibleTabInput,
-	BeginObservationSessionInput,
-} from '../messaging/analysis';
-import type * as observe from '../content/observe';
-import * as url from '@/utils/url';
+import type { VisibleTabObservationMode, AnalyzeVisibleTabInput, BeginObservationSessionInput } from "../messaging/analysis.ts";
+import type * as observe from '../content/observe/index.ts';
+import * as url from '../../utils/url.ts';
 
 /**
  * Standard observation policy for the visible-tab extension flow.

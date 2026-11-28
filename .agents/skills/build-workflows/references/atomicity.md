@@ -2,7 +2,7 @@
 
 ## Snapshot scope (2026-10-14)
 
-Use the vendored `@utils/*` packages (`use-utils`) for utility contracts. Query parsing,
+Use the published Kaiju Utils packages (`use-kaiju-utils`) for utility contracts. Query parsing,
 local Task control, recorded workflow instructions, and durable external
 execution have distinct owners and guarantees. Inspect the selected package and
 adapter; apply transaction, authorization, and recovery criteria to the actual
@@ -154,8 +154,8 @@ Cross-system work is a saga unless one transaction truly spans it. For each step
 | Step | Forward effect | Idempotency | Compensation | Irreversible consequence |
 |---|---|---|---|---|
 | Reserve credit | Provider reservation | reservation key | Release reservation | Expiry window |
-| Admit a scan | IndexedDB queue add | tab, document and generation | Cancel by label | Record retained until claimed or cancelled |
-| Publish a snapshot | extension storage write | snapshot revision | Ignore older revisions | Panel and badge follow the newest revision |
+| Create domain import | PostgreSQL insert | import ID | Mark abandoned/delete if safe | Audit record retained |
+| Publish analytics | ClickHouse insert | event/batch key | Tombstone/rebuild projection | Eventual visibility |
 | Notify customer | Email send | message key | Follow-up correction | Email cannot be unsent |
 
 Compensation is a business operation, not a database rollback across time. It
@@ -232,7 +232,10 @@ outcome.
 
 ## Sources and freshness
 
-- IndexedDB transactions: https://w3c.github.io/IndexedDB/#transaction-concept
-  (primary source).
-- Attachments, verified 2026-07-17: a server application's workflow store,
-  control plane and worker loops (observed and counterexample evidence).
+- PostgreSQL transaction documentation: https://www.postgresql.org/docs/current/tutorial-transactions.html
+  and locking clauses: https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE
+  (primary sources, checked 2026-07-17).
+- Attachments, verified 2026-07-17: `evidence/app/product/utils/workflows/postgres_store.ts`,
+  `control_plane.ts`, and `worker/loops.ts` (observed and counterexample evidence).
+- Temporal Activity guidance: https://docs.temporal.io/develop/typescript/activities
+  (primary source; external-effect idempotency remains application-owned).

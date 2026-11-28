@@ -95,11 +95,12 @@ describe('persistence dependency boundary', () => {
 			resolve(SRC_ROOT, 'lib/persistence/browser'),
 			resolve(SRC_ROOT, 'lib/storage'),
 		];
-		expect(
-			violations(
-				resolve(SRC_ROOT, 'lib/background/runtime.ts'),
-				(target) => concrete.some((owner) => target === owner || target === owner + '/index'),
-			),
-		).toEqual([]);
+		const runtime = resolve(SRC_ROOT, 'lib/background/runtime');
+		const files = applicationSourceFiles().filter((path) => path.startsWith(runtime + '/'));
+		expect(files.length).toBeGreaterThan(0);
+		expect(files.flatMap((path) => violations(
+			path,
+			(target) => concrete.some((owner) => target === owner || target === owner + '/index') || target === resolve(SRC_ROOT, 'lib/browser/permissions'),
+		))).toEqual([]);
 	});
 });

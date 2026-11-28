@@ -3,7 +3,7 @@ import { type AlertRootProps, Root } from "@kobalte/core/alert";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { ComponentProps, ValidComponent } from "solid-js";
 import { splitProps } from "solid-js";
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 const alertVariants = cva("group/alert relative z-alert w-full", {
   variants: {
@@ -20,6 +20,7 @@ const alertVariants = cva("group/alert relative z-alert w-full", {
 type AlertProps<T extends ValidComponent = "div"> = PolymorphicProps<T, AlertRootProps<T>> &
   VariantProps<typeof alertVariants>;
 
+/** Apply the alert variant and default live-alert role while forwarding the caller's polymorphic element and accessibility props. */
 const Alert = <T extends ValidComponent = "div">(props: AlertProps<T>) => {
   const [local, others] = splitProps(props as AlertProps, ["class", "variant"]);
 
@@ -35,6 +36,7 @@ const Alert = <T extends ValidComponent = "div">(props: AlertProps<T>) => {
 
 type AlertTitleProps = ComponentProps<"div">;
 
+/** Style the alert's title slot; the caller supplies its text and any heading semantics. */
 const AlertTitle = (props: AlertTitleProps) => {
   const [local, others] = splitProps(props, ["class"]);
 
@@ -52,6 +54,7 @@ const AlertTitle = (props: AlertTitleProps) => {
 
 type AlertDescriptionProps = ComponentProps<"div">;
 
+/** Keep descriptive alert content in its own styled slot without adding another live region. */
 const AlertDescription = (props: AlertDescriptionProps) => {
   const [local, others] = splitProps(props, ["class"]);
 
@@ -69,6 +72,7 @@ const AlertDescription = (props: AlertDescriptionProps) => {
 
 type AlertActionProps = ComponentProps<"div">;
 
+/** Position caller-owned alert actions without taking over their events or dismissal behavior. */
 const AlertAction = (props: AlertActionProps) => {
   const [local, others] = splitProps(props, ["class"]);
 

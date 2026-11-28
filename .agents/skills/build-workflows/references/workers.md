@@ -2,7 +2,7 @@
 
 ## Snapshot scope (2026-10-14)
 
-Use the vendored `@utils/*` packages (`use-utils`) for utility contracts. Query parsing,
+Use the published Kaiju Utils packages (`use-kaiju-utils`) for utility contracts. Query parsing,
 local Task control, recorded workflow instructions, and durable external
 execution have distinct owners and guarantees. Inspect the selected package and
 adapter; apply transaction, authorization, and recovery criteria to the actual
@@ -39,28 +39,35 @@ Worker readiness requires a compatible catalog and active pollers/loops against
 the intended queue/engine. A boot function returning `{ loops: [] }` or a process
 blocked before registration is not ready.
 
-Separate execution hosts by capability and cost when appropriate: in DeepScope,
-matcher partitions run in `DedicatedWorker`s (in the offscreen document on
-Chrome, in the background page on Firefox and Safari), while scheduler control
-and badge updates stay in the background. They should not share one queue.
+Separate worker deployments by permissions and scaling profile when appropriate:
+CPU-heavy parsing, network crawling, payment effects, and lightweight timers
+should not necessarily share one queue or credentials.
 
 ## Atomic queue claims and leases
 
-Use one atomic claim primitive. In DeepScope that is one IndexedDB readwrite
-transaction in `@utils/storage/queue/indexeddb`: IndexedDB serialises readwrite
-transactions on a store across the extension origin, so the service worker and
-the offscreen document cannot lease the same item.
+Use one atomic claim primitive. PostgreSQL example:
 
-```text
-readwrite transaction on queue.items
-  promote due delayed rows; recover rows whose lease expired
-  open cursor on index order = [namespace, 'ready', -priority, seq]
-  first row -> lane 'claimed', claim id, owner, lease expiry, attempt + 1
-  commit
+```sql
+with candidates as (
+  select queue_item_id
+  from workflow_ready_queue
+  where status = 'ready' and available_at <= now()
+  order by priority asc, available_at asc, queue_item_id asc
+  for update skip locked
+  limit $1
+)
+update workflow_ready_queue q
+set status = 'leased',
+    lease_owner = $2,
+    lease_expires_at = now() + $3::interval,
+    attempt = attempt + 1,
+    fencing_token = fencing_token + 1
+from candidates c
+where q.queue_item_id = c.queue_item_id
+returning q.*;
 ```
 
-Stable ordering needs a tie-breaker (`seq`). Never split the read and the write
-across two transactions.
+Parameterize safely; SQL is illustrative. Stable ordering needs a tie-breaker.
 
 Lease semantics:
 
@@ -217,9 +224,10 @@ and downstream saturation.
 
 ## Sources and freshness
 
-- IndexedDB transaction lifetime and ordering: https://w3c.github.io/IndexedDB/#transaction-lifetime
-  (primary source).
-- `utils/storage/` and the queue conformance suite in
-  `utils/scheduler/queue/testing.ts` (30 concurrent claims, no double lease).
+- PostgreSQL `SELECT ... FOR UPDATE`/`SKIP LOCKED` documentation:
+  https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE
+  (primary source, checked 2026-07-17).
+- Temporal TypeScript Worker documentation: https://docs.temporal.io/develop/typescript/workers
+  (primary source; exact tuning/versioning options are SDK-version-sensitive).
 - Attachments, verified 2026-07-17: `evidence/app/product/utils/workflows/worker/`
   and `utils/workflows/env.ts` (observed source with cron and atomicity gaps called out).

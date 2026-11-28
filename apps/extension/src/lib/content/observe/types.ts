@@ -1,23 +1,6 @@
-import type { PageSignals } from '../../detection/types';
-import type { DomPlanType } from '../../dom';
-import type { ObservationBatch, ObservationBatchControllerStats } from '../../observations';
-
-/** Bounded page evidence collected from one live DOM view. */
-export type SnapshotType = Pick<
-	PageSignals,
-	| 'scripts'
-	| 'stylesheets'
-	| 'links'
-	| 'resources'
-	| 'requests'
-	| 'scriptContents'
-	| 'stylesheetContents'
-	| 'meta'
-	| 'dom'
-> & {
-	/** Image URLs observed in the live page. */
-	images: string[];
-};
+import type { SnapshotType } from '@deepscope/detection/observations/snapshot';
+import type { DomPlanType } from "@deepscope/dom";
+import type { ObservationBatch, ObservationBatchControllerStats } from "@deepscope/detection/observations";
 
 /** Lifecycle states owned by one content-script observation session. */
 export type StatusType = 'idle' | 'observing' | 'dirty' | 'stopped';

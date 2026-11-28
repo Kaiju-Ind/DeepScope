@@ -1,4 +1,4 @@
-import type { PageSignals } from '@/lib/detection/types';
+import type { PageSignals } from "@deepscope/detection/types";
 
 /**
  * Deterministic page corpus for matcher golden tests.

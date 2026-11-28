@@ -1,7 +1,12 @@
 # Use one consistent procedure contract
 
-The following contract is the proposed Kaiju standard. It combines the sources below with the deployment requirements in
-this pack. These fields describe documentation; they do not introduce a new CLI or configuration format.
+Use the applicable fields below in the project's existing task or procedure record. The contract combines the cited
+sources with lessons from Kaiju delivery work. It applies to other products through their verified commands and
+customer outcomes. These fields describe documentation; they do not introduce a new CLI or configuration format.
+
+Apply [A01](../../product/01-a01-start-from-the-product-question.md) before designing a large procedure. Establish the
+product question and run the smallest useful experiment, then bind the supported next action. The
+[planning guide](../../../../.agents/guides/product/planning.md) supplies the concrete plan contract.
 
 | Field               | What to record                                                                                                        |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -18,7 +23,7 @@ this pack. These fields describe documentation; they do not introduce a new CLI 
 | Maintenance         | Procedure version, source versions, last exercised date, reviewer, and limitations.                                   |
 
 Write a warning or prerequisite next to the step it affects. Keep names consistent with the actual repository, CLI, and
-provider interface. [HSE's operating-procedure guidance][hse-operations] supports these choices and calls for a
+provider interface. [HSE's operating-procedure guidance](https://www.hse.gov.uk/comah/sragtech/techmeasoperatio.htm) supports these choices and calls for a
 walkthrough before issuing a procedure.
 
 Use a short step table where the result changes the next action:
@@ -31,5 +36,3 @@ Use a short step table where the result changes the next action:
 | Exercise the agreed journey.           | The intended user completes the outcome.                | Keep the deployment incomplete and record the failed stage.   |
 
 A timeout does not prove that an external operation did nothing. Recovery must start by inspecting actual state.
-
-[hse-operations]: https://www.hse.gov.uk/comah/sragtech/techmeasoperatio.htm

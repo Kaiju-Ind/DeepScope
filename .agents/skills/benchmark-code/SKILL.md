@@ -60,12 +60,21 @@ obligations apply. Select companions when their specialized decisions change.
 
 ## Measurement workflow
 
+Start from the customer question and the decision that measurement can change.
+Use the [experiment method](../../guides/product/experiments.md) and
+[metric scope](../../guides/product/metrics.md). Try the existing operation
+directly before adding a harness. Check correct output first, keep all attempts
+and failed results, and separate a quick exploratory observation from a
+comparative performance or reliability claim. Measure the larger customer path
+when needed to establish whether the component explains the wait. Share useful
+results as [anchors](../../guides/product/anchors.md).
+
 1. Define the user/system cost and claim, input/output contract, metric and
    authorized mode. Assessment is read-only; implementation permission does not
    authorize unrelated optimization, installs, external writes or publication.
 2. Inspect the real public API, caller, selected harness and installed version.
    Identify runtime/domain owners and resource requirements. Use the repository
-   runner (Vitest `bench` in DeepScope), not a second benchmark stack.
+   runner; Mitata is the default where selected, not a second benchmark stack.
 3. Establish an independent correctness oracle before timing. Compare full
    outputs and meaningful edge cases, including duplicates, order, mutation,
    errors, cancellation and cleanup where part of the contract. A sum or length
@@ -103,6 +112,8 @@ contracts are involved. Keep one investigation and report, not repeated plans.
 ## Kaiju projects
 
 In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Engineering and CI](../../../docs/kaiju/engineering/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).
+
+For any project using the pack, see [Product development](../../../docs/kaiju/product/README.md).
 
 ## Resource navigation
 

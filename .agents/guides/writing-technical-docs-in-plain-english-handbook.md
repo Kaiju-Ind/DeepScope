@@ -2016,7 +2016,7 @@ Clear:
 3.  Run this command:
 
 ~~~~ bash
-node scripts/browser/detect.mjs --route-manifest routes.jsonl
+deno task cli browser detect --route-manifest routes.jsonl
 ~~~~
 
 4.  Wait for the CLI to print `browser.ready`.
@@ -2040,7 +2040,7 @@ Then state the starting conditions:
 
 > Before you start, confirm these conditions:
 >
->  -  Node 26 is installed (`mise install`).
+>  -  Deno 2 is installed.
 >  -  Playwright browser files are installed.
 >  -  The output directory is writable.
 
@@ -2120,7 +2120,7 @@ Correction:
 > Supply one route source.
 
 ~~~~ bash
-node scripts/browser/detect.mjs --route https://example.com
+deno task cli browser detect --route https://example.com
 ~~~~
 
 Verification:

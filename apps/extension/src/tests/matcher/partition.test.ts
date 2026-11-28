@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { matchIndexedObservationBatch } from '@/lib/detection/observation-matcher-index';
-import { createObservationMatcherIndex } from '@/lib/detection/observation-matcher-index';
-import { createCompiledDetectionGraph, createCompiledDetectionRegistry } from '@/lib/detection/registry-graph';
-import type { TechnologyDefinition } from '@/lib/detection/types';
-import { createMatcherPartitionTasks, createMatcherPipelineResult } from '@/lib/matcher';
-import type { MatcherPartitionResult } from '@/lib/matcher';
-import { normalizePageSignals, type ObservationBatch } from '@/lib/observations';
-import { createObservationKindTechnologyRegistry } from '@/lib/registry';
-import { makePageSignals } from '../support/factories';
+import { matchIndexedObservationBatch } from "@deepscope/detection/matcher";
+import { createObservationMatcherIndex } from "@deepscope/detection/matcher/routing";
+import { createCompiledDetectionGraph, createCompiledDetectionRegistry } from "@deepscope/detection/registry/graph";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
+import { createMatcherPartitionTasks, createMatcherPipelineResult } from "../../lib/matcher/index.ts";
+import type { MatcherPartitionResult } from "../../lib/matcher/index.ts";
+import { normalizePageSignals, type ObservationBatch } from "@deepscope/detection/observations";
+import { createObservationKindTechnologyRegistry } from "@deepscope/detection/artifacts/packaged";
+import { makePageSignals } from "@deepscope/detection/testing/fixtures";
 
 const job = {
 	jobId: 'job-1',

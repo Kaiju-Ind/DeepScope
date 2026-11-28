@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildRegistryAssets } from '../../../modules/compile-registry';
-import { compileTechnologyRegistry } from '@/lib/registry/compiler';
-import { technologies } from '@/registry/technologies';
+import { buildRegistryAssets } from "../../../modules/compile-registry.ts";
+import { compileTechnologyRegistry } from "@deepscope/detection/compiler";
+import { technologies } from "@deepscope/registry";
 
 describe('registry build output', () => {
 	it('renders byte-identical files when the same catalog is built twice', () => {

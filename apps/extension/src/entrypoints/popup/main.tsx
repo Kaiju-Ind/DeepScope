@@ -1,4 +1,4 @@
-import { mountPanel } from '@/app/mount';
+import { mountPanel } from "../../app/mount.tsx";
 
 import '@/styles/app.css';
 import '@/styles/panel.css';

@@ -1,4 +1,4 @@
-import type { MatcherRecovery } from '@/lib/scheduler/matcher';
+import type { MatcherRecovery } from "../scheduler/matcher/types.ts";
 
 /** Scheduler surface startup reconciliation needs; both schedulers start paused. */
 export interface StartupSchedulers {

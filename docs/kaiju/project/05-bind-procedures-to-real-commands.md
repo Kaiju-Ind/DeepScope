@@ -1,25 +1,29 @@
 # Bind procedures to real commands
 
-Before running an operation, check `mise tasks`, the task file under `.mise/tasks/` and the `package.json` script it
-calls. Use the existing families with arguments; do not create one task per checkbox.
+A plan must make the next action executable by another person. Use the shared
+[planning guide](../../../.agents/guides/product/planning.md) and connect each action to the product question or
+validated decision it serves. Verify exact existing paths, symbols, public APIs, command flags and installed versions.
+Label proposed new files and unresolved commands explicitly. Include prerequisites, environment, ordered inputs and
+outputs, failure behavior, cleanup, owner and observable exit. Add pseudocode for state transitions or branching where
+prose would leave ambiguity. Bind the first isolated experiment before designing a larger implementation.
 
-| Operation                         | Command                                                        | Owning file                              | Side effect                               |
-| --------------------------------- | -------------------------------------------------------------- | ---------------------------------------- | ----------------------------------------- |
-| Prepare tools and dependencies    | `mise install`; `mise exec -- pnpm install --frozen-lockfile`  | `mise.toml`, `pnpm-lock.yaml`            | Downloads; runs `wxt prepare`             |
-| Type checks                       | `mise run check`                                               | `.mise/tasks/check`, `package.json`      | None                                      |
-| Tests                             | `mise run test [vitest args]`                                  | `.mise/tasks/test`, `vitest.config.ts`   | None                                      |
-| Build one browser                 | `mise run build <chrome\|firefox\|safari>`                     | `.mise/tasks/build`, `apps/extension/wxt.config.ts` | Writes `.output/<browser>-mv3`            |
-| Zip one browser                   | `mise run zip <browser>`                                       | `.mise/tasks/zip`                        | Replaces that browser's zips in `.output` |
-| Firefox lint                      | `mise run lint:firefox [dir]`                                  | `.mise/tasks/lint/firefox`               | None                                      |
-| Workflow lint                     | `mise run lint:workflows`                                      | `.mise/tasks/lint/workflows`             | None                                      |
-| Real-browser scenarios            | `mise run verify <firefox\|safari> [-- options]`               | `.mise/tasks/verify`, `tools/verify/`    | Starts a browser; writes a result file    |
-| Safari Xcode project              | `mise run safari-project`                                      | `.mise/tasks/safari-project`             | Replaces `.output/safari-xcode` (macOS)   |
-| Release archives                  | `mise run release:archives [browsers]`                         | `.mise/tasks/release/archives`           | Replaces `.output/release`                |
-| Tag equals version                | `mise run release:check-version <tag>`                         | `.mise/tasks/release/check-version`      | None                                      |
-| Push the OCI artifact             | `mise run release:push-oci --version <v> <dir>`                | `.mise/tasks/release/push-oci`           | Publishes to ghcr                         |
-| Store upload                      | `mise run release:store-upload <chrome\|firefox> <dir> <v>`    | `.mise/tasks/release/store-upload`       | Uploads to a store                        |
-| Benchmarks                        | `pnpm bench`, `pnpm bench:rules`, `pnpm bench:rules:gate`      | `apps/extension/package.json`            | None                                      |
-| Utils resync                      | `node tools/utils/sync.ts --source <dir>` (`--check` to verify) | `tools/utils/sync.ts`, `utils/sync.json` | Rewrites vendored files |
+Before running an operation, verify its current `--help`, task source and caller. Record the repository and version. Use
+existing families with arguments; do not create one permanent task per checkbox.
 
-Keep read-only checks separate from actions that publish. The last two release rows and store upload normally run only
-inside the Release workflow.
+| Procedure operation                 | Existing command or API          | Owning file and revision | Inputs and result                               | Side effect and recovery                                    |
+| ----------------------------------- | -------------------------------- | ------------------------ | ----------------------------------------------- | ----------------------------------------------------------- |
+| Smallest product experiment | Verified native command or public API | Exact source/version | Question, baseline, controlled change and observation | Allowed side effects, stop condition and cleanup |
+| Prepare dependencies/native tooling | Fill from source                 | Required                 | Native lock/runtime/result                      | Downloads/generation; no invented lock                      |
+| Source/type/security checks         | Fill from source                 | Required                 | Affected scope and required gates               | Read-only except normal build outputs                       |
+| Behavioral/artifact tests           | Fill from source                 | Required                 | Real runtime and artifact matrix                | Disposable fixture scope and cleanup                        |
+| Required-input/service audit        | Fill from source or mark missing | Required                 | Sanitized capability results                    | Explicit live probe scope                                   |
+| Infrastructure plan                 | Fill from source                 | Required                 | Stack/config/artifact identity and saved plan   | May read/refresh provider state according to tool semantics |
+| Preview environment creation/update | Fill from source or mark missing | Required                 | Isolated resources and usable URL               | Deployment authorization and P05 recovery                   |
+| Production apply                    | Fill from source                 | Required                 | Approved candidate and target-specific plan     | Serialized state/migrations                                 |
+| Verify first-value journey          | Fill actual UI/API steps         | Required                 | Actions, expected result and evidence           | Approved test users/objects/recipients                      |
+| Diagnose existing artifact          | Fill from source or mark missing | Required                 | Existing digest, platform and diagnostic result | Avoid rebuild/promotion side effects                        |
+| Retire preview                      | Fill from source or mark missing | Required                 | Owned resource inventory                        | P06 protects borrowed/retained resources                    |
+
+If a command is missing, mark the automation gap. A documented manual procedure can cover the operation until a
+maintained implementation exists. Do not imply `deploy preview` creates an application environment unless source and
+runtime evidence prove it.

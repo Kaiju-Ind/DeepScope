@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import * as session from '@/app/session';
+import * as session from "../../app/panel/routes.ts";
 
 describe('side-panel session state', () => {
 	it('starts an unseen tab at Summary and restores a seen tab route and scroll', () => {

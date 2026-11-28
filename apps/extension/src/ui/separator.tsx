@@ -1,12 +1,13 @@
 import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 import { Separator as SeparatorPrimitive, type SeparatorRootProps } from "@kobalte/core/separator";
 import { type ComponentProps, mergeProps, splitProps, type ValidComponent } from "solid-js";
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type SeparatorProps<T extends ValidComponent = "hr"> = PolymorphicProps<T, SeparatorRootProps<T>> & {
   class?: string;
 };
 
+/** Default to a horizontal separator while letting the primitive own orientation and accessibility semantics. */
 const Separator = <T extends ValidComponent = "hr">(props: SeparatorProps<T>) => {
   const mergedProps = mergeProps({ orientation: "horizontal" } as const, props);
   const [local, others] = splitProps(mergedProps as SeparatorProps, ["class"]);

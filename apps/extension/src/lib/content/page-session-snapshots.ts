@@ -1,20 +1,13 @@
-import type { ContentPageSessionSnapshotTarget } from '../messaging/analysis';
-import type {
-	DetectionSessionSnapshot,
-	DetectionSessionStatus,
-} from '../storage/session';
-import type { SiteAnalysis } from '../detection/types';
+import type { ContentPageSessionSnapshotTarget } from "../messaging/analysis.ts";
+import type { DetectionSessionSnapshot, DetectionSessionStatus } from "../storage/session.ts";
+import type { SiteAnalysis } from "@deepscope/detection/types";
 
 import { browser } from 'wxt/browser';
 
-import { DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION } from '../storage/session';
-import { browserDetectionSnapshotStore } from '../persistence';
-import type { DetectionSnapshotReader, DetectionSnapshotWriter } from '../persistence';
-import {
-	getContentSessionLifecycleKey,
-	getDetectionOriginSnapshotKey,
-	getDetectionSessionSnapshotKey,
-} from '../storage/contracts';
+import { DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION } from "../storage/session.ts";
+import { browserDetectionSnapshotStore } from "../persistence/index.ts";
+import type { DetectionSnapshotReader, DetectionSnapshotWriter } from "../persistence/index.ts";
+import { getContentSessionLifecycleKey, getDetectionOriginSnapshotKey, getDetectionSessionSnapshotKey } from "../storage/contracts.ts";
 
 /**
  * Input for publishing content-owned progress to the durable side-panel stream.
@@ -104,6 +97,7 @@ export async function writeContentPageSessionSnapshot(
  */
 export function createBrowserContentPageSessionSnapshotStore(): ContentPageSessionSnapshotStore {
 	return {
+		/** Compare detector and separate content-lifecycle revisions without letting content overwrite detector-owned analysis. */
 		async getLatestSessionSnapshot(key) {
 			const [detectorSnapshot, lifecycleSnapshot] = await Promise.all([
 				browserDetectionSnapshotStore.getLatestSessionSnapshot(key),
@@ -121,6 +115,7 @@ export function createBrowserContentPageSessionSnapshotStore(): ContentPageSessi
 				? lifecycleSnapshot
 				: detectorSnapshot;
 		},
+		/** Write a detached lifecycle snapshot to its dedicated key while returning the established detector-key result envelope. */
 		async saveSnapshot(snapshot) {
 			const normalized = structuredClone(snapshot);
 			await browser.storage.local.set({
@@ -137,6 +132,7 @@ export function createBrowserContentPageSessionSnapshotStore(): ContentPageSessi
 	};
 }
 
+/** Read the content-owned lifecycle record and reject values missing its minimum snapshot envelope. */
 async function getLatestContentSessionLifecycleSnapshot(
 	key: DetectionSessionSnapshot['key'],
 ): Promise<DetectionSessionSnapshot | null> {
@@ -147,6 +143,7 @@ async function getLatestContentSessionLifecycleSnapshot(
 	return isDetectionSessionSnapshot(value) ? value : null;
 }
 
+/** Require the persisted envelope fields before treating storage data as a lifecycle snapshot; this is a structural guard. */
 function isDetectionSessionSnapshot(value: unknown): value is DetectionSessionSnapshot {
 	return (
 		typeof value === 'object' &&

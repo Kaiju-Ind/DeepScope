@@ -1,21 +1,31 @@
 # Start with the user's first useful action
 
-Write the journey before choosing files. For DeepScope the core journey is: open an ordinary website, see the toolbar
-badge count, open the panel, see the detected technologies with their evidence. A change may add steps: switch tabs and
-see the panel follow, navigate within a single-page app, open a private window, or upgrade the extension with tabs open.
+First state the customer's problem and the decision to enable. Write down the questions whose answers could change the
+solution. Use [A01](../product/01-a01-start-from-the-product-question.md) to test the most useful unknown immediately
+with the least setup. A browser invocation, API call, short user task or existing command can establish the first anchor
+before a product scaffold exists. Keep the actual mechanism and explain what the isolated test cannot establish.
 
-That journey defines which contexts and browsers must work. A panel change that only matters in Chrome's side panel
-still has to work in Firefox's sidebar, Safari's popup and the full page, because one Solid application renders every
-surface. Record what is deliberately out of scope. Do not shrink the agreed journey silently to make a check pass.
+Write the journey before choosing files. For a hiring application, the journey can be: sign in, create a job, submit a
+sample application, and open the uploaded résumé. If staff onboarding is part of the request, include invitation,
+receipt of the message, password creation and sign-in. If an agent is the product's purpose, include one bounded task
+that produces a visible result.
 
-Name who will accept it and in which browsers. Use the [agent execution controls](../agents/README.md) to carry this
+That journey defines the preview's required services. Email cannot be deferred when the only onboarding route needs an
+email. A coding runner can be deferred when the first useful review is the application's project workflow. Record
+optional capabilities explicitly. Do not reduce the agreed journey silently to make a deployment appear complete.
+
+Name the person who will accept it and their access path. Establish the current account, secure credential retrieval or
+consent step, and authorized test recipient before release. A stored bootstrap password is historical input; a later 401
+does not authorize resetting a real account. Use the [agent execution controls](../agents/README.md) to carry this
 contract across long sessions and parallel work.
 
-The work has two passes:
+When the requested outcome includes deployment, use two delivery passes after the relevant product questions have
+been tested:
 
-1. **Change to usable preview:** build each affected browser, load it, run the journey and give the reviewer the build,
-   the result and the limitations.
-2. **Reviewed preview to release:** tag the reviewed commit, let the Release workflow rebuild and publish it, verify
-   the release, and submit to the stores.
+1. **Change to usable preview:** produce a reachable environment, run the journey, and give the reviewer its URL, access
+   method and limitations.
+2. **Reviewed preview to production:** select that candidate, validate the production plan and data compatibility,
+   deploy, then verify the production journey and operating signals.
 
-The small-batch principle is supported by [DORA](https://dora.dev/capabilities/working-in-small-batches/).
+The small-batch principle is supported by [DORA](https://dora.dev/capabilities/working-in-small-batches/). The concrete
+two-pass procedure is a Kaiju design. It must be measured and exercised in each target architecture.

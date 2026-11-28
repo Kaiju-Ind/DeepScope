@@ -1,7 +1,7 @@
-import type { DetectionSessionKey } from './session';
+import type { DetectionSessionKey } from "./session.ts";
 
-import * as url from '@/utils/url';
-import { createFnv1a32Hash } from './hash';
+import * as url from '../../utils/url.ts';
+import { createFnv1a32Hash } from "./hash.ts";
 
 /** Prefix used for exact page-document detection snapshot records. */
 export const DETECTION_SESSION_SNAPSHOT_PREFIX = 'rd:session:';

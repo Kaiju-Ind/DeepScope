@@ -43,8 +43,10 @@ const rules = technologies.flatMap((technology) => technology.rules
 const corpusRoot = resolve(args.corpus);
 const expectations = JSON.parse(await readFile(join(corpusRoot, 'corpus.json'), 'utf8'));
 
+/** Select a bounded JavaScript corpus, preferring production-looking bundles and then larger files within the accepted size range. */
 async function bundleFiles(dir) {
 	const out = [];
+	/** Collect candidate JavaScript bundles recursively while excluding dependency directories and files outside the scan's size limits. */
 	async function walk(current) {
 		for (const entry of await readdir(current, { withFileTypes: true })) {
 			const path = join(current, entry.name);

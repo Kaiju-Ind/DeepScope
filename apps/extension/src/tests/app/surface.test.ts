@@ -45,7 +45,7 @@ const visibility = { visibilityState: 'visible' as const, addEventListener: () =
 describe('panel surface target policy', () => {
 	it('pins a full page to the tab named in its URL and follows otherwise', async () => {
 		mockBrowser();
-		const { policyFromLocation } = await import('@/app/surface');
+		const { policyFromLocation } = await import("../../app/browser/surface.ts");
 
 		expect(policyFromLocation('chrome-extension://deepscope/panel.html?tab=37')).toEqual({ kind: 'pinned', tabId: 37 });
 		expect(policyFromLocation('chrome-extension://deepscope/sidepanel.html')).toEqual({ kind: 'follow-window' });
@@ -55,7 +55,7 @@ describe('panel surface target policy', () => {
 
 	it('opens a full page beside the inspected tab', async () => {
 		const browser = mockBrowser();
-		const { openPage } = await import('@/app/surface');
+		const { openPage } = await import("../../app/browser/surface.ts");
 
 		await openPage({ tabId: 37, windowId: 12 });
 
@@ -69,7 +69,7 @@ describe('panel surface target policy', () => {
 
 	it('resolves a pinned tab in whichever window holds it, not the page window', async () => {
 		mockBrowser();
-		const { getTabTarget, getWindowId } = await import('@/app/tab');
+		const { getTabTarget, getWindowId } = await import("../../app/browser/tabs.ts");
 		const policy = { kind: 'pinned', tabId: 37 } as const;
 
 		await expect(getWindowId(policy)).resolves.toBe(12);
@@ -78,14 +78,14 @@ describe('panel surface target policy', () => {
 
 	it('reports no target once the pinned tab is closed', async () => {
 		mockBrowser({ tabExists: false });
-		const { getTabTarget } = await import('@/app/tab');
+		const { getTabTarget } = await import("../../app/browser/tabs.ts");
 
 		await expect(getTabTarget(12, { kind: 'pinned', tabId: 37 })).resolves.toBeUndefined();
 	});
 
 	it('ignores activation and toolbar messages but follows its own tab while pinned', async () => {
 		const browser = mockBrowser();
-		const { subscribeTabTargetChanges } = await import('@/app/tab');
+		const { subscribeTabTargetChanges } = await import("../../app/browser/tabs.ts");
 		const sync = vi.fn();
 		const closed = vi.fn();
 		const unsubscribe = subscribeTabTargetChanges({

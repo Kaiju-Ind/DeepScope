@@ -1,18 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { VisibleTabIdentity } from '@/lib/messaging';
-import {
-	getContentSessionLifecycleKey,
-	createDetectionStorageHash,
-	getDetectionOriginSnapshotKey,
-	getDetectionSessionIndexKey,
-	getDetectionSessionSnapshotKey,
-} from '@/lib/storage/contracts';
-import { makeAnalysis, makeDetection, makeDetectionSessionSnapshot } from '../support/factories';
-import {
-	createMockBrowserStorageArea,
-	createMockBrowserStorageChangeEvent,
-} from '../support/mock-browser';
+import type { VisibleTabIdentity } from "../../lib/messaging/index.ts";
+import { getContentSessionLifecycleKey, createDetectionStorageHash, getDetectionOriginSnapshotKey, getDetectionSessionIndexKey, getDetectionSessionSnapshotKey } from "../../lib/storage/contracts.ts";
+import { makeAnalysis, makeDetection } from "@deepscope/detection/testing/fixtures";
+import { makeDetectionSessionSnapshot } from "../support/factories.ts";
+import { createMockBrowserStorageArea, createMockBrowserStorageChangeEvent } from "../support/mock-browser.ts";
 
 const ACTIVE_IDENTITY: VisibleTabIdentity = {
 	windowId: 3,
@@ -39,7 +31,7 @@ async function loadSnapshotStateHarness(initialValues: Record<string, unknown> =
 		},
 	}));
 
-	const snapshotState = await import('@/app/snapshot');
+	const snapshotState = await import("../../app/browser/stored.ts");
 	return { ...snapshotState, storage, onChanged };
 }
 

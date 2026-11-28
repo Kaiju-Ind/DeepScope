@@ -1,10 +1,10 @@
-import type { MatcherJobLifecycleRecord, MatcherJobRecord } from '../matcher';
+import type { MatcherJobLifecycleRecord, MatcherJobRecord } from "../matcher/index.ts";
 
 import { browser } from 'wxt/browser';
 
-import { getMatcherJobCacheKey, MATCHER_JOB_CACHE_PREFIX } from './contracts';
-import * as dictionary from '@/utils/dictionary';
-import { readStorageEntries } from '@/utils/storage-entries';
+import { getMatcherJobCacheKey, MATCHER_JOB_CACHE_PREFIX } from "./contracts.ts";
+import * as dictionary from '@deepscope/detection/observations/dictionary';
+import { readStorageEntries } from "../../utils/storage-entries.ts";
 
 const MAX_MATCHER_JOB_RECORDS = 80;
 const MAX_TERMINAL_JOB_AGE_MS = 1000 * 60 * 60 * 24 * 7;

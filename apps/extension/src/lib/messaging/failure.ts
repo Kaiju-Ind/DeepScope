@@ -1,3 +1,5 @@
+import type { AnalysisFailure } from '@deepscope/detection/failure';
+
 /** Stable error codes returned across extension runtime messages. */
 export type ExtensionErrorCode =
 	| 'NO_ACTIVE_TAB'
@@ -14,11 +16,7 @@ export type ExtensionErrorCode =
 	| 'UNKNOWN';
 
 /** Serializable expected failure returned by extension capabilities. */
-export type ExtensionError = {
-	readonly code: ExtensionErrorCode;
-	readonly message: string;
-	readonly stack?: string;
-};
+export type ExtensionError = AnalysisFailure<ExtensionErrorCode>;
 
 /** Create a serializable extension failure. */
 export function createExtensionError(

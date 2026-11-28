@@ -8,15 +8,15 @@ Before changing tooling, map the current owners:
 
 | Concern | Evidence to inspect | Typical owner examples |
 | --- | --- | --- |
-| Runtime and dependency graph | root and `apps/extension/package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `mise.toml` `[tools]` | pnpm 12 and Node 26, pinned by Mise |
-| Task execution | `.mise/tasks/` file tasks, `package.json` scripts | Mise tasks that call pnpm scripts or the real tool |
-| Type checking | `tsconfig.base.json`; `apps/extension/tsconfig.json` (adds `.wxt/tsconfig.json`), `utils/` and `tools/` tsconfigs | TypeScript 7 (`mise run check`) |
-| Lint and format | repository tasks/config | `web-ext lint` for Firefox builds, actionlint and zizmor for workflows |
-| Transform and bundle | `apps/extension/wxt.config.ts`, `apps/extension/modules/`, Rolldown | WXT 0.21 on Vite, Unplugin Icons, Tailwind |
-| Browser tests | `tools/verify/` | WebDriver drivers for Firefox and Safari |
-| Package tests | root `vitest.config.ts` projects | Vitest 5 (`extension (runtime)`, `extension (ui)`, `utils`, `guidance`) |
-| Benchmarks | `apps/extension/bench/*.bench.ts` | Vitest `bench` |
-| Release | `.github/workflows/release.yml`, `.mise/tasks/release/*`, `tools/release/` | per-browser zips, `SHA256SUMS`, attestations, ghcr, store uploads |
+| Runtime and dependency graph | `deno.json(c)`, `package.json`, lockfiles | Deno, npm/pnpm, Bun |
+| Task execution | `mise.toml`, `.mise/tasks/`, manifest scripts | mise, Deno tasks, package scripts |
+| Type checking | repository tasks and compiler config | Deno, TypeScript |
+| Lint and format | repository tasks/config | Oxc, Deno, Biome, ESLint/Prettier |
+| Transform and bundle | build config, package exports | Oxc, Unplugin, Vite, Rollup, tsdown |
+| Browser tests | test config | Playwright |
+| Package tests | imports and tasks | `node:test` + `@std/expect` in current Okikio/Kaiju repos |
+| Benchmarks | benchmark files/tasks | Mitata when selected |
+| Release | CI, release config, registry metadata | repository-selected release tooling |
 
 Do not infer the owner from a dependency name alone. Verify the task that actually runs in development and CI.
 
@@ -30,11 +30,11 @@ Good:
 Oxc
   lint + format + transform
 
-WebDriver drivers (tools/verify)
+Playwright
   real browser execution
 
-Vitest bench
-  benchmark harness
+Mitata
+  cross-runtime benchmark harness
 ```
 
 Potentially bad:
@@ -85,9 +85,9 @@ For an Unplugin-based feature, verify:
 
 For example, an icon integration is not complete because the dev server renders an icon. Inspect the production bundle and SSR/SSG output when those are claimed surfaces.
 
-## Build, test and browser hosts share source
+## Deno and Node share source when the repository requires both
 
-Do not create separate Node and browser implementations merely to make tooling easy. WXT imports entrypoints in Node during the build, so modules must stay import-safe there too. Keep one source graph where practical and isolate real runtime-specific behavior behind explicit modules or adapters.
+Do not create separate Deno and Node implementations merely to make tooling easy. Keep one source graph where practical and isolate real runtime-specific behavior behind explicit modules or adapters.
 
 Validation-only shims belong in disposable validation infrastructure. They must not leak into package exports or change production imports.
 
@@ -142,7 +142,7 @@ an unrelated edit. Benchmarks without stable regression thresholds are optional
 evidence, not routine correctness gates. Separate job permissions and approvals
 when they protect real deployment risk, not to create more qualification tiers.
 
-Avoid a local `pnpm test` path and a CI `mise run test` path when they exercise materially different source or configuration unless that difference is intentional and separately verified.
+Avoid a local `npm test` path and a CI `deno task test` path when they exercise materially different source or configuration unless that difference is intentional and separately verified.
 
 ## Failure signatures
 

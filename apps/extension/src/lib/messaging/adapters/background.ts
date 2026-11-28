@@ -16,12 +16,14 @@ export type BackgroundRpcMeta = MessageMeta & {
   sender_url?: string;
 };
 
+/** Give one panel or extension client a unique reply identity; the RPC owner must dispose subscriptions returned by the adapter. */
 export function createBackgroundClientAdapter(
   clientKind: BackgroundClientKind,
   options?: { href?: string },
 ): Adapter<BackgroundRpcMeta> {
   const clientId = crypto.randomUUID();
 
+  /** Attach the client's channel, identity and surface metadata before forwarding a request to the background. */
   const sendMessage: SendMessage<BackgroundRpcMeta> = async (message) => {
     await browser.runtime.sendMessage({
       ...message,
@@ -35,7 +37,9 @@ export function createBackgroundClientAdapter(
     });
   };
 
+  /** Subscribe this client to matching replies and return the exact listener's removal function. */
   const onMessage: OnMessage<BackgroundRpcMeta> = (callback) => {
+    /** Accept only replies in this RPC namespace and channel that carry this client's generated identity. */
     const listener = (rawMessage: unknown) => {
       const message = rawMessage as Partial<Message<BackgroundRpcMeta>>;
 
@@ -61,7 +65,9 @@ export function createBackgroundClientAdapter(
   return { sendMessage, onMessage };
 }
 
+/** Route background replies to their originating tab or extension surface and attach browser-supplied sender metadata. */
 export function createBackgroundServerAdapter(): Adapter<BackgroundRpcMeta> {
+  /** Reply to the recorded tab and frame when present; a receiver that disappeared during the request is an expected delivery failure. */
   const sendMessage: SendMessage<BackgroundRpcMeta> = async (message) => {
     const tabId = message.meta.tab_id;
     const frameId = message.meta.frame_id;
@@ -82,7 +88,9 @@ export function createBackgroundServerAdapter(): Adapter<BackgroundRpcMeta> {
     }
   };
 
+  /** Install one background request listener and return its disposer to the RPC server owner. */
   const onMessage: OnMessage<BackgroundRpcMeta> = (callback) => {
+    /** Filter the RPC namespace and channel, then replace tab, frame and URL metadata with the browser's sender values. */
     const listener = (rawMessage: unknown, sender: Browser.runtime.MessageSender) => {
       const message = rawMessage as Partial<Message<BackgroundRpcMeta>>;
 

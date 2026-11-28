@@ -48,13 +48,11 @@ while preserving independently useful lower-level capabilities.
 the shared quality contract owns request authority, repository-wide implementation,
 cleanup, and the final verdict. `explore-ecosystems` owns dependency topology and
 source evidence. `build-devtools` owns build automation, generated artifacts,
-release mechanics, and toolchain parity. `build-extensions` owns the extension
-contexts that compose a library (entrypoints, messaging, manifests).
-`build-workflows` owns durable orchestration, workers, leases, timers, and
-persisted execution authority, including the IndexedDB stores. `use-utils`
-owns the vendored `@utils/*` packages. In DeepScope the libraries are
-`src/lib/*` today and `packages/*` (`@deepscope/dom`, `@deepscope/registry`,
-`@deepscope/detection`) in the planned layout.
+release mechanics, and toolchain parity. `build-clis` owns command language,
+configuration sources, terminal interaction, standard streams, and exit status.
+`build-workflows` owns durable orchestration, workers, leases, timers, signals,
+and persisted execution authority. `build-data` owns database, query, migration,
+and projection contracts.
 
 This skill owns:
 

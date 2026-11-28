@@ -16,21 +16,15 @@ import {
   splitProps,
   useContext,
 } from "solid-js";
-import { cn } from "@/utils/cn";
-import { useIsMobile } from "@/hooks/use-mobile";
-import type { ButtonProps } from "@/ui/button";
-import { Button } from "@/ui/button";
-import { Input } from "@/ui/input";
-import { Separator } from "@/ui/separator";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/ui/sheet";
-import { Skeleton } from "@/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/ui/tooltip";
+import { cn } from "../utils/cn.ts";
+import { useIsMobile } from "../hooks/use-mobile.ts";
+import type { ButtonProps } from "./button.tsx";
+import { Button } from "./button.tsx";
+import { Input } from "./input.tsx";
+import { Separator } from "./separator.tsx";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "./sheet.tsx";
+import { Skeleton } from "./skeleton.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip.tsx";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -51,6 +45,7 @@ type SidebarContextProps = {
 
 const SidebarContext = createContext<SidebarContextProps | null>(null);
 
+/** Require the surrounding sidebar owner so responsive controls share desktop and mobile open state. */
 function useSidebar() {
   const context = useContext(SidebarContext);
   if (!context) {
@@ -66,6 +61,7 @@ type SidebarProviderProps = ComponentProps<"div"> & {
   onOpenChange?: (open: boolean) => void;
 };
 
+/** Own separate desktop and mobile open state, expose controlled desktop updates and install the scoped toggle shortcut. */
 const SidebarProvider = (props: SidebarProviderProps) => {
   const mergedProps = mergeProps({ defaultOpen: true }, props);
   const [local, others] = splitProps(mergedProps, [
@@ -83,7 +79,9 @@ const SidebarProvider = (props: SidebarProviderProps) => {
   // This is the internal state of the sidebar.
   // We use open and onOpenChange for control from outside the component.
   const [_open, _setOpen] = createSignal(local.defaultOpen);
+  /** Prefer the caller's controlled desktop state and otherwise read the provider's internal open signal. */
   const open = () => local.open ?? _open();
+  /** Delegate updates to a caller handler when present; otherwise update internal state and persist its current value in the sidebar cookie. */
   const setOpen = (value: boolean | ((value: boolean) => boolean)) => {
     if (local.onOpenChange) {
       return local.onOpenChange?.(typeof value === "function" ? value(open()) : value);
@@ -102,6 +100,7 @@ const SidebarProvider = (props: SidebarProviderProps) => {
 
   // Adds a keyboard shortcut to toggle the sidebar.
   createEffect(() => {
+    /** Handle the configured sidebar shortcut only with Meta or Control pressed and suppress its default action. */
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
@@ -154,6 +153,7 @@ type SidebarProps = ComponentProps<"div"> & {
   collapsible?: "offcanvas" | "icon" | "none";
 };
 
+/** Select a fixed, mobile-sheet or desktop collapsible presentation from the shared sidebar state and caller layout props. */
 const Sidebar: Component<SidebarProps> = (props) => {
   const mergedProps = mergeProps<SidebarProps[]>(
     {
@@ -259,6 +259,7 @@ const Sidebar: Component<SidebarProps> = (props) => {
 
 type SidebarTriggerProps = ButtonProps;
 
+/** Invoke the caller's click handler before toggling the responsive sidebar owner. */
 const SidebarTrigger = (props: SidebarTriggerProps) => {
   const [local, others] = splitProps(props, ["class", "onClick"]);
   const { toggleSidebar } = useSidebar();
@@ -283,6 +284,7 @@ const SidebarTrigger = (props: SidebarTriggerProps) => {
   );
 };
 
+/** Provide a pointer toggle rail outside the tab order while retaining the labeled sidebar action. */
 const SidebarRail = (props: ComponentProps<"button">) => {
   const [local, others] = splitProps(props, ["class"]);
   const { toggleSidebar } = useSidebar();
@@ -310,6 +312,7 @@ const SidebarRail = (props: ComponentProps<"button">) => {
   );
 };
 
+/** Expose the content beside the sidebar as the page's main region with shared inset layout. */
 const SidebarInset = (props: ComponentProps<"main">) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -321,6 +324,7 @@ const SidebarInset = (props: ComponentProps<"main">) => {
   );
 };
 
+/** Apply sidebar input styling while retaining the shared Input's native value, ref and event contract. */
 const SidebarInput = (props: ComponentProps<typeof Input>) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -333,6 +337,7 @@ const SidebarInput = (props: ComponentProps<typeof Input>) => {
   );
 };
 
+/** Keep header content outside the flexible scrolling body without owning its controls. */
 const SidebarHeader = (props: ComponentProps<"div">) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -345,6 +350,7 @@ const SidebarHeader = (props: ComponentProps<"div">) => {
   );
 };
 
+/** Keep footer content outside the flexible scrolling body without owning its controls. */
 const SidebarFooter = (props: ComponentProps<"div">) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -362,6 +368,7 @@ type SidebarSeparatorProps<T extends ValidComponent = "hr"> = PolymorphicProps<
   ComponentProps<typeof Separator<T>>
 >;
 
+/** Style a separator within sidebar spacing while forwarding the shared separator's semantics. */
 const SidebarSeparator = <T extends ValidComponent = "hr">(props: SidebarSeparatorProps<T>) => {
   const [local, others] = splitProps(props as SidebarSeparatorProps, ["class"]);
   return (
@@ -374,6 +381,7 @@ const SidebarSeparator = <T extends ValidComponent = "hr">(props: SidebarSeparat
   );
 };
 
+/** Own the flexible scrollable body and hide overflow when the sidebar collapses to icons. */
 const SidebarContent = (props: ComponentProps<"div">) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -389,6 +397,7 @@ const SidebarContent = (props: ComponentProps<"div">) => {
   );
 };
 
+/** Group a section of sidebar content without introducing a new navigation or selection owner. */
 const SidebarGroup = (props: ComponentProps<"div">) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -406,6 +415,7 @@ type SidebarGroupLabelProps<T extends ValidComponent = "div"> = PolymorphicProps
   ComponentProps<T>
 >;
 
+/** Style a polymorphic group heading while leaving its semantic element and accessible name explicit at the call site. */
 const SidebarGroupLabel = <T extends ValidComponent = "div">(props: SidebarGroupLabelProps<T>) => {
   const [local, others] = splitProps(props as SidebarGroupLabelProps, ["class"]);
 
@@ -428,6 +438,7 @@ type SidebarGroupActionProps<T extends ValidComponent = "button"> = PolymorphicP
   ComponentProps<T>
 >;
 
+/** Provide a group action with a larger pointer area and hide it in icon-only mode. */
 const SidebarGroupAction = <T extends ValidComponent = "button">(
   props: SidebarGroupActionProps<T>,
 ) => {
@@ -446,6 +457,7 @@ const SidebarGroupAction = <T extends ValidComponent = "button">(
   );
 };
 
+/** Apply section content styling while preserving caller-owned navigation items and controls. */
 const SidebarGroupContent = (props: ComponentProps<"div">) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -458,6 +470,7 @@ const SidebarGroupContent = (props: ComponentProps<"div">) => {
   );
 };
 
+/** Arrange sidebar navigation entries as a native list without deriving routes or active state. */
 const SidebarMenu = (props: ComponentProps<"ul">) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -470,6 +483,7 @@ const SidebarMenu = (props: ComponentProps<"ul">) => {
   );
 };
 
+/** Provide the list item context used by descendant hover and focus styles. */
 const SidebarMenuItem = (props: ComponentProps<"li">) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -512,6 +526,7 @@ export type SidebarMenuButtonProps<T extends ValidComponent = "button"> = Polymo
     tooltip?: string;
   };
 
+/** Style caller-selected active state and show an optional tooltip only for a collapsed desktop sidebar. */
 const SidebarMenuButton = <T extends ValidComponent = "button">(
   rawProps: SidebarMenuButtonProps<T>,
 ) => {
@@ -525,6 +540,7 @@ const SidebarMenuButton = <T extends ValidComponent = "button">(
   ]);
   const { isMobile, state } = useSidebar();
 
+  /** Merge tooltip-trigger props with the caller's menu-button props while retaining the surrounding item's size and active appearance. */
   const MenuButton = (props: SidebarMenuButtonProps) => {
     const [_local, _others] = splitProps(props as SidebarMenuButtonProps, ["class"]);
     return (
@@ -561,6 +577,7 @@ type SidebarMenuActionProps<T extends ValidComponent = "button"> = ComponentProp
   showOnHover?: boolean;
 };
 
+/** Place a secondary item action, optionally revealing it on hover or focus while hiding it in icon-only mode. */
 const SidebarMenuAction = <T extends ValidComponent = "button">(
   rawProps: PolymorphicProps<T, SidebarMenuActionProps<T>>,
 ) => {
@@ -583,6 +600,7 @@ const SidebarMenuAction = <T extends ValidComponent = "button">(
   );
 };
 
+/** Display a caller-owned count or status and hide it when the sidebar collapses to icons. */
 const SidebarMenuBadge: Component<ComponentProps<"div">> = (props) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -606,6 +624,7 @@ type SidebarMenuSkeletonProps = ComponentProps<"div"> & {
   width?: string;
 };
 
+/** Use a deterministic 72-percent text placeholder by default and include an icon placeholder only when requested. */
 const SidebarMenuSkeleton: Component<SidebarMenuSkeletonProps> = (rawProps) => {
   const props = mergeProps({ showIcon: false, width: "72%" }, rawProps);
   const [local, others] = splitProps(props, ["class", "showIcon", "width"]);
@@ -631,6 +650,7 @@ const SidebarMenuSkeleton: Component<SidebarMenuSkeletonProps> = (rawProps) => {
   );
 };
 
+/** Arrange nested sidebar links in a native list without adding independent selection state. */
 const SidebarMenuSub: Component<ComponentProps<"ul">> = (props) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -643,6 +663,7 @@ const SidebarMenuSub: Component<ComponentProps<"ul">> = (props) => {
   );
 };
 
+/** Provide native list item semantics and a styling context for one nested entry. */
 const SidebarMenuSubItem: Component<ComponentProps<"li">> = (props) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -660,6 +681,7 @@ type SidebarMenuSubButtonProps<T extends ValidComponent = "a"> = ComponentProps<
   isActive?: boolean;
 };
 
+/** Default a nested entry to a medium link and hide it in icon-only mode; destinations and active state remain caller-owned. */
 const SidebarMenuSubButton = <T extends ValidComponent = "a">(
   rawProps: PolymorphicProps<T, SidebarMenuSubButtonProps<T>>,
 ) => {

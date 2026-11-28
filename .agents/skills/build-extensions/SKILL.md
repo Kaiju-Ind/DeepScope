@@ -57,10 +57,10 @@ a provider or a store from a framework or a user agent.
    (`CONTENT_SCRIPT_UNAVAILABLE`, a longer wait for a live but busy script,
    `PERMISSION_DENIED`). Every cross-context call has a timeout and a typed
    failure. Keep content-script work proportional to the page: route DOM
-   selectors (`src/lib/dom/route.ts`) instead of calling `Element.matches` for
+   selectors (`packages/dom/route.ts`) instead of calling `Element.matches` for
    every selector on every element.
 6. **Page-controlled keys.** Header names, cookie names, global names and other
-   page strings never index a plain object. Use `src/utils/dictionary.ts`
+   page strings never index a plain object. Use `packages/detection/observations/dictionary.ts`
    (prototype-free maps); `src/tests/security/page-controlled-keys.test.ts`
    guards it. A collision with `__proto__` or `constructor` is a security bug.
 7. **Badge ordering.** One owner writes the badge from published snapshot

@@ -8,10 +8,10 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { BackgroundDetectionPersistence } from '@/lib/persistence';
-import { getContentSessionLifecycleKey } from '@/lib/storage/contracts';
-import { makeDetectionSessionSnapshot } from '../support/factories';
-import { createMockBrowserStorageArea } from '../support/mock-browser';
+import type { BackgroundDetectionPersistence } from "../../lib/persistence/index.ts";
+import { getContentSessionLifecycleKey } from "../../lib/storage/contracts.ts";
+import { makeDetectionSessionSnapshot } from "../support/factories.ts";
+import { createMockBrowserStorageArea } from "../support/mock-browser.ts";
 
 async function loadHarness() {
 	vi.resetModules();
@@ -27,10 +27,10 @@ async function loadHarness() {
 			},
 		},
 	}));
-	const storage = await import('@/lib/storage');
-	const { browserDetectionSnapshotStore } = await import('@/lib/persistence');
-	const lifecycle = await import('@/lib/background/lifecycle');
-	const writes = await import('@/lib/background/writes');
+	const storage = await import('../../lib/storage/index.ts');
+	const { browserDetectionSnapshotStore } = await import('../../lib/persistence/index.ts');
+	const lifecycle = await import('../../lib/background/lifecycle.ts');
+	const writes = await import('../../lib/background/writes.ts');
 	return {
 		storage,
 		snapshots: browserDetectionSnapshotStore,

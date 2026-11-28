@@ -15,7 +15,7 @@ export type MockBrowserStorageArea = {
 	/** Read one key, many keys, defaulted keys, or all values. */
 	get: ReturnType<typeof vi.fn>;
 	/** Merge a record of values into the in-memory store. */
-	set: ReturnType<typeof vi.fn>;
+	set: ReturnType<typeof vi.fn<(items: Record<string, unknown>) => Promise<void>>>;
 	/** Remove one key or many keys from the in-memory store. */
 	remove: ReturnType<typeof vi.fn>;
 };

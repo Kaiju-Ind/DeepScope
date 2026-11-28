@@ -1,18 +1,13 @@
+import type { MatcherPartitionExecutor } from '../../lib/scheduler/matcher/types.ts';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createCompiledDetectionGraph } from '@/lib/detection/registry-graph';
-import { createMatcherPartitionTasks } from '@/lib/matcher';
-import type {
-	MatcherJobExecutor,
-	MatcherPartitionResult,
-	MatcherPartitionTask,
-	RunMatcherJobRequest,
-	RunMatcherPartitionRequest,
-} from '@/lib/matcher';
-import * as matcherScheduler from '@/lib/scheduler/matcher';
-import { normalizePageSignals } from '@/lib/observations';
-import { makePageSignals } from '../support/factories';
-import { settle } from '../support/settle';
+import { createCompiledDetectionGraph } from "@deepscope/detection/registry/graph";
+import { createMatcherPartitionTasks } from "../../lib/matcher/index.ts";
+import type { MatcherJobExecutor, MatcherPartitionResult, MatcherPartitionTask, RunMatcherJobRequest, RunMatcherPartitionRequest } from "../../lib/matcher/index.ts";
+import * as matcherScheduler from '../../lib/scheduler/matcher/index.ts';
+import { normalizePageSignals } from "@deepscope/detection/observations";
+import { makePageSignals } from "@deepscope/detection/testing/fixtures";
+import { settle } from "../support/settle.ts";
 
 interface PendingPartition {
 	readonly request: RunMatcherPartitionRequest;
@@ -40,7 +35,7 @@ function createExecutor(capacity = 2, kind: MatcherJobExecutor = 'offscreen-work
 			async cancelTab() {},
 			async touchLifecycle() {},
 			async releaseLifecycle() {},
-		} satisfies matcherScheduler.MatcherPartitionExecutor,
+		} satisfies MatcherPartitionExecutor,
 	};
 }
 

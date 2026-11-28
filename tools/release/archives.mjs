@@ -35,18 +35,27 @@ const APP_MANIFEST = 'apps/extension/package.json';
 const PUBLIC_NAME = 'deepscope';
 const BROWSERS = new Set(['chrome', 'firefox', 'safari']);
 
-/** @param {string} message */
+/**
+ * Stop the release command with a diagnostic and nonzero status before it can report success.
+ * @param {string} message
+ */
 function fail(message) {
 	console.error(`release: ${message}`);
 	process.exit(1);
 }
 
-/** @returns {string} */
+/**
+ * Read the extension manifest's release version; archive names and built manifests must agree with it.
+ * @returns {string}
+ */
 function packageVersion() {
 	return JSON.parse(readFileSync(APP_MANIFEST, 'utf8')).version;
 }
 
-/** @param {string} tag */
+/**
+ * Accept plain versions, v-prefixed tags or full tag refs only when they match the extension version.
+ * @param {string} tag
+ */
 function checkVersion(tag) {
 	if (!tag) fail('check-version needs a tag such as v0.2.0');
 	const tagVersion = tag.replace(/^refs\/tags\//, '').replace(/^v/, '');
@@ -68,12 +77,18 @@ function single(entries, suffix) {
 	return join(OUTPUT_DIR, matches[0]);
 }
 
-/** @param {string} path */
+/**
+ * Hash the copied archive bytes for the release checksum file.
+ * @param {string} path
+ */
 function sha256(path) {
 	return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
 
-/** @param {readonly string[]} args */
+/**
+ * Validate browser archives and versions before replacing the requested output directory with named copies and checksums.
+ * @param {readonly string[]} args
+ */
 function collect(args) {
 	const outIndex = args.indexOf('--out');
 	if (outIndex < 0 || !args[outIndex + 1]) fail('collect needs --out <dir>');
@@ -114,6 +129,7 @@ function collect(args) {
 }
 
 /**
+ * Write the exact version's changelog section, or exit 3 so the workflow can use generated notes.
  * @param {string} version
  * @param {string} file
  */

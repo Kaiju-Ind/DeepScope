@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AnalyzeVisibleTabInput } from '@/lib/messaging/analysis';
+import type { AnalyzeVisibleTabInput } from "../../lib/messaging/analysis.ts";
 
 function input(tabId: number): AnalyzeVisibleTabInput {
 	return {
@@ -20,15 +20,15 @@ function input(tabId: number): AnalyzeVisibleTabInput {
 }
 
 afterEach(() => {
-	vi.doUnmock('@/lib/scheduler/database');
-	vi.doUnmock('@/lib/scheduler/session');
+	vi.doUnmock('../../lib/scheduler/database.ts');
+	vi.doUnmock('../../lib/scheduler/session.ts');
 	vi.resetModules();
 });
 
 describe('scheduler active-tab cleanup', { concurrent: false }, () => {
 	it('forgets a closed active tab before prioritizing later work in that window', async () => {
 		let admittedPriority: string | undefined;
-		vi.doMock('@/lib/scheduler/database', () => ({
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
 			admitAnalysis: vi.fn(async (work: { priority: string }) => {
 				admittedPriority = work.priority;
 				return { accepted: false as const };
@@ -42,12 +42,12 @@ describe('scheduler active-tab cleanup', { concurrent: false }, () => {
 			reprioritizeWindow: vi.fn(async () => 0),
 			setPriority: vi.fn(async () => true),
 		}));
-		vi.doMock('@/lib/scheduler/session', () => ({
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
 			createId: vi.fn(() => 'analysis-owner'),
 			get: vi.fn(async () => 'browser-session'),
 		}));
 
-		const analysis = await import('@/lib/scheduler/analysis');
+		const analysis = await import('../../lib/scheduler/analysis.ts');
 		const scheduler = analysis.create({
 			resolveTarget: vi.fn(),
 			analyze: vi.fn(),

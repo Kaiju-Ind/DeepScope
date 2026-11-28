@@ -2,8 +2,9 @@ import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 import * as TooltipPrimitive from "@kobalte/core/tooltip";
 import type { ComponentProps, ValidComponent } from "solid-js";
 import { mergeProps, splitProps } from "solid-js";
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
+/** Default to immediate opening above the trigger while leaving visibility timing and focus behavior with the primitive. */
 const Tooltip = (props: TooltipPrimitive.TooltipRootProps) => {
   const mergedProps = mergeProps(
     {
@@ -20,6 +21,7 @@ type TooltipTriggerProps<T extends ValidComponent = "button"> = PolymorphicProps
   TooltipPrimitive.TooltipTriggerProps<T>
 >;
 
+/** Connect the trigger to the surrounding tooltip's pointer and focus behavior. */
 const TooltipTrigger = <T extends ValidComponent = "button">(props: TooltipTriggerProps<T>) => (
   <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
 );
@@ -30,6 +32,7 @@ type TooltipContentProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Portal bounded tooltip content and its arrow while retaining the primitive's accessible description and presence lifecycle. */
 const TooltipContent = <T extends ValidComponent = "div">(props: TooltipContentProps<T>) => {
   const [local, others] = splitProps(props as TooltipContentProps, ["class", "children"]);
   return (

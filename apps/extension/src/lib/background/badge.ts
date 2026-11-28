@@ -38,6 +38,7 @@ interface TabQueue {
 export function createBadgeWriter(apply: ApplyBadge, onError?: (tabId: number, error: unknown) => void): BadgeWriter {
 	const queues = new Map<number, TabQueue>();
 
+	/** Keep one writer per tab and replace only its pending state, so an older slow browser call cannot finish last. */
 	function enqueue(tabId: number, state: BadgeState): Promise<void> {
 		const existing = queues.get(tabId);
 		if (existing) {
@@ -64,7 +65,9 @@ export function createBadgeWriter(apply: ApplyBadge, onError?: (tabId: number, e
 
 	return {
 		set: enqueue,
+		/** Queue an empty badge through the same per-tab ordering as analysis counts. */
 		clear: (tabId) => enqueue(tabId, { count: 0 }),
+		/** Drop queued badge work for a retired tab; an already submitted browser call cannot be canceled here. */
 		forget(tabId) {
 			const queue = queues.get(tabId);
 			if (queue) queue.next = undefined;

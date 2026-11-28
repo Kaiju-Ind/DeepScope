@@ -1,14 +1,23 @@
 # Background coordinator runtime
 
-The background service worker entrypoint is now a composition root, not the coordinator implementation itself. Popup-visible detection state lives in durable snapshot records, content owns page-local observation while a document is active, and `createBackgroundRuntime(...)` owns the disposable orchestration state for one service-worker lifetime. The entrypoint selects browser adapters, registers listeners, and exposes RPC; it does not implement analysis workflows.
+The background service worker entrypoint is now a composition root, not the coordinator implementation itself. Panel-visible detection state lives in durable snapshot records, content owns page-local observation while a document is active, and `createBackgroundRuntime(...)` owns the disposable orchestration state for one service-worker lifetime. The entrypoint selects browser adapters, registers listeners, and exposes RPC; it does not implement analysis workflows.
 
 ```text
-popup command or tab event
+panel command or tab event
   -> lightweight background listener
   -> content RPC or persistence-port command
   -> durable snapshot revision
-  -> popup storage subscription
+  -> panel storage subscription
 ```
+
+## Composition and state ownership
+
+`apps/extension/src/lib/background/coordinator.ts` selects adapters and composes
+the schedulers. `listeners.ts` registers listeners synchronously.
+`runtime/index.ts` wires narrow state owners before operations can run; its
+`work`, `tabs`, `content`, `analysis`, `refresh`, `jobs`, `progress`, `publish`
+and `sessions` modules share capabilities rather than import concrete browser
+implementations. See [source ownership](source-layout.md) for the exact map.
 
 ## Composition boundary
 
@@ -31,15 +40,15 @@ The runtime module imports no `wxt/browser` or `comctx` implementation. This kee
 
 ## What the coordinator owns
 
-The background still owns work that needs privileged extension APIs: visible-tab identity, content-script injection, page-main-world probes, same-origin enrichment fetches, response-header collection, and detector promotion. Those operations happen after a popup command or a refresh request. They do not become background startup work.
+The background still owns work that needs privileged extension APIs: visible-tab identity, content-script injection, page-main-world probes, same-origin enrichment fetches, response-header collection, and detector promotion. Those operations happen after a panel command or a refresh request. They do not become background startup work.
 
 ## Scheduler ownership
 
-The entrypoint composes two schedulers in front of the runtime (`src/lib/scheduler/`). The analysis scheduler admits panel, automatic and recovery analyses as small IndexedDB intent records, deduplicates equivalent requests, and runs them one at a time by priority (interactive, foreground, background, maintenance) with a bounded foreground burst so background tabs keep progressing. Live observation refreshes run on the same lane as in-memory `background` work, so a page that mutates constantly cannot starve an interactive request; their failures are logged, never thrown into the lane. The matcher scheduler admits at most eight jobs and 12 MiB of estimated transient observations and selects partitions for the offscreen executor (see [partitioned offscreen matcher](partitioned-offscreen-matcher.md)). Work for private tabs never gets a durable record.
+The entrypoint composes two schedulers in front of the runtime (`apps/extension/src/lib/scheduler/`). The analysis scheduler admits panel, automatic and recovery analyses as small IndexedDB intent records, deduplicates equivalent requests, and runs them one at a time by priority (interactive, foreground, background, maintenance) with a bounded foreground burst so background tabs keep progressing. Live observation refreshes run on the same lane as in-memory `background` work, so a page that mutates constantly cannot starve an interactive request; their failures are logged, never thrown into the lane. The matcher scheduler admits at most eight jobs and 12 MiB of estimated transient observations and selects partitions for the offscreen executor (see [partitioned offscreen matcher](partitioned-offscreen-matcher.md)). Work for private tabs never gets a durable record.
 
 Activation gates only whether a request that follows the active tab is accepted. A panel surface pinned to one tab sends `follow: 'pinned'`, which accepts an inactive target while still validating its window, document and inspectability. Once admitted, work continues when its tab becomes inactive; activation raises the new tab's priority.
 
-The background does not own snapshot storage as a subsystem. The background entrypoint is a composition root that receives the browser persistence adapter, while lifecycle code depends only on a snapshot-lifecycle capability. Popup and content compose the same infrastructure independently for their read/write roles.
+The background does not own snapshot storage as a subsystem. The background entrypoint is a composition root that receives the browser persistence adapter, while lifecycle code depends only on a snapshot-lifecycle capability. Panel and content compose the same infrastructure independently for their read/write roles.
 
 The background also owns tab lifecycle cleanup. A saved snapshot now refreshes a small tab-session index in storage. When Chrome reports navigation or tab closure, the lifecycle listener can mark old session snapshots `stale` or `stopped` even if the service worker has already lost the in-memory observer maps.
 
@@ -79,7 +88,7 @@ This policy applies to matcher-job persistence and the named diagnostic producer
 
 ## Registry startup
 
-During prepare and build, `modules/compile-registry.ts` writes the registry products and selects the assets shipped with the extension. Fresh analysis loads `registry.runtime.json` for collection planning and relationship refinement. Dedicated matcher workers load observation-kind shards when they need rules. The complete authored registry stays in the build process. See [Registry JSON artifacts](registry-json-artifacts.md) for the generated files and their consumers.
+During prepare and build, `apps/extension/modules/compile-registry.ts` writes the registry products and selects the assets shipped with the extension. Fresh analysis loads `registry.runtime.json` for collection planning and relationship refinement. Dedicated matcher workers load observation-kind shards when they need rules. The complete authored registry stays in the build process. See [Registry JSON artifacts](registry-json-artifacts.md) for the generated files and their consumers.
 
 ## Validation points
 

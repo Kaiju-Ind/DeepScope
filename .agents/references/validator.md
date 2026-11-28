@@ -52,7 +52,7 @@ Start with focused checks that fail quickly and localize defects. Examples:
 format check for changed files
 lint for changed package
 strict typecheck/public inference fixture
-focused Vitest suite
+focused node:test suite
 schema regression cases
 parser conformance fixture
 artifact-content comparison

@@ -64,6 +64,13 @@ required by the decision, not optional because another skill could cover them:
 
 ## Review workflow
 
+Read the applicable [product planning](../../guides/product/planning.md) and
+[anchor](../../guides/product/anchors.md) sections when reviewing a plan,
+investigation, or progress claim. Check whether the change answers a real
+customer question, cheap decisive probes were used, scaffolding is justified,
+and the claimed outcome matches the observed scope. A plausible implementation
+or a green component check does not establish an unrun customer path.
+
 1. Establish the requested mode, base/head/diff and scope. Preserve dirty work;
    inspect before writing. A review or audit authorizes findings, not edits,
    migrations, commits, installs or publication.
@@ -87,7 +94,9 @@ unit contract. Review the misleading comment and README as well as the code.
 
 ## Kaiju projects
 
-In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Failure catalogue](../../../docs/kaiju/failures/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).
+In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Failure catalogue](../../../docs/kaiju/failures/README.md), [Retrospective coverage](../../../docs/kaiju/failures/retrospectives/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).
+
+For any project using the pack, see [Product development](../../../docs/kaiju/product/README.md).
 
 ## Resource navigation
 

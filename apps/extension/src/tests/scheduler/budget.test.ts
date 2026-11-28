@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import * as budget from '@/lib/scheduler/budget';
+import * as budget from '../../lib/scheduler/budget.ts';
 
 describe('scheduler transient budget', () => {
 	const limit = { jobs: 2, bytes: 1_024 } as const;

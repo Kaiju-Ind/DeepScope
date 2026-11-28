@@ -1,21 +1,12 @@
-import type { DetectionPipelineEventDetails, DetectionPipelineRuntimeEvent } from '../pipeline';
-import type { ObservationPatternMatchBatch } from '../detection/observation-match-types';
-import type { DetectionRunOptions, SiteAnalysis, TechnologyProfileType } from '../detection/types';
-import { createEvidenceCandidateBatch, refineEvidenceCandidateBatch } from '../candidates';
-import { createCompiledDetectionGraph, type CompiledDetectionGraph } from '../detection/registry-graph';
-import { emitSiteAnalysisFromRefinedCandidates } from '../emission';
-import type {
-	NormalizedObservation,
-	NormalizedObservationKind,
-	ObservationBatch,
-} from '../observations';
-import type {
-	MatcherJobIdentity,
-	MatcherPartitionMatch,
-	MatcherPartitionPriority,
-	MatcherPartitionResult,
-	MatcherPartitionTask,
-} from './contracts';
+import type { DetectionPipelineEventDetails, DetectionPipelineRuntimeEvent } from "@deepscope/detection/pipeline";
+import type { ObservationPatternMatchBatch } from "@deepscope/detection/matcher/types";
+import type { DetectionRunOptions, SiteAnalysis } from "@deepscope/detection/types";
+import type { TechnologyProfileType } from "@deepscope/registry/types";
+import { createEvidenceCandidateBatch, refineEvidenceCandidateBatch } from "@deepscope/detection/candidates";
+import { createCompiledDetectionGraph, type CompiledDetectionGraph } from "@deepscope/detection/registry/graph";
+import { emitSiteAnalysisFromRefinedCandidates } from "@deepscope/detection/emission";
+import type { NormalizedObservation, NormalizedObservationKind, ObservationBatch } from "@deepscope/detection/observations";
+import type { MatcherJobIdentity, MatcherPartitionMatch, MatcherPartitionPriority, MatcherPartitionResult, MatcherPartitionTask } from "./contracts.ts";
 
 /** Sort order that lets cheap evidence publish before slower source-heavy work. */
 const KIND_PRIORITIES = Object.freeze({
@@ -289,6 +280,7 @@ function comparePartitionMatches(left: MatcherPartitionMatch, right: MatcherPart
 
 type PartitionPipelineStage = 'pattern-matched' | 'evidence-created' | 'candidates-created' | 'candidates-refined' | 'detections-emitted';
 
+/** Bind partition events to the input target and analysis time while leaving event-array ownership with the caller. */
 function createPartitionEventRecorder(
 	input: CreateMatcherPipelineResultInput,
 	events: DetectionPipelineRuntimeEvent[],

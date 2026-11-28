@@ -1,13 +1,14 @@
 import type { ComponentProps, JSX } from "solid-js";
 import { splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type AspectRatioProps = ComponentProps<"div"> & {
   ratio: number;
   class?: string | undefined;
 };
 
+/** Constrain caller content to the supplied CSS ratio and clip overflow without measuring or changing the content. */
 const AspectRatio = (props: AspectRatioProps) => {
   const [local, others] = splitProps(props, ["class", "ratio"]);
 

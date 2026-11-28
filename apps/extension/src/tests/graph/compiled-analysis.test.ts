@@ -1,9 +1,10 @@
 import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
 
-import { analyzeCompiledSite, analyzeSite } from '@/lib/detection/engine';
-import { createCompiledDetectionRegistry } from '@/lib/detection/registry-graph';
-import type { PageSignals, TechnologyDefinition } from '@/lib/detection/types';
+import { analyzeCompiledSite, analyzeSite } from "@deepscope/detection/engine";
+import { createCompiledDetectionRegistry } from "@deepscope/detection/registry/graph";
+import type { PageSignals } from "@deepscope/detection/types";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
 
 function createSignals(overrides: Partial<PageSignals> = {}): PageSignals {
 	return {

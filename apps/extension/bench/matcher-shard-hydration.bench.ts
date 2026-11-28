@@ -1,14 +1,10 @@
 import { describe, test } from 'vitest';
 
-import { createObservationMatcherIndex } from '@/lib/detection/observation-matcher-index';
-import type { DetectionRule, TechnologyDefinition } from '@/lib/detection/types';
-import { hydrateMatcherIndex, packageMatcherIndex } from '@/lib/registry/matcher-artifact';
-import {
-	PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
-	createObservationKindTechnologyRegistry,
-	hydratePackagedTechnologyRegistryShard,
-	renderPackagedRegistryJson,
-} from '@/lib/registry/packaged-artifacts';
+import { createObservationMatcherIndex } from "@deepscope/detection/matcher/routing";
+import type { DetectionRule } from "@deepscope/registry/rules";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
+import { hydrateMatcherIndex, packageMatcherIndex } from "@deepscope/detection/artifacts/matcher";
+import { PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION, createObservationKindTechnologyRegistry, hydratePackagedTechnologyRegistryShard, renderPackagedRegistryJson } from "@deepscope/detection/artifacts/packaged";
 
 /** Number of generated technologies used to approximate a large packaged shard. */
 const LARGE_REGISTRY_SIZE = 1_000;

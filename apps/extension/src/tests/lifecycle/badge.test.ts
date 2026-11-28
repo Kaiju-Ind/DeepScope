@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { badgeText, createBadgeWriter, type BadgeState } from '@/lib/background/badge';
+import { badgeText, createBadgeWriter, type BadgeState } from "../../lib/background/badge.ts";
 
 /** A badge apply function whose calls finish only when the test releases them. */
 function controlledApply() {

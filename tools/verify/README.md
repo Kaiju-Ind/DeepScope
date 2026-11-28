@@ -1,7 +1,12 @@
 # Real-browser verification
 
-Scripts that load the built extension into a real browser. They have no npm
-dependencies: `webdriver.mjs` speaks W3C WebDriver over `fetch`.
+This private Node workspace package owns generated-output inspection and real-browser drivers. It has no npm dependencies: `webdriver.mjs` speaks W3C WebDriver over `fetch`. The native `check` task runs Node syntax checks for its JavaScript files; installed browser and driver executables remain separate prerequisites.
+
+## Chrome
+
+`pnpm validate:chrome-artifact` reads an existing `.output/chrome-mv3` and then loads its generated panel and options pages in Chromium. Set `CHROME_BIN` or pass `--chrome=<executable>` when automatic discovery cannot locate the intended browser. `--static-only` checks packaged files and explicitly skips startup. The validator unwraps the CDP response envelope once before reading `Runtime.evaluate`'s `RemoteObject.value`.
+
+A usable executable and a passing bundle do not prove that the host permits a browser process. Record local socket, sandbox or display failures as blocked runtime checks. Startup alone also does not cover the complete tab, observation, private-window or search journey. See the [verification workflow](../../docs/architecture/verification-workflow.md).
 
 ## Firefox
 

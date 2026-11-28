@@ -10,10 +10,10 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRoot } from 'solid-js';
-import type { AnalyzeVisibleTabOutput, VisibleTabIdentity } from '@/lib/messaging';
-import { usePanel, type PanelContextType } from '@/app/context';
-import { PanelProvider } from '@/app/provider';
-import { makeAnalysis, makeDetection, makeDetectionReplayTrace } from '../support/factories';
+import type { AnalyzeVisibleTabOutput, VisibleTabIdentity } from "../../lib/messaging/index.ts";
+import { usePanel, type PanelContextType } from "../../app/panel/context.ts";
+import { PanelProvider } from "../../app/panel/provider.tsx";
+import { makeAnalysis, makeDetection, makeDetectionReplayTrace } from "@deepscope/detection/testing/fixtures";
 
 const calls = vi.hoisted(() => ({
 	log: vi.fn(), identity: vi.fn(), analyze: vi.fn(), history: vi.fn(), stop: vi.fn(), stored: vi.fn(),
@@ -24,14 +24,14 @@ vi.mock('comctx', () => ({ defineProxy: () => [undefined, () => ({
 	getAnalysisStatus: async () => ({ ok: true, value: { trackedOrigins: 0, totalAnalyses: 0 } }),
 	stopObservationSession: calls.stop, getObservationSessionState: vi.fn(),
 })] }));
-vi.mock('@/lib/diagnostics/logging', () => ({ get: () => ({ debug: calls.log }) }));
-vi.mock('@/lib/messaging', () => ({ BACKGROUND_RPC_NAMESPACE: 'test', createBackgroundClientAdapter: () => ({}) }));
-vi.mock('@/app/tab', () => ({
+vi.mock('../../lib/diagnostics/logging.ts', () => ({ get: () => ({ debug: calls.log }) }));
+vi.mock('../../lib/messaging/index.ts', () => ({ BACKGROUND_RPC_NAMESPACE: 'test', createBackgroundClientAdapter: () => ({}) }));
+vi.mock("../../app/browser/tabs.ts", () => ({
 	getWindowId: async () => 1, getTabTarget: calls.target, subscribeTabTargetChanges: calls.listen,
 }));
-vi.mock('@/lib/autostart/settings', () => ({ DEFAULT_AUTO_SCAN_ENABLED: false, getAutoScanEnabled: async () => false }));
-vi.mock('@/app/snapshot', () => ({ getStoredAnalysis: calls.stored, subscribeToSnapshotRevisions: calls.subscribe }));
-vi.mock('@/lib/persistence', () => ({ browserDetectionPersistence: { clearStoredData: calls.clear } }));
+vi.mock('../../lib/autostart/settings.ts', () => ({ DEFAULT_AUTO_SCAN_ENABLED: false, getAutoScanEnabled: async () => false }));
+vi.mock("../../app/browser/stored.ts", () => ({ getStoredAnalysis: calls.stored, subscribeToSnapshotRevisions: calls.subscribe }));
+vi.mock('../../lib/persistence/index.ts', () => ({ browserDetectionPersistence: { clearStoredData: calls.clear } }));
 
 function identity(tabId: number, url = `https://example.invalid/page-${tabId}`): VisibleTabIdentity {
 	return { tabId, windowId: 1, frameId: 0, incognito: false, url, urlHash: url, originHash: 'origin', hostname: new URL(url).hostname };

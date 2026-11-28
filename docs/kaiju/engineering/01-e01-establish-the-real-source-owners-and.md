@@ -1,5 +1,15 @@
 # E01 Establish the real source, owners and required work
 
+Start from the customer or product consequence and the decision the work should enable. Extract the unknowns and
+alternatives, separate immediately testable questions from named prerequisites, and bind the first useful test before
+implementation. Use [A01](../product/01-a01-start-from-the-product-question.md). Map the source and consumers needed for
+that decision; a full architecture inventory must not delay a credible direct test.
+
+If investigation reveals a larger architectural defect, trace its mechanism, affected consumers and relation to the
+current result. Record a separate issue with evidence and an owner. Fix it when it is within authorized scope; otherwise
+continue independent work and make any blocking dependency explicit. Do not expand a bounded task silently or conceal
+a defect that invalidates the experiment.
+
 Begin with one repository, existing PR/branch and a bounded user-visible or engineering outcome. Verify remote head/base
 and ancestry, dirty/staged/untracked state, concurrent writers, original skills, and every relevant caller before
 editing. A migration can change which repository owns a package, worker or test; identify today's owner and intended
@@ -8,15 +18,14 @@ exactly which automatic checks, manual checks, builds, browser journeys and prot
 revision. **Skipped is not passed.**
 
 Use a source graph (prefer Oxc/TypeScript AST for imports, exports, type-only dependencies and consumers; parse
-TOML/JSONC/YAML using their actual grammar). Include dynamic imports, generated contracts (the registry JSON, `.wxt/`
-types), test files, benchmarks, package manifests, lockfiles, WXT modules, `wxt.config.ts` and workflow policy. For unknown relationships, select the
+TOML/JSONC/YAML using their actual grammar). Include dynamic imports, generated contracts, test files, benchmarks,
+package manifests, lockfiles, migrations, container contexts and workflow policy. For unknown relationships, select the
 conservative required work. Record the smallest correct scope, then stop rather than silently expanding into other
 repositories.
 
 **Discovery is the default input contract.** The package manager and test runner must discover workspace packages and
 tests from owned manifests, source conventions or well-scoped glob patterns. Do not keep an explicit array of individual
-test or benchmark paths in `package.json`, `vitest.config.ts`, Mise tasks or CI workflows as the normal selection
-mechanism. DeepScope's Vitest projects select by glob (`src/tests/**/*.test.{ts,tsx}`, `utils/**/*.test.ts`, the UI
-glob), so a new test under those trees runs without any edit. A new test must enter the full suite without manually editing an unrelated task declaration. Exact file names
+test or benchmark paths in `package.json`, `deno.json`/`deno.jsonc`, Mise tasks or CI workflows as the normal selection
+mechanism. A new test must enter the full suite without manually editing an unrelated task declaration. Exact file names
 are appropriate only for a reviewed, finite exception such as a public runtime entry point, a generated contract or a
 regression fixture whose identity is the contract. Record why that exception cannot use discovery.

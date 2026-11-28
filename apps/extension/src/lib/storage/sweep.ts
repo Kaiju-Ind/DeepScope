@@ -1,10 +1,7 @@
 import { browser } from 'wxt/browser';
 
-import {
-	CONTENT_SESSION_LIFECYCLE_PREFIX,
-	DETECTION_SESSION_SNAPSHOT_PREFIX,
-} from './contracts';
-import { removeDetectionSessionIndex } from './detection-snapshots';
+import { CONTENT_SESSION_LIFECYCLE_PREFIX, DETECTION_SESSION_SNAPSHOT_PREFIX } from "./contracts.ts";
+import { removeDetectionSessionIndex } from './snapshots/sessions.ts';
 
 /** `storage.local` as typed here; `getKeys` is Chrome 130+ and newer Firefox only. */
 type KeyedStorageArea = {

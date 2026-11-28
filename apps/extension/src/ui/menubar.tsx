@@ -5,8 +5,8 @@ import ChevronRight from "~icons/fluent/chevron-right-24-regular";
 import type { Component, ComponentProps, ValidComponent } from "solid-js";
 import { mergeProps, splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
-import { releaseBackgroundFocus } from "@/ui/modal-focus";
+import { cn } from "../utils/cn.ts";
+import { releaseBackgroundFocus } from "./modal-focus.ts";
 
 type MenubarProps<T extends ValidComponent = "div"> = PolymorphicProps<
   T,
@@ -14,6 +14,7 @@ type MenubarProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Arrange top-level menu triggers while the primitive owns roving focus and menu navigation. */
 const Menubar = <T extends ValidComponent = "div">(props: MenubarProps<T>) => {
   const [local, others] = splitProps(props as MenubarProps, ["class"]);
   return (
@@ -25,9 +26,11 @@ const Menubar = <T extends ValidComponent = "div">(props: MenubarProps<T>) => {
   );
 };
 
+/** Default the menu gutter to eight pixels and apply shared background-focus policy before caller open notifications. */
 const MenubarMenu = (props: MenubarPrimitive.MenubarMenuProps) => {
   const mergedProps = mergeProps({ gutter: 8 }, props);
   const [local, others] = splitProps(mergedProps, ["onOpenChange"]);
+  /** Release background focus when a menubar menu opens, then notify the caller of the same state change. */
   const onOpenChange = (open: boolean) => {
     releaseBackgroundFocus(open);
     local.onOpenChange?.(open);
@@ -42,6 +45,7 @@ type MenubarTriggerProps<T extends ValidComponent = "button"> = PolymorphicProps
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Style a top-level trigger without replacing the menubar primitive's keyboard or open-state behavior. */
 const MenubarTrigger = <T extends ValidComponent = "button">(props: MenubarTriggerProps<T>) => {
   const [local, others] = splitProps(props as MenubarTriggerProps, ["class", "children"]);
   return (
@@ -55,6 +59,7 @@ const MenubarTrigger = <T extends ValidComponent = "button">(props: MenubarTrigg
   );
 };
 
+/** Delegate menu content placement and presence to the primitive's portal. */
 const MenubarPortal: Component<MenubarPrimitive.MenubarPortalProps> = (props) => {
   return <MenubarPrimitive.Portal data-slot="menubar-portal" {...props} />;
 };
@@ -65,6 +70,7 @@ type MenubarContentProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Portal the menu surface while retaining primitive focus, dismissal and position handling. */
 const MenubarContent = <T extends ValidComponent = "div">(props: MenubarContentProps<T>) => {
   const [local, others] = splitProps(props as MenubarContentProps, ["class"]);
   return (
@@ -84,6 +90,7 @@ type MenubarGroupProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Group related menu items with primitive semantics and local presentation. */
 const MenubarGroup = <T extends ValidComponent = "div">(props: MenubarGroupProps<T>) => {
   const [local, others] = splitProps(props as MenubarGroupProps, ["class"]);
   return (
@@ -104,6 +111,7 @@ type MenubarItemProps<T extends ValidComponent = "div"> = PolymorphicProps<
     variant?: "default" | "destructive";
   };
 
+/** Use standard, non-inset item defaults while forwarding action handlers and disabled state. */
 const MenubarItem = <T extends ValidComponent = "div">(props: MenubarItemProps<T>) => {
   const mergedProps = mergeProps(
     { variant: "default", inset: false } as MenubarItemProps<T>,
@@ -134,6 +142,7 @@ type MenubarCheckboxItemProps<T extends ValidComponent = "div"> = PolymorphicPro
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Display a check indicator from primitive state while the caller owns the underlying setting. */
 const MenubarCheckboxItem = <T extends ValidComponent = "div">(
   props: MenubarCheckboxItemProps<T>,
 ) => {
@@ -163,6 +172,7 @@ type MenubarRadioGroupProps<T extends ValidComponent = "div"> = PolymorphicProps
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Forward a mutually exclusive menu selection to the primitive's radio-group owner. */
 const MenubarRadioGroup = <T extends ValidComponent = "div">(props: MenubarRadioGroupProps<T>) => {
   const [local, others] = splitProps(props as MenubarRadioGroupProps, ["class"]);
   return (
@@ -180,6 +190,7 @@ type MenubarRadioItemProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Show primitive selection for one caller-supplied radio value without duplicating group state. */
 const MenubarRadioItem = <T extends ValidComponent = "div">(props: MenubarRadioItemProps<T>) => {
   const [local, others] = splitProps(props as MenubarRadioItemProps, ["class", "children"]);
   return (
@@ -209,6 +220,7 @@ type MenubarGroupLabelProps<T extends ValidComponent = "span"> = PolymorphicProp
     inset?: boolean;
   };
 
+/** Associate a group label with optional inset alignment, which is disabled by default. */
 const MenubarLabel = <T extends ValidComponent = "span">(props: MenubarGroupLabelProps<T>) => {
   const mergedProps = mergeProps({ inset: false } as MenubarGroupLabelProps<T>, props);
   const [local, others] = splitProps(mergedProps as MenubarGroupLabelProps, ["class", "inset"]);
@@ -228,6 +240,7 @@ type MenubarSeparatorProps<T extends ValidComponent = "hr"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Visually divide item groups without introducing an interactive menu item. */
 const MenubarSeparator = <T extends ValidComponent = "hr">(props: MenubarSeparatorProps<T>) => {
   const [local, others] = splitProps(props as MenubarSeparatorProps, ["class"]);
   return (
@@ -241,6 +254,7 @@ const MenubarSeparator = <T extends ValidComponent = "hr">(props: MenubarSeparat
 
 type MenubarShortcutProps = ComponentProps<"span">;
 
+/** Align a displayed shortcut hint after item content; keyboard registration remains external. */
 const MenubarShortcut = (props: MenubarShortcutProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -252,6 +266,7 @@ const MenubarShortcut = (props: MenubarShortcutProps) => {
   );
 };
 
+/** Attach nested-menu state to the current menubar menu hierarchy. */
 const MenubarSub: Component<MenubarPrimitive.MenubarSubProps> = (props) => {
   return <MenubarPrimitive.Sub data-slot="menubar-sub" {...props} />;
 };
@@ -264,6 +279,7 @@ type MenubarSubTriggerProps<T extends ValidComponent = "div"> = PolymorphicProps
     inset?: boolean;
   };
 
+/** Style the submenu trigger and direction indicator while retaining primitive nested-menu navigation. */
 const MenubarSubTrigger = <T extends ValidComponent = "div">(props: MenubarSubTriggerProps<T>) => {
   const mergedProps = mergeProps({ inset: false } as MenubarSubTriggerProps<T>, props);
   const [local, others] = splitProps(mergedProps as MenubarSubTriggerProps, [
@@ -293,6 +309,7 @@ type MenubarSubContentProps<T extends ValidComponent = "div"> = PolymorphicProps
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Portal nested content while preserving the submenu primitive's focus and open lifecycle. */
 const MenubarSubContent = <T extends ValidComponent = "div">(props: MenubarSubContentProps<T>) => {
   const [local, others] = splitProps(props as MenubarSubContentProps, ["class"]);
   return (

@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	EXTENSION_COLLECTOR_CAPABILITIES,
-	getExtensionCollectorCapability,
-	listUnsupportedExtensionCollectorKinds,
-} from '@/lib/collectors/capabilities';
-import type { RuntimeDetectionKind } from '@/lib/detection/types';
+import { EXTENSION_COLLECTOR_CAPABILITIES, getExtensionCollectorCapability, listUnsupportedExtensionCollectorKinds } from "../../lib/collectors/capabilities.ts";
+import type { RuntimeDetectionKind } from "@deepscope/registry/rules";
 
 const RUNTIME_DETECTION_KINDS: readonly RuntimeDetectionKind[] = [
 	'dom',

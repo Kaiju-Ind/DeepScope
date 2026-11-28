@@ -88,7 +88,7 @@ This strips source-code indentation. It does not validate or parameterize SQL.
 ### A runtime-loaded string
 
 ```ts
-const source = await readFile("template.sql", "utf8"); // node:fs/promises
+const source = await Deno.readTextFile("template.sql");
 const normalizedIndent = undent.string(source);
 ```
 

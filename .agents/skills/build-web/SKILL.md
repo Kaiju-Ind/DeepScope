@@ -1,6 +1,6 @@
 ---
 name: build-web
-description: Classify, design, implement, review, diagnose, or verify web UI and browser work: renderer semantics (Solid 1.9 in DeepScope), design systems, accessibility, motion, touch interactions, browser lifecycles, assets (fonts, icons), security and shared frontend infrastructure. Use for DeepScope's panel surfaces (side panel, sidebar, popup, full page, options) and for shared renderer, component, asset, security, design, and browser-verification decisions. Compose with build-web-apps for panel state and routes, build-extensions for extension contexts and manifests, and design-interfaces when visual hierarchy, layout, or polish changes.
+description: Classify, design, implement, review, diagnose, or verify web work that spans content sites, stateful applications, server rendering, interactive islands, design systems, accessibility, motion, touch interactions, browser lifecycles, and shared frontend infrastructure. Use for hybrid or cross-surface web architecture and for shared renderer, component, asset, security, design, and browser-verification decisions. Compose with build-sites for content publishing or build-web-apps for application state; retain this skill for renderer semantics, accessibility, and browser verification even within one application. Compose with design-interfaces when visual hierarchy, layout, or polish changes.
 ---
 
 # Build web systems
@@ -43,18 +43,9 @@ across surfaces. It is the shared web owner for renderer choice, browser behavio
 component-system integration, design and motion quality, asset delivery,
 security, accessibility, and cross-surface verification.
 
-`build-web-apps` owns stateful product applications (the DeepScope panel).
-`build-extensions` owns extension contexts, the manifest and browser
-differences. the shared quality contract owns repository completion.
+`build-sites` owns content-first publishing. `build-web-apps` owns stateful
+product applications. the shared quality contract owns repository completion.
 `explore-ecosystems` owns dependency topology. Do not duplicate their work.
-
-In DeepScope, one Solid 1.9 application renders every panel surface (Chromium
-side panel, Firefox sidebar, popup, full page) plus the options page. UI
-primitives come from the Zaidan catalogue in `src/ui/` (Kobalte and Corvu
-underneath, shadcn-style), styles from Tailwind 4 in `src/styles/`, icons from
-Unplugin Icons, and fonts from pinned `@fontsource*` packages through a
-hand-written `fonts.css`, never a CDN. Solid 2 is held back until Kobalte,
-Corvu and the WXT Solid module support it.
 
 For visual creation, redesign, or polish, select `design-interfaces` when
 installed. It owns visual judgment; this skill retains its implementation
@@ -92,7 +83,8 @@ For each app, route group, embedded island, or browser-facing entrypoint, record
   hybrid;
 - render mode: static, prerendered, request-rendered, streamed, client-rendered,
   or mixed;
-- renderer: native HTML, Solid, Web Components, or another verified owner;
+- renderer: native HTML, Astro template, Solid, React, Web Components, or another
+  verified owner;
 - state owners: URL, server request, remote cache, session, local interaction,
   durable data, and browser storage;
 - component and asset owners: primitives, CSS/tokens, icon compiler, fonts,
@@ -102,9 +94,8 @@ For each app, route group, embedded island, or browser-facing entrypoint, record
 - required user flows, failure states, performance budgets, and accessibility
   behavior.
 
-A repository can contain several classifications. Do not force one framework
-policy over an extension panel, an options page and a content script that
-renders nothing.
+A monorepo can contain several classifications. Do not force one framework
+policy over an Astro docs site, a runtime CMS, and a TanStack application.
 
 ## Evidence preflight
 
@@ -134,8 +125,7 @@ semantics. Inspect the exact installed version and integration.
    interaction, and durable business records have different lifetimes. Do not
    mirror the same authority into several stores without an explicit sync rule.
 3. **Preserve renderer semantics.** Do not translate React effects or component
-   lifetimes mechanically into Solid: Solid components run once, and tracked
-   reads, memos and `onCleanup` belong to the owner that created them.
+   lifetimes mechanically into Solid, Astro, or another renderer.
 4. **Keep integration families aligned.** When the repository uses Unplugin
    Icons, generated component registries, Base UI/Kobalte/Corvu, or similar
    tooling, verify the renderer/compiler integration, virtual imports, SSR/SSG,
@@ -202,11 +192,10 @@ or accessibility.
 
 - [surfaces.md](references/surfaces.md): route and application classification,
   render/state authority, and cross-surface ownership.
-- [renderers.md](references/renderers.md): Solid, native HTML and
-  renderer-specific lifetimes (React and Astro notes kept for comparison).
+- [renderers.md](references/renderers.md): Astro, Solid, React, native HTML,
+  islands, SSR, hydration, and renderer-specific lifetimes.
 - [assets.md](references/assets.md): icon/font integration points, generated
-  assets, component registries, privacy, reproducible builds, and built-output
-  verification.
+  assets, component registries, privacy, and built-output verification.
 - [components.md](references/components.md): component primitives, Zaidan,
   shadcn-style generation, Kobalte/Corvu, tokens, accessibility, and ownership.
 - [motion.md](references/motion.md): motion purpose, presence, interruption,
@@ -223,7 +212,8 @@ or accessibility.
 - [failures.md](references/failures.md): evidence-grounded failure signatures
   and correction paths.
 
-When a surface is clearly a stateful product application, route domain work to
+When a surface is clearly content-first, route domain work to `build-sites`.
+When it is clearly a stateful product application, route domain work to
 `build-web-apps`. Keep this skill active only when shared web decisions remain.
 
 ## Completion gate
@@ -236,11 +226,11 @@ for the claims being made. Report unrun browser or deployment gates explicitly.
 
 ## Renderer and platform detail
 
-Read [component patterns](references/react-patterns.md) for component API or
-measured render/bundle decisions, then only the relevant rule file. Read
+Read [React patterns](references/react-patterns.md) for component API or measured
+render/bundle decisions, then only the relevant rule file. Read
 [platform research](references/platform-research.md) when browser capability or
-support is uncertain. Select build-web-apps for product state, build-extensions
-for extension contexts, and design-interfaces for visual/motion purpose.
+support is uncertain. Select build-sites for Astro route/island ownership,
+build-web-apps for product state, and design-interfaces for visual/motion purpose.
 
 ## Resource navigation
 

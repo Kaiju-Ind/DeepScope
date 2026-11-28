@@ -1,12 +1,9 @@
 import { describe, test } from 'vitest';
 
-import type { DetectionRule, TechnologyDefinition } from '@/lib/detection/types';
-import { compileTechnologyRegistry } from '@/lib/registry';
-import {
-	PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
-	hydratePackagedTechnologyRegistry,
-	renderPackagedRegistryJson,
-} from '@/lib/registry/packaged-artifacts';
+import type { DetectionRule } from "@deepscope/registry/rules";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
+import { compileTechnologyRegistry } from "@deepscope/detection/compiler";
+import { PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION, hydratePackagedTechnologyRegistry, renderPackagedRegistryJson } from "@deepscope/detection/artifacts/packaged";
 
 /** Number of generated technologies used to approximate a large packaged registry. */
 const LARGE_REGISTRY_SIZE = 1_000;

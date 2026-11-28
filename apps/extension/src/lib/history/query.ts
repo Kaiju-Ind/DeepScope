@@ -1,6 +1,6 @@
-import type { DetectionReplayTrace } from '@/lib/pipeline';
-import * as url from '@/utils/url';
-import { compare, key } from './compare';
+import type { DetectionReplayTrace } from "@deepscope/detection/pipeline";
+import * as url from '../../utils/url.ts';
+import { compare, key } from "./compare.ts";
 
 /** Page scope used by the retained detector-run query. */
 export type HistoryScopeType = 'origin' | 'page';

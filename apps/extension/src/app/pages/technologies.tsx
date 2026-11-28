@@ -2,26 +2,21 @@ import RefreshIcon from '~icons/fluent/arrow-clockwise-24-regular';
 import { Link } from '@tanstack/solid-router';
 import { For, Show, createEffect, createMemo, createSignal } from 'solid-js';
 
-import { AnalysisProgress } from '@/app/components/analysis-progress';
-import { FilterMenu } from '@/app/components/filter-menu';
-import { useTechnologies } from '@/app/context';
-import * as session from '@/app/session';
-import type { SiteAnalysis } from '@/lib/detection/types';
-import { Alert, AlertDescription, AlertTitle } from '@/ui/alert';
-import { Badge } from '@/ui/badge';
-import { Button } from '@/ui/button';
-import { Card, CardContent } from '@/ui/card';
-import {
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
-} from '@/ui/dropdown-menu';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/ui/empty';
-import { Input } from '@/ui/input';
-import { NativeSelect, NativeSelectOption } from '@/ui/native-select';
-import { Skeleton } from '@/ui/skeleton';
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group';
+import { AnalysisProgress } from "../components/analysis-progress.tsx";
+import { FilterMenu } from "../components/filter-menu.tsx";
+import { useTechnologies } from "../panel/context.ts";
+import * as session from "../panel/routes.ts";
+import type { SiteAnalysis } from "@deepscope/detection/types";
+import { Alert, AlertDescription, AlertTitle } from "../../ui/alert.tsx";
+import { Badge } from "../../ui/badge.tsx";
+import { Button } from "../../ui/button.tsx";
+import { Card, CardContent } from "../../ui/card.tsx";
+import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "../../ui/dropdown-menu.tsx";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty.tsx";
+import { Input } from "../../ui/input.tsx";
+import { NativeSelect, NativeSelectOption } from "../../ui/native-select.tsx";
+import { Skeleton } from "../../ui/skeleton.tsx";
+import { ToggleGroup, ToggleGroupItem } from "../../ui/toggle-group.tsx";
 
 /** Technology result displayed by the current analysis. */
 type TechnologyResultType = SiteAnalysis['results'][number];
@@ -62,6 +57,7 @@ const defaultState: TechnologyStateType = {
 /** Primary extension view for finding and comparing technologies on the active tab. */
 export function TechnologiesPage() {
 	const technologies = useTechnologies();
+	/** Scope technology-page view state to the provider's current visible tab. */
 	const tabId = () => technologies.visibleTabIdentity()?.tabId;
 	const initial = session.get<TechnologyStateType>(tabId(), 'technologies') ?? defaultState;
 	const [query, setQuery] = createSignal(initial.query);
@@ -70,8 +66,10 @@ export function TechnologiesPage() {
 	const [newOnly, setNewOnly] = createSignal(initial.newOnly);
 	const [sort, setSort] = createSignal<TechnologySortType>(initial.sort);
 	const [view, setView] = createSignal<TechnologyViewType>(initial.view);
+	/** Report the current analysis result count before page filters are applied. */
 	const count = () => technologies.analysis()?.results.length ?? 0;
 	const categories = createMemo(() => technologies.groupedResults().map((group) => ({ id: group.category, label: group.label })));
+	/** Count active category, confidence and newly-detected filters for the filter summary. */
 	const filters = () => (category() === 'all' ? 0 : 1) + (confidence() === 'all' ? 0 : 1) + (newOnly() ? 1 : 0);
 	const results = createMemo(() => filterResults(technologies.analysis()?.results ?? [], { query: query(), category: category(), confidence: confidence(), newOnly: newOnly(), sort: sort(), lateIds: technologies.lateAddedIds() }));
 	const grouped = createMemo(() => technologies.groupedResults()

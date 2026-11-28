@@ -19,13 +19,15 @@ import {
 } from "@corvu/drawer";
 import type { ComponentProps, ValidComponent } from "solid-js";
 import { splitProps } from "solid-js";
-import { cn } from "@/utils/cn";
-import { releaseBackgroundFocus } from "@/ui/modal-focus";
+import { cn } from "../utils/cn.ts";
+import { releaseBackgroundFocus } from "./modal-focus.ts";
 
 type DrawerRootProps<T extends ValidComponent = "div"> = DynamicProps<T, RootProps>;
 
+/** Retain the drawer primitive's gesture and open-state owner while applying the shared background-focus policy. */
 const DrawerRoot = <T extends ValidComponent = "div">(props: DrawerRootProps<T>) => {
   const [local, others] = splitProps(props as DrawerRootProps, ["onOpenChange"]);
+  /** Release background focus for the new drawer state before invoking the caller's handler. */
   const onOpenChange = (open: boolean) => {
     releaseBackgroundFocus(open);
     local.onOpenChange?.(open);
@@ -36,14 +38,17 @@ const DrawerRoot = <T extends ValidComponent = "div">(props: DrawerRootProps<T>)
 
 type DrawerTriggerProps<T extends ValidComponent = "button"> = DynamicProps<T, TriggerProps>;
 
+/** Forward activation to the existing drawer owner through its trigger primitive. */
 const DrawerTrigger = <T extends ValidComponent = "button">(props: DrawerTriggerProps<T>) => {
   return <Trigger data-slot="drawer-trigger" {...(props as TriggerProps)} />;
 };
 
 type DrawerCloseProps<T extends ValidComponent = "button"> = DynamicProps<T, CloseProps>;
 
+/** Dismiss through the drawer primitive with an explicit or plain-text-derived accessible label. */
 const DrawerClose = <T extends ValidComponent = "button">(props: DrawerCloseProps<T>) => {
   const [local, others] = splitProps(props as DrawerCloseProps, ["aria-label", "children"]);
+  /** Infer a close label only from plain text when the caller has not provided aria-label. */
   const label = () =>
     local["aria-label"] ?? (typeof local.children === "string" ? local.children : undefined);
 
@@ -57,6 +62,7 @@ const DrawerClose = <T extends ValidComponent = "button">(props: DrawerCloseProp
 type DrawerOverlayProps<T extends ValidComponent = "div"> = DynamicProps<T, OverlayProps> &
   Pick<ComponentProps<T>, "class">;
 
+/** Drive backdrop opacity and its filter from the drawer's current open percentage without owning gesture state. */
 const DrawerOverlay = <T extends ValidComponent = "div">(props: DrawerOverlayProps<T>) => {
   const [local, others] = splitProps(props as DrawerOverlayProps, ["class"]);
   const context = useContext();
@@ -76,6 +82,7 @@ const DrawerOverlay = <T extends ValidComponent = "div">(props: DrawerOverlayPro
 type DrawerContentProps<T extends ValidComponent = "div"> = DynamicProps<T, ContentProps> &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Portal side-aware drawer content with its overlay and bottom grip while the primitive owns drag and focus behavior. */
 const DrawerContent = <T extends ValidComponent = "div">(props: DrawerContentProps<T>) => {
   const [local, others] = splitProps(props as DrawerContentProps, ["class", "children"]);
   return (
@@ -102,6 +109,7 @@ const DrawerContent = <T extends ValidComponent = "div">(props: DrawerContentPro
 
 type DrawerHeaderProps = ComponentProps<"div">;
 
+/** Arrange drawer heading content without introducing a separate focus scope. */
 const DrawerHeader = (props: DrawerHeaderProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -115,6 +123,7 @@ const DrawerHeader = (props: DrawerHeaderProps) => {
 
 type DrawerFooterProps = ComponentProps<"div">;
 
+/** Place footer actions after the drawer body while leaving their behavior with the caller. */
 const DrawerFooter = (props: DrawerFooterProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -129,6 +138,7 @@ const DrawerFooter = (props: DrawerFooterProps) => {
 type DrawerLabelProps<T extends ValidComponent = "h2"> = DynamicProps<T, LabelProps> &
   Pick<ComponentProps<T>, "class">;
 
+/** Connect the styled heading to the drawer primitive's label relationship. */
 const DrawerLabel = <T extends ValidComponent = "h2">(props: DrawerLabelProps<T>) => {
   const [local, others] = splitProps(props as DrawerLabelProps, ["class"]);
   return (
@@ -143,6 +153,7 @@ const DrawerLabel = <T extends ValidComponent = "h2">(props: DrawerLabelProps<T>
 type DrawerDescriptionProps<T extends ValidComponent = "p"> = DynamicProps<T, DescriptionProps> &
   Pick<ComponentProps<T>, "class">;
 
+/** Connect supporting text to the drawer primitive's description relationship. */
 const DrawerDescription = <T extends ValidComponent = "p">(props: DrawerDescriptionProps<T>) => {
   const [local, others] = splitProps(props as DrawerDescriptionProps, ["class"]);
   return (

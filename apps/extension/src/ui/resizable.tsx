@@ -10,7 +10,7 @@ import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 import type { ComponentProps, ValidComponent } from "solid-js";
 import { Show, splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type ResizablePanelGroupProps<T extends ValidComponent = "div"> = PolymorphicProps<
   T,
@@ -18,6 +18,7 @@ type ResizablePanelGroupProps<T extends ValidComponent = "div"> = PolymorphicPro
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Arrange the primitive's panels by orientation while leaving size constraints and resize state with the primitive. */
 const ResizablePanelGroup = <T extends ValidComponent = "div">(
   props: ResizablePanelGroupProps<T>,
 ) => {
@@ -36,6 +37,7 @@ const ResizablePanelGroup = <T extends ValidComponent = "div">(
 
 type ResizablePanelProps<T extends ValidComponent = "div"> = PolymorphicProps<T, PanelProps<T>>;
 
+/** Register a panel with its surrounding resize group using caller-supplied size and constraint props. */
 const ResizablePanel = <T extends ValidComponent = "div">(props: ResizablePanelProps<T>) => {
   return <Panel data-slot="resizable-panel" {...props} />;
 };
@@ -48,6 +50,7 @@ type ResizableHandleProps<T extends ValidComponent = "button"> = PolymorphicProp
     withHandle?: boolean;
   };
 
+/** Style the resize hit area and optional grip while retaining the primitive's pointer and keyboard resizing behavior. */
 const ResizableHandle = <T extends ValidComponent = "button">(props: ResizableHandleProps<T>) => {
   const [local, others] = splitProps(props as ResizableHandleProps, ["class", "withHandle"]);
   return (

@@ -1,4 +1,4 @@
-import type { BackgroundDetectionPersistence } from '../persistence';
+import type { BackgroundDetectionPersistence } from "../persistence/index.ts";
 
 /**
  * Time a closed tab's cleanup waits before its second pass. A content script's
@@ -27,10 +27,12 @@ export interface TabWrites {
 	guard<Persistence extends BackgroundDetectionPersistence>(persistence: Persistence): Persistence;
 }
 
+/** Own closed-tab admission and in-flight write tracking; ordering of accepted revisions belongs to the snapshot writer. */
 export function create(graceMs = CONTENT_WRITE_GRACE_MS): TabWrites {
 	const closed = new Set<number>();
 	const inFlight = new Map<number, Set<Promise<unknown>>>();
 
+	/** Retain a pending write only until it settles, preserving its rejection for the original caller. */
 	function track<Value>(tabId: number, write: Promise<Value>): Promise<Value> {
 		const writes = inFlight.get(tabId) ?? new Set();
 		inFlight.set(tabId, writes);
@@ -43,18 +45,22 @@ export function create(graceMs = CONTENT_WRITE_GRACE_MS): TabWrites {
 	}
 
 	return {
+		/** Refuse future writes for a retired tab and bound the remembered closed-tab set. */
 		close(tabId) {
 			closed.delete(tabId);
 			closed.add(tabId);
 			if (closed.size > MAX_CLOSED_TABS) closed.delete(closed.values().next().value!);
 		},
+		/** Wait for already tracked writes and the configured content-write grace before cleanup's second pass. */
 		async settled(tabId) {
 			await Promise.allSettled([...inFlight.get(tabId) ?? []]);
 			await new Promise((resolve) => setTimeout(resolve, graceMs));
 		},
+		/** Wrap only snapshot admission/tracking while retaining every other persistence capability unchanged. */
 		guard(persistence) {
 			return {
 				...persistence,
+				/** Reject writes for closed tabs; otherwise track the real store promise without adding another serialization queue. */
 				saveSnapshot(snapshot) {
 					const tabId = snapshot.key.tabId;
 					if (closed.has(tabId)) {

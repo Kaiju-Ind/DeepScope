@@ -4,22 +4,25 @@ import StopIcon from '~icons/fluent/dismiss-24-regular';
 import { Link } from '@tanstack/solid-router';
 import { For, Show } from 'solid-js';
 
-import { AnalysisProgress } from '@/app/components/analysis-progress';
-import { useSummary } from '@/app/context';
-import * as rank from '@/lib/detection/rank';
-import { Alert, AlertDescription, AlertTitle } from '@/ui/alert';
-import { Badge } from '@/ui/badge';
-import { Button } from '@/ui/button';
-import { ButtonLink } from '@/ui/router-link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/ui/empty';
-import { Skeleton } from '@/ui/skeleton';
+import { AnalysisProgress } from "../components/analysis-progress.tsx";
+import { useSummary } from "../panel/context.ts";
+import * as rank from '@deepscope/detection/rank';
+import { Alert, AlertDescription, AlertTitle } from "../../ui/alert.tsx";
+import { Badge } from "../../ui/badge.tsx";
+import { Button } from "../../ui/button.tsx";
+import { ButtonLink } from "../../ui/router-link.tsx";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../ui/card.tsx";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty.tsx";
+import { Skeleton } from "../../ui/skeleton.tsx";
 
 /** Default side-panel page that summarizes the current tab before deeper inspection. */
 export function SummaryPage() {
 	const summary = useSummary();
+	/** Read the provider's current grouped findings so grouping policy stays with the summary model. */
 	const groups = () => summary.groupedResults();
+	/** Apply the shared result ranking and show at most five findings from the current analysis. */
 	const topResults = () => rank.sort(summary.analysis()?.results ?? []).slice(0, 5);
+	/** Show initial loading only while work is busy and no previous analysis can remain visible. */
 	const isInitialLoad = () => !summary.analysis() && summary.analysisActivity().busy;
 
 	return (
@@ -166,6 +169,7 @@ export function SummaryPage() {
 	);
 }
 
+/** Reserve the findings card's shape during initial analysis and identify its loading purpose to assistive technology. */
 function SummarySkeleton() {
 	return (
 		<Card size="sm" aria-label="Loading site findings">
@@ -180,6 +184,7 @@ function SummarySkeleton() {
 	);
 }
 
+/** Explain the panel's automatic scan and manual refresh paths when no analysis exists. */
 function NoAnalysis() {
 	return (
 		<Empty class="panel-section min-h-40 p-6">

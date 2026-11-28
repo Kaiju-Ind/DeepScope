@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import * as history from '@/lib/history';
-import type { DetectionExplanation, DetectionReplayTrace } from '@/lib/pipeline';
+import * as history from '../../lib/history/index.ts';
+import type { DetectionExplanation, DetectionReplayTrace } from "@deepscope/detection/pipeline";
 
 /** Build one minimal emitted explanation for retained-run query tests. */
 function explanation(id: string, evidenceCount = 1): DetectionExplanation {

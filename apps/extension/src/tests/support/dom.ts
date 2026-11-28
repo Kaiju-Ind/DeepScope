@@ -1,7 +1,7 @@
 import { JSDOM } from 'jsdom';
 import { vi } from 'vitest';
 
-import type { DomPlanType } from '@/lib/dom';
+import type { DomPlanType } from "@deepscope/dom";
 
 /** Window that created each parsed document, used to expose its constructors. */
 const windows = new WeakMap<Document, JSDOM['window']>();

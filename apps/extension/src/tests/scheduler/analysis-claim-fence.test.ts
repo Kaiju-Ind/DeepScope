@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AnalyzeVisibleTabInput } from '@/lib/messaging/analysis';
-import { EXECUTION_SCHEMA_VERSION, type AnalysisWorkType } from '@/lib/scheduler/schema';
-import { settle } from '../support/settle';
+import type { AnalyzeVisibleTabInput } from "../../lib/messaging/analysis.ts";
+import { EXECUTION_SCHEMA_VERSION, type AnalysisWorkType } from "../../lib/scheduler/schema.ts";
+import { settle } from "../support/settle.ts";
 
 function input(): AnalyzeVisibleTabInput {
 	return {
@@ -23,8 +23,8 @@ function input(): AnalyzeVisibleTabInput {
 
 
 afterEach(() => {
-	vi.doUnmock('@/lib/scheduler/database');
-	vi.doUnmock('@/lib/scheduler/session');
+	vi.doUnmock('../../lib/scheduler/database.ts');
+	vi.doUnmock('../../lib/scheduler/session.ts');
 	vi.resetModules();
 });
 
@@ -37,7 +37,7 @@ describe('analysis claim fencing', { concurrent: false }, () => {
 			durable = undefined;
 			return true;
 		});
-		vi.doMock('@/lib/scheduler/database', () => ({
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
 			admitAnalysis: vi.fn(async (work: AnalysisWorkType) => {
 				if (durable) return { accepted: true as const, created: false, work: durable };
 				durable = work;
@@ -71,12 +71,12 @@ describe('analysis claim fencing', { concurrent: false }, () => {
 			reprioritizeWindow: vi.fn(async () => 0),
 			setPriority: vi.fn(async () => true),
 		}));
-		vi.doMock('@/lib/scheduler/session', () => ({
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
 			createId: vi.fn(() => 'analysis-owner'),
 			get: vi.fn(async () => 'browser-session'),
 		}));
 
-		const analysis = await import('@/lib/scheduler/analysis');
+		const analysis = await import('../../lib/scheduler/analysis.ts');
 		let finishOld!: (value: { ok: false; failure: { code: 'VALIDATION_ERROR'; message: string } }) => void;
 		const oldResult = new Promise<{ ok: false; failure: { code: 'VALIDATION_ERROR'; message: string } }>((resolve) => {
 			finishOld = resolve;

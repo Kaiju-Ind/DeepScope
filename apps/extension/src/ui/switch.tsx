@@ -2,7 +2,7 @@ import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 import * as SwitchPrimitive from "@kobalte/core/switch";
 import { type ComponentProps, mergeProps, splitProps, type ValidComponent } from "solid-js";
 
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type SwitchProps<T extends ValidComponent = "div"> = PolymorphicProps<
   T,
@@ -12,6 +12,7 @@ type SwitchProps<T extends ValidComponent = "div"> = PolymorphicProps<
     size?: "sm" | "default";
   };
 
+/** Compose the switch input and thumb with a default size, placing the supplied ID on the input and retaining primitive state ownership. */
 const Switch = <T extends ValidComponent = "div">(props: SwitchProps<T>) => {
   const mergedProps = mergeProps({ size: "default" as const }, props);
   const [local, others] = splitProps(mergedProps as SwitchProps, ["class", "size", "id"]);

@@ -12,6 +12,7 @@ export default defineConfig({
 		globals: true,
 		projects: [
 			'apps/extension',
+			'packages/*',
 			{
 				// Vendored Kaiju Utils (`utils/`). Upstream tests register through
 				// `node:test`, which the shim maps onto Vitest. Type tests (`types.test.ts`,
@@ -26,10 +27,7 @@ export default defineConfig({
 					exclude: ['**/node_modules/**', 'utils/**/types.test.ts', 'utils/**/*.types.test.ts'],
 				},
 			},
-			{
-				// Repository checks under `tools/`, such as the guidance consistency test.
-				test: { name: 'guidance', environment: 'node', globals: true, include: ['tools/**/*.test.ts'] },
-			},
+			'tools/*/vitest.config.ts',
 		],
 	},
 });

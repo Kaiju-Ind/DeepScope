@@ -13,8 +13,8 @@ import {
   useContext,
 } from "solid-js";
 
-import { cn } from "@/utils/cn";
-import { Button, type ButtonProps } from "@/ui/button";
+import { cn } from "../utils/cn.ts";
+import { Button, type ButtonProps } from "./button.tsx";
 
 type CarouselApi = EmblaCarouselType | undefined;
 type CarouselOptions = EmblaOptionsType;
@@ -38,6 +38,7 @@ type CarouselContextProps = {
 
 const CarouselContext = createContext<CarouselContextProps | null>(null);
 
+/** Require the surrounding carousel owner so content and controls share one Embla instance. */
 function useCarousel() {
   const context = useContext(CarouselContext);
 
@@ -50,6 +51,7 @@ function useCarousel() {
 
 type CarouselRootProps = ComponentProps<"div"> & CarouselProps;
 
+/** Create the Embla instance and expose its navigation state with horizontal orientation by default. */
 const Carousel = (props: CarouselRootProps) => {
   const mergedProps = mergeProps({ orientation: "horizontal" as const }, props);
   const [local, others] = splitProps(mergedProps, [
@@ -72,19 +74,23 @@ const Carousel = (props: CarouselRootProps) => {
   const [canScrollPrev, setCanScrollPrev] = createSignal(false);
   const [canScrollNext, setCanScrollNext] = createSignal(false);
 
+  /** Refresh previous and next availability from the Embla instance after selection or reinitialization. */
   const onSelect = (emblaApi: EmblaCarouselType) => {
     setCanScrollPrev(emblaApi.canScrollPrev());
     setCanScrollNext(emblaApi.canScrollNext());
   };
 
+  /** Request previous-slide movement only after the Embla API is available. */
   const scrollPrev = () => {
     api()?.scrollPrev();
   };
 
+  /** Request next-slide movement only after the Embla API is available. */
   const scrollNext = () => {
     api()?.scrollNext();
   };
 
+  /** Map left and right arrow keys to carousel movement and suppress their default action when handled. */
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === "ArrowLeft") {
       event.preventDefault();
@@ -144,6 +150,7 @@ const Carousel = (props: CarouselRootProps) => {
 
 type CarouselContentProps = ComponentProps<"div">;
 
+/** Attach Embla to the clipped viewport and arrange slide content along the shared orientation. */
 const CarouselContent = (props: CarouselContentProps) => {
   const [local, others] = splitProps(props, ["class"]);
   const { carouselRef, orientation } = useCarousel();
@@ -160,6 +167,7 @@ const CarouselContent = (props: CarouselContentProps) => {
 
 type CarouselItemProps = ComponentProps<"div">;
 
+/** Give one slide a full viewport basis and orientation-specific spacing without owning navigation state. */
 const CarouselItem = (props: CarouselItemProps) => {
   const [local, others] = splitProps(props, ["class"]);
   const { orientation } = useCarousel();
@@ -182,6 +190,7 @@ const CarouselItem = (props: CarouselItemProps) => {
 
 type CarouselPreviousProps = ButtonProps;
 
+/** Use shared previous-slide availability for the default control and position it for the carousel orientation. */
 const CarouselPrevious = (props: CarouselPreviousProps) => {
   const mergedProps = mergeProps(
     { variant: "outline", size: "icon-sm" } as CarouselPreviousProps,
@@ -214,6 +223,7 @@ const CarouselPrevious = (props: CarouselPreviousProps) => {
 
 type CarouselNextProps = ButtonProps;
 
+/** Use shared next-slide availability for the default control and position it for the carousel orientation. */
 const CarouselNext = (props: CarouselNextProps) => {
   const mergedProps = mergeProps(
     { variant: "outline", size: "icon-sm" } as CarouselNextProps,

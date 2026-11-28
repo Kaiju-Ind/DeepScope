@@ -2,21 +2,25 @@ import ChevronLeft from '~icons/fluent/chevron-left-24-regular';
 import { useParams } from '@tanstack/solid-router';
 import { For, Show } from 'solid-js';
 
-import { formatEvidencePreview } from '@/app/evidence';
-import { createEvidencePreview } from '@/app/model';
-import { useTechnology } from '@/app/context';
-import { Badge } from '@/ui/badge';
-import { ButtonLink } from '@/ui/router-link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/ui/empty';
+import { formatEvidencePreview } from "../evidence.ts";
+import { createEvidencePreview } from "../model/explanations.ts";
+import { useTechnology } from "../panel/context.ts";
+import { Badge } from "../../ui/badge.tsx";
+import { ButtonLink } from "../../ui/router-link.tsx";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../ui/card.tsx";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty.tsx";
 
 /** Full evidence and explanation view for one technology on the active tab. */
 export function TechnologyPage() {
 	const params = useParams({ strict: false });
 	const panel = useTechnology();
+	/** Normalize the route parameter to the registry identity used for result and explanation lookup. */
 	const technologyId = () => String(params().technologyId ?? '');
+	/** Select the current analysis result for the route's technology, returning nothing if the analysis lacks it. */
 	const result = () => panel.analysis()?.results.find((item) => item.technologyId === technologyId());
+	/** Read the provider's explanation for the current technology without starting a separate analysis. */
 	const explanation = () => panel.explanationsByTechnologyId()[technologyId()];
+	/** Prefer prepared explanation evidence and fall back to previews from the raw result when no explanation evidence exists. */
 	const evidence = () => explanation()?.evidence.length
 		? explanation()!.evidence
 		: result()?.evidence.map(createEvidencePreview) ?? [];

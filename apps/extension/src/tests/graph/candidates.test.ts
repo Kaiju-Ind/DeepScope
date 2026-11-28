@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	createDirectDetectionCandidate,
-	createRelationshipDetectionCandidate,
-	detectionCandidateToResult,
-} from '@/lib/detection/candidates';
-import type { ConfidenceScore, Evidence, TechnologyDefinition } from '@/lib/detection/types';
+import { createDirectDetectionCandidate, createRelationshipDetectionCandidate, detectionCandidateToResult } from "@deepscope/detection/engine/candidate";
+import type { ConfidenceScore, Evidence } from "@deepscope/detection/types";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
 
 const confidence: ConfidenceScore = { value: 95, level: 'high' };
 

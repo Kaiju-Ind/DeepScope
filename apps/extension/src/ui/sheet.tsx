@@ -3,12 +3,14 @@ import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 import X from "~icons/fluent/dismiss-24-regular";
 import type { Component, ComponentProps, ValidComponent } from "solid-js";
 import { mergeProps, Show, splitProps } from "solid-js";
-import { cn } from "@/utils/cn";
-import { Button } from "./button";
-import { releaseBackgroundFocus } from "./modal-focus";
+import { cn } from "../utils/cn.ts";
+import { Button } from "./button.tsx";
+import { releaseBackgroundFocus } from "./modal-focus.ts";
 
+/** Apply shared background-focus policy while retaining the dialog primitive as the sheet's open-state owner. */
 const Sheet: Component<SheetPrimitive.DialogRootProps> = (props) => {
   const [local, others] = splitProps(props, ["onOpenChange"]);
+  /** Release background focus for the new sheet state before notifying the caller. */
   const onOpenChange = (open: boolean) => {
     releaseBackgroundFocus(open);
     local.onOpenChange?.(open);
@@ -22,6 +24,7 @@ type SheetTriggerProps<T extends ValidComponent = "button"> = PolymorphicProps<
   SheetPrimitive.DialogTriggerProps<T>
 >;
 
+/** Open the surrounding sheet through the primitive's activation and focus behavior. */
 const SheetTrigger = <T extends ValidComponent = "button">(props: SheetTriggerProps<T>) => {
   return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />;
 };
@@ -31,8 +34,10 @@ type SheetCloseProps<T extends ValidComponent = "button"> = PolymorphicProps<
   SheetPrimitive.DialogCloseButtonProps<T>
 >;
 
+/** Close the sheet through the primitive and preserve an explicit or plain-text-derived accessible label. */
 const SheetClose = <T extends ValidComponent = "button">(props: SheetCloseProps<T>) => {
   const [local, others] = splitProps(props as SheetCloseProps, ["aria-label", "children"]);
+  /** Use aria-label when supplied and infer a label only from plain string children. */
   const label = () => local["aria-label"] ?? (typeof local.children === "string" ? local.children : undefined);
   return (
     <SheetPrimitive.CloseButton data-slot="sheet-close" aria-label={label()} {...others}>
@@ -41,6 +46,7 @@ const SheetClose = <T extends ValidComponent = "button">(props: SheetCloseProps<
   );
 };
 
+/** Keep sheet portal placement and presence with the dialog primitive. */
 const SheetPortal = (props: SheetPrimitive.DialogPortalProps) => {
   return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
 };
@@ -51,6 +57,7 @@ type SheetOverlayProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Style the sheet backdrop without replacing the primitive's modal interaction policy. */
 const SheetOverlay = <T extends ValidComponent = "div">(props: SheetOverlayProps<T>) => {
   const [local, others] = splitProps(props as SheetOverlayProps, ["class"]);
   return (
@@ -71,6 +78,7 @@ type SheetContentProps<T extends ValidComponent = "div"> = PolymorphicProps<
     showCloseButton?: boolean;
   };
 
+/** Portal side-positioned content with a right-side default and optional close button; focus remains with the dialog primitive. */
 const SheetContent = <T extends ValidComponent = "div">(props: SheetContentProps<T>) => {
   const mergedProps = mergeProps(
     { side: "right", showCloseButton: true } as SheetContentProps,
@@ -114,6 +122,7 @@ const SheetContent = <T extends ValidComponent = "div">(props: SheetContentProps
 
 type SheetHeaderProps = ComponentProps<"div">;
 
+/** Group the sheet's heading and descriptive content in the shared header slot. */
 const SheetHeader = (props: SheetHeaderProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -127,6 +136,7 @@ const SheetHeader = (props: SheetHeaderProps) => {
 
 type SheetFooterProps = ComponentProps<"div">;
 
+/** Place caller-owned footer actions after the sheet's main content. */
 const SheetFooter = (props: SheetFooterProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -144,6 +154,7 @@ type SheetTitleProps<T extends ValidComponent = "h2"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Associate the styled title with the sheet's underlying dialog label. */
 const SheetTitle = <T extends ValidComponent = "h2">(props: SheetTitleProps<T>) => {
   const [local, others] = splitProps(props as SheetTitleProps, ["class"]);
   return (
@@ -161,6 +172,7 @@ type SheetDescriptionProps<T extends ValidComponent = "p"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Associate supporting text with the sheet's underlying dialog description. */
 const SheetDescription = <T extends ValidComponent = "p">(props: SheetDescriptionProps<T>) => {
   const [local, others] = splitProps(props as SheetDescriptionProps, ["class"]);
   return (

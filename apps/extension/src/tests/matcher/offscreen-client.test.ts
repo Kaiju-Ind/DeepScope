@@ -43,8 +43,8 @@ async function loadHarness(idleAnswer: IdleAnswer = { idle: true, generation: 1 
 	}));
 
 	const [client, contracts] = await Promise.all([
-		import('@/lib/matcher/offscreen/client'),
-		import('@/lib/matcher/contracts'),
+		import('../../lib/matcher/offscreen/client.ts'),
+		import('../../lib/matcher/contracts.ts'),
 	]);
 	client.start();
 	if (!listener) throw new Error('Offscreen client did not register its host-idle listener.');

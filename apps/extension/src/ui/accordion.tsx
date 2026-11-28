@@ -4,7 +4,7 @@ import ChevronDown from "~icons/fluent/chevron-down-24-regular";
 import type { ComponentProps, ValidComponent } from "solid-js";
 import { splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type AccordionProps<T extends ValidComponent = "div"> = PolymorphicProps<
   T,
@@ -12,6 +12,7 @@ type AccordionProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Style the accordion root while leaving item selection, expansion state and keyboard policy with the primitive and caller. */
 const Accordion = <T extends ValidComponent = "div">(props: AccordionProps<T>) => {
   const [local, others] = splitProps(props as AccordionProps, ["class"]);
   return (
@@ -29,6 +30,7 @@ type AccordionItemProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Attach one caller-identified item to the accordion's existing expansion owner. */
 const AccordionItem = <T extends ValidComponent = "div">(props: AccordionItemProps<T>) => {
   const [local, others] = splitProps(props as AccordionItemProps, ["class"]);
   return (
@@ -46,6 +48,7 @@ type AccordionTriggerProps<T extends ValidComponent = "button"> = PolymorphicPro
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Pair the primitive's header and trigger with an expanded-state indicator while preserving its keyboard and focus behavior. */
 const AccordionTrigger = <T extends ValidComponent = "button">(props: AccordionTriggerProps<T>) => {
   const [local, others] = splitProps(props as AccordionTriggerProps, ["class", "children"]);
   return (
@@ -74,6 +77,7 @@ type AccordionContentProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Keep expansion lifecycle on the outer primitive and apply caller styling to the inner content surface. */
 const AccordionContent = <T extends ValidComponent = "div">(props: AccordionContentProps<T>) => {
   const [local, others] = splitProps(props as AccordionContentProps, ["class", "children"]);
   return (

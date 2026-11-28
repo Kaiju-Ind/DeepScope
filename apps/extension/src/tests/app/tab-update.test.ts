@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { shouldSyncTabUpdate } from '@/app/tab-update';
+import { shouldSyncTabUpdate } from "../../app/model/tab.ts";
 
 describe('side-panel tab update filtering', () => {
 	it('resyncs an active page update when no visible identity is available yet', () => {

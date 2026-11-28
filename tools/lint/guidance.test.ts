@@ -97,9 +97,22 @@ describe('utility authority', () => {
 		]);
 	});
 
-	it('holds for the guidance in this repository, whose @utils packages are all vendored', () => {
+	it('selects local dependency instructions without treating shared handbook examples as installed packages', () => {
+		expect(guidance.PROJECT_GUIDANCE.test('AGENTS.md')).toBe(true);
+		expect(guidance.PROJECT_GUIDANCE.test('.agents/skills/use-utils/SKILL.md')).toBe(true);
+		expect(guidance.PROJECT_GUIDANCE.test('docs/kaiju/procedures/extensions/07-p07-update-upstream-artifacts-and-dependencies.md')).toBe(true);
+		expect(guidance.PROJECT_GUIDANCE.test('.agents/skills/use-kaiju-utils/SKILL.md')).toBe(false);
+		expect(guidance.PROJECT_GUIDANCE.test('.agents/guides/kaiju-utils/README.md')).toBe(false);
+		expect(guidance.SOURCES.test('packages/detection/package.json')).toBe(true);
+		expect(guidance.SOURCES.test('packages/detection/pipeline/index.ts')).toBe(true);
+		expect(guidance.SOURCES.test('tools/registry/intelligence-diff.mjs')).toBe(true);
+	});
+
+	it('holds for project-specific guidance, whose @utils packages are all vendored', () => {
 		expect(vendored.has('result')).toBe(true);
-		const found = [...documents].flatMap(([file, text]) => guidance.authority(file, text, vendored));
+		const found = [...documents]
+			.filter(([file]) => guidance.PROJECT_GUIDANCE.test(file))
+			.flatMap(([file, text]) => guidance.authority(file, text, vendored));
 		expect(found).toEqual([]);
 	});
 

@@ -8,23 +8,14 @@
  */
 import { vi } from 'vitest';
 
-import type { ExtensionPageCollectorInput } from '@/lib/collectors/extension-page-collector';
-import type { ContentApi, VisibleTabIdentity } from '@/lib/messaging';
-import { ok } from '@/lib/messaging/result';
-import {
-	createMatcherPartitionTasks,
-	createMatcherPipelineResult,
-	type MatcherJobExecutorResult,
-	type MatcherJobLifecycleRecord,
-	type MatcherJobObserver,
-	type MatcherJobRecord,
-	type MatcherPartitionResult,
-	type RunMatcherJobRequest,
-} from '@/lib/matcher';
-import type { ObservationBatch } from '@/lib/observations';
-import type { RuntimeTechnologyRegistryArtifact } from '@/lib/registry/runtime-artifact';
-import { createDetectionStorageHash, getDetectionOriginSnapshotKey, getDetectionSessionSnapshotKey } from '@/lib/storage/contracts';
-import type { DetectionSessionSnapshot } from '@/lib/storage/session';
+import type { ExtensionPageCollectorInput } from "../../lib/collectors/extension-page-collector.ts";
+import type { ContentApi, VisibleTabIdentity } from "../../lib/messaging/index.ts";
+import { ok } from "../../lib/messaging/result.ts";
+import { createMatcherPartitionTasks, createMatcherPipelineResult, type MatcherJobExecutorResult, type MatcherJobLifecycleRecord, type MatcherJobObserver, type MatcherJobRecord, type MatcherPartitionResult, type RunMatcherJobRequest } from "../../lib/matcher/index.ts";
+import type { ObservationBatch } from "@deepscope/detection/observations";
+import type { RuntimeTechnologyRegistryArtifact } from "@deepscope/detection/artifacts/runtime";
+import { createDetectionStorageHash, getDetectionOriginSnapshotKey, getDetectionSessionSnapshotKey } from "../../lib/storage/contracts.ts";
+import type { DetectionSessionSnapshot } from "../../lib/storage/session.ts";
 
 export const TAB = { id: 7, windowId: 3, url: 'https://example.com/products', active: true, incognito: false } as const;
 
@@ -88,12 +79,12 @@ export interface Options {
 
 /** Build a runtime with mocked edges and return the mocks in call order. */
 export async function load(options: Options = {}) {
-	vi.doMock('@/registry/technologies', () => ({ SOURCE_LIMITS: new Proxy({}, { get: () => 1_000 }), technologies: [] }));
+	vi.doMock('@deepscope/registry', () => ({ SOURCE_LIMITS: new Proxy({}, { get: () => 1_000 }), technologies: [] }));
 	vi.doMock('wxt/browser', () => ({ browser: { runtime: { sendMessage: vi.fn() }, tabs: { get: vi.fn() } } }));
-	vi.doMock('@/lib/diagnostics/logging', () => ({ get: () => ({ debug: vi.fn() }) }));
+	vi.doMock('../../lib/diagnostics/logging.ts', () => ({ get: () => ({ debug: vi.fn() }) }));
 
-	const { buildCollectionPlan } = await import('@/lib/collectors/planning');
-	const { createCompiledDetectionGraph } = await import('@/lib/detection/registry-graph');
+	const { buildCollectionPlan } = await import('@deepscope/detection/collection/plan');
+	const { createCompiledDetectionGraph } = await import('@deepscope/detection/registry/graph');
 	const registry: RuntimeTechnologyRegistryArtifact = {
 		technologies: [],
 		patternTables: {},
@@ -143,8 +134,10 @@ export async function load(options: Options = {}) {
 		})),
 	};
 
-	const { createBackgroundRuntime } = await import('@/lib/background/runtime');
+	const { createBackgroundRuntime } = await import('../../lib/background/runtime/index.ts');
+	const { missingUrlFailure } = await import('../../lib/browser/permissions.ts');
 	const runtime = createBackgroundRuntime({
+		missingUrlFailure,
 		getTab: mocks.getTab,
 		executeContentScript: async () => undefined,
 		createContentApiClient: () => contentApi,
@@ -202,8 +195,8 @@ export async function load(options: Options = {}) {
 
 /** Undo the module mocks `load` installs. */
 export function unload(): void {
-	vi.doUnmock('@/registry/technologies');
+	vi.doUnmock('@deepscope/registry');
 	vi.doUnmock('wxt/browser');
-	vi.doUnmock('@/lib/diagnostics/logging');
+	vi.doUnmock('../../lib/diagnostics/logging.ts');
 	vi.resetModules();
 }

@@ -211,7 +211,8 @@ async function validatePage({ port, page, url }) {
 			expression: `({ hasDocument: typeof document === 'object', hasGetElementById: typeof document?.getElementById === 'function', hasRoot: Boolean(document?.getElementById?.('root')), href: location.href })`,
 			returnByValue: true,
 		});
-		const value = root.result?.result?.value ?? {};
+		// connectCdp already unwraps the protocol envelope; evaluate returns one RemoteObject.
+		const value = root.result?.value ?? {};
 		const pageLoaded = value.href === url && value.hasDocument && value.hasGetElementById && value.hasRoot;
 		const generatedCollision = exceptions.some((message) => message.includes('getElementById is not a function'));
 		return {
@@ -224,6 +225,7 @@ async function validatePage({ port, page, url }) {
 	}
 }
 
+/** Select manifest-declared side-panel and options pages for direct artifact UI checks. */
 function extensionPages(manifest) {
 	const pages = [];
 	if (manifest.side_panel?.default_path) pages.push({ name: 'side panel', path: manifest.side_panel.default_path });
@@ -232,6 +234,7 @@ function extensionPages(manifest) {
 	return pages;
 }
 
+/** Launch the supplied unpacked artifact in an isolated debugging profile; the caller owns process and profile cleanup. */
 function launchChrome({ artifactDirectory, chrome, port, userDataDirectory }) {
 	const args = [
 		`--remote-debugging-port=${port}`,
@@ -251,6 +254,7 @@ function launchChrome({ artifactDirectory, chrome, port, userDataDirectory }) {
 	return spawn(chrome, args, { stdio: 'ignore' });
 }
 
+/** Prefer an explicit executable or CHROME_BIN, then probe known platform paths without downloading a browser. */
 async function findChrome(explicit) {
 	const candidates = [
 		explicit,
@@ -278,6 +282,7 @@ async function findChrome(explicit) {
 	return undefined;
 }
 
+/** Derive Chromium's unpacked-extension ID from the normalized artifact path, preserving Windows path encoding rules. */
 function extensionIdForPath(path) {
 	let normalized = resolve(path);
 	if (process.platform === 'win32' && /^[a-z]:/u.test(normalized)) normalized = `${normalized[0].toUpperCase()}${normalized.slice(1)}`;
@@ -288,8 +293,10 @@ function extensionIdForPath(path) {
 	return id;
 }
 
+/** List artifact files as sorted portable relative paths so output checks do not depend on traversal order. */
 async function listFiles(root) {
 	const files = [];
+	/** Collect regular files below this artifact root while retaining their relative paths for later assertions. */
 	async function walk(directory) {
 		for (const entry of await readdir(directory, { withFileTypes: true })) {
 			const path = join(directory, entry.name);
@@ -301,19 +308,23 @@ async function listFiles(root) {
 	return files.sort();
 }
 
+/** Reject a missing or non-directory artifact before attempting static or browser verification. */
 async function assertDirectory(path) {
 	const info = await stat(path);
 	if (!info.isDirectory()) throw new TypeError(`Chrome artifact is not a directory: ${path}`);
 }
 
+/** Convert a manifest resource's root-relative spelling to a path inside the artifact directory. */
 function normalizeArtifactPath(path) {
 	return path.replace(/^\/+/, '');
 }
 
+/** Retain a named boolean result with its evidence for the final machine-readable report. */
 function assertion(assertions, name, pass, evidence) {
 	assertions.push({ name, pass: Boolean(pass), evidence });
 }
 
+/** Accept only the documented artifact, executable and mode flags; reject unknown options before launching work. */
 function parseArgs(args) {
 	const output = { artifact: undefined, chrome: undefined, staticOnly: false, help: false };
 	for (const arg of args) {
@@ -326,6 +337,7 @@ function parseArgs(args) {
 	return output;
 }
 
+/** Ask the loopback listener for a free debugging port and release it for Chrome; allocation is not held across launch. */
 async function availablePort() {
 	return await new Promise((resolvePort, reject) => {
 		const server = createServer();
@@ -341,6 +353,7 @@ async function availablePort() {
 	});
 }
 
+/** Poll the DevTools endpoint until the startup deadline and report the last connection failure if it never opens. */
 async function waitForJson(url, timeoutMs) {
 	const started = Date.now();
 	let lastError;
@@ -355,12 +368,14 @@ async function waitForJson(url, timeoutMs) {
 	throw new Error(`Chrome did not expose DevTools within ${timeoutMs}ms: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 
+/** Require a successful HTTP response before interpreting a DevTools endpoint's JSON payload. */
 async function fetchJson(url, init) {
 	const response = await fetch(url, init);
 	if (!response.ok) throw new Error(`${response.status} ${response.statusText} for ${url}`);
 	return await response.json();
 }
 
+/** Correlate DevTools requests by ID and deliver method events through one WebSocket; resolved requests contain message.result directly. */
 function connectCdp(url) {
 	return new Promise((resolveClient, reject) => {
 		const socket = new WebSocket(url);
@@ -369,6 +384,7 @@ function connectCdp(url) {
 		let sequence = 0;
 
 		socket.addEventListener('open', () => resolveClient({
+			/** Allocate a request ID and retain its promise until the matching DevTools response arrives. */
 			send(method, params = {}) {
 				const id = ++sequence;
 				return new Promise((resolve, rejectRequest) => {
@@ -376,11 +392,13 @@ function connectCdp(url) {
 					socket.send(JSON.stringify({ id, method, params }));
 				});
 			},
+			/** Retain an event listener for the lifetime of this verification connection. */
 			on(method, listener) {
 				const current = listeners.get(method) ?? [];
 				current.push(listener);
 				listeners.set(method, current);
 			},
+			/** Close the DevTools socket after the caller has finished its browser checks. */
 			close() { socket.close(); },
 		}));
 		socket.addEventListener('error', () => reject(new Error(`Could not connect to Chrome target: ${url}`)));
@@ -399,6 +417,7 @@ function connectCdp(url) {
 	});
 }
 
+/** Wait for the launched browser to stop within the cleanup deadline, accepting an already exited process. */
 function waitForExit(child, timeoutMs) {
 	return new Promise((resolveExit, reject) => {
 		if (child.exitCode !== null) return resolveExit(child.exitCode);
@@ -410,6 +429,7 @@ function waitForExit(child, timeoutMs) {
 	});
 }
 
+/** Provide the polling interval without blocking the JavaScript event loop. */
 function delay(ms) {
 	return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
 }

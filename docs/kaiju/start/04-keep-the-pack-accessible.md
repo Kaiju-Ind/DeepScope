@@ -1,12 +1,25 @@
 # Keep the pack accessible
 
-The playbook lives in the repository at `docs/kaiju/`, next to the skills in `.agents/`. The root `AGENTS.md` routes
-both. A copy elsewhere is not active guidance.
+Keep this complete release available with the project's original skills and guides. The repository entry point is
+`docs/kaiju/README.md`; the cross-project skill route is `.agents/START.md`. The shared method lives at
+`.agents/guides/product/README.md`. Keep their relative layout so the links and skill routes resolve.
 
-The handbook describes common procedures and file ownership. The repository's tasks (`.mise/tasks/`, `package.json`
-scripts) decide what can actually run. Do not paste a command from the playbook into a workflow and assume it exists;
-check `mise tasks` and the task's source first.
+For Codex, copy the pack into the repository and merge the section from
+[agents-fragment.md](agents-fragment.md) into the existing root `AGENTS.md`. Preserve unrelated instructions. Start a
+fresh session, ask it to identify the active instructions and selected profile, and check that it opens the product
+method before proposing implementation. A saved archive or ChatGPT Library file alone does not install instructions in
+Codex or update another runtime's memory.
 
-The playbook was adapted from Kaiju-Ind/Crawl `docs/kaiju/` at `a00f0036d`. To take a later improvement, compare that
-folder with this one and carry over what applies. File names are kept the same as Crawl's so the comparison stays
-simple. Record DeepScope's own changes in the [changelog](../CHANGELOG.md).
+For ChatGPT or another agent, make the same original guides available through its supported context or file mechanism.
+Confirm what was actually loaded. Do not claim a persistent preference or installed skill changed without a receipt
+from that mechanism. Keep one versioned source and record divergences instead of treating the latest file date as
+authority. Under the Kaiju profile, current Code History records can route older persistent guide locations here.
+
+The handbook defines reusable procedures and examples. The repository's verified command bindings decide what runs.
+Proposed names in a guide are not implemented commands. The [generic profile](../profiles/generic.md) keeps
+organization-specific infrastructure and packages optional.
+
+Version 1.1.0 introduced the supplied deployment retrospectives; later releases retained their historical limits. This
+release preserves the existing chapters and adds the product method and profiles. Do not infer that an original report
+or attachment is embedded in this pack merely because a chapter cites it. Follow its source link and report any source
+that is unavailable.

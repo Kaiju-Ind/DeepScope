@@ -1,4 +1,4 @@
-import type { AnalysisSourceType, WorkPriorityType } from './schema';
+import type { AnalysisSourceType, WorkPriorityType } from "./schema.ts";
 
 /** Stable numeric rank persisted in IndexedDB compound indexes. */
 const PRIORITY_RANK: Readonly<Record<WorkPriorityType, number>> = Object.freeze({

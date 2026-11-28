@@ -1,6 +1,6 @@
 import { browser } from 'wxt/browser';
 
-import { errorResponse, type ExtensionFailure } from '@/lib/messaging/result';
+import { errorResponse, type ExtensionFailure } from "../messaging/result.ts";
 
 /** The website access DeepScope's manifest asks for. */
 const WEBSITE_ORIGINS = ['http://*/*', 'https://*/*'];

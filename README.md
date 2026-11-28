@@ -34,7 +34,7 @@ Dirty observation refreshes do not merge final detection results. The background
 4. On an automatic page-load scan, snapshot miss, or manual refresh, the background runtime-injects the content script, collects an enriched observation batch, runs the event pipeline, stores the analysis and replay trace, and optionally starts observation.
 5. While observation is active, the content script watches late-added scripts, stylesheet links, metadata, and resource timing entries within bounded policy limits.
 6. The side panel follows live updates through storage revisions for the current visible session. Dirty sessions flush late observation batches and rerun the event pipeline over combined observations.
-7. Closing the side panel unsubscribes the UI from live updates, but the bounded observation session can continue until it stops naturally or the user clicks Stop observation.
+7. Closing the side panel unsubscribes the UI and requests a best-effort stop for its exact observation target. Content rejects a stale stop when a newer session owns the document. A remote stop failure is logged; it is not a guarantee of immediate cleanup.
 
 The side panel is now task-oriented rather than one long diagnostics surface:
 
@@ -119,7 +119,7 @@ pnpm bench:rules
 pnpm bench:rules:gate
 ```
 
-`pnpm build` checks types before WXT emits the default browser build. `pnpm build:chrome` selects Chrome. `pnpm check:release` runs TypeScript, the complete Vitest suite, then the Chrome WXT build. `pnpm zip:chrome` runs the same source checks before packaging Chrome output.
+`pnpm compile` checks all portable and tool owners, then the extension, vendored Utils and root configuration. Native pnpm path filters select these packages. `pnpm build` checks extension types before WXT emits the default browser build. `pnpm build:chrome` selects Chrome. `pnpm check:release` runs TypeScript, the complete Vitest suite, then the Chrome WXT build. `pnpm zip:chrome` runs the extension package checks before packaging Chrome output. Run the root `pnpm compile` and `pnpm test:run` as well for a release candidate that changes portable packages or tools.
 
 `pnpm validate:chrome-artifact` is a separate, optional check of an existing `.output/chrome-mv3` build. It inspects the emitted registry and HTML surfaces and loads the side-panel and options pages in a local Chromium (set `CHROME_BIN` when discovery fails). It is not part of `build:chrome` or `check:release` because it needs a browser binary that CI and most machines do not provide.
 
@@ -129,22 +129,32 @@ If you prefer `mise`, it keeps the repo's Node and pnpm versions aligned before 
 
 ## Project areas
 
-- `src/entrypoints/` — WXT side panel, independent diagnostics/options page, background service worker, content script, and offscreen matcher entrypoints.
-- `src/app/` — mounted side-panel application: browser-window/tab ownership, routed Summary/Technologies/History/Diagnostics/Settings pages, page-specific state projections, and presentation components.
-- `src/ui/` — complete current Platform Zaidan primitive catalogue, adapted only where the extension needs a local integration such as typed router links.
-- `src/hooks/` — UI hooks copied with the Zaidan component catalogue when a component directly depends on them.
-- `src/lib/` — concrete extension capabilities such as collection, detection, evidence, messaging, persistence, diagnostics, observation, matching, and browser orchestration.
-- `src/registry/` — declarative technology and category definitions. Registry files describe what can be detected; they do not own browser work or runtime orchestration.
-- `src/utils/` — generic TypeScript primitives whose APIs do not depend on Kaiju detector concepts.
-- `src/styles/` — Platform/Zaidan CSS foundations plus side-panel-specific composition styles.
-- `src/tests/` — Vitest behavior, lifecycle, architecture, storage, diagnostics, registry, and detector tests. Side-panel application tests live under `src/tests/app/`.
-- `public/icons/` — extension icon files consumed by the generated manifest.
+| Path | Owner |
+| --- | --- |
+| `apps/extension/src/entrypoints/` | WXT browser composition |
+| `apps/extension/src/app/panel/` | Mounted panel state and operations |
+| `apps/extension/src/app/browser/` | Panel browser, RPC and persistence adapters |
+| `apps/extension/src/app/model/` | Pure panel projections |
+| `apps/extension/src/lib/` | Browser collection, scheduling, messaging, storage, diagnostics and worker hosts |
+| `apps/extension/src/ui/` | Existing Zaidan primitives and the neutral Kaiju Design Input surface contract |
+| `apps/extension/src/styles/` | Product styles and local input density/focus rules |
+| `apps/extension/src/tests/` | Browser, UI, lifecycle and integration tests |
+| `packages/dom/` | Portable selector planning, routing and matching |
+| `packages/registry/` | Authoring types, schema, categories and technology catalog |
+| `packages/detection/` | Portable detector, compiler and artifact contracts |
+| `utils/` | Recorded vendored Kaiju Utils closure |
+| `tools/{lint,utils,registry,release,verify}/` | Five declared private tool packages |
+| `apps/extension/public/icons/` | Manifest icons |
 
-Concrete capabilities stay in `src/lib/`; declarative detector definitions stay in `src/registry/`; generic reusable primitives stay in `src/utils/`; and WXT entrypoints only compose those pieces into browser-owned execution surfaces.
+See [source ownership](docs/architecture/source-layout.md) for the exact state
+owners and [public source builds](docs/adr/01-public-source-builds.md) for the
+current vendored-versus-published Utils decision. Portable packages use declared
+export subpaths and never import the extension. Browser lifetime stays in the
+extension; technology IDs, persisted keys and artifact names stay stable.
 
 ## Registry baseline
 
-The bundled registry is generated from the declarative TypeScript technology tree under `src/registry/technology/` and re-exported through `src/registry/technologies.ts`. Production now emits separate runtime products instead of making every extension context hydrate the complete detector graph:
+The bundled registry is generated from the declarative TypeScript technology tree under `packages/registry/catalog/` and exported through `packages/registry/index.ts`. Production now emits separate runtime products instead of making every extension context hydrate the complete detector graph:
 
 - the background loads a rule-free runtime artifact with technology profiles, the collection plan, relationship edges, pattern counts, and compiler diagnostic count;
 - dedicated matcher workers load matcher-only observation-kind shards containing only technology identity and rules for that kind;

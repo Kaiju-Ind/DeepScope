@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createCompiledDetectionGraph } from '@/lib/detection/registry-graph';
-import type { MatcherPartitionResult, RunMatcherJobRequest, RunMatcherPartitionRequest } from '@/lib/matcher/contracts';
-import { normalizePageSignals } from '@/lib/observations';
-import { makePageSignals } from '../support/factories';
-import { settle } from '../support/settle';
+import { createCompiledDetectionGraph } from "@deepscope/detection/registry/graph";
+import type { MatcherPartitionResult, RunMatcherJobRequest, RunMatcherPartitionRequest } from "../../lib/matcher/contracts.ts";
+import { normalizePageSignals } from "@deepscope/detection/observations";
+import { makePageSignals } from "@deepscope/detection/testing/fixtures";
+import { settle } from "../support/settle.ts";
 
 function request(jobId: string): RunMatcherJobRequest {
 	const batch = normalizePageSignals(makePageSignals({
@@ -48,8 +48,8 @@ function result(input: RunMatcherPartitionRequest): MatcherPartitionResult {
 
 
 afterEach(() => {
-	vi.doUnmock('@/lib/scheduler/database');
-	vi.doUnmock('@/lib/scheduler/session');
+	vi.doUnmock('../../lib/scheduler/database.ts');
+	vi.doUnmock('../../lib/scheduler/session.ts');
 	vi.resetModules();
 });
 
@@ -62,7 +62,7 @@ describe('matcher terminal cleanup', { concurrent: false }, () => {
 			if (removeCount === 1) return new Promise<void>((resolve) => { resolveFirstRemove = resolve; });
 			return Promise.resolve();
 		});
-		vi.doMock('@/lib/scheduler/database', () => ({
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
 			claimId: vi.fn(async () => ({ kind: 'matcher' })),
 			listKind: vi.fn(async () => []),
 			remove,
@@ -72,12 +72,12 @@ describe('matcher terminal cleanup', { concurrent: false }, () => {
 			save: vi.fn(async () => undefined),
 			setPriority: vi.fn(async () => undefined),
 		}));
-		vi.doMock('@/lib/scheduler/session', () => ({
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
 			createId: vi.fn(() => 'matcher-owner'),
 			get: vi.fn(async () => 'browser-session-1'),
 		}));
 
-		const matcher = await import('@/lib/scheduler/matcher');
+		const matcher = await import('../../lib/scheduler/matcher/index.ts');
 		let first = true;
 		const scheduler = matcher.create({
 			kind: 'offscreen-worker-pool',
@@ -114,7 +114,7 @@ describe('matcher terminal cleanup', { concurrent: false }, () => {
 
 	it('blocks job-id reuse while only durable terminal cleanup remains', async () => {
 		let resolveRemove!: () => void;
-		vi.doMock('@/lib/scheduler/database', () => ({
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
 			claimId: vi.fn(async () => ({ kind: 'matcher' })),
 			listKind: vi.fn(async () => []),
 			remove: vi.fn(() => new Promise<void>((resolve) => { resolveRemove = resolve; })),
@@ -124,12 +124,12 @@ describe('matcher terminal cleanup', { concurrent: false }, () => {
 			save: vi.fn(async () => undefined),
 			setPriority: vi.fn(async () => undefined),
 		}));
-		vi.doMock('@/lib/scheduler/session', () => ({
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
 			createId: vi.fn(() => 'matcher-owner'),
 			get: vi.fn(async () => 'browser-session-1'),
 		}));
 
-		const matcher = await import('@/lib/scheduler/matcher');
+		const matcher = await import('../../lib/scheduler/matcher/index.ts');
 		const scheduler = matcher.create({
 			kind: 'offscreen-worker-pool',
 			capacity: 1,
@@ -153,7 +153,7 @@ describe('matcher terminal cleanup', { concurrent: false }, () => {
 	it('blocks job-id reuse after partition failure until terminal cleanup settles', async () => {
 		let resolveRemove!: () => void;
 		let removeCount = 0;
-		vi.doMock('@/lib/scheduler/database', () => ({
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
 			claimId: vi.fn(async () => ({ kind: 'matcher' })),
 			listKind: vi.fn(async () => []),
 			remove: vi.fn(() => {
@@ -167,12 +167,12 @@ describe('matcher terminal cleanup', { concurrent: false }, () => {
 			save: vi.fn(async () => undefined),
 			setPriority: vi.fn(async () => undefined),
 		}));
-		vi.doMock('@/lib/scheduler/session', () => ({
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
 			createId: vi.fn(() => 'matcher-owner'),
 			get: vi.fn(async () => 'browser-session-1'),
 		}));
 
-		const matcher = await import('@/lib/scheduler/matcher');
+		const matcher = await import('../../lib/scheduler/matcher/index.ts');
 		const scheduler = matcher.create({
 			kind: 'offscreen-worker-pool',
 			capacity: 1,

@@ -40,6 +40,7 @@ const BAD_EVENT = /unavailable|failed|timeout|error|mismatch|crash|unhandled/i;
 // should stop within a short grace period.
 const WORK_EVENT = /^(dom-scan|content-runtime-inject|matcher-partition|matcher-job-(started|completed)|analysis-(started|completed)|\[timing\] (collector|matcher|background\.analy))/;
 
+/** Derive the expected badge contract: empty for no findings and a capped label above 99 findings. */
 function badgeText(count) {
 	return count <= 0 ? '' : count > 99 ? '99+' : String(count);
 }
@@ -71,9 +72,13 @@ export async function runStress(session, harness, context) {
 	const plan = stressPlan(context.stress);
 	const rnd = mulberry32(plan.seed);
 	const startedAt = Date.now();
+	/** Record elapsed scenario time relative to this run so actions and failures share one timeline. */
 	const now = () => Date.now() - startedAt;
+	/** Draw a bounded integer from the run's seeded random source for replayable action selection. */
 	const int = (n) => Math.floor(rnd() * n);
+	/** Apply a probability threshold to the seeded source so the same seed preserves this branch choice. */
 	const chance = (p) => rnd() < p;
+	/** Choose a seeded list entry; callers remain responsible for handling an empty candidate list. */
 	const pick = (list) => list[int(list.length)];
 
 	const failures = [];
@@ -95,15 +100,18 @@ export async function runStress(session, harness, context) {
 
 	// --- model -----------------------------------------------------------------
 
+	/** Assign a stable replay label to a browser window and retain its privacy context. */
 	function addWindow(id, isPrivate = false) {
 		const label = `W${nextWindow++}`;
 		windows.set(label, { label, id, private: isPrivate });
 		return label;
 	}
+	/** Find the model's stable window label for a browser-provided window ID. */
 	function windowLabelById(id) {
 		for (const w of windows.values()) if (w.id === id) return w.label;
 		return undefined;
 	}
+	/** Register a browser tab in the stress model, creating its window owner and remembering private tab identities. */
 	function addTab(tab, url) {
 		const label = `T${nextTab++}`;
 		let windowLabel = windowLabelById(tab.windowId);
@@ -112,6 +120,7 @@ export async function runStress(session, harness, context) {
 		tabs.set(label, { label, id: tab.id, windowLabel, private: Boolean(tab.incognito), url: url ?? tab.url, pinned: Boolean(tab.pinned), extras: [] });
 		return label;
 	}
+	/** Record tab closure for later checks and remove a model window only when it has no remaining modeled tabs. */
 	function dropTab(label, at = Date.now()) {
 		const tab = tabs.get(label);
 		if (!tab) return;
@@ -120,30 +129,38 @@ export async function runStress(session, harness, context) {
 		const w = windows.get(tab.windowLabel);
 		if (w && ![...tabs.values()].some((t) => t.windowLabel === w.label)) windows.delete(w.label);
 	}
+	/** Record when an action affected a tab so transient-state checks can distinguish active churn from settled state. */
 	function touch(tabId) {
 		if (!touchedAt.has(tabId)) touchedAt.set(tabId, []);
 		touchedAt.get(tabId).push(Date.now());
 	}
+	/** Assign an ordered action number and elapsed time while updating per-action counts for replay evidence. */
 	function step(action, detail = {}) {
 		const entry = { n: actionCount++, t: now(), action, ...detail };
 		log.push(entry);
 		info.counts[action] = (info.counts[action] ?? 0) + 1;
 		return entry;
 	}
+	/** Retain the most recent actions involving a tab as context for an invariant failure. */
 	function stepsFor(tabId, limit = 14) {
 		return log.filter((e) => e.tabId === tabId || e.tabIds?.includes(tabId)).slice(-limit);
 	}
+	/** Record the failed invariant with seed, elapsed time and relevant tab actions before printing a bounded summary. */
 	function fail(invariant, detail) {
 		const entry = { invariant, seed: plan.seed, t: now(), ...detail, ...(detail.tabId !== undefined ? { steps: stepsFor(detail.tabId) } : {}) };
 		failures.push(entry);
 		console.log(`  stress FAIL ${invariant} t=${entry.t} ${JSON.stringify(detail).slice(0, 300)}`);
 	}
+	/** Select modeled non-private tabs for operations that may inspect persisted detector state. */
 	const normalTabs = () => [...tabs.values()].filter((t) => !t.private);
+	/** Select modeled non-private windows for actions that must preserve a normal browsing context. */
 	const normalWindows = () => [...windows.values()].filter((w) => !w.private);
+	/** Return labels for tabs matching a caller filter, defaulting to all modeled tabs. */
 	const tabLabels = (filter = () => true) => [...tabs.values()].filter(filter).map((t) => t.label);
 
 	// --- URLs ------------------------------------------------------------------
 
+	/** Choose a weighted local fixture URL and vary its content seed or replacement target for this replay. */
 	function fixtureUrl() {
 		const paths = ['/wp.html', '/hugo.html', '/ghost.html', '/drupal.html', '/joomla.html', '/swap.html', '/spa-rewrite.html', '/huge.html', '/replace.html', '/busy.html'];
 		const weights = [3, 3, 3, 3, 3, 2, 2, 1, 2, 0.5];
@@ -161,6 +178,7 @@ export async function runStress(session, harness, context) {
 		}
 		return `${origin}${path}?${s}`;
 	}
+	/** Use local fixtures by default and visit sampled real sites only when the stress plan explicitly enables them. */
 	function randomUrl() {
 		if (plan.real && chance(plan.quick ? 0.08 : 0.15)) {
 			const site = pick(REAL_SITES);
@@ -229,6 +247,7 @@ export async function runStress(session, harness, context) {
 		return tab.snaps.find((s) => s.frameId === 0 && s.url === tab.url);
 	}
 
+	/** Check current-document markers and badge consistency only where the fixture defines an expectation. */
 	function evaluateTab(tab, model) {
 		const problemsFound = [];
 		const expect = expectation(tab.url, model?.extras ?? []);
@@ -271,6 +290,7 @@ export async function runStress(session, harness, context) {
 		return world;
 	}
 
+	/** Collect bounded diagnostic records from this run and deduplicate them by their persisted journal keys. */
 	async function pollJournal() {
 		const records = await ext(`async (since) => Object.entries(await readStorage(['diagnostics:record:']))
 			.filter(([k, v]) => k.startsWith('diagnostics:record:') && v && v.timestamp >= since)
@@ -278,6 +298,7 @@ export async function runStress(session, harness, context) {
 		for (const [key, value] of records) journal.set(key, value);
 	}
 
+	/** Record optional browser-provided memory observations, retaining sampling errors without inventing a measurement. */
 	async function sampleMemory(label) {
 		const memory = await hooks.memory?.().catch((error) => ({ error: String(error) }));
 		if (memory === undefined) return undefined;
@@ -288,6 +309,7 @@ export async function runStress(session, harness, context) {
 
 	// --- actions -----------------------------------------------------------------
 
+	/** Execute a browser action and count normalized failures without stopping the remaining stress sequence. */
 	async function call(action, body, ...args) {
 		try {
 			return await ext(body, ...args);
@@ -299,6 +321,7 @@ export async function runStress(session, harness, context) {
 		}
 	}
 
+	/** Open a seeded URL in an existing normal window or create a normal window when none remains. */
 	async function openTab() {
 		const w = pick(normalWindows());
 		if (!w) return newWindow();
@@ -311,6 +334,7 @@ export async function runStress(session, harness, context) {
 		step('open', { tabId: tab.id, url, active });
 	}
 
+	/** Activate the selected modeled tab and retain the action without assuming analysis has already settled. */
 	async function activate(label = pick(tabLabels())) {
 		const tab = tabs.get(label);
 		if (!tab) return;
@@ -318,6 +342,7 @@ export async function runStress(session, harness, context) {
 		await call('activate', `async (id) => { await browser.tabs.update(id, { active: true }); }`, tab.id);
 	}
 
+	/** Exercise rapid tab activation with seeded short gaps so multiple scans may overlap. */
 	async function burst() {
 		const n = 4 + int(12);
 		const ids = [];
@@ -336,6 +361,7 @@ export async function runStress(session, harness, context) {
 		}`, ids, gaps);
 	}
 
+	/** Exercise browser-window focus changes independently from the extension's modeled tab activation. */
 	async function focusWindow() {
 		const w = pick([...windows.values()]);
 		if (!w) return;
@@ -343,6 +369,7 @@ export async function runStress(session, harness, context) {
 		await call('focus-window', `async (id) => { await browser.windows.update(id, { focused: true }); }`, w.id);
 	}
 
+	/** Move or reorder a normal tab and update its modeled window only after the browser reports the move. */
 	async function moveTab() {
 		const label = pick(tabLabels((t) => !t.private));
 		const targets = normalWindows();
@@ -359,6 +386,7 @@ export async function runStress(session, harness, context) {
 		}
 	}
 
+	/** Prefer closing recently active tabs while preserving enough tabs and one normal browsing context for the remaining scenario. */
 	async function closeTab(label) {
 		// Prefer a tab that is probably mid-scan: one touched in the last few seconds.
 		const recent = tabLabels((t) => (touchedAt.get(t.id)?.at(-1) ?? 0) > Date.now() - 3000);
@@ -373,6 +401,7 @@ export async function runStress(session, harness, context) {
 		dropTab(label);
 	}
 
+	/** Close a selected window while preserving the last normal window and recording closure for each modeled member tab. */
 	async function closeWindow() {
 		const candidates = [...windows.values()].filter((w) => w.private || normalWindows().length > 1);
 		const w = pick(candidates);
@@ -385,6 +414,7 @@ export async function runStress(session, harness, context) {
 		windows.delete(w.label);
 	}
 
+	/** Create a seeded set of tabs in a requested normal or private window and retain the browser's actual privacy result. */
 	async function newWindow(isPrivate = false) {
 		const urls = Array.from({ length: 1 + int(3) }, () => isPrivate ? `${fixtureUrl()}&pv=1` : randomUrl());
 		const focused = chance(0.5);
@@ -400,6 +430,7 @@ export async function runStress(session, harness, context) {
 		step(isPrivate ? 'private-window' : 'new-window', { windowId: created.id, tabIds: created.tabs.map((t) => t.id), urls });
 	}
 
+	/** Prefer recently opened or activated tabs when requested, otherwise choose from all modeled tabs. */
 	function navTarget(preferActive) {
 		if (preferActive) {
 			const recent = log.filter((e) => e.action === 'activate' || e.action === 'open').slice(-3).map((e) => e.tabId);
@@ -409,6 +440,7 @@ export async function runStress(session, harness, context) {
 		return pick(tabLabels());
 	}
 
+	/** Navigate a modeled tab, reset document-specific expected extras and record the new intended URL before the browser call. */
 	async function navigate(label = navTarget(chance(0.5)), action = 'navigate') {
 		const tab = tabs.get(label);
 		if (!tab) return;
@@ -420,6 +452,7 @@ export async function runStress(session, harness, context) {
 		await call(action, `async (id, url) => { await browser.tabs.update(id, { url }); }`, tab.id, url);
 	}
 
+	/** Activate a tab and navigate after a short seeded delay to exercise cancellation while a scan may still be running. */
 	async function navigateMidScan() {
 		const label = pick(tabLabels());
 		const tab = tabs.get(label);
@@ -429,6 +462,7 @@ export async function runStress(session, harness, context) {
 		await navigate(label, 'navigate-mid-scan');
 	}
 
+	/** Use page-side location replacement to change the document without adding a navigation-history entry. */
 	async function scriptReplace() {
 		const label = navTarget(true);
 		const tab = tabs.get(label);
@@ -441,6 +475,7 @@ export async function runStress(session, harness, context) {
 		await call('location-replace', `async (id, url) => { await browser.scripting.executeScript({ target: { tabId: id }, func: (u) => location.replace(u), args: [url] }); }`, tab.id, url);
 	}
 
+	/** Exercise back and forward navigation, then let actual tab reads resolve which history entry remains visible. */
 	async function historyHop() {
 		const tab = tabs.get(navTarget(true));
 		if (!tab) return;
@@ -460,6 +495,7 @@ export async function runStress(session, harness, context) {
 		tab.url = undefined;
 	}
 
+	/** Issue repeated reloads without waiting for each scan, using seeded gaps to expose document-lifecycle races. */
 	async function reloadStorm() {
 		const tab = tabs.get(navTarget(true));
 		if (!tab) return;
@@ -475,6 +511,7 @@ export async function runStress(session, harness, context) {
 		}`, tab.id, gaps);
 	}
 
+	/** Change the fixture URL in the MAIN world without replacing the document or clearing its sticky observations. */
 	async function pushState() {
 		const tab = tabs.get(navTarget(true));
 		if (!tab) return;
@@ -484,6 +521,7 @@ export async function runStress(session, harness, context) {
 		await call('push-state', `async (id, path) => { await browser.scripting.executeScript({ target: { tabId: id }, world: 'MAIN', func: (p) => history.pushState({}, '', location.pathname + p), args: [path] }); }`, tab.id, path);
 	}
 
+	/** Replace the page markup within the same document and add the injected marker to that document's permitted findings. */
 	async function replaceContents() {
 		const tab = tabs.get(navTarget(true));
 		if (!tab) return;
@@ -497,6 +535,7 @@ export async function runStress(session, harness, context) {
 		}`, tab.id, INJECTED_MARKER.generator);
 	}
 
+	/** Duplicate a tab within the plan's capacity and treat the new document as a fresh observation owner. */
 	async function duplicate() {
 		const tab = tabs.get(pick(tabLabels()));
 		if (!tab || tabs.size >= plan.maxTabs) return;
@@ -508,6 +547,7 @@ export async function runStress(session, harness, context) {
 		step('duplicate', { tabId: tab.id, tabIds: [tab.id, dup.id] });
 	}
 
+	/** Toggle a modeled tab's pinned state and record the browser action for later lifecycle checks. */
 	async function pin() {
 		const tab = tabs.get(pick(tabLabels()));
 		if (!tab) return;
@@ -516,6 +556,7 @@ export async function runStress(session, harness, context) {
 		await call('pin', `async (id, pinned) => { await browser.tabs.update(id, { pinned }); }`, tab.id, tab.pinned);
 	}
 
+	/** Open and close a temporary full-page panel for a normal tab without adding that surface to the inspected-tab model. */
 	async function openPanel() {
 		const tab = tabs.get(pick(tabLabels((t) => !t.private)));
 		const w = pick(normalWindows());
@@ -529,6 +570,7 @@ export async function runStress(session, harness, context) {
 		}`, tab.id, w.id, stay);
 	}
 
+	/** Exercise the host's sidebar toggle hook and retain unsupported or failed action details separately from invariants. */
 	async function sidebar() {
 		const index = int(4);
 		step('toggle-sidebar', { index });
@@ -539,6 +581,7 @@ export async function runStress(session, harness, context) {
 		}
 	}
 
+	/** Use the host's restore-tab action and resynchronize model identities after the browser recreates contexts. */
 	async function restoreClosed() {
 		step('undo-close-tab');
 		try {
@@ -550,6 +593,7 @@ export async function runStress(session, harness, context) {
 		await syncModel('restored');
 	}
 
+	/** Exercise private-window creation, navigation and closure using only local fixtures and the browser's reported privacy state. */
 	async function privateAction() {
 		const privateWindow = [...windows.values()].find((w) => w.private);
 		if (!privateWindow) return newWindow(true);
@@ -600,29 +644,30 @@ export async function runStress(session, harness, context) {
 	}
 
 	const actions = [
-		{ name: 'open', weight: 10, when: () => tabs.size < plan.maxTabs, run: openTab },
-		{ name: 'activate', weight: 14, when: () => tabs.size > 0, run: () => activate() },
-		{ name: 'switch-burst', weight: 8, when: () => tabs.size > 1, run: burst },
-		{ name: 'focus-window', weight: 4, when: () => windows.size > 1, run: focusWindow },
-		{ name: 'move', weight: 6, when: () => tabs.size > 1, run: moveTab },
-		{ name: 'close-tab', weight: 6, when: () => tabs.size > 4, run: () => closeTab() },
-		{ name: 'close-window', weight: 1.5, when: () => normalWindows().length > 1, run: closeWindow },
-		{ name: 'new-window', weight: 2, when: () => normalWindows().length < plan.maxWindows && tabs.size < plan.maxTabs - 2, run: () => newWindow() },
-		{ name: 'navigate', weight: 12, when: () => tabs.size > 0, run: () => navigate() },
-		{ name: 'navigate-mid-scan', weight: 6, when: () => tabs.size > 0, run: navigateMidScan },
-		{ name: 'location-replace', weight: 4, when: () => tabs.size > 0, run: scriptReplace },
-		{ name: 'back-forward', weight: 5, when: () => tabs.size > 0, run: historyHop },
-		{ name: 'reload-storm', weight: 3, when: () => tabs.size > 0, run: reloadStorm },
-		{ name: 'push-state', weight: 4, when: () => tabs.size > 0, run: pushState },
-		{ name: 'replace-contents', weight: 4, when: () => tabs.size > 0, run: replaceContents },
-		{ name: 'panel-page', weight: 3, when: () => tabs.size > 0, run: openPanel },
-		{ name: 'toggle-sidebar', weight: 2, when: () => Boolean(hooks.toggleSidebar), run: sidebar },
-		{ name: 'duplicate', weight: 2, when: () => tabs.size > 0 && tabs.size < plan.maxTabs, run: duplicate },
-		{ name: 'pin', weight: 2, when: () => tabs.size > 0, run: pin },
-		{ name: 'undo-close-tab', weight: 2, when: () => Boolean(hooks.undoCloseTab) && closedTabIds.size > 0 && tabs.size < plan.maxTabs, run: restoreClosed },
-		{ name: 'private', weight: 2, when: () => Boolean(hooks.privateWindows), run: privateAction },
+		{ name: 'open', weight: 10, /** Allow another tab only while the stress plan's tab capacity has room. */ when: () => tabs.size < plan.maxTabs, run: openTab },
+		{ name: 'activate', weight: 14, /** Require a modeled tab before selecting an activation target. */ when: () => tabs.size > 0, /** Choose the activation target at execution time so it reflects the current tab model. */ run: () => activate() },
+		{ name: 'switch-burst', weight: 8, /** Require multiple tabs before exercising a rapid activation burst. */ when: () => tabs.size > 1, run: burst },
+		{ name: 'focus-window', weight: 4, /** Offer a window-focus change only when more than one modeled window exists. */ when: () => windows.size > 1, run: focusWindow },
+		{ name: 'move', weight: 6, /** Require multiple tabs before scheduling a move or reorder action. */ when: () => tabs.size > 1, run: moveTab },
+		{ name: 'close-tab', weight: 6, /** Keep a reserve of modeled tabs before offering a close-tab action. */ when: () => tabs.size > 4, /** Select a close candidate at execution time using the recent-activity policy. */ run: () => closeTab() },
+		{ name: 'close-window', weight: 1.5, /** Preserve the last normal window when offering a random window-close action. */ when: () => normalWindows().length > 1, run: closeWindow },
+		{ name: 'new-window', weight: 2, /** Reserve both window capacity and room for the new window's possible three tabs. */ when: () => normalWindows().length < plan.maxWindows && tabs.size < plan.maxTabs - 2, /** Use the normal-window default for this action; private-window actions have their own owner. */ run: () => newWindow() },
+		{ name: 'navigate', weight: 12, /** Require an existing modeled tab before offering navigation. */ when: () => tabs.size > 0, /** Select the navigation target and URL when the action executes, using the current model. */ run: () => navigate() },
+		{ name: 'navigate-mid-scan', weight: 6, /** Require a tab before the activate-then-navigate race scenario. */ when: () => tabs.size > 0, run: navigateMidScan },
+		{ name: 'location-replace', weight: 4, /** Require a tab before attempting page-side location replacement. */ when: () => tabs.size > 0, run: scriptReplace },
+		{ name: 'back-forward', weight: 5, /** Require a tab before exercising its navigation history. */ when: () => tabs.size > 0, run: historyHop },
+		{ name: 'reload-storm', weight: 3, /** Require a tab before issuing repeated reloads. */ when: () => tabs.size > 0, run: reloadStorm },
+		{ name: 'push-state', weight: 4, /** Require a tab before injecting a same-document URL change. */ when: () => tabs.size > 0, run: pushState },
+		{ name: 'replace-contents', weight: 4, /** Require a tab before replacing its current document markup. */ when: () => tabs.size > 0, run: replaceContents },
+		{ name: 'panel-page', weight: 3, /** Require a modeled target before attempting the temporary panel-page scenario. */ when: () => tabs.size > 0, run: openPanel },
+		{ name: 'toggle-sidebar', weight: 2, /** Offer sidebar toggles only when the browser harness supplies that capability. */ when: () => Boolean(hooks.toggleSidebar), run: sidebar },
+		{ name: 'duplicate', weight: 2, /** Require a source tab and spare tab capacity before offering duplication. */ when: () => tabs.size > 0 && tabs.size < plan.maxTabs, run: duplicate },
+		{ name: 'pin', weight: 2, /** Require an existing tab before toggling pinned state. */ when: () => tabs.size > 0, run: pin },
+		{ name: 'undo-close-tab', weight: 2, /** Require a restore capability, a known closed tab and available tab capacity before undoing closure. */ when: () => Boolean(hooks.undoCloseTab) && closedTabIds.size > 0 && tabs.size < plan.maxTabs, run: restoreClosed },
+		{ name: 'private', weight: 2, /** Offer private-window actions only when the browser harness declares the capability. */ when: () => Boolean(hooks.privateWindows), run: privateAction },
 	];
 
+	/** Draw from currently eligible actions using their configured weights and the run's seeded random source. */
 	function chooseAction() {
 		const available = actions.filter((a) => a.when());
 		let r = rnd() * available.reduce((sum, a) => sum + a.weight, 0);
@@ -633,6 +678,7 @@ export async function runStress(session, harness, context) {
 		return available.at(-1);
 	}
 
+	/** Execute a bounded action sequence with seeded user-like gaps; each action owns its browser operation and evidence. */
 	async function act(n) {
 		for (let i = 0; i < n; i++) {
 			const action = chooseAction();

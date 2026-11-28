@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { EXECUTION_SCHEMA_VERSION, type AnalysisWorkType } from '@/lib/scheduler/schema';
-import { settle } from '../support/settle';
+import { EXECUTION_SCHEMA_VERSION, type AnalysisWorkType } from "../../lib/scheduler/schema.ts";
+import { settle } from "../support/settle.ts";
 
 /** One claimed foreground analysis that the mocked database hands out once. */
 function foregroundWork(): AnalysisWorkType {
@@ -33,7 +33,7 @@ async function load() {
 	vi.resetModules();
 	let foregroundQueued = true;
 	const order: string[] = [];
-	vi.doMock('@/lib/scheduler/database', () => ({
+	vi.doMock('../../lib/scheduler/database.ts', () => ({
 		claim: vi.fn(async (input: { minPriorityRank?: number }) => {
 			if (foregroundQueued && (input.minPriorityRank ?? 0) <= 1) {
 				foregroundQueued = false;
@@ -46,11 +46,11 @@ async function load() {
 		recoverClaims: vi.fn(async () => []),
 		removeOtherSessions: vi.fn(async () => 0),
 	}));
-	vi.doMock('@/lib/scheduler/session', () => ({
+	vi.doMock('../../lib/scheduler/session.ts', () => ({
 		createId: vi.fn(() => 'analysis-owner'),
 		get: vi.fn(async () => 'browser-session-1'),
 	}));
-	const analysis = await import('@/lib/scheduler/analysis');
+	const analysis = await import('../../lib/scheduler/analysis.ts');
 	const log = vi.fn();
 	const scheduler = analysis.create({
 		resolveTarget: vi.fn(async () => ({ ok: true as const, value: {} as never })),
@@ -64,8 +64,8 @@ async function load() {
 }
 
 afterEach(() => {
-	vi.doUnmock('@/lib/scheduler/database');
-	vi.doUnmock('@/lib/scheduler/session');
+	vi.doUnmock('../../lib/scheduler/database.ts');
+	vi.doUnmock('../../lib/scheduler/session.ts');
 	vi.resetModules();
 });
 

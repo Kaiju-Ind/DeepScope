@@ -53,11 +53,13 @@ export function asyncScript(body) {
 		 fn(...Array.from(arguments).slice(0, -1)).then((v) => done({ ok: true, v }), (e) => done({ ok: false, e: String(e && e.message || e) }));`;
 }
 
+/** Select warning, error and known failure events while excluding the harness's documented expected shutdown cases. */
 export function problems(state) {
 	return state.events.filter((e) => (e.level === 'error' || e.level === 'warning' || BAD_EVENT.test(e.event ?? '') || e.code === 'CONTENT_SCRIPT_UNAVAILABLE')
 		&& !EXPECTED.test(e.message ?? '') && !EXPECTED.test(e.event ?? ''));
 }
 
+/** Poll a scenario until its completion condition or deadline; timeout returns the last observation with an explicit marker. */
 export async function waitFor(check, timeoutMs = 30_000, intervalMs = 500) {
 	const start = Date.now();
 	let last;
@@ -69,6 +71,7 @@ export async function waitFor(check, timeoutMs = 30_000, intervalMs = 500) {
 	return { ...last, timedOut: true };
 }
 
+/** Create a bounded state summary, adding full event text only for timeout or explicitly verbose verification. */
 export function summarize(state, timedOut = false) {
 	const verbose = timedOut || process.env.VERIFY_VERBOSE;
 	const injected = state.events.filter((e) => /^content-runtime/.test(e.event ?? '')).map((e) => e.event);
@@ -130,6 +133,7 @@ export function createHarness(ext) {
 		}, timeoutMs);
 	}
 
+	/** Append one scenario result with its evidence and print a bounded diagnostic summary. */
 	function record(scenario, pass, details) {
 		results.push({ scenario, pass, ...details });
 		console.log(`${pass ? 'PASS' : 'FAIL'} ${scenario} ${JSON.stringify(details).slice(0, 600)}`);
@@ -165,7 +169,9 @@ export async function runScenarios(session, harness, context) {
 	const { ext, tabState, backgroundStarts, waitForResults, record } = harness;
 	const { origin, wpTab, exampleTab, want, hooks } = context;
 	const mainWindowId = wpTab.windowId;
+	/** Activate an existing fixture tab through the extension control context without changing its URL. */
 	const activate = (id) => ext(`async (id) => { await browser.tabs.update(id, { active: true }); }`, id);
+	/** Navigate and activate the selected fixture tab through the extension control context. */
 	const go = (id, url) => ext(`async (id, url) => { await browser.tabs.update(id, { url, active: true }); }`, id, url);
 
 	if (want('preinstall')) {

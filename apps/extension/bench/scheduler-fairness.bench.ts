@@ -1,6 +1,6 @@
 import { describe, test } from 'vitest';
 
-import * as fairness from '@/lib/scheduler/fairness';
+import * as fairness from '../src/lib/scheduler/fairness.ts';
 
 /** Eight jobs matches the matcher's current transient job admission ceiling. */
 const candidates: fairness.Candidate[] = Array.from({ length: 8 }, (_item, index) => ({

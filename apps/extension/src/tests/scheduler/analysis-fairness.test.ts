@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import * as fairness from '@/lib/scheduler/fairness';
-import { EXECUTION_SCHEMA_VERSION } from '@/lib/scheduler/schema';
+import * as fairness from '../../lib/scheduler/fairness.ts';
+import { EXECUTION_SCHEMA_VERSION } from "../../lib/scheduler/schema.ts";
 
 const browserSessionId = 'browser-session-1';
 
@@ -31,8 +31,8 @@ function work(id: string, priority: 'foreground' | 'background') {
 }
 
 afterEach(() => {
-	vi.doUnmock('@/lib/scheduler/database');
-	vi.doUnmock('@/lib/scheduler/session');
+	vi.doUnmock('../../lib/scheduler/database.ts');
+	vi.doUnmock('../../lib/scheduler/session.ts');
 	vi.resetModules();
 });
 
@@ -53,7 +53,7 @@ describe('analysis scheduler fairness', { concurrent: false }, () => {
 			}
 			return undefined;
 		});
-		vi.doMock('@/lib/scheduler/database', () => ({
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
 			admitAnalysis: vi.fn(),
 			claim,
 			recoverClaims: vi.fn(),
@@ -64,12 +64,12 @@ describe('analysis scheduler fairness', { concurrent: false }, () => {
 			reprioritizeWindow: vi.fn(),
 			setPriority: vi.fn(),
 		}));
-		vi.doMock('@/lib/scheduler/session', () => ({
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
 			createId: vi.fn(() => 'analysis-scheduler-owner'),
 			get: vi.fn(async () => browserSessionId),
 		}));
 
-		const analysis = await import('@/lib/scheduler/analysis');
+		const analysis = await import('../../lib/scheduler/analysis.ts');
 		const analyze = vi.fn(async () => ({ ok: false as const, failure: { code: 'VALIDATION_ERROR' as const, message: 'fixture' } }));
 		const resolveTarget = vi.fn(async () => ({
 			ok: true as const,

@@ -1,0 +1,12 @@
+import type { TechnologyDefinition } from "../../types.ts";
+
+export const zipkinTechnologyDefinition: TechnologyDefinition = {
+	id: 'zipkin',
+	name: 'Zipkin',
+	website: 'https://zipkin.io/',
+	icon: 'Zipkin.png',
+	categories: [
+		'analytics',
+	],
+	rules: [],
+} as const satisfies TechnologyDefinition;

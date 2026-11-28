@@ -3,7 +3,7 @@ import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 import CheckIcon from "~icons/fluent/checkmark-24-regular";
 import { type ComponentProps, splitProps, type ValidComponent } from "solid-js";
 
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type CheckboxProps<T extends ValidComponent = "div"> = PolymorphicProps<
   T,
@@ -11,6 +11,7 @@ type CheckboxProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class" | "children"> & { rootClass?: ComponentProps<T>["class"] };
 
+/** Compose a hidden native input and visual control, keeping checked state with the primitive and placing the supplied ID on the input. */
 const Checkbox = <T extends ValidComponent = "div">(props: CheckboxProps<T>) => {
   const [local, others] = splitProps(props as CheckboxProps, ["class", "rootClass", "id", "children"]);
   return (
@@ -44,6 +45,7 @@ type CheckboxLabelProps<T extends ValidComponent = "label"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Connect label content to the checkbox primitive while reflecting its disabled state in the shared styles. */
 const CheckboxLabel = <T extends ValidComponent = "label">(props: CheckboxLabelProps<T>) => {
   const [local, others] = splitProps(props as CheckboxLabelProps, ["class", "children"]);
   return (

@@ -1,4 +1,4 @@
-import type { NormalizedObservation, ObservationBatch, ObservationValue } from '../observations';
+import type { NormalizedObservation, ObservationBatch, ObservationValue } from "@deepscope/detection/observations";
 
 /** Approximate object/array bookkeeping retained for one normalized observation. */
 const OBSERVATION_OVERHEAD_BYTES = 128;

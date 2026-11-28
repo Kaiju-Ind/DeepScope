@@ -20,6 +20,7 @@ export function create<Key>(): Generation<Key> {
 	let sequence = 0;
 
 	return {
+		/** Reuse a live key's generation or allocate a new sequence value after its prior generation was invalidated. */
 		capture(key) {
 			const current = values.get(key);
 			if (current !== undefined) return current;
@@ -27,9 +28,11 @@ export function create<Key>(): Generation<Key> {
 			values.set(key, sequence);
 			return sequence;
 		},
+		/** Retire the key's current token so later work cannot accept an earlier captured generation. */
 		invalidate(key) {
 			values.delete(key);
 		},
+		/** Accept a captured token only while that exact key and generation remain registered. */
 		isCurrent(key, value) {
 			return values.get(key) === value;
 		},

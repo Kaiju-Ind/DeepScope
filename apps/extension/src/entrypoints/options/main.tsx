@@ -1,10 +1,10 @@
 import { ErrorBoundary } from 'solid-js';
 import { render } from 'solid-js/web';
 
-import { SupportFallback } from '@/app/components/support-fallback';
-import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
-import { persistDiagnosticFailure } from '@/lib/diagnostics/journal';
-import * as logging from '@/lib/diagnostics/logging';
+import { SupportFallback } from "../../app/components/support-fallback.tsx";
+import { installDiagnosticCrashHooks } from "../../lib/diagnostics/crash.ts";
+import { persistDiagnosticFailure } from "../../lib/diagnostics/journal/index.ts";
+import * as logging from '../../lib/diagnostics/logging.ts';
 
 import '@/styles/app.css';
 import '@/styles/panel.css';
@@ -15,7 +15,7 @@ installDiagnosticCrashHooks('options');
 const root = globalThis.document.getElementById('root');
 if (!root) throw new Error('Kaiju DeepScope diagnostics root is missing.');
 
-void import('@/app/components/diagnostics-view')
+void import('../../app/components/diagnostics-view.tsx')
 	.then(({ DiagnosticsView }) => {
 		render(
 			() => (

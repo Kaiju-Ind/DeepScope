@@ -1,8 +1,8 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { type ComponentProps, mergeProps, splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
-import { Separator } from "@/ui/separator";
+import { cn } from "../utils/cn.ts";
+import { Separator } from "./separator.tsx";
 
 const buttonGroupVariants = cva(
   "z-button-group flex w-fit items-stretch *:focus-visible:relative *:focus-visible:z-10 [&>[data-slot=select-trigger]:not([class*='w-'])]:w-fit [&>input]:flex-1",
@@ -23,6 +23,7 @@ const buttonGroupVariants = cva(
 
 type ButtonGroupProps = ComponentProps<"div"> & VariantProps<typeof buttonGroupVariants>;
 
+/** Group caller-owned controls horizontally by default and expose orientation to the shared styles. */
 const ButtonGroup = (props: ButtonGroupProps) => {
   const [local, others] = splitProps(props, ["class", "orientation"]);
   return (
@@ -39,6 +40,7 @@ const ButtonGroup = (props: ButtonGroupProps) => {
 
 type ButtonGroupTextProps = ComponentProps<"div">;
 
+/** Place non-interactive text alongside grouped buttons without adding button behavior. */
 const ButtonGroupText = (props: ButtonGroupTextProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -52,6 +54,7 @@ const ButtonGroupText = (props: ButtonGroupTextProps) => {
 
 type ButtonGroupSeparatorProps = ComponentProps<typeof Separator>;
 
+/** Separate grouped controls vertically by default while forwarding the separator primitive's semantics. */
 const ButtonGroupSeparator = (props: ButtonGroupSeparatorProps) => {
   const mergedProps = mergeProps({ orientation: "vertical" } as const, props);
   const [local, others] = splitProps(mergedProps, ["class", "orientation"]);

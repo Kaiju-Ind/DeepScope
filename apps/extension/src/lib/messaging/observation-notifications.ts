@@ -1,4 +1,4 @@
-import type * as observe from '../content/observe';
+import type * as observe from '../content/observe/index.ts';
 
 /** Message type used by content scripts to wake the background after page facts change. */
 export const OBSERVATION_DIRTY_NOTIFICATION_TYPE = 'kaiju-deepscope.observation-dirty.v1';

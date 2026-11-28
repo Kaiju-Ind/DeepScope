@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import * as dom from '@/lib/dom';
+import * as dom from "@deepscope/dom";
 
 /** Minimal live element fixture used to exercise routing without a browser DOM. */
 class FakeElement {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { settle } from '../support/settle';
+import { settle } from "../support/settle.ts";
 
 const browserSessionId = 'browser-session-1';
 
@@ -12,7 +12,7 @@ async function loadHarness() {
 	const analyze = vi.fn();
 	const resolveTarget = vi.fn();
 
-	vi.doMock('@/lib/scheduler/database', () => ({
+	vi.doMock('../../lib/scheduler/database.ts', () => ({
 		admitAnalysis: vi.fn(),
 		claim,
 		recoverClaims,
@@ -23,20 +23,20 @@ async function loadHarness() {
 		reprioritizeWindow: vi.fn(),
 		setPriority: vi.fn(),
 	}));
-	vi.doMock('@/lib/scheduler/session', () => ({
+	vi.doMock('../../lib/scheduler/session.ts', () => ({
 		createId: vi.fn(() => 'analysis-scheduler-owner'),
 		get: vi.fn(async () => browserSessionId),
 	}));
 
-	const analysis = await import('@/lib/scheduler/analysis');
+	const analysis = await import('../../lib/scheduler/analysis.ts');
 	const scheduler = analysis.create({ resolveTarget, analyze });
 	return { scheduler, analyze, resolveTarget, claim, recoverClaims, removeOtherSessions };
 }
 
 
 afterEach(() => {
-	vi.doUnmock('@/lib/scheduler/database');
-	vi.doUnmock('@/lib/scheduler/session');
+	vi.doUnmock('../../lib/scheduler/database.ts');
+	vi.doUnmock('../../lib/scheduler/session.ts');
 	vi.resetModules();
 });
 

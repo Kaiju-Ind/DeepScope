@@ -1,17 +1,7 @@
-import type { MatcherTechnologyType, TechnologyDefinition } from '@/lib/detection/types';
-import type { ObservationMatcherIndex } from '@/lib/detection/observation-matcher-index';
-import { hydrateMatcherIndex, packageMatcherIndex } from '@/lib/registry/matcher-artifact';
-import {
-	PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
-	PACKAGED_REGISTRY_OBSERVATION_KINDS,
-	countTechnologyPatterns,
-	countTechnologyRules,
-	createObservationKindTechnologyRegistry,
-	hydratePackagedTechnologyRegistryShard,
-	isPackagedTechnologyRegistryShardAsset,
-	renderPackagedRegistryJson,
-	type PackagedRegistryObservationKind,
-} from '@/lib/registry/packaged-artifacts';
+import type { MatcherTechnologyType, TechnologyDefinition } from "@deepscope/registry/types";
+import type { ObservationMatcherIndex } from "@deepscope/detection/matcher/routing/types";
+import { hydrateMatcherIndex, packageMatcherIndex } from "@deepscope/detection/artifacts/matcher";
+import { PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION, PACKAGED_REGISTRY_OBSERVATION_KINDS, countTechnologyPatterns, countTechnologyRules, createObservationKindTechnologyRegistry, hydratePackagedTechnologyRegistryShard, isPackagedTechnologyRegistryShardAsset, renderPackagedRegistryJson, type PackagedRegistryObservationKind } from "@deepscope/detection/artifacts/packaged";
 
 /** One matcher shard as a worker sees it after fetching and hydrating the packaged JSON. */
 export interface LoadedShard {

@@ -1,4 +1,4 @@
-import type { VisibleTabIdentity } from './analysis';
+import type { VisibleTabIdentity } from "./analysis.ts";
 
 /**
  * Whether two identities name the same document in the same tab and frame.

@@ -1,7 +1,8 @@
-import { getDiagnosticBuildId } from './build';
-import type { DiagnosticSurface } from './contracts';
-import { persistDiagnosticFailure, toDiagnosticError } from './journal';
-import { diagnosticErrorType } from '@/lib/privacy/redaction';
+import { getDiagnosticBuildId } from "./build.ts";
+import type { DiagnosticSurface } from "./contracts.ts";
+import { persistDiagnosticFailure } from "./journal/index.ts";
+import { toDiagnosticError } from "./journal/sanitize.ts";
+import { diagnosticErrorType } from "@deepscope/detection/privacy/redaction";
 
 const CRASH_HOOKS_KEY = '__kaijuDeepScopeCrashHooksV2';
 
@@ -54,6 +55,7 @@ export function installDiagnosticCrashHooks(
 	existing?.dispose();
 
 	const listeners: Array<{ readonly type: string; readonly listener: EventListener }> = [];
+	/** Register a global crash listener only where supported and retain its identity for this hook owner's cleanup. */
 	const add = (type: string, listener: EventListener): void => {
 		if (typeof globalThis.addEventListener !== 'function') return;
 		globalThis.addEventListener(type, listener);
@@ -103,6 +105,7 @@ export function installDiagnosticCrashHooks(
 		surface,
 		captureGlobalError,
 		includeErrorDetails,
+		/** Remove this owner's listeners and clear the shared slot only if a replacement has not taken ownership. */
 		dispose() {
 			if (typeof globalThis.removeEventListener === 'function') {
 				for (const { type, listener } of listeners) globalThis.removeEventListener(type, listener);

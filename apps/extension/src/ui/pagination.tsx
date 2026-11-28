@@ -4,11 +4,12 @@ import Ellipsis from "~icons/fluent/more-horizontal-24-regular";
 import type { ComponentProps } from "solid-js";
 import { mergeProps, splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
-import { Button, type ButtonProps } from "@/ui/button";
+import { cn } from "../utils/cn.ts";
+import { Button, type ButtonProps } from "./button.tsx";
 
 type PaginationProps = ComponentProps<"nav">;
 
+/** Provide a labeled navigation region while leaving page calculation and destinations with the caller. */
 const Pagination = (props: PaginationProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -23,6 +24,7 @@ const Pagination = (props: PaginationProps) => {
 
 type PaginationContentProps = ComponentProps<"ul">;
 
+/** Arrange page controls in a native list without deriving the visible page range. */
 const PaginationContent = (props: PaginationContentProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -36,6 +38,7 @@ const PaginationContent = (props: PaginationContentProps) => {
 
 type PaginationItemProps = ComponentProps<"li">;
 
+/** Keep each pagination control inside a native list item. */
 const PaginationItem = (props: PaginationItemProps) => {
   return <li data-slot="pagination-item" {...props} />;
 };
@@ -45,6 +48,7 @@ type PaginationLinkProps = {
 } & Pick<ButtonProps, "size"> &
   ComponentProps<"a">;
 
+/** Render a button-styled link and mark the caller-selected page with aria-current. */
 const PaginationLink = (props: PaginationLinkProps) => {
   const mergedProps = mergeProps({ size: "icon" } as PaginationLinkProps, props);
   const [local, others] = splitProps(mergedProps, ["class", "isActive", "size"]);
@@ -64,6 +68,7 @@ const PaginationLink = (props: PaginationLinkProps) => {
 
 type PaginationPreviousProps = ComponentProps<typeof PaginationLink>;
 
+/** Provide the previous-page label and icon; the caller supplies its destination and availability. */
 const PaginationPrevious = (props: PaginationPreviousProps) => {
   const [local, others] = splitProps(props, ["class", "children"]);
   return (
@@ -81,6 +86,7 @@ const PaginationPrevious = (props: PaginationPreviousProps) => {
 
 type PaginationNextProps = ComponentProps<typeof PaginationLink>;
 
+/** Provide the next-page label and icon; the caller supplies its destination and availability. */
 const PaginationNext = (props: PaginationNextProps) => {
   const [local, others] = splitProps(props, ["class", "children"]);
   return (
@@ -98,6 +104,7 @@ const PaginationNext = (props: PaginationNextProps) => {
 
 type PaginationEllipsisProps = ComponentProps<"span">;
 
+/** Show a decorative omitted-page marker without creating an interactive page control. */
 const PaginationEllipsis = (props: PaginationEllipsisProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (

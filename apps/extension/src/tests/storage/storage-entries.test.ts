@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { readStorageEntries, readStorageKeys } from '@/utils/storage-entries';
+import { readStorageEntries, readStorageKeys } from "../../utils/storage-entries.ts";
 
 /** A storage area that refuses any `get` returning more than `limit` characters of JSON, like Safari's per-call cap. */
 function cappedArea(values: Record<string, unknown>, limit: number, withGetKeys = true) {

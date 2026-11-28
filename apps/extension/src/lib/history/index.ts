@@ -1,2 +1,2 @@
-export * from './compare';
-export * from './query';
+export * from './compare.ts';
+export * from './query.ts';

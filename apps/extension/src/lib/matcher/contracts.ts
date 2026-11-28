@@ -1,13 +1,10 @@
-import type { DetectionRunOptions, SiteAnalysis, TechnologyProfileType } from '../detection/types';
-import type { ObservationPatternMatch } from '../detection/observation-match-types';
-import type { ObservationMatcherDiagnostics } from '../detection/observation-matcher-index';
-import type { CompiledDetectionGraph } from '../detection/registry-graph';
-import type { DetectionPipelineRuntimeResult } from '../pipeline';
-import type {
-	NormalizedObservationKind,
-	ObservationBatch,
-	ObservationTarget,
-} from '../observations';
+import type { DetectionRunOptions, SiteAnalysis } from "@deepscope/detection/types";
+import type { TechnologyProfileType } from "@deepscope/registry/types";
+import type { ObservationPatternMatch } from "@deepscope/detection/matcher/types";
+import type { ObservationMatcherDiagnostics } from "@deepscope/detection/matcher/diagnostics";
+import type { CompiledDetectionGraph } from "@deepscope/detection/registry/graph";
+import type { DetectionPipelineRuntimeResult } from "@deepscope/detection/pipeline";
+import type { NormalizedObservationKind, ObservationBatch, ObservationTarget } from "@deepscope/detection/observations";
 
 /**
  * Priority assigned to matcher work before it enters the offscreen worker pool.

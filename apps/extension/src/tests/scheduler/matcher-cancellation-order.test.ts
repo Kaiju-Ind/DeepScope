@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createCompiledDetectionGraph } from '@/lib/detection/registry-graph';
-import type { RunMatcherJobRequest } from '@/lib/matcher/contracts';
-import { normalizePageSignals } from '@/lib/observations';
-import { makePageSignals } from '../support/factories';
-import { settle } from '../support/settle';
+import { createCompiledDetectionGraph } from "@deepscope/detection/registry/graph";
+import type { RunMatcherJobRequest } from "../../lib/matcher/contracts.ts";
+import { normalizePageSignals } from "@deepscope/detection/observations";
+import { makePageSignals } from "@deepscope/detection/testing/fixtures";
+import { settle } from "../support/settle.ts";
 
 function request(jobId = 'job-1'): RunMatcherJobRequest {
 	const batch = normalizePageSignals(makePageSignals({ url: 'https://example.com/' }));
@@ -19,8 +19,8 @@ function request(jobId = 'job-1'): RunMatcherJobRequest {
 
 
 afterEach(() => {
-	vi.doUnmock('@/lib/scheduler/database');
-	vi.doUnmock('@/lib/scheduler/session');
+	vi.doUnmock('../../lib/scheduler/database.ts');
+	vi.doUnmock('../../lib/scheduler/session.ts');
 	vi.resetModules();
 });
 
@@ -28,7 +28,7 @@ describe('matcher cancellation ordering', { concurrent: false }, () => {
 	it('starts job CPU cancellation before durable removal settles', async () => {
 		let resolveRemove!: () => void;
 		const remove = vi.fn(() => new Promise<void>((resolve) => { resolveRemove = resolve; }));
-		vi.doMock('@/lib/scheduler/database', () => ({
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
 			claimId: vi.fn(async () => ({ kind: 'matcher' })),
 			listKind: vi.fn(async () => []),
 			remove,
@@ -38,12 +38,12 @@ describe('matcher cancellation ordering', { concurrent: false }, () => {
 			save: vi.fn(async () => undefined),
 			setPriority: vi.fn(async () => undefined),
 		}));
-		vi.doMock('@/lib/scheduler/session', () => ({
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
 			createId: vi.fn(() => 'matcher-owner'),
 			get: vi.fn(async () => 'browser-session-1'),
 		}));
 
-		const matcher = await import('@/lib/scheduler/matcher');
+		const matcher = await import('../../lib/scheduler/matcher/index.ts');
 		const cancelJob = vi.fn(async () => undefined);
 		const scheduler = matcher.create({
 			kind: 'offscreen-worker-pool',
@@ -73,7 +73,7 @@ describe('matcher cancellation ordering', { concurrent: false }, () => {
 		let resolveSession!: (value: string) => void;
 		const sessionPromise = new Promise<string>((resolve) => { resolveSession = resolve; });
 		const removeTabKind = vi.fn(async () => []);
-		vi.doMock('@/lib/scheduler/database', () => ({
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
 			claimId: vi.fn(async () => ({ kind: 'matcher' })),
 			listKind: vi.fn(async () => []),
 			remove: vi.fn(async () => undefined),
@@ -83,12 +83,12 @@ describe('matcher cancellation ordering', { concurrent: false }, () => {
 			save: vi.fn(async () => undefined),
 			setPriority: vi.fn(async () => undefined),
 		}));
-		vi.doMock('@/lib/scheduler/session', () => ({
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
 			createId: vi.fn(() => 'matcher-owner'),
 			get: vi.fn(() => sessionPromise),
 		}));
 
-		const matcher = await import('@/lib/scheduler/matcher');
+		const matcher = await import('../../lib/scheduler/matcher/index.ts');
 		const cancelTab = vi.fn(async () => undefined);
 		const scheduler = matcher.create({
 			kind: 'offscreen-worker-pool',

@@ -1,10 +1,11 @@
 import type { ComponentProps } from "solid-js";
 import { splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type KbdProps = ComponentProps<"kbd">;
 
+/** Display a non-interactive keyboard-key hint using native kbd semantics. */
 const Kbd = (props: KbdProps) => {
   const [local, others] = splitProps(props, ["class"]);
 
@@ -22,6 +23,7 @@ const Kbd = (props: KbdProps) => {
 
 type KbdGroupProps = ComponentProps<"div">;
 
+/** Lay out adjacent key hints without registering or handling the displayed shortcut. */
 const KbdGroup = (props: KbdGroupProps) => {
   const [local, others] = splitProps(props, ["class"]);
 

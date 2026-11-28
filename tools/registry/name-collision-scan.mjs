@@ -18,7 +18,9 @@ const rules = technologies.flatMap((technology) => technology.rules
 	.filter((rule) => (rule.kind === 'scriptSrc' || rule.kind === 'resourceUrl') && rule.pattern)
 	.map((rule) => ({ owner: technology.id, rule, regex: new RegExp(rule.pattern.source, rule.pattern.flags.replace('g', '')) })));
 
+/** Split existing technology IDs into hyphen-separated name segments for collision comparison. */
 const segments = (id) => id.split('-');
+/** Treat identical IDs or IDs sharing a name segment as related under this audit's existing matching rule. */
 const related = (owner, other) => {
 	if (owner === other) return true;
 	const ownerParts = segments(owner);

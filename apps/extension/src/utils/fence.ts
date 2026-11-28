@@ -17,9 +17,11 @@ export function create<Key>(): Fence<Key> {
 	const active = new Map<Key, Promise<void>>();
 
 	return {
+		/** Wait for the barrier currently registered for this key; later submissions belong to a later wait. */
 		async wait(key) {
 			await active.get(key);
 		},
+		/** Serialize operations for one key, propagate each result and release its barrier even after failure. */
 		async run(key, operation) {
 			const previous = active.get(key);
 			const result = (previous ? previous.catch(() => undefined) : Promise.resolve()).then(operation);

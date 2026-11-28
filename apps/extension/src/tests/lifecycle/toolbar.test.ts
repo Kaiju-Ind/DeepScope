@@ -16,7 +16,7 @@ async function loadToolbar(apis: Record<string, unknown>) {
 			...apis,
 		},
 	}));
-	const { openPanelFromToolbar } = await import('@/lib/background/toolbar');
+	const { openPanelFromToolbar } = await import('../../lib/background/toolbar.ts');
 	return { openPanelFromToolbar, sendMessage, create };
 }
 

@@ -1,11 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getDetectionOriginSnapshotKey } from '@/lib/storage/contracts';
-import { makeDetectionSessionSnapshot } from '../support/factories';
-import {
-	createMockBrowserStorageArea,
-	createMockBrowserStorageChangeEvent,
-} from '../support/mock-browser';
+import { getDetectionOriginSnapshotKey } from "../../lib/storage/contracts.ts";
+import { makeDetectionSessionSnapshot } from "../support/factories.ts";
+import { createMockBrowserStorageArea, createMockBrowserStorageChangeEvent } from "../support/mock-browser.ts";
 
 async function loadBrowserPersistenceHarness() {
 	vi.resetModules();
@@ -21,7 +18,7 @@ async function loadBrowserPersistenceHarness() {
 	}));
 
 	return {
-		...(await import('@/lib/persistence/browser')),
+		...(await import('../../lib/persistence/browser.ts')),
 		onChanged,
 	};
 }

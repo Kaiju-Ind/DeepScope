@@ -1,38 +1,34 @@
-# Component composition and performance rules
+# React decisions in the installed renderer
 
-Read this reference for component APIs or a demonstrated rendering/bundle
-problem. DeepScope renders with Solid 1.9, not React; the rule files below come
-from Vercel's React guidance and are kept only where the idea is independent of
-React (composition shapes, bundles, plain JavaScript hot paths, browser
-rendering). React-only rules (server components, hooks, re-render tuning,
-hydration) were removed. Translate the idea to Solid's model; never copy a hook
-recipe.
+Read this reference for component APIs or a demonstrated rendering/bundle problem.
+Inspect the installed React version, renderer and public package exports first.
+React islands in Astro do not imply Next.js, RSC, SWR, or shared server caches.
 
 ## Composition
 
-Prefer explicit variants and children when independent boolean modes make
-invalid combinations easy. Compound components can share a provider-owned
-state/actions interface (Solid context); lift state only as far as the actual
-consumers require. Render props remain useful when the caller needs data, and
-ordinary boolean state is valid. Read the specific
-[composition rules](vercel-composition-patterns/rules/architecture-compound-components.md)
-for compound components; related rule files are indexed in resources.md. The
-Zaidan catalogue in `src/ui/` already follows these shapes; extend it before
-adding a parallel component.
+Prefer explicit variants and children when independent boolean modes make invalid
+combinations easy. Compound components can share a provider-owned state/actions
+interface; lift state only as far as the actual consumers require. Render props
+remain useful when the caller needs data, and ordinary boolean state is valid.
+Read the specific [composition rules](vercel-composition-patterns/rules/architecture-compound-components.md)
+for compound components; related rule files are indexed by decision in resources.md.
+React 19 supports useContext. A ref or use() migration requires version and caller
+compatibility evidence, not a blanket rewrite of working APIs.
 
 ## Performance
 
-Measure the user-visible cost first. Remove independent-request waterfalls
-(panel reads from the background should run in parallel), keep heavy optional
-code out of the panel's first bundle, and keep per-tab data out of module-level
-mutable state. Public exports and actual bundler output govern import
-decisions. In Solid, derive values with memos only when the computation is
-measurably costly; a plain accessor is the default. Use
-[async parallelism](vercel-react-best-practices/rules/async-parallel.md) when
-operations are independent; inspect the specific rule only for the affected
-cost. The `js-*` rules apply equally to matcher and DOM-scan hot paths.
+Measure the user-visible cost first. Remove independent-request waterfalls,
+minimize client serialization and heavy optional bundles, and keep request data
+out of module-level mutable state. Public exports and actual bundler output govern
+import decisions. Memoization needs stable dependencies and a measured cost;
+compute derived state during rendering unless synchronization is actually needed.
+Use [async parallelism](vercel-react-best-practices/rules/async-parallel.md) when
+operations are independent; inspect the specific rule only for the affected cost.
+Server cache, authentication and after-response APIs require the installed host's
+contract. Never copy a Next-only example into Astro without that ownership.
 
-The rule directories retain technical examples from Vercel's MIT-licensed
-[agent skills](https://github.com/vercel-labs/agent-skills). Their filenames
-are lookup keys, not mandatory read order or unconditional optimization
-requirements. Consult [Solid](https://docs.solidjs.com/) for renderer behavior.
+The rule directories retain useful technical examples from Vercel's MIT-licensed
+[agent skills](https://github.com/vercel-labs/agent-skills). Their filenames are
+lookup keys, not mandatory read order or unconditional optimization requirements.
+Consult [React](https://react.dev/reference/react) for version-sensitive behavior.
+Git retains prior compiled copies and entrypoint wording.

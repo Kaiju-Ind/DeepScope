@@ -1,39 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { buildCollectionPlan, type CollectionPlan } from '@/lib/collectors/planning';
-import type * as observe from '@/lib/content/observe';
-import {
-	DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION,
-	type DetectionSessionSnapshot,
-} from '@/lib/storage/session';
-import type { PageSignals, SiteAnalysis } from '@/lib/detection/types';
-import type { ContentApi } from '@/lib/messaging';
-import { OBSERVATION_DIRTY_NOTIFICATION_TYPE } from '@/lib/messaging/observation-notifications';
-import { CONTENT_SCRIPT_BUSY_LIMIT_MS, CONTENT_SCRIPT_TIMEOUT_MS } from '@/lib/messaging/rpc';
-import {
-	createDetectionStorageHash,
-	getDetectionOriginSnapshotKey,
-	getDetectionSessionSnapshotKey,
-	MATCHER_JOB_CACHE_PREFIX,
-} from '@/lib/storage/contracts';
-import type { ObservationBatch } from '@/lib/observations';
-import {
-	createMatcherPartitionTasks,
-	createMatcherPipelineResult,
-	type MatcherJobLifecycleRecord,
-	type MatcherJobExecutorResult,
-	type MatcherJobObserver,
-	type MatcherJobRecord,
-	type MatcherJobRunResult,
-	type MatcherPartitionResult,
-	type RunMatcherJobRequest,
-} from '@/lib/matcher';
-import type { DetectionReplayTrace } from '@/lib/pipeline';
-import type { RuntimeTechnologyRegistryArtifact } from '@/lib/registry/runtime-artifact';
-import type { MatcherJobStore } from '@/lib/persistence/ports';
-import { ok, type ExtensionResult } from '@/lib/messaging/result';
-import { makeDetectionReplayTrace } from '../support/factories';
-import { createMockBrowserStorageArea } from '../support/mock-browser';
+import { buildCollectionPlan, type CollectionPlan } from "@deepscope/detection/collection/plan";
+import type * as observe from '../../lib/content/observe/index.ts';
+import { DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION, type DetectionSessionSnapshot } from "../../lib/storage/session.ts";
+import type { PageSignals, SiteAnalysis } from "@deepscope/detection/types";
+import type { ContentApi } from "../../lib/messaging/index.ts";
+import { OBSERVATION_DIRTY_NOTIFICATION_TYPE } from "../../lib/messaging/observation-notifications.ts";
+import { CONTENT_SCRIPT_BUSY_LIMIT_MS, CONTENT_SCRIPT_TIMEOUT_MS } from "../../lib/messaging/rpc.ts";
+import { createDetectionStorageHash, getDetectionOriginSnapshotKey, getDetectionSessionSnapshotKey, MATCHER_JOB_CACHE_PREFIX } from "../../lib/storage/contracts.ts";
+import type { ObservationBatch } from "@deepscope/detection/observations";
+import { createMatcherPartitionTasks, createMatcherPipelineResult, type MatcherJobLifecycleRecord, type MatcherJobExecutorResult, type MatcherJobObserver, type MatcherJobRecord, type MatcherJobRunResult, type MatcherPartitionResult, type RunMatcherJobRequest } from "../../lib/matcher/index.ts";
+import type { DetectionReplayTrace } from "@deepscope/detection/pipeline";
+import type { RuntimeTechnologyRegistryArtifact } from "@deepscope/detection/artifacts/runtime";
+import type { MatcherJobStore } from "../../lib/persistence/ports.ts";
+import { ok, type ExtensionResult } from "../../lib/messaging/result.ts";
+import { makeDetectionReplayTrace } from "@deepscope/detection/testing/fixtures";
+import { createMockBrowserStorageArea } from "../support/mock-browser.ts";
 
 vi.setConfig({ testTimeout: 20_000 });
 
@@ -334,7 +316,7 @@ async function loadBackgroundApi(input: BackgroundApiHarnessOptions) {
 
 async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	vi.resetModules();
-	vi.doMock('@/registry/technologies', () => ({
+	vi.doMock('@deepscope/registry', () => ({
 		SOURCE_LIMITS: SOURCE_LIMITS_STUB,
 		technologies: [],
 	}));
@@ -404,12 +386,12 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	}));
 
 	const analyzeSite = vi.fn((signals: PageSignals) => makeAnalysis(signals));
-	vi.doMock('@/lib/detection/engine', () => ({
+	vi.doMock('@deepscope/detection/engine', () => ({
 		analyzeSite,
 	}));
 
-	const { buildCollectionPlan: buildPlan } = await import('@/lib/collectors/planning');
-	const { createCompiledDetectionGraph } = await import('@/lib/detection/registry-graph');
+	const { buildCollectionPlan: buildPlan } = await import('@deepscope/detection/collection/plan');
+	const { createCompiledDetectionGraph } = await import('@deepscope/detection/registry/graph');
 	const runtimeRegistryArtifact: RuntimeTechnologyRegistryArtifact = {
 		technologies: [],
 		patternTables: {},
@@ -426,7 +408,7 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	const getStatus = vi.fn(async () => ({ totalAnalyses: 0, trackedOrigins: 0 }));
 	const saveReplayTrace = vi.fn(async (trace: DetectionReplayTrace) => trace);
 	const matcherStore = input.matcherPersistence === 'browser'
-		? (await import('@/lib/persistence/browser')).browserMatcherJobStore
+		? (await import('../../lib/persistence/browser.ts')).browserMatcherJobStore
 		: undefined;
 	const saveMatcherJobRecord = vi.fn(matcherStore?.saveMatcherJob ?? (async (record: MatcherJobRecord): Promise<MatcherJobLifecycleRecord> => ({
 		schemaVersion: 2,
@@ -456,8 +438,8 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	})));
 
 	const timingDebug = vi.fn();
-	vi.doMock('@/lib/diagnostics/logging', () => ({ get: () => ({ debug: timingDebug }) }));
-	const { collectExtensionObservationBatch } = await import('@/lib/collectors/extension-page-collector');
+	vi.doMock('../../lib/diagnostics/logging.ts', () => ({ get: () => ({ debug: timingDebug }) }));
+	const { collectExtensionObservationBatch } = await import('../../lib/collectors/extension-page-collector.ts');
 	const cancelMatcherJob = vi.fn(async () => undefined);
 	const cancelMatcherTab = vi.fn(async () => undefined);
 	const touchMatcherLifecycle = vi.fn(async () => undefined);
@@ -484,8 +466,10 @@ async function loadBackgroundApiHarness(input: BackgroundApiHarnessOptions) {
 	const logEvent = vi.fn();
 	const logAnalysisSummary = vi.fn();
 	const setBadge = vi.fn(async () => undefined);
-	const { createBackgroundRuntime } = await import('@/lib/background/runtime');
+	const { createBackgroundRuntime } = await import('../../lib/background/runtime/index.ts');
+	const { missingUrlFailure } = await import('../../lib/browser/permissions.ts');
 	const runtime = createBackgroundRuntime({
+		missingUrlFailure,
 		getTab,
 		executeContentScript: async () => {
 			await executeScript();
@@ -556,9 +540,9 @@ afterEach(() => {
 	vi.useRealTimers();
 	vi.unstubAllGlobals();
 	vi.doUnmock('wxt/browser');
-	vi.doUnmock('@/registry/technologies');
-	vi.doUnmock('@/lib/detection/engine');
-	vi.doUnmock('@/lib/diagnostics/logging');
+	vi.doUnmock('@deepscope/registry');
+	vi.doUnmock('@deepscope/detection/engine');
+	vi.doUnmock('../../lib/diagnostics/logging.ts');
 	vi.resetModules();
 });
 

@@ -45,6 +45,7 @@ export async function readStorageEntries(
 
 	const keys = (await area.getKeys()).filter(wanted);
 	const entries: Array<[string, unknown]> = [];
+	/** Split failed storage batches until unreadable individual keys can be reported without discarding readable neighbors. */
 	const read = async (batch: readonly string[]): Promise<void> => {
 		try {
 			const values = await area.get(batch);

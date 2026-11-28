@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createCompiledDetectionGraph } from '@/lib/detection/registry-graph';
-import type { MatcherPartitionResult, RunMatcherJobRequest, RunMatcherPartitionRequest } from '@/lib/matcher/contracts';
-import { normalizePageSignals } from '@/lib/observations';
-import type { MatcherPartitionExecutor } from '@/lib/scheduler/matcher';
-import { makePageSignals } from '../support/factories';
-import { settle } from '../support/settle';
+import { createCompiledDetectionGraph } from "@deepscope/detection/registry/graph";
+import type { MatcherPartitionResult, RunMatcherJobRequest, RunMatcherPartitionRequest } from "../../lib/matcher/contracts.ts";
+import { normalizePageSignals } from "@deepscope/detection/observations";
+import type { MatcherPartitionExecutor } from "../../lib/scheduler/matcher/types.ts";
+import { makePageSignals } from "@deepscope/detection/testing/fixtures";
+import { settle } from "../support/settle.ts";
 
 /** One ordinary job in window 1 with one partition per kind listed (meta by default). */
 function request(jobId: string, tabId = 7, kinds: readonly string[] = ['meta']): RunMatcherJobRequest {
@@ -54,14 +54,14 @@ function executor(overrides: Partial<MatcherPartitionExecutor> = {}): MatcherPar
 
 async function load(database: ReturnType<typeof databaseMock>, session: () => Promise<string> = async () => 'browser-session-1') {
 	vi.resetModules();
-	vi.doMock('@/lib/scheduler/database', () => database);
-	vi.doMock('@/lib/scheduler/session', () => ({ createId: vi.fn(() => 'matcher-owner'), get: vi.fn(session) }));
-	return await import('@/lib/scheduler/matcher');
+	vi.doMock('../../lib/scheduler/database.ts', () => database);
+	vi.doMock('../../lib/scheduler/session.ts', () => ({ createId: vi.fn(() => 'matcher-owner'), get: vi.fn(session) }));
+	return await import('../../lib/scheduler/matcher/index.ts');
 }
 
 afterEach(() => {
-	vi.doUnmock('@/lib/scheduler/database');
-	vi.doUnmock('@/lib/scheduler/session');
+	vi.doUnmock('../../lib/scheduler/database.ts');
+	vi.doUnmock('../../lib/scheduler/session.ts');
 	vi.resetModules();
 });
 

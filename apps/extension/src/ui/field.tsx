@@ -2,14 +2,15 @@ import { cva, type VariantProps } from "class-variance-authority";
 import type { ComponentProps, JSX } from "solid-js";
 import { createMemo, For, Show, splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
-import { Label } from "@/ui/label";
-import { Separator } from "@/ui/separator";
+import { cn } from "../utils/cn.ts";
+import { Label } from "./label.tsx";
+import { Separator } from "./separator.tsx";
 
 type FieldSetProps = ComponentProps<"fieldset"> & {
   class?: string | undefined;
 };
 
+/** Group related form controls with native fieldset semantics and responsive field styling. */
 const FieldSet = (props: FieldSetProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -26,6 +27,7 @@ type FieldLegendProps = ComponentProps<"legend"> & {
   variant?: "legend" | "label";
 };
 
+/** Label the fieldset using native legend semantics and the standard legend appearance by default. */
 const FieldLegend = (props: FieldLegendProps) => {
   const [local, others] = splitProps(props, ["class", "variant"]);
   return (
@@ -42,6 +44,7 @@ type FieldGroupProps = ComponentProps<"div"> & {
   class?: string | undefined;
 };
 
+/** Arrange related field compositions without taking ownership of their values or validation. */
 const FieldGroup = (props: FieldGroupProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -76,6 +79,7 @@ type FieldProps = ComponentProps<"div"> &
     class?: string | undefined;
   };
 
+/** Group a control and its supporting content with vertical layout by default; callers provide label and description associations. */
 const Field = (props: FieldProps) => {
   const [local, others] = splitProps(props, ["class", "orientation"]);
   return (
@@ -94,6 +98,7 @@ type FieldContentProps = ComponentProps<"div"> & {
   class?: string | undefined;
 };
 
+/** Give the text and control content flexible space within the enclosing field layout. */
 const FieldContent = (props: FieldContentProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -112,6 +117,7 @@ type FieldLabelProps = ComponentProps<typeof Label> & {
   class?: string | undefined;
 };
 
+/** Use the shared native label and support either a direct control association or nested field content. */
 const FieldLabel = (props: FieldLabelProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -131,6 +137,7 @@ type FieldTitleProps = ComponentProps<"div"> & {
   class?: string | undefined;
 };
 
+/** Provide label-like title styling without creating a native label-to-control association. */
 const FieldTitle = (props: FieldTitleProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -146,6 +153,7 @@ type FieldDescriptionProps = ComponentProps<"p"> & {
   class?: string | undefined;
 };
 
+/** Style supporting field text; the caller links it to the control through an ID when needed. */
 const FieldDescription = (props: FieldDescriptionProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -166,6 +174,7 @@ type FieldSeparatorProps = ComponentProps<"div"> & {
   children?: JSX.Element;
 };
 
+/** Divide field sections and optionally place caller-provided text between the separator lines. */
 const FieldSeparator = (props: FieldSeparatorProps) => {
   const [local, others] = splitProps(props, ["class", "children"]);
   return (
@@ -192,6 +201,7 @@ type FieldErrorProps = ComponentProps<"div"> & {
   errors?: Array<{ message?: string } | undefined>;
 };
 
+/** Prefer explicit error content, otherwise deduplicate supplied messages and announce visible errors through an alert region. */
 const FieldError = (props: FieldErrorProps) => {
   const [local, others] = splitProps(props, ["class", "children", "errors"]);
 

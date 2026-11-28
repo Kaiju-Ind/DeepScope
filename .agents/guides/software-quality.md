@@ -1,12 +1,36 @@
 # Software quality is part of the selected capability
 
 A code review includes its comments and docs. A benchmark must still be correct.
-A background-runtime change needs meaningful names and import-safe ownership.
-These duties apply directly; selecting a separate documentation or testing skill
-is not what makes them apply. In DeepScope, correctness comes before speed, and
-native web standards come before polyfills.
+An auth change needs meaningful names and import-safe ownership. These duties
+apply directly; selecting a separate documentation or testing skill is not what
+makes them apply. They hold in every repository that
+installs this pack.
+
+## Establish the product question and first probe
+
+Read the [anchor-based product method](product/README.md) once per task. Before
+substantial solution implementation, identify the customer outcome, decision,
+consequential unknowns, existing evidence, and smallest useful probe. Extract
+questions from the request and investigate missing technical details. Ask only
+when an unresolved human decision would materially change the target. Narrow
+discovery and experiments can start immediately to establish this contract.
+
+Use an existing executable, public API, or tiny fixture before building new
+scaffolding. Alternate current research with early experiments under the core
+method's 60:10 operating rule. Distinguish observed, documented, hypothesized,
+inconclusive, and blocked claims. Preserve unsuccessful observations and their
+metadata. Share the customer meaning and next decision as an anchor. Read the
+specific product detail only when it governs the decision in front of you.
 
 ## Recheck after discovery
+
+For Rust work, read [rust-software](../skills/rust-software/SKILL.md) and the
+[Rust product guide](rust/README.md). Apply its working Wasm contract to every
+maintained Rust package and binary, including workers and tools. Keep host
+requirements, resource limits, correctness and measured performance explicit.
+This applies to review, planning, benchmarks and CI as well as implementation.
+For data-layout or allocation decisions, read [data-oriented design](rust/data-oriented-design.md).
+Map operations and lifetimes, isolate mechanisms, and measure complete cost.
 
 The request gives you a starting skill, not the complete list. Once you have
 traced the entrypoint, imports and a real caller, compare the decisions you
@@ -22,23 +46,21 @@ nothing material changed, continue with the guidance already loaded. Keep one
 plan and verdict; a technology name or incidental import alone is not a reason
 to load another skill.
 
-For example, a review of the technology detail page may start with
-`review-code`. Finding a long evidence value clipped by a shared component adds
-`build-web` for the layout and the Break UI reference under `design-interfaces`
-for what must stay readable. Before an authorized edit, check the shared
-component in `src/ui/` and its other callers. A matcher-only change does not add
-UI guidance merely because the side panel shows its results; recheck only if the
-work now affects a rendered decision.
+For example, a receipt review may start with `review-code`. Finding a long
+value clipped by a shared component adds `build-web` for the layout and the
+Break UI reference under `design-interfaces` for what must stay readable.
+Before an authorized edit, check the shared component and its other callers.
+A PostgreSQL-only query change does not add UI guidance merely because a page
+consumes its results; recheck only if the work now affects a rendered decision.
 
 ## Check for reuse before designing
 
-Search for the operation, aliases and real callers. For shared software
-capabilities, trace **`utils/` (`@utils/*`) → `src/utils/` → `src/lib/` →
-`src/entrypoints/`**. Check every layer for that capability even if you find a
-match early. It may already have an owner, a message route, or a worker bound
-to it. (The planned layout moves `src/lib/` pieces into `packages/*` as
-`@deepscope/*` and the WXT app into `apps/extension/`; trace the same layers
-there.)
+Search for the operation, aliases and real callers. Map the repository's actual
+ownership layers before designing. In the Kaiju layout, trace **`utils/` →
+`packages/` → `services/` → `workers/`** and check the relevant existing layers
+even if a lower-level match appears early. Other projects use their own layout;
+do not create these folders to comply with an example. A capability may already
+have an owner, a live route, or an executor bound to it.
 
 For rendered changes, start with the route's actual imports and nearby callers.
 Check the application's feature compositions and shared primitives before
@@ -47,22 +69,19 @@ Use the selected web skill's resource index to find its component, registry and
 verification guidance. Follow the data back through the relevant owners below
 when changing the value or its contract.
 
-1. **Utilities:** Start at [`utils/README.md`](../../utils/README.md) and the
-   vendored `@utils/*` packages (selected through `use-utils`), then
-   `src/utils/`. Check the owning export map, implementation and tests for
-   generic mechanics such as results, disposal, context and cancellation,
-   capacity, queues, worker pools and durable workflows.
-2. **Libraries:** Find the concrete capability in `src/lib/` (collection,
-   detection, matcher, scheduler, storage, messaging) already using those
-   mechanics. Extend the owner when the needed behavior is specific to
-   DeepScope.
-3. **Messages:** Check the existing `comctx` APIs between the panel, the
-   background and the content script. Reuse a typed method before adding
-   another message, wrapper or transport.
-4. **Execution hosts:** Check the background scheduler, the matcher executor
-   (offscreen document on Chrome, the background page's own workers elsewhere)
-   and the worker pool. Reuse an admitted job, scheduler lane or worker before
-   adding another executor or queue.
+1. **Utilities:** Start at the repository's utility documentation and the
+   published utility packages it uses. Check the owning export map, implementation and
+   tests for generic mechanics such as HTTP, typed clients, query, lifecycle
+   and durable execution.
+2. **Packages:** Find the concrete capability, provider adapter or data policy
+   already using those mechanics. Extend the owner when the needed behavior is
+   specific to the product.
+3. **Services:** Check existing contracts, handlers and Gateway mounts.
+   Reuse an import-safe definition and typed client before adding another
+   route, wrapper or transport.
+4. **Workers:** Check service-owned workflows, their activity bindings and
+   service background hosts, then standalone roles under `workers/`. Reuse an
+   admitted job, dispatch loop or host before adding another executor or queue.
 
 Trace the chosen path to a caller and its failure or cleanup behavior. Reuse
 the smallest contract that fits; an ordinary read does not need a workflow.
@@ -71,11 +90,11 @@ owns it. In the plan or review, state what is reused, or why the existing
 owner cannot supply it. Do not add a second checklist or copy this rule into
 each skill.
 
-For example, to show a scan's progress, start at the panel page that shows it
-and the component that renders it. Follow its imports to the panel state, the
-background API it calls and the snapshot revisions the background publishes,
-then confirm that the scheduler supplies the state. The panel does not need its
-own message or executor.
+For example, to show a job's status, start at the page that shows it and the
+component that renders the status. Follow its imports to the shared
+client/transport mechanics and the service's declared operation, then confirm
+that the service's executor supplies the state. The UI does not need its own
+endpoint or executor.
 
 ## Apply the complete contract
 
@@ -112,13 +131,18 @@ skills or apply a role brief's fixed output template over user/host requirements
 
 | Decision in scope | Load the installed companion before making it |
 | --- | --- |
-| Extension contexts, manifests, browser differences, store packaging | build-extensions |
-| Durable jobs, IndexedDB stores, replay, idempotency and recovery | build-workflows |
+| HTTP/service/gateway contracts | build-apis; build-auth when authentication/session policy changes |
+| Storage/query/migration/ClickHouse projection | build-data; build-auth for auth-owned schema/config |
+| Durable jobs, replay, idempotency and recovery | build-workflows |
+| CLI grammar/streams/exits | build-clis |
 | Reusable APIs/exports/ownership | build-libraries |
-| Mise, CI, generators, scripts and harness mechanics | build-devtools |
-| Exact current utility APIs | use-utils; inspect the vendored `@utils/*` exports in `utils/` rather than importing an upstream name blindly |
+| Mise, CI, generators and harness mechanics | build-devtools |
+| Deno execution or Deno/JSR package contracts | deno-software, including read-only reviews of Deno code |
+| Python runtime/tooling | python-software; preserve the local Python runner and external field spelling |
+| Rust packages, binaries, memory, SIMD, Wasm, FFI or Cargo | rust-software; require actual operations on declared native and Wasm hosts |
+| Exact current Kaiju utility APIs, when the project uses them | use-kaiju-utils; inspect the resolved `@kaiju-ind/*` exports rather than importing a similarly named package blindly |
 | Material dependency choice | explore-ecosystems |
-| Renderer/browser/focus/motion execution | build-web; build-web-apps for panel state and routes |
+| Renderer/browser/focus/hydration/motion execution | build-web; build-sites for publishing, build-web-apps for app state |
 | Visual hierarchy and motion purpose | design-interfaces; accessibility for detailed access audits; shadcn for its exact installed primitives |
 
 Add only owners whose decisions are affected, not every technology mentioned.

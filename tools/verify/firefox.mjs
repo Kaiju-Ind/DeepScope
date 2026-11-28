@@ -78,6 +78,7 @@ async function ext(body, ...args) {
 	return value.v;
 }
 
+/** Run privileged Firefox inspection and always restore content context, propagating an explicit script failure to the harness. */
 async function chrome(body, ...args) {
 	await session.cmd('POST', '/moz/context', { context: 'chrome' });
 	try {
@@ -123,6 +124,7 @@ async function openControlWindow() {
 	await delay(1000);
 }
 
+/** Inspect the installed add-on's current background lifecycle through Firefox's privileged extension registry. */
 function backgroundState() {
 	return chrome(`async (id) => {
 		const { ExtensionParent } = ChromeUtils.importESModule('resource://gre/modules/ExtensionParent.sys.mjs');
@@ -152,6 +154,7 @@ function undoCloseTab() {
 	}`);
 }
 
+/** Sample Firefox extension-process resident memory for the runtime report without attributing it to an individual tab. */
 function extensionProcessMemory() {
 	return chrome(`async () => {
 		const info = await ChromeUtils.requestProcInfo();
@@ -216,6 +219,7 @@ try {
 			privateWindows: true,
 			openExtensionTab,
 			ensureControl,
+			/** Exercise an in-place temporary add-on upgrade, then reopen the control surface that the upgrade may close. */
 			async reinstall() {
 				// Upgrade in place (what `web-ext run` reload and an AMO update do).
 				await session.cmd('POST', '/moz/addon/install', { addon: readFileSync(xpi).toString('base64'), temporary: true, allowPrivateBrowsing: true });

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ANALYSIS_MODES, OBSERVATION_MODES } from '@/lib/messaging/analysis';
+import { ANALYSIS_MODES, OBSERVATION_MODES } from "../messaging/analysis.ts";
 
 // Zod speeds up object parsing by generating code with `Function`, after first
 // probing whether that is allowed. Extension pages forbid it under their content

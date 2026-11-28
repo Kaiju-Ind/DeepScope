@@ -1,30 +1,8 @@
 import { browser } from 'wxt/browser';
 
-import {
-	clearStoredDetectionData,
-	getBestVisibleDetectionSessionSnapshot,
-	getCachedReplayTrace,
-	getCachedReplayTraceHistory,
-	getDetectionSessionIndex,
-	getLatestDetectionOriginSnapshot,
-	getLatestDetectionSessionSnapshot,
-	getStatus,
-	isDetectionSessionSnapshot,
-	markDetectionSessionSnapshotsForTab,
-	removeTabSessions,
-	saveDetectionSessionSnapshot,
-	saveMatcherJobRecord,
-	saveReplayTrace,
-	updateMatcherJobRecord,
-} from '../storage';
-import { getDetectionOriginSnapshotKey } from '../storage/contracts';
-import type {
-	BackgroundDetectionPersistence,
-	DetectionPersistenceMaintenance,
-	DetectionReplayStore,
-	DetectionSnapshotRevisionSource,
-	DetectionSnapshotStore,
-} from './ports';
+import { clearStoredDetectionData, getBestVisibleDetectionSessionSnapshot, getCachedReplayTrace, getCachedReplayTraceHistory, getDetectionSessionIndex, getLatestDetectionOriginSnapshot, getLatestDetectionSessionSnapshot, getStatus, isDetectionSessionSnapshot, markDetectionSessionSnapshotsForTab, removeTabSessions, saveDetectionSessionSnapshot, saveMatcherJobRecord, saveReplayTrace, updateMatcherJobRecord } from "../storage/index.ts";
+import { getDetectionOriginSnapshotKey } from "../storage/contracts.ts";
+import type { BackgroundDetectionPersistence, DetectionPersistenceMaintenance, DetectionReplayStore, DetectionSnapshotRevisionSource, DetectionSnapshotStore } from "./ports.ts";
 
 /** Browser-storage implementation of the application-facing snapshot port. */
 export const browserDetectionSnapshotStore: DetectionSnapshotStore = {
@@ -46,8 +24,10 @@ export const browserDetectionReplayStore: DetectionReplayStore = {
 
 /** Browser storage-change adapter used by UI surfaces that observe snapshot revisions. */
 export const browserDetectionSnapshotRevisionSource: DetectionSnapshotRevisionSource = {
+	/** Observe one origin snapshot in local storage and return ownership of subscription cleanup to the consumer. */
 	subscribeOriginSnapshot(originHash, onRevision) {
 		const storageKey = getDetectionOriginSnapshotKey(originHash);
+		/** Ignore other storage areas and malformed values before delivering a new origin snapshot revision. */
 		const listener = (changes: Record<string, { readonly newValue?: unknown }>, areaName: string): void => {
 			if (areaName !== 'local') return;
 			const change = changes[storageKey];

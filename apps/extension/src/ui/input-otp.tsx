@@ -2,7 +2,7 @@ import OtpField, { type RootProps as OtpFieldRootProps } from "@corvu/otp-field"
 import Minus from "~icons/fluent/subtract-24-regular";
 import { type ComponentProps, Show, splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type InputOTPProps = OtpFieldRootProps &
   ComponentProps<"div"> &
@@ -10,6 +10,7 @@ type InputOTPProps = OtpFieldRootProps &
     containerClass?: string;
   };
 
+/** Keep OTP value ownership on the field root and forward ID, disabled and required semantics to its real input. */
 const InputOTP = (props: InputOTPProps) => {
   const [local, others] = splitProps(props as InputOTPProps, [
     "class",
@@ -46,6 +47,7 @@ const InputOTP = (props: InputOTPProps) => {
 
 type InputOTPGroupProps = ComponentProps<"div">;
 
+/** Arrange visual OTP slots without creating additional native inputs or selection state. */
 const InputOTPGroup = (props: InputOTPGroupProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -61,12 +63,16 @@ type InputOTPSlotProps = ComponentProps<"div"> & {
   index: number;
 };
 
+/** Render one visual character and caret from the shared OTP field's value and active-slot state. */
 const InputOTPSlot = (props: InputOTPSlotProps) => {
   const [local, others] = splitProps(props, ["index", "class"]);
   const context = OtpField.useContext();
 
+  /** Read this slot's character from the shared value using the caller's current slot index. */
   const char = () => context.value()[local.index];
+  /** Use the primitive's active-slot set so visual focus follows its selection model. */
   const isActive = () => context.activeSlots().includes(local.index);
+  /** Show the visual caret only for an active slot while the primitive is in insertion mode. */
   const showCaret = () => isActive() && context.isInserting();
 
   return (
@@ -91,6 +97,7 @@ const InputOTPSlot = (props: InputOTPSlotProps) => {
 
 type InputOTPSeparatorProps = ComponentProps<"div">;
 
+/** Separate groups of visual slots with a decorative marker hidden from assistive technology. */
 const InputOTPSeparator = (props: InputOTPSeparatorProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (

@@ -1,6 +1,6 @@
 ---
 name: plan-changes
-description: Plan a concrete software change, migration or implementation before editing. Use for acceptance criteria, alternatives, dependency ordering, removal inventory and verification planning; planning does not authorize implementation.
+description: Frame customer outcomes, consequential unknowns, early experiments, and an actionable software change or migration plan. Use for product questions, evidence checkpoints, acceptance criteria, alternatives, dependency ordering, removal inventory, and verification planning; planning does not authorize implementation.
 ---
 
 # Plan changes
@@ -30,13 +30,27 @@ Do not recursively load companion skills or historical material for reassurance.
 
 Lock the complete intended outcome, constraints, non-goals and observable acceptance criteria. Inspect repository instructions, exports, callers, tests, docs and existing mechanisms before proposing replacement code. Distinguish current behavior from target architecture.
 
+Read [product questions](../../guides/product/questions.md) and
+[evidence-backed planning](../../guides/product/planning.md). Establish the
+customer decision, known evidence, consequential unknowns, and first direct
+probe before substantial solution work. Extract supplied questions and resolve
+technical unknowns through research and minimal experiments. Do not wait for
+exhaustive certainty or ask the user to repeat a decision already supplied.
+
+Bind each meaningful work item to verified files, symbols, contracts, tools,
+expected outputs, failure/cleanup behavior, consumer migration, and acceptance
+evidence. Explain important logic and conditional branches. Label proposed new
+surfaces and untested APIs. Schedule early evidence checkpoints and use the
+core product method's research/experiment cadence. A plan-only task may include
+authorized read-only probes; it does not authorize implementation changes.
+
 Read [planning](references/planner.md) and [delivery cases](../../references/cases.md) before a substantial plan. Use [workflow](references/workflow.md) for research/reuse and [delivery evidence](../../references/delivery.md) for broad acceptance and handoff. Read the [decision guide](../../guides/how-to-justify-decisions-properly.md) when alternatives have material tradeoffs and the [PRD guide](../../guides/prd-guide.md) when product scope needs specification.
 
 Plan implementation, cleanup, validation, actual verification and final reconciliation separately. Enumerate every in-scope deliverable and what must stop existing. Name owners, ordering, failure/recovery and exact available verification targets. Ask only for information that changes the decision; do not repeatedly ask for supplied context. A plan remains read-only unless implementation is independently authorized.
 
 ## Kaiju projects
 
-In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Start here](../../../docs/kaiju/start/README.md), [Handbook](../../../docs/kaiju/handbook/README.md), [Project record](../../../docs/kaiju/project/README.md), [Agent execution](../../../docs/kaiju/agents/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).
+For projects using this playbook, the procedures and evidence gates are in [Start here](../../../docs/kaiju/start/README.md), [Handbook](../../../docs/kaiju/handbook/README.md), [Project record](../../../docs/kaiju/project/README.md), [Agent execution](../../../docs/kaiju/agents/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md), [Product development](../../../docs/kaiju/product/README.md), and [Project profiles](../../../docs/kaiju/profiles/README.md).
 
 ## Resource navigation
 

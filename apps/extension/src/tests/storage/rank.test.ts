@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { evidenceRank, type DetectionEvidenceState } from '@/lib/storage/session';
+import { evidenceRank, type DetectionEvidenceState } from "../../lib/storage/session.ts";
 
 describe('evidence rank', () => {
 	it('orders coverage from unknown to full', () => {

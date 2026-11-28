@@ -4,8 +4,8 @@ import Check from "~icons/fluent/checkmark-24-regular";
 import ChevronRight from "~icons/fluent/chevron-right-24-regular";
 import type { ComponentProps, JSX, ValidComponent } from "solid-js";
 import { splitProps } from "solid-js";
-import { cn } from "@/utils/cn";
-import { releaseBackgroundFocus } from "@/ui/modal-focus";
+import { cn } from "../utils/cn.ts";
+import { releaseBackgroundFocus } from "./modal-focus.ts";
 
 type ContextMenuProps<T extends ValidComponent = "div"> = PolymorphicProps<
   T,
@@ -13,8 +13,10 @@ type ContextMenuProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Keep context-menu state with the primitive and apply the shared focus-release policy before caller open-change notifications. */
 const ContextMenu = <T extends ValidComponent = "div">(props: ContextMenuProps<T>) => {
   const [local, others] = splitProps(props as ContextMenuProps, ["onOpenChange"]);
+  /** Apply background-focus release when opening before forwarding the context-menu state change. */
   const onOpenChange = (open: boolean) => {
     releaseBackgroundFocus(open);
     local.onOpenChange?.(open);
@@ -30,6 +32,7 @@ type ContextMenuTriggerProps<T extends ValidComponent = "div"> = PolymorphicProp
   class?: string | undefined;
 };
 
+/** Style the context-menu target while the primitive owns context-menu gestures and keyboard activation. */
 const ContextMenuTrigger = <T extends ValidComponent = "div">(
   props: ContextMenuTriggerProps<T>,
 ) => {
@@ -45,6 +48,7 @@ const ContextMenuTrigger = <T extends ValidComponent = "div">(
 
 type ContextMenuPortalProps = ContextMenuPrimitive.ContextMenuPortalProps;
 
+/** Forward portal placement and lifecycle without adding a separate menu owner. */
 const ContextMenuPortal = (props: ContextMenuPortalProps) => {
   return <ContextMenuPrimitive.Portal {...props} />;
 };
@@ -56,6 +60,7 @@ type ContextMenuContentProps<T extends ValidComponent = "div"> = PolymorphicProp
   class?: string | undefined;
 };
 
+/** Portal menu content within the available popper height while preserving primitive positioning, focus and dismissal. */
 const ContextMenuContent = <T extends ValidComponent = "div">(
   props: ContextMenuContentProps<T>,
 ) => {
@@ -81,6 +86,7 @@ type ContextMenuGroupProps<T extends ValidComponent = "div"> = PolymorphicProps<
   class?: string | undefined;
 };
 
+/** Retain the primitive's item-group semantics and forward the caller's grouping attributes. */
 const ContextMenuGroup = <T extends ValidComponent = "div">(props: ContextMenuGroupProps<T>) => {
   const [local, others] = splitProps(props as ContextMenuGroupProps, ["class"]);
   return (
@@ -96,6 +102,7 @@ type ContextMenuLabelProps<T extends ValidComponent = "div"> = PolymorphicProps<
   inset?: boolean;
 };
 
+/** Label the surrounding item group and optionally align its text with inset menu items. */
 const ContextMenuLabel = <T extends ValidComponent = "div">(props: ContextMenuLabelProps<T>) => {
   const [local, others] = splitProps(props as ContextMenuLabelProps, ["class", "inset"]);
   return (
@@ -117,6 +124,7 @@ type ContextMenuItemProps<T extends ValidComponent = "div"> = PolymorphicProps<
   variant?: "default" | "destructive";
 };
 
+/** Apply inset and variant presentation while leaving selection, disabled state and dismissal with the item primitive. */
 const ContextMenuItem = <T extends ValidComponent = "div">(props: ContextMenuItemProps<T>) => {
   const [local, others] = splitProps(props as ContextMenuItemProps, ["class", "inset", "variant"]);
   return (
@@ -135,6 +143,7 @@ const ContextMenuItem = <T extends ValidComponent = "div">(props: ContextMenuIte
 
 type ContextMenuSubProps = ContextMenuPrimitive.ContextMenuSubProps;
 
+/** Connect nested-menu state to the surrounding context-menu owner. */
 const ContextMenuSub = (props: ContextMenuSubProps) => {
   return <ContextMenuPrimitive.Sub {...props} />;
 };
@@ -148,6 +157,7 @@ type ContextMenuSubTriggerProps<T extends ValidComponent = "div"> = PolymorphicP
   inset?: boolean;
 };
 
+/** Add a submenu indicator while retaining the primitive's pointer and keyboard navigation into that submenu. */
 const ContextMenuSubTrigger = <T extends ValidComponent = "div">(
   props: ContextMenuSubTriggerProps<T>,
 ) => {
@@ -179,6 +189,7 @@ type ContextMenuSubContentProps<T extends ValidComponent = "div"> = PolymorphicP
   class?: string | undefined;
 };
 
+/** Portal nested content with available-height limits while the submenu primitive owns its open and focus lifecycle. */
 const ContextMenuSubContent = <T extends ValidComponent = "div">(
   props: ContextMenuSubContentProps<T>,
 ) => {
@@ -205,6 +216,7 @@ type ContextMenuCheckboxItemProps<T extends ValidComponent = "div"> = Polymorphi
   children?: JSX.Element;
 };
 
+/** Show the primitive's checked indicator without creating another checked-state owner. */
 const ContextMenuCheckboxItem = <T extends ValidComponent = "div">(
   props: ContextMenuCheckboxItemProps<T>,
 ) => {
@@ -235,6 +247,7 @@ type ContextMenuRadioGroupProps<T extends ValidComponent = "div"> = PolymorphicP
   class?: string | undefined;
 };
 
+/** Forward mutually exclusive selection state to the menu radio-group primitive. */
 const ContextMenuRadioGroup = <T extends ValidComponent = "div">(
   props: ContextMenuRadioGroupProps<T>,
 ) => {
@@ -256,6 +269,7 @@ type ContextMenuRadioItemProps<T extends ValidComponent = "div"> = PolymorphicPr
   children?: JSX.Element;
 };
 
+/** Display the primitive's selected indicator while forwarding the item's value and selection behavior. */
 const ContextMenuRadioItem = <T extends ValidComponent = "div">(
   props: ContextMenuRadioItemProps<T>,
 ) => {
@@ -286,6 +300,7 @@ type ContextMenuSeparatorProps<T extends ValidComponent = "hr"> = PolymorphicPro
   class?: string | undefined;
 };
 
+/** Separate menu groups through the primitive's non-interactive separator semantics. */
 const ContextMenuSeparator = <T extends ValidComponent = "hr">(
   props: ContextMenuSeparatorProps<T>,
 ) => {
@@ -303,6 +318,7 @@ type ContextMenuShortcutProps = ComponentProps<"span"> & {
   class?: string | undefined;
 };
 
+/** Display caller-supplied shortcut text without registering a keyboard shortcut. */
 const ContextMenuShortcut = (props: ContextMenuShortcutProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (

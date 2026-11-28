@@ -1,12 +1,12 @@
 import { fc, test } from '@fast-check/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { buildCollectionPlan } from '@/lib/collectors/planning';
-import * as dom from '@/lib/dom';
-import { technologies } from '@/registry/technologies';
+import { buildCollectionPlan } from "@deepscope/detection/collection/plan";
+import * as dom from "@deepscope/dom";
+import { technologies } from "@deepscope/registry";
 
-import { close, parse, reference, stub, truth } from '../support/dom';
-import { synthesize } from '../support/page';
+import { close, parse, reference, stub, truth } from "../support/dom.ts";
+import { synthesize } from "../support/page.ts";
 
 /** Registry selectors scanned against one synthesized document at a time. */
 const CHUNK = 160;

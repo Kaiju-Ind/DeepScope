@@ -11,7 +11,7 @@ import {
   useContext,
 } from "solid-js";
 
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type ScrollAreaContextValue = {
   viewportRef: Accessor<HTMLDivElement | undefined>;
@@ -21,6 +21,7 @@ type ScrollAreaContextValue = {
 
 const ScrollAreaContext = createContext<ScrollAreaContextValue | null>(null);
 
+/** Require the surrounding scroll-area owner so each custom scrollbar reads the same native viewport. */
 const useScrollArea = () => {
   const context = useContext(ScrollAreaContext);
   if (!context) {
@@ -33,6 +34,7 @@ type ScrollAreaProps = ComponentProps<"div"> & {
   children?: JSX.Element;
 };
 
+/** Own the native scrolling viewport and hover signal while composing a visual scrollbar over the same content. */
 const ScrollArea = (props: ScrollAreaProps) => {
   const [local, others] = splitProps(props, ["class", "children", "onMouseEnter", "onMouseLeave"]);
 
@@ -42,7 +44,9 @@ const ScrollArea = (props: ScrollAreaProps) => {
   return (
     <ScrollAreaContext.Provider
       value={{
+        /** Expose the mounted native viewport to scrollbar measurement and pointer operations. */
         viewportRef: () => viewportRef,
+        /** Expose the existing viewport as the resize-observation target; no separate content wrapper is measured. */
         contentRef: () => viewportRef,
         hovered,
       }}
@@ -79,6 +83,7 @@ type ScrollBarProps = ComponentProps<"div"> & {
   orientation?: "vertical" | "horizontal";
 };
 
+/** Measure and control one viewport axis, owning its resize observer and document pointer listeners until component cleanup. */
 const ScrollBar = (rawProps: ScrollBarProps) => {
   const props = mergeProps({ orientation: "vertical" as const }, rawProps);
   const [local, others] = splitProps(props, ["class", "orientation"]);
@@ -93,8 +98,10 @@ const ScrollBar = (rawProps: ScrollBarProps) => {
   let scrollbarRef: HTMLDivElement | undefined;
   let thumbRef: HTMLDivElement | undefined;
 
+  /** Use vertical scrolling unless the caller selects horizontal orientation. */
   const isVertical = () => local.orientation === "vertical";
 
+  /** Derive visibility, a minimum ten-percent thumb and its position from the viewport's current overflow geometry. */
   const updateScrollbar = () => {
     const viewport = context.viewportRef();
     if (!viewport) return;
@@ -122,12 +129,14 @@ const ScrollBar = (rawProps: ScrollBarProps) => {
     }
   };
 
+  /** Refresh thumb geometry for native scrolling unless an active drag already owns the thumb position. */
   const handleScroll = () => {
     if (!isDragging()) {
       updateScrollbar();
     }
   };
 
+  /** Begin dragging only with mounted geometry and retain the pointer's offset within the thumb. */
   const handleThumbMouseDown = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -144,6 +153,7 @@ const ScrollBar = (rawProps: ScrollBarProps) => {
     }
   };
 
+  /** Translate the active drag into a clamped viewport scroll position along the selected axis. */
   const handleMouseMove = (e: MouseEvent) => {
     if (!isDragging()) return;
     e.preventDefault();
@@ -200,10 +210,12 @@ const ScrollBar = (rawProps: ScrollBarProps) => {
     }
   };
 
+  /** Release drag ownership so subsequent native scrolling can update the thumb again. */
   const handleMouseUp = () => {
     setIsDragging(false);
   };
 
+  /** Page the native viewport by one visible extent when the click falls before or after the thumb. */
   const handleTrackClick = (e: MouseEvent) => {
     if (!scrollbarRef || !thumbRef) return;
     const viewport = context.viewportRef();
@@ -264,6 +276,7 @@ const ScrollBar = (rawProps: ScrollBarProps) => {
     });
   });
 
+  /** Show an overflowing scrollbar only while its area is hovered or its thumb is being dragged. */
   const shown = () => visible() && (context.hovered() || isDragging());
 
   return (

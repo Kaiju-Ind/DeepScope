@@ -3,15 +3,9 @@ import { getWeek } from "date-fns";
 import ChevronLeft from "~icons/fluent/chevron-left-24-regular";
 import ChevronRight from "~icons/fluent/chevron-right-24-regular";
 import { type ComponentProps, Index, type JSX, mergeProps, Show, splitProps } from "solid-js";
-import { cn } from "@/utils/cn";
-import { Button, buttonVariants } from "@/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/ui/select";
+import { cn } from "../utils/cn.ts";
+import { Button, buttonVariants } from "./button.tsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.tsx";
 
 type CalendarSingleValue = Date | null;
 type CalendarMultipleValue = Date[];
@@ -140,6 +134,7 @@ const MONTHS = [
   { label: "Dec", value: 11 },
 ];
 
+/** Compose the calendar primitive with Monday-first, single-month defaults and optional month/year selectors; selection remains with the primitive and caller. */
 const CalendarComponent = (props: CalendarProps) => {
   const currentYear = new Date().getFullYear();
 
@@ -180,10 +175,12 @@ const CalendarComponent = (props: CalendarProps) => {
     "endYear",
   ]);
 
+  /** Use the current locale's full month and numeric year for the displayed calendar heading. */
   const formatMonth = (date: Date) => {
     return date.toLocaleString("default", { month: "long", year: "numeric" });
   };
 
+  /** Use a compact two-character prefix of the locale's short weekday label. */
   const formatWeekday = (date: Date) => {
     return date.toLocaleString("default", { weekday: "short" }).slice(0, 2);
   };
@@ -413,12 +410,18 @@ type CalendarDayProps = {
   customCell?: (props: CustomCellProps) => JSX.Element;
 };
 
+/** Derive visual day and range markers from the supplied selection while the calendar cell trigger owns date interaction. */
 const CalendarDay = (props: CalendarDayProps) => {
+  /** Compare the rendered date's month with the displayed month's number for outside-month styling. */
   const isOutsideMonth = () => props.day.getMonth() !== props.month.getMonth();
+  /** Compare the rendered day with the current local date for custom-cell presentation. */
   const isToday = () => isSameDay(props.day, new Date());
+  /** Expose the caller's disabled-date predicate to custom cell rendering, defaulting to enabled. */
   const isDisabled = () => props.disabled?.(props.day) ?? false;
+  /** Expose the separate booking predicate for booked-day styling, defaulting to unbooked. */
   const isBooked = () => props.booked?.(props.day) ?? false;
 
+  /** Recognize a single selected date, selected date array or either endpoint of a date range. */
   const isSelected = () => {
     const value = props.value;
     if (value === null || value === undefined) return false;
@@ -438,6 +441,7 @@ const CalendarDay = (props: CalendarDayProps) => {
     return false;
   };
 
+  /** Identify the selected range's first day when the supplied value uses the range shape. */
   const isRangeStart = () => {
     const value = props.value;
     if (!value || typeof value !== "object" || !("from" in value)) return false;
@@ -445,6 +449,7 @@ const CalendarDay = (props: CalendarDayProps) => {
     return from && isSameDay(from, props.day);
   };
 
+  /** Identify the selected range's last day when the supplied value uses the range shape. */
   const isRangeEnd = () => {
     const value = props.value;
     if (!value || typeof value !== "object" || !("from" in value)) return false;
@@ -452,6 +457,7 @@ const CalendarDay = (props: CalendarDayProps) => {
     return to && isSameDay(to, props.day);
   };
 
+  /** Mark dates strictly between two supplied range endpoints, excluding the endpoint styles. */
   const isInRange = () => {
     const value = props.value;
     if (!value || typeof value !== "object" || !("from" in value)) return false;
@@ -460,6 +466,7 @@ const CalendarDay = (props: CalendarDayProps) => {
     return props.day > from && props.day < to;
   };
 
+  /** Use the standalone selected-day style only when the day is not part of the rendered range treatment. */
   const isSingleSelected = () => isSelected() && !isRangeStart() && !isRangeEnd() && !isInRange();
 
   return (
@@ -525,7 +532,7 @@ const CalendarDay = (props: CalendarDayProps) => {
   );
 };
 
-// Helper function
+/** Compare local calendar dates without requiring equal times or UTC offsets. */
 const isSameDay = (a: Date, b: Date): boolean => {
   return (
     a.getFullYear() === b.getFullYear() &&

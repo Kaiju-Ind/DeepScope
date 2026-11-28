@@ -32,7 +32,7 @@ Read [refactors and migrations](references/refactors.md) before cutover and [imp
 
 Create required-end-state and removal inventories. Characterize inputs, outputs, errors, timing, permissions, ownership, cancellation, cleanup, persistence and measured guarantees. List deliberate behavior changes separately. Use an atomic replacement when all consumers can move; use an explicit staged migration only when the system requires it, with an owner and removal condition.
 
-Update real registration, exports, imports, dependencies, config, generators, fixtures, benchmarks, comments and docs together. Search old identifiers and retrace the runtime, including dynamic registration. Keep dirty user work intact. Select build-workflows for persistence and recovery decisions, and actual domain/runtime owners. Never redesign a database or UI merely because this refactor touches guidance about it.
+Update real registration, exports, imports, dependencies, config, generators, fixtures, benchmarks, comments and docs together. Search old identifiers and retrace the runtime, including dynamic registration. Keep dirty user work intact. Select build-data for persistence decisions, build-workflows for recovery, and actual domain/runtime owners. Never redesign a database or UI merely because this refactor touches guidance about it.
 
 Run focused characterization, affected full checks and real public-path verification. Use verify-behavior for a distinct evidence pass. Do not report complete while an obsolete path remains authoritative.
 

@@ -23,11 +23,10 @@ JSR reports `@okikio/observables` 1.4.0 as the latest release on 2026-07-17. It 
 Pin the version before using exact behavior:
 
 ```ts
-import { Observable, filter, map, pipe } from "@okikio/observables";
+import { Observable, filter, map, pipe } from "jsr:@okikio/observables@1.4.0";
 ```
 
-DeepScope installs the npm package at exactly `1.4.0` through the vendored
-`utils/*` manifests; the lockfile is the authority for the installed version.
+The npm-compatible package is also documented as `@okikio/observables`. Verify which registry produced the installed lockfile.
 
 ## Core Observable contract
 
@@ -257,7 +256,7 @@ Interop has cost and semantic risk. Verify cancellation, error, scheduling, hot/
 - test EventBus/EventDispatcher hot multicast and disposal;
 - test native stream and RxJS interop both directions;
 - benchmark representative pipelines and retained memory in fresh processes;
-- run Node (Vitest) and real-browser checks required by the consumer.
+- run Deno, Node, and browser compatibility checks required by the consumer.
 
 ## Sources and freshness
 

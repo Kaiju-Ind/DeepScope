@@ -12,11 +12,12 @@ import {
   ValueLabel,
 } from "@kobalte/core/progress";
 import { type ComponentProps, splitProps, type ValidComponent } from "solid-js";
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type ProgressProps<T extends ValidComponent = "div"> = PolymorphicProps<T, ProgressRootProps<T>> &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Compose optional labels with the default track and indicator while leaving progress value and range with the primitive. */
 const Progress = <T extends ValidComponent = "div">(props: ProgressProps<T>) => {
   const [local, others] = splitProps(props as ProgressProps, ["class", "children"]);
   return (
@@ -39,6 +40,7 @@ type ProgressTrackComponentProps<T extends ValidComponent = "div"> = Polymorphic
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Provide the visual progress track without deriving or changing the current progress value. */
 const ProgressTrack = <T extends ValidComponent = "div">(props: ProgressTrackComponentProps<T>) => {
   const [local, others] = splitProps(props as ProgressTrackComponentProps, ["class"]);
   return (
@@ -59,6 +61,7 @@ type ProgressIndicatorProps<T extends ValidComponent = "div"> = PolymorphicProps
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Use the primitive's computed fill-width variable so visual progress follows its range calculations. */
 const ProgressIndicator = <T extends ValidComponent = "div">(props: ProgressIndicatorProps<T>) => {
   const [local, others] = splitProps(props as ProgressIndicatorProps, ["class"]);
   return (
@@ -79,6 +82,7 @@ type ProgressLabelComponentProps<T extends ValidComponent = "span"> = Polymorphi
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Associate caller-provided label text with the surrounding progress primitive. */
 const ProgressLabel = <T extends ValidComponent = "span">(
   props: ProgressLabelComponentProps<T>,
 ) => {
@@ -94,6 +98,7 @@ type ProgressValueProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Render the primitive's value label using its current progress context and caller formatting props. */
 const ProgressValue = <T extends ValidComponent = "div">(props: ProgressValueProps<T>) => {
   const [local, others] = splitProps(props as ProgressValueProps, ["class"]);
   return (

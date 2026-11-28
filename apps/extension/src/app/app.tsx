@@ -1,8 +1,8 @@
 import { RouterProvider } from '@tanstack/solid-router';
 
-import { PanelProvider } from '@/app/provider';
-import { panelRouter } from '@/app/router';
-import type { TargetPolicy } from '@/app/surface';
+import { PanelProvider } from "./panel/provider.tsx";
+import { panelRouter } from "./router.tsx";
+import type { TargetPolicy } from "./browser/surface.ts";
 
 /** Mount the persistent panel state owner above the routed page tree. */
 export function PanelApp(props: { readonly policy?: TargetPolicy }) {

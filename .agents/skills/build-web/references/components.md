@@ -263,5 +263,5 @@ Never claim parity with a shadcn or upstream component by matching its public pr
 - Uploaded evidence reviewed 2026-07-17: `kaiju-website(6).zip`, a product application archive, `kaiju-site-scope(17).zip`, `solid-primitives(2).zip`.
 - Solid Primitives official catalog: https://primitives.solidjs.community/ (reviewed 2026-07-17).
 - Solid props and `splitProps`: https://docs.solidjs.com/concepts/components/props (reviewed 2026-07-17).
-- Unplugin Icons compiles icons at build time; inspect the built output, not the dev server.
+- Astro Icon and Unplugin Icons are detailed in `build-sites/references/icons.md`.
 - Registry schemas, generated component source, Tailwind directives, and package maturity are version-sensitive. Inspect installed source rather than copying current examples blindly.

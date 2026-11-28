@@ -1,21 +1,15 @@
-import {
-	matchIndexedObservationBatch,
-	type ObservationRuleEvaluationEvent,
-} from '@/lib/detection/observation-matcher-index';
-import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
-import * as logging from '@/lib/diagnostics/logging';
-import { getDetectionPatternCacheStats } from '@/lib/detection/pattern';
-import type { DetectionPatternType } from '@/lib/detection/types';
-import { resolvePackagedAssetUrl } from '@/lib/registry/asset-fetch';
-import { createPackagedMatcherTechnologyRegistryProvider } from '@/lib/registry/packaged-matcher';
-import type {
-	MatcherPartitionMatch,
-	MatcherWorkerResponseMessage,
-	MatcherWorkerRunMessage,
-} from '@/lib/matcher/contracts';
-import type { NormalizedObservationKind, ObservationValue } from '@/lib/observations';
-import { redactEvidenceValue } from '@/lib/privacy/redaction';
-import * as dictionary from '../../../utils/dictionary';
+import { matchIndexedObservationBatch } from "@deepscope/detection/matcher";
+import { type ObservationRuleEvaluationEvent } from "@deepscope/detection/matcher/routing/types";
+import { installDiagnosticCrashHooks } from "../../diagnostics/crash.ts";
+import * as logging from '../../diagnostics/logging.ts';
+import { getDetectionPatternCacheStats } from "@deepscope/detection/pattern";
+import type { DetectionPatternType } from "@deepscope/registry/rules";
+import { resolvePackagedAssetUrl } from "../../registry/assets.ts";
+import { createPackagedMatcherTechnologyRegistryProvider } from "../../registry/matcher.ts";
+import type { MatcherPartitionMatch, MatcherWorkerResponseMessage, MatcherWorkerRunMessage } from "../contracts.ts";
+import type { NormalizedObservationKind, ObservationValue } from "@deepscope/detection/observations";
+import { redactEvidenceValue } from "@deepscope/detection/privacy/redaction";
+import * as dictionary from '@deepscope/detection/observations/dictionary';
 
 /** Log individual rule checks that are slow enough to explain visible matcher stalls. */
 const SLOW_RULE_EVALUATION_MS = 25;
@@ -59,6 +53,7 @@ const workerScope = globalThis as Partial<MatcherWorkerGlobal>;
  */
 const registryProvider = createPackagedMatcherTechnologyRegistryProvider({
 	maxShardCacheBytes: MATCHER_SHARD_CACHE_BYTES,
+	/** Resolve packaged registry assets relative to the worker's extension location rather than the inspected page. */
 	resolveUrl(path) {
 		return resolvePackagedAssetUrl(path, workerScope.location ?? globalThis.location);
 	},
@@ -86,6 +81,7 @@ if (typeof workerScope.addEventListener === 'function') {
 	});
 }
 
+/** Load one observation shard, match the partition and report original observation indices with bounded performance diagnostics. */
 async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWorkerResponseMessage> {
 	const { task } = message;
 	const partitionStartedAt = globalThis.performance.now();
@@ -102,6 +98,7 @@ async function runPartition(message: MatcherWorkerRunMessage): Promise<MatcherWo
 	const cacheAfter = registryProvider.getCacheState(task.kind);
 	const profileRules = !task.job.incognito && matcherWorkerLogger.isEnabledFor('trace');
 	const matchStartedAt = globalThis.performance.now();
+	/** Collect bounded slow-rule details only when tracing is enabled for a non-private job. */
 	const onRuleEvaluation = profileRules
 		? (event: ObservationRuleEvaluationEvent) => {
 			const isSlowRule = event.durationMs >= SLOW_RULE_EVALUATION_MS;
@@ -234,6 +231,7 @@ interface SlowRuleEvaluationSummary {
 	readonly durationMs: number;
 }
 
+/** Capture rule identity and bounded observation previews for an enabled, non-private performance trace. */
 function createRuleEvaluationSummary(input: {
 	readonly task: MatcherWorkerRunMessage['task'];
 	readonly event: ObservationRuleEvaluationEvent;
@@ -261,6 +259,7 @@ function createRuleEvaluationSummary(input: {
 	};
 }
 
+/** Retain only the configured number of slowest evaluations, ordered from longest duration to shortest. */
 function rememberSlowestRuleEvaluation(
 	slowestRuleEvaluations: SlowRuleEvaluationSummary[],
 	summary: SlowRuleEvaluationSummary,
@@ -272,6 +271,7 @@ function rememberSlowestRuleEvaluation(
 	}
 }
 
+/** Avoid building a detailed summary when an evaluation cannot enter the bounded slowest list. */
 function shouldRememberSlowestRuleEvaluation(
 	slowestRuleEvaluations: readonly SlowRuleEvaluationSummary[],
 	durationMs: number,
@@ -284,6 +284,7 @@ function shouldRememberSlowestRuleEvaluation(
 	return currentSmallestSlowEvaluation !== undefined && durationMs > currentSmallestSlowEvaluation.durationMs;
 }
 
+/** Render one slow evaluation with quoted page-derived previews so its diagnostic fields remain distinguishable. */
 function formatSlowRuleEvaluationMessage(summary: SlowRuleEvaluationSummary): string {
 	return [
 		'Slow matcher rule evaluation in worker:',
@@ -306,6 +307,7 @@ function formatSlowRuleEvaluationMessage(summary: SlowRuleEvaluationSummary): st
 	].join(' ');
 }
 
+/** Condense retained slow evaluations into duration, technology and rule identifiers for the partition summary. */
 function formatSlowRuleList(summaries: readonly SlowRuleEvaluationSummary[]): string {
 	if (summaries.length === 0) {
 		return 'none';
@@ -319,6 +321,7 @@ function formatSlowRuleList(summaries: readonly SlowRuleEvaluationSummary[]): st
 	].join(':')).join(',');
 }
 
+/** Prefer the first available serialized pattern, then selector or key fields, for a concise rule description. */
 function getRulePatternPreview(rule: Record<string, unknown>): string {
 	for (const key of ['pattern', 'valuePattern', 'keyPattern', 'hrefPattern', 'typePattern', 'mediaPattern', 'hreflangPattern']) {
 		const pattern = rule[key];
@@ -339,10 +342,12 @@ function getRulePatternPreview(rule: Record<string, unknown>): string {
 	return '';
 }
 
+/** Quote diagnostic string values so whitespace and delimiters cannot blend into neighboring log fields. */
 function quoteLogValue(value: string): string {
 	return JSON.stringify(value);
 }
 
+/** Project relevant rule fields and bounded pattern descriptions without retaining undefined diagnostic properties. */
 function describeRule(rule: ObservationRuleEvaluationEvent['rule']): Record<string, unknown> {
 	const details: Record<string, unknown> = {
 		id: rule.id,
@@ -370,6 +375,7 @@ function describeRule(rule: ObservationRuleEvaluationEvent['rule']): Record<stri
 	return withoutUndefined(details);
 }
 
+/** Retain pattern flags and a bounded source preview for performance diagnostics. */
 function describePattern(pattern: DetectionPatternType | undefined): Record<string, string> | undefined {
 	if (!pattern) return undefined;
 	return {
@@ -378,6 +384,7 @@ function describePattern(pattern: DetectionPatternType | undefined): Record<stri
 	};
 }
 
+/** Convert an observation primitive to the existing redacted and bounded log-preview format. */
 function previewObservationValue(value: ObservationValue): string {
 	return previewLogValue(String(value));
 }
@@ -387,15 +394,18 @@ function previewLogValue(value: string): string {
 	return redactEvidenceValue(value, 240);
 }
 
+/** Cap a pattern preview at 240 source characters and mark a truncated value with an ellipsis. */
 function truncateForLog(value: string): string {
 	if (value.length <= 240) return value;
 	return `${value.slice(0, 240)}...`;
 }
 
+/** Limit reported timing precision to tenths of a millisecond without changing measured execution time. */
 function roundDuration(durationMs: number): number {
 	return Math.round(durationMs * 10) / 10;
 }
 
+/** Drop absent diagnostic properties into a prototype-free record while retaining each defined value. */
 function withoutUndefined<T extends Record<string, unknown>>(value: T): T {
 	return dictionary.fromEntries(
 		Object.entries(value).filter((entry) => entry[1] !== undefined),

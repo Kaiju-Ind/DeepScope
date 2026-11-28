@@ -4,8 +4,8 @@ const LOGTAPE_CONFIGURED_KEY = '__kaijuDeepScopeLogTapeConfigV1';
 
 afterEach(() => {
 	vi.doUnmock('@logtape/logtape');
-	vi.doUnmock('@/lib/diagnostics/build');
-	vi.doUnmock('@/lib/diagnostics/journal');
+	vi.doUnmock('../../lib/diagnostics/build.ts');
+	vi.doUnmock('../../lib/diagnostics/journal/index.ts');
 	vi.resetModules();
 	delete (globalThis as Record<string, unknown>)[LOGTAPE_CONFIGURED_KEY];
 });
@@ -21,14 +21,14 @@ describe('diagnostic logging configuration', () => {
 			getLogger: () => ({ debug }),
 			getThrottlingFilter: () => () => true,
 		}));
-		vi.doMock('@/lib/diagnostics/build', () => ({
+		vi.doMock('../../lib/diagnostics/build.ts', () => ({
 			getDiagnosticBuildId: () => 'build-current',
 		}));
-		vi.doMock('@/lib/diagnostics/journal', () => ({
+		vi.doMock('../../lib/diagnostics/journal/index.ts', () => ({
 			createDiagnosticJournalSink: () => vi.fn(),
 		}));
 
-		const logging = await import('@/lib/diagnostics/logging');
+		const logging = await import('../../lib/diagnostics/logging.ts');
 		logging.configure('content');
 
 		expect(configureSync).toHaveBeenCalledTimes(1);

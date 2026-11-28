@@ -1,10 +1,21 @@
 # Agent guidance
 
 Start with [START.md](START.md), then read the selected capability and
-[software quality](guides/software-quality.md). The root [AGENTS.md](../AGENTS.md)
-owns DeepScope's scope, privacy, release and task boundaries. Inspect current
-exports, consumers and fixtures before treating a document as implementation
-evidence.
+[software quality](guides/software-quality.md). The repository's root AGENTS.md owns
+its scope, privacy, database and task boundaries. Inspect current exports, consumers
+and fixtures before treating a product document as implementation evidence.
+
+The shared [product method](guides/product/README.md) makes customer questions,
+early direct experiments, and reusable progress anchors part of every selected
+capability. It is generic across products and runtimes. The complete playbook
+retains the `docs/kaiju/` path for installation compatibility; its Kaiju-specific
+deployment and package choices apply only through that project's profile.
+
+For Rust, the [Rust guide](guides/rust/README.md) and
+[rust-software skill](skills/rust-software/SKILL.md) apply the same product method
+to portable behavior, memory ownership, SIMD, FFI, tests and efficient builds.
+Every maintained Rust package and binary needs working Wasm behavior on its
+declared host; build-only checks and omitted native-only tools do not pass.
 
 ## One owner for each rule
 
@@ -19,48 +30,6 @@ when no separate skill is selected. Read the applicable detail, not every guide.
 Use resource indexes as lookup maps. Stop when the affected contract is understood;
 a missing required source is a limit to report, not permission to guess.
 
-## Where this pack comes from
-
-This is the Kaiju skills and guides pack as kept in Kaiju-Ind/Crawl `main` at
-`a00f0036d` (identical guidance to `baee4f46a`), adapted to DeepScope: a public
-WXT + Solid + TypeScript Manifest V3 extension for Chrome, Firefox and Safari,
-with vendored utilities (`@utils/*`), no servers and no database. Open Crawl
-pull requests carried no newer guidance, except a Crawl-only handbook section
-about packaging built dependencies, which was not taken. The older copies in
-the finance application and the Kaiju Industries notes are earlier versions of
-the same pack; they hold nothing that this copy lacks and DeepScope needs.
-
-| Change | Skills |
-| --- | --- |
-| Kept and adapted | accessibility, benchmark-code, build-devtools, build-libraries, build-web, build-web-apps, build-workflows, commit-changes, design-interfaces, explore-ecosystems, plan-changes, prepare-pull-requests, refactor-code, release-software, review-code, shadcn, test-code, use-okikio, verify-behavior, write-docs |
-| Renamed | use-kaiju-utils is now use-utils: it covers the vendored `@utils/*` packages and `tools/utils/sync.ts` instead of the private registry |
-| Added | build-extensions: Manifest V3 rules learned across Chrome, Firefox and Safari |
-
-Not taken, because DeepScope has no part they govern. Restore one from Crawl
-(`git show a00f0036d:.agents/skills/<name>` in Kaiju-Ind/Crawl) if that changes:
-
-| Skill | Why it does not apply |
-| --- | --- |
-| build-apis | No HTTP service, endpoint or gateway; extension messaging is `build-extensions` |
-| build-auth | No accounts, sessions or identity providers |
-| build-clis | No published command-line tool; repository scripts are `build-devtools` |
-| build-data | No PostgreSQL, ClickHouse or Drizzle; browser stores are `build-workflows` and `use-utils` |
-| build-sites | No content site or Astro; fonts and icons in the extension are `build-web` |
-| deno-software | No Deno runtime; vendored utilities run under Node and Vitest |
-| python-software | No Python |
-
-Within kept skills, reference files about React server rendering, Astro
-delivery, Temporal and Effect workflows, CLI stacks, npm/JSR packaging and the
-Okikio libraries DeepScope does not use were removed for the same reason.
-`guides/cli-guidelines-audit-and-expansion.md` went with `build-clis`.
-
-## Package-shipped skills
-
-Some dependencies ship their own agent skills (for example
-`@logtape/logtape/skills/logtape`). Read those from `node_modules` when the
-decision is in scope; they are not copied or linked here, so the tracked tree
-never points at installed files.
-
 ## History and external material
 
 Previous entrypoints, compiled duplicate manuals and obsolete setup recipes belong
@@ -68,10 +37,10 @@ in Git. They are not a second set of active instructions. Maintained domain
 references and selected technical rule/example files remain with their capability;
 source links and license notices retain attribution. Validate version-sensitive
 claims against installed dependencies and primary documentation before use.
-Do not restore material that DeepScope deliberately removed.
+Do not restore material that a repository deliberately removed.
 
-[`tools/lint/guidance.test.ts`](../tools/lint/guidance.test.ts) derives
-ownership from the actual files and checks links, routes, playbook back-links,
-task prompts and the utility authority. There is no separate skill registry to
-synchronize. Structural checks cannot guarantee activation, judgment or
-compliance.
+A repository can add a structural check that derives ownership from the actual
+files and checks metadata, shared routes, missing resources, nested historical
+skill entrypoints, symlink escapes and duplicate shared files. There is no
+separate skill registry to synchronize. Structural checks cannot guarantee
+activation, judgment or compliance.

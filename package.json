@@ -13,7 +13,7 @@
     "zip:safari": "pnpm --filter @deepscope/extension zip:safari",
     "test": "vitest",
     "test:run": "vitest run",
-    "compile": "tsc --noEmit -p apps/extension && tsc --noEmit -p utils && tsc --noEmit -p tools && tsc --noEmit -p .",
+    "compile": "pnpm --filter \"./packages/*\" --filter \"./tools/*\" --fail-if-no-match run check && tsc --noEmit -p apps/extension && tsc --noEmit -p utils && tsc --noEmit -p .",
     "check:release": "pnpm compile && vitest run && pnpm --filter @deepscope/extension exec wxt build -b chrome",
     "release:zip": "pnpm zip:chrome",
     "bench": "pnpm --filter @deepscope/extension bench",
@@ -24,7 +24,6 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
-    "rolldown": "1.2.18",
     "typescript": "7.0.2",
     "vitest": "5.1.0"
   }

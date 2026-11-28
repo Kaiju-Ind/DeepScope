@@ -199,7 +199,7 @@ For each selected candidate inspect the complete lifecycle:
 
 Read implementation and tests where documentation is incomplete or a claim is
 fragile. Do not generalize an example beyond its host: a React adapter is not a
-Solid adapter, a Chromium extension API is not Firefox's, Node compatibility is not
+Solid adapter, a PostgreSQL dialect is not ClickHouse, Node compatibility is not
 edge support, and matching TypeScript shapes are not behavioral interoperability.
 
 Create a failure table before integration. If you cannot say what an adapter

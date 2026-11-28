@@ -1,16 +1,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 
-import * as priority from './priority';
-import {
-	AnalysisWorkSchema,
-	EXECUTION_SCHEMA_VERSION,
-	MatcherWorkSchema,
-	WorkSchema,
-	type AnalysisWorkType,
-	type WorkKindType,
-	type WorkPriorityType,
-	type WorkType,
-} from './schema';
+import * as priority from './priority.ts';
+import { AnalysisWorkSchema, EXECUTION_SCHEMA_VERSION, MatcherWorkSchema, WorkSchema, type AnalysisWorkType, type WorkKindType, type WorkPriorityType, type WorkType } from "./schema.ts";
 
 const DATABASE_NAME = 'kaiju-deepscope-execution';
 const DATABASE_VERSION = EXECUTION_SCHEMA_VERSION;
@@ -62,6 +53,7 @@ export function open(): Promise<IDBPDatabase<ExecutionDatabaseSchema>> {
 	if (connection) return connection;
 	let opened: IDBPDatabase<ExecutionDatabaseSchema> | undefined;
 	const pending = openDB<ExecutionDatabaseSchema>(DATABASE_NAME, DATABASE_VERSION, {
+		/** Recreate reconstructable execution control state on schema changes; product snapshots are owned by separate storage. */
 		upgrade(db) {
 			// Execution intent is reconstructable control state. Recreate its store on
 			// every schema upgrade so removed fields and indexes cannot survive as
@@ -69,10 +61,12 @@ export function open(): Promise<IDBPDatabase<ExecutionDatabaseSchema>> {
 			if (db.objectStoreNames.contains(WORK_STORE)) db.deleteObjectStore(WORK_STORE);
 			createWorkStore(db);
 		},
+		/** Release this connection when another context needs a schema upgrade so later access can reopen it. */
 		blocking() {
 			opened?.close();
 			connection = undefined;
 		},
+		/** Forget a browser-terminated connection so the next database operation obtains a fresh one. */
 		terminated() {
 			connection = undefined;
 		},

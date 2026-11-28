@@ -1,5 +1,61 @@
 # Source layout cleanup plan
 
+## Current implementation record
+
+The continuation starts from PR #7 commit
+`1f439b9c33134cbb9755c231db3ced6024f3074b` on
+`codex/deepscope-structure-20261127`. The native history contains the completed
+Phase A and M1 changes. The separate `fix/stress-green` branch is not part of
+this baseline. This record and the [monorepo plan](monorepo-plan.md) describe
+one migration; the registry extraction follows the source splits below.
+
+The intended reader is a maintainer tracing a scan from a browser event through
+collection, matching, persistence and the panel. Each cut must identify the
+state owner, update every current consumer, retain useful comments, remove the
+obsolete path, and pass the owning type and behaviour checks before the next cut.
+
+1. Split the pure panel model and explicitly install its artifact probe at
+   panel startup. Move named consumers directly to their new owners.
+2. Separate the content install guard, RPC lifetime, collection and diagnostics;
+   preserve private-tab filtering and start/stop write ordering.
+3. Separate background browser adapters and listener registration from runtime
+   state, then extract runtime state owners in the dependency order below.
+4. Split observer mutation/evidence ownership and panel state/effects without
+   moving reactive setup across an asynchronous call.
+5. Complete monorepo M2–M5 with public package subpaths, package-owned tests,
+   native workspace discovery and no app imports from the extracted packages.
+6. Merge the supplied handbook by intent, preserving the extension guidance and
+   the public source-build contract. Record the vendored-versus-published Utils
+   decision as an ADR. Inspect the actual generated browser archives, rebuild
+   the Firefox sources archive, and report each real-browser gate separately.
+
+Validation starts with the declared Node 26.13.0, pnpm 12.19.0 and frozen
+lockfile. The existing cleanup, panel reset, RPC, privacy and architecture tests
+are retained. Passing source tests or bundles alone does not close the real
+Chrome, Firefox or Safari checks. The original dated plan follows unchanged
+until each implemented step has evidence recorded here.
+
+## Implemented source owners and stopping point
+
+The six migration steps above are implemented in the working source. See
+[source ownership](../architecture/source-layout.md) for the full current paths,
+state owners and exact package/tool graph. All 14 oversized-module and two
+thick-entrypoint exceptions have been removed after their owning code was
+split. The panel provider remains under its 150-line target. The matcher reason
+is typed; browser and persistence implementations are injected into the runtime.
+
+Native source checks and the integrated suite pass. Chrome, Firefox and Safari
+bundles build. Archive/source-rebuild results and the complete final review
+must be retained with the integration record. Real browser interaction is
+blocked in this host by local socket restrictions and denied escalation; it is
+not marked complete. The historical vendor-header refresh still needs exact
+upstream objects. The active record in the [monorepo plan](monorepo-plan.md)
+contains decisions, failed probes and the next action. The original dated
+problem statement and target below are preserved as history; use the source
+map for current paths rather than recreating obsolete files.
+
+## Original recorded plan (retained)
+
 `src/entrypoints`, `src/app` and the background runtime they drive are too
 large to follow. This plan splits them into small modules with one owner per
 piece of state, without changing behaviour. The registry (catalog, compiler,

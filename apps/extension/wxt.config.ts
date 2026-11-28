@@ -42,14 +42,17 @@ const nativeTemporal = fileURLToPath(new URL('../../utils/duration/temporal.nati
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 
 /**
- * Vendored `@utils/*` sources, which WXT auto-imports must leave alone.
+ * Portable packages and vendored Utils declare their own imports.
  *
- * Auto-import detection is textual, so a method named `batch` in
- * `utils/context` gets an (unused) `solid-js` import injected. `utils/*` does
- * not depend on `solid-js`, so outside this package that import cannot resolve
- * and a clean build fails. The injected import was always tree-shaken.
+ * WXT's Solid preset detects names textually. Fields and parameters named
+ * `batch` can cause an unused `solid-js` import in these renderer-free modules.
+ * Keep the existing plugin exclusions and exclude both source owners so clean
+ * builds do not acquire an undeclared renderer dependency.
  */
-const vendoredUtils = new RegExp(`^${`${repoRoot}utils/`.replaceAll('\\', '/').replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`, 'u');
+const portableSources = new RegExp(
+	`^${repoRoot.replaceAll('\\', '/').replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?:packages|utils)/`,
+	'u',
+);
 
 export default defineConfig({
 	srcDir: 'src',
@@ -59,13 +62,13 @@ export default defineConfig({
 		// `kaiju-deepscope-extension-<version>-<browser>.zip`.
 		name: 'kaiju-deepscope-extension',
 		// AMO reviewers rebuild from the sources archive with pnpm alone, so it holds
-		// the whole workspace (root manifests, lockfile, apps/, utils/, tools/).
+		// the whole workspace (root manifests, lockfile, apps/, packages/, utils/, tools/).
 		// WXT still skips dot folders (.mise, .wxt, .output), node_modules and tests.
 		sourcesRoot: repoRoot,
 	},
-	// unimport's default excludes plus the vendored utils. WXT hands these options
+	// unimport's default excludes plus portable source owners. WXT hands these options
 	// to unimport's Vite plugin, which reads `exclude`, but does not type it.
-	imports: { exclude: [/[\\/]node_modules[\\/]/u, /[\\/]\.git[\\/]/u, vendoredUtils] } as WxtUnimportOptions,
+	imports: { exclude: [/[\\/]node_modules[\\/]/u, /[\\/]\.git[\\/]/u, portableSources] } as WxtUnimportOptions,
 	modules: ['@wxt-dev/module-solid'],
 	// WXT defaults Firefox and Safari to Manifest V2. DeepScope targets V3 everywhere.
 	manifestVersion: 3,
@@ -92,6 +95,7 @@ export default defineConfig({
 			} as typeof manifest.background;
 		},
 	},
+	/** Generate the selected browser's manifest from the shared extension contract, adding only its supported permissions and store metadata. */
 	manifest: ({ browser }) => ({
 		name: 'Kaiju DeepScope',
 		description: 'Detect web technologies automatically on active web pages and show the evidence behind each result.',
@@ -145,6 +149,7 @@ export default defineConfig({
 		],
 		host_permissions: ['http://*/*', 'https://*/*'],
 	}),
+	/** Keep shared Solid and style compilation while selecting the browser's Temporal implementation and embedding the current build identity. */
 	vite: ({ browser }) => ({
 		build: { modulePreload: false },
 		resolve: {

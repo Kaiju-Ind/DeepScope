@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { Pool } from '@/lib/matcher/workers/pool';
-import { FakeWorker, createTasks, ownedTask, result } from '../support/matcher-workers';
+import { Pool } from "../../lib/matcher/workers/pool.ts";
+import { FakeWorker, createTasks, ownedTask, result } from "../support/matcher-workers.ts";
 
 afterEach(() => {
 	FakeWorker.instances.length = 0;

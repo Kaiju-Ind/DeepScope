@@ -1,11 +1,6 @@
-import type {
-	AnalyzeVisibleTabMode,
-	AnalyzeVisibleTabOutput,
-	BackgroundApi,
-	VisibleTabIdentity,
-} from '@/lib/messaging';
-import type { ExtensionResult } from '@/lib/messaging/result';
-import { diagnosticErrorType } from '@/lib/privacy/redaction';
+import type { AnalyzeVisibleTabMode, AnalyzeVisibleTabOutput, BackgroundApi, VisibleTabIdentity } from "../messaging/index.ts";
+import type { ExtensionResult } from "../messaging/result.ts";
+import { diagnosticErrorType } from "@deepscope/detection/privacy/redaction";
 
 /** Settings, browser target validation, and analysis owned by the background runtime. */
 export type AutoScanControllerDependencies = {
@@ -196,6 +191,7 @@ export function createAutoScanController(
 	}
 
 	return {
+		/** Reuse current-generation work and retain at most one replacement request after navigation or a window change. */
 		scanVisibleTab(tabId, windowId, mode, reason) {
 			const scans = scansByTab.get(tabId);
 			if (!scans) {
@@ -222,10 +218,12 @@ export function createAutoScanController(
 			}
 			return scans.pending.promise;
 		},
+		/** Invalidate the current document generation so its scan cannot satisfy the next navigation request. */
 		onTabNavigation(tabId) {
 			const scans = scansByTab.get(tabId);
 			if (scans) invalidateScans(scans);
 		},
+		/** Invalidate pending work before removing the tab's scan state; in-flight completion remains responsible for settling its promise. */
 		onTabRemoved(tabId) {
 			const scans = scansByTab.get(tabId);
 			if (!scans) return;

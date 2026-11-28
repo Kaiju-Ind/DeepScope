@@ -1,6 +1,6 @@
 # Rehearse the instructions, not just the application
 
-[EPA][epa] recommends having someone other than the author test a draft. [HSE][hse-procedures] recommends task analysis
+[EPA](https://www.epa.gov/sites/default/files/2015-06/documents/g6-final.pdf) recommends having someone other than the author test a draft. [HSE](https://www.hse.gov.uk/humanfactors/topics/procedures.htm) recommends task analysis
 with the people who perform the work and adapting the detail to the task. Apply those principles through a bounded
 rehearsal:
 
@@ -13,7 +13,7 @@ rehearsal:
 
 An independent agent can find gaps in a document. It cannot establish that a deployment works without the corresponding
 runtime evidence. Label evidence precisely: **source reviewed**, **locally exercised**, **preview exercised**, or
-**release exercised**. These are proposed Kaiju labels, not certifications.
+**production exercised**. These are proposed Kaiju labels, not certifications.
 
 For example, a mocked object-storage test can validate error handling. A real round trip from the application runtime
 can establish that the selected credentials, endpoint, bucket, and required operations work together. Preserve both
@@ -22,6 +22,3 @@ results without treating one as a substitute for the other.
 Review a procedure after an incident or a change to its provider, runtime, credentials, deployment mechanism, or
 application contract. Archive old versions so historical evidence remains interpretable. Avoid a calendar-only review
 that misses a breaking change between reviews.
-
-[epa]: https://www.epa.gov/sites/default/files/2015-06/documents/g6-final.pdf
-[hse-procedures]: https://www.hse.gov.uk/humanfactors/topics/procedures.htm

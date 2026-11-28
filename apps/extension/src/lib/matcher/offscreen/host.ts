@@ -1,15 +1,9 @@
 import { browser } from 'wxt/browser';
 
-import * as logging from '../../diagnostics/logging';
-import {
-	MATCHER_OFFSCREEN_CHANNEL,
-	type MatcherHostFailure,
-	type MatcherHostIdleMessage,
-	type MatcherOffscreenRequestMessage,
-	type MatcherOffscreenResponse,
-} from '../contracts';
-import { MatcherError } from '../error';
-import { EXECUTOR_IDLE_MS, WorkerExecutor, type ExecutorIdleReason } from '../workers/executor';
+import * as logging from '../../diagnostics/logging.ts';
+import { MATCHER_OFFSCREEN_CHANNEL, type MatcherHostFailure, type MatcherHostIdleMessage, type MatcherOffscreenRequestMessage, type MatcherOffscreenResponse } from "../contracts.ts";
+import { MatcherError } from "../error.ts";
+import { EXECUTOR_IDLE_MS, WorkerExecutor, type ExecutorIdleReason } from "../workers/executor.ts";
 
 const logger = logging.get('offscreen', 'matcher-host');
 
@@ -23,7 +17,7 @@ const logger = logging.get('offscreen', 'matcher-host');
  * Firefox and Safari use the same executor directly from their background page.
  */
 export class Host {
-	readonly #executor = new WorkerExecutor({ onIdle: (reason, generation) => this.#emitHostIdle(reason, generation) });
+	readonly #executor = new WorkerExecutor({ /** Forward the executor's idle reason and generation so the host closes only the lifecycle it still owns. */ onIdle: (reason, generation) => this.#emitHostIdle(reason, generation) });
 
 	/** Register the offscreen partition execution protocol. */
 	start(): void {

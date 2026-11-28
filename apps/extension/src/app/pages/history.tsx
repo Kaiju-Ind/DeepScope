@@ -3,25 +3,20 @@ import RefreshIcon from '~icons/fluent/arrow-clockwise-24-regular';
 import { createMediaQuery } from '@solid-primitives/media';
 import { For, Show, createEffect, createMemo, createSignal } from 'solid-js';
 
-import { FilterMenu } from '@/app/components/filter-menu';
-import { PageUrl } from '@/app/components/page-url';
-import { useHistory } from '@/app/context';
-import * as session from '@/app/session';
-import { createRetainedHistory } from '@/app/history';
-import * as history from '@/lib/history';
-import type { DetectionReplayTrace } from '@/lib/pipeline';
-import { Badge } from '@/ui/badge';
-import { Button } from '@/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/ui/drawer';
-import {
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
-} from '@/ui/dropdown-menu';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/ui/empty';
-import { Input } from '@/ui/input';
+import { FilterMenu } from "../components/filter-menu.tsx";
+import { PageUrl } from "../components/page-url.tsx";
+import { useHistory } from "../panel/context.ts";
+import * as session from "../panel/routes.ts";
+import { createRetainedHistory } from "../history.ts";
+import * as history from '../../lib/history/index.ts';
+import type { DetectionReplayTrace } from "@deepscope/detection/pipeline";
+import { Badge } from "../../ui/badge.tsx";
+import { Button } from "../../ui/button.tsx";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../ui/card.tsx";
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "../../ui/drawer.tsx";
+import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "../../ui/dropdown-menu.tsx";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty.tsx";
+import { Input } from "../../ui/input.tsx";
 
 /** Transient history controls retained for one active tab during one panel session. */
 interface HistoryStateType {
@@ -45,7 +40,9 @@ const defaultState: HistoryStateType = {
 export function HistoryPage() {
 	const panel = useHistory();
 	const touch = createMediaQuery('(pointer: coarse), (hover: none)');
+	/** Use the current visible tab identity when reading or saving tab-scoped history view state. */
 	const tabId = () => panel.visibleTabIdentity()?.tabId;
+	/** Prefer the analyzed URL and fall back to the visible tab URL while analysis is unavailable. */
 	const currentUrl = () => panel.analysis()?.url ?? panel.visibleTabIdentity()?.url ?? '';
 	const initial = session.get<HistoryStateType>(tabId(), 'history') ?? defaultState;
 	const { runs, loading, refetch } = createRetainedHistory(panel);
@@ -64,6 +61,7 @@ export function HistoryPage() {
 		const after = latest();
 		return before && after && history.key(before) !== history.key(after) ? history.compare(before, after) : undefined;
 	});
+	/** Count history scope and change filters that differ from the default page view. */
 	const filterCount = () => (scope() === 'page' ? 0 : 1) + (change() === 'any' ? 0 : 1);
 
 	createEffect(() => {
@@ -89,11 +87,13 @@ export function HistoryPage() {
 		});
 	}
 
+	/** Update the visible query and persist it through the page's existing per-tab state owner. */
 	function search(value: string): void {
 		setQuery(value);
 		save({ query: value });
 	}
 
+	/** Open the chosen replay details and save its stable history key with the open state. */
 	function select(run: DetectionReplayTrace): void {
 		const runKey = history.key(run);
 		setSelected(runKey);
@@ -101,11 +101,13 @@ export function HistoryPage() {
 		save({ selected: runKey, detailsOpen: true });
 	}
 
+	/** Keep the details panel's reactive visibility and saved per-tab visibility in sync. */
 	function showDetails(open: boolean): void {
 		setDetailsOpen(open);
 		save({ detailsOpen: open });
 	}
 
+	/** Keep comparison visibility in the same per-tab view state as the rest of the history page. */
 	function showComparison(open: boolean): void {
 		setComparisonOpen(open);
 		save({ comparisonOpen: open });
@@ -208,6 +210,7 @@ function HistoryFilter(props: {
 
 /** High-value history information stays compact and above the long run inventory. */
 function ComparisonCard(props: { readonly diff: ReturnType<typeof history.compare>; readonly onOpen: () => void }) {
+	/** Count all added, removed and changed technologies for the comparison summary. */
 	const total = () => props.diff.added.length + props.diff.removed.length + props.diff.changed.length;
 	return (
 		<Card size="sm" class="border-kaiju-cyan/18 bg-kaiju-cyan/[0.025]">
@@ -244,6 +247,7 @@ function DiffCount(props: { readonly label: string; readonly value: number }) {
 
 /** Show only the first useful examples so the comparison does not become another long list. */
 function DiffHighlights(props: { readonly diff: ReturnType<typeof history.compare> }) {
+	/** Show at most four compact change labels, taking at most two from each change category. */
 	const items = () => [
 		...props.diff.added.slice(0, 2).map((item) => `Added · ${item.name}`),
 		...props.diff.removed.slice(0, 2).map((item) => `Removed · ${item.name}`),

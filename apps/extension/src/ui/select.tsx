@@ -15,8 +15,8 @@ import Check from "~icons/fluent/checkmark-24-regular";
 import ChevronsUpDown from "~icons/fluent/chevron-up-down-24-regular";
 import type { ComponentProps, JSX, ValidComponent } from "solid-js";
 import { mergeProps, splitProps } from "solid-js";
-import { cn } from "@/utils/cn";
-import { releaseBackgroundFocus } from "@/ui/modal-focus";
+import { cn } from "../utils/cn.ts";
+import { releaseBackgroundFocus } from "./modal-focus.ts";
 
 type SelectProps<O, OptGroup = never, T extends ValidComponent = "div"> = PolymorphicProps<
   T,
@@ -24,6 +24,7 @@ type SelectProps<O, OptGroup = never, T extends ValidComponent = "div"> = Polymo
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Default to a same-width bottom popup with a four-pixel gutter and apply shared focus policy before open-change callbacks. */
 const Select = <O, OptGroup = never, T extends ValidComponent = "div">(
   props: SelectProps<O, OptGroup, T>,
 ) => {
@@ -36,6 +37,7 @@ const Select = <O, OptGroup = never, T extends ValidComponent = "div">(
     props,
   );
   const [local, others] = splitProps(mergedProps, ["onOpenChange"]);
+  /** Release background focus on opening before forwarding the select's new state. */
   const onOpenChange = (open: boolean) => {
     releaseBackgroundFocus(open);
     local.onOpenChange?.(open);
@@ -50,6 +52,7 @@ type SelectGroupProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Style the primitive's option section without changing its selection or grouping data. */
 const SelectGroup = <T extends ValidComponent = "div">(props: SelectGroupProps<T>) => {
   const [local, others] = splitProps(props as SelectGroupProps, ["class"]);
   return <Section class={cn("z-select-group", local.class)} data-slot="select-group" {...others} />;
@@ -61,6 +64,7 @@ type SelectValueProps<Option, T extends ValidComponent = "span"> = PolymorphicPr
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Read primitive selection to style the empty placeholder while leaving value formatting with the Value primitive. */
 const SelectValue = <Option, T extends ValidComponent = "span">(
   props: SelectValueProps<Option, T>,
 ) => {
@@ -85,6 +89,7 @@ type SelectTriggerProps<T extends ValidComponent = "button"> = PolymorphicProps<
     size?: "sm" | "default";
   };
 
+/** Default trigger sizing and add the option indicator while retaining primitive activation and keyboard behavior. */
 const SelectTrigger = <T extends ValidComponent = "button">(rawProps: SelectTriggerProps<T>) => {
   const props = mergeProps({ size: "default" }, rawProps);
   const [local, others] = splitProps(props as SelectTriggerProps, ["class", "children", "size"]);
@@ -111,6 +116,7 @@ type SelectContentProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class"> & {};
 
+/** Portal the listbox and point its scroll handling at the same bounded popup element. */
 const SelectContent = <T extends ValidComponent = "div">(props: SelectContentProps<T>) => {
   const [local, others] = splitProps(props as SelectContentProps, ["class"]);
   let contentRef: HTMLElement | undefined;
@@ -135,6 +141,7 @@ type SelectLabelProps<T extends ValidComponent = "span"> = SelectPrimitive.Selec
   class?: string | undefined;
 };
 
+/** Associate caller-provided label text through the select primitive's labeling contract. */
 const SelectLabel = <T extends ValidComponent = "span">(
   props: PolymorphicProps<T, SelectLabelProps<T>>,
 ) => {
@@ -153,6 +160,7 @@ type SelectItemProps<T extends ValidComponent = "li"> = SelectPrimitive.SelectIt
   children?: JSX.Element;
 };
 
+/** Pair option text with the primitive's selected indicator and forward value and disabled behavior. */
 const SelectItem = <T extends ValidComponent = "li">(
   props: PolymorphicProps<T, SelectItemProps<T>>,
 ) => {
@@ -180,6 +188,7 @@ type SelectSeparatorProps<T extends ValidComponent = "hr"> = ComponentProps<T> &
   class?: string | undefined;
 };
 
+/** Divide option groups visually without introducing another selectable option. */
 const SelectSeparator = <T extends ValidComponent = "hr">(
   props: PolymorphicProps<T, SelectSeparatorProps<T>>,
 ) => {

@@ -8,8 +8,11 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const { technologies } = await import(pathToFileURL(resolve(process.argv[2] ?? 'apps/extension/.wxt/registry-sources.mjs')).href);
+/** Group likely equivalent names after removing a JavaScript suffix and non-alphanumeric spelling differences. */
 const key = (value) => value.toLowerCase().replace(/\.js$|js$/, '').replace(/[^a-z0-9]+/g, '');
+/** Normalize scheme, common www prefix and trailing slashes for website collision review. */
 const site = (value) => value.toLowerCase().replace(/^https?:\/\/(?:www\.)?/, '').replace(/\/+$/, '');
+/** Report only normalization keys shared by multiple technologies, retaining each original technology ID. */
 const group = (fn) => {
 	const map = new Map();
 	for (const technology of technologies) map.set(fn(technology), [...(map.get(fn(technology)) ?? []), technology.id]);

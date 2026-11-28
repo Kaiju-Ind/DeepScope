@@ -11,11 +11,12 @@ import {
 } from "@kobalte/core/tabs";
 import { cva, type VariantProps } from "class-variance-authority";
 import { type ComponentProps, mergeProps, splitProps, type ValidComponent } from "solid-js";
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type TabsProps<T extends ValidComponent = "div"> = PolymorphicProps<T, TabsRootProps<T>> &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Default to horizontal tab orientation and forward selection and activation policy to the tab primitive. */
 const Tabs = <T extends ValidComponent = "div">(props: TabsProps<T>) => {
   const mergedProps = mergeProps({ orientation: "horizontal" }, props);
   const [local, others] = splitProps(mergedProps, ["class", "orientation"]);
@@ -52,6 +53,7 @@ type TabsListProps<T extends ValidComponent = "div"> = PolymorphicProps<
   VariantProps<typeof tabsListVariants> &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Apply the selected list appearance while preserving the primitive's tab-list semantics and keyboard navigation. */
 const TabsList = <T extends ValidComponent = "div">(props: TabsListProps<T>) => {
   const [local, others] = splitProps(props as TabsListProps, ["variant", "class"]);
   return (
@@ -70,6 +72,7 @@ type TabTriggerProps<T extends ValidComponent = "button"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Style a tab trigger while leaving selection, disabled state and focus movement with the primitive. */
 const TabsTrigger = <T extends ValidComponent = "button">(props: TabTriggerProps<T>) => {
   const [local, others] = splitProps(props as TabTriggerProps, ["class"]);
   return (
@@ -90,6 +93,7 @@ type TabsContentProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Style the selected tab's content without taking over its mount or selection lifecycle. */
 const TabsContent = <T extends ValidComponent = "div">(props: TabsContentProps<T>) => {
   const [local, others] = splitProps(props as TabsContentProps, ["class"]);
   return (

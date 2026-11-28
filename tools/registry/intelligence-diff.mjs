@@ -29,7 +29,7 @@ import { rolldown } from 'rolldown';
 const { values: args } = parseArgs({
 	options: {
 		intelligence: { type: 'string', default: resolve('../Intelligence/packages/registry') },
-		deepscope: { type: 'string', default: resolve('apps/extension') },
+		deepscope: { type: 'string', default: resolve('packages/registry') },
 		out: { type: 'string' },
 		json: { type: 'string' },
 	},
@@ -39,6 +39,7 @@ const RELATION_FIELDS = ['implies', 'requires', 'excludes'];
 const PATTERN_FIELDS = ['pattern', 'valuePattern', 'keyPattern', 'hrefPattern', 'typePattern', 'hreflangPattern', 'mediaPattern'];
 const PLAIN_FIELDS = ['selector', 'attribute', 'property', 'key', 'rel', 'as', 'recordType', 'area'];
 
+/** Load a TypeScript catalog through a disposable native bundle and remove its temporary files after the module is evaluated. */
 async function bundle(input, alias, exportsSource) {
 	const dir = await mkdtemp(join(tmpdir(), 'registry-diff-'));
 	try {
@@ -55,16 +56,18 @@ async function bundle(input, alias, exportsSource) {
 	}
 }
 
+/** Read DeepScope's category fragments and merged catalog from the registry package's public catalog owner. */
 async function loadDeepScope(root) {
 	const mod = await bundle(
-		resolve(root, 'src/registry/technology/index.ts'),
-		{ '@': resolve(root, 'src'), '~': resolve(root, 'src') },
+		resolve(root, 'catalog/index.ts'),
+		{},
 		(input) => `export { technologyDefinitionsByCategory, generatedTechnologyDefinitions } from ${JSON.stringify(input)};`,
 	);
 	const fragments = Object.entries(mod.technologyDefinitionsByCategory).flatMap(([folder, list]) => list.map((entry) => ({ folder, entry })));
 	return { fragments, merged: mod.generatedTechnologyDefinitions };
 }
 
+/** Read Intelligence tag fragments with its native alias and merge them through that repository's own merge function. */
 async function loadIntelligence(root) {
 	const mod = await bundle(
 		resolve(root, 'catalog/mod.ts'),
@@ -75,8 +78,11 @@ async function loadIntelligence(root) {
 	return { fragments, merged: mod.merge(fragments.map(({ entry }) => entry)) };
 }
 
+/** Serialize optional object fields with sorted top-level keys for repeatable comparison output. */
 const stable = (value) => (value === undefined ? undefined : JSON.stringify(value, Object.keys(value).sort()));
+/** Represent an optional pattern by source and flags so the diff compares pattern semantics rather than object identity. */
 const regex = (value) => (value ? `/${value.source}/${value.flags}` : undefined);
+/** Normalize string and versioned relationship targets to a comparable textual identity. */
 const target = (value) => (typeof value === 'string' ? value : value.version ? `${value.id}@${JSON.stringify(value.version)}` : value.id);
 
 /** Structural rule signature: ignores rule ids, descriptions, and confidence. */
@@ -87,12 +93,14 @@ function ruleSignature(rule) {
 	return parts.join(' ');
 }
 
+/** Combine the existing rule signature with confidence and version metadata for catalog comparison. */
 function ruleDetail(rule) {
 	const version = rule.version ? ` version=${JSON.stringify({ ...rule.version, pattern: regex(rule.version.pattern) })}` : '';
 	const confidence = rule.confidence !== undefined ? ` confidence=${rule.confidence}` : '';
 	return `${ruleSignature(rule)}${confidence}${version}`;
 }
 
+/** Project DeepScope entries into comparison fields while retaining unexpected fields for the audit report. */
 function normalizeDeepScope(entry) {
 	return {
 		id: entry.id,
@@ -112,6 +120,7 @@ function normalizeDeepScope(entry) {
 	};
 }
 
+/** Map Intelligence tags to DeepScope categories while retaining its separate broad category and unexpected fields. */
 function normalizeIntelligence(entry) {
 	return {
 		id: entry.id,
@@ -137,23 +146,27 @@ const SHARED = ['id', 'name', 'website', 'description', 'icon', 'rules', 'implie
 const DEEPSCOPE_FIELDS = new Set([...SHARED, 'categories']);
 const INTELLIGENCE_FIELDS = new Set([...SHARED, 'category', 'tags']);
 
+/** Retain values present only on the left, preserving their source order in the report. */
 function setDiff(a, b) {
 	const right = new Set(b);
 	return a.filter((value) => !right.has(value));
 }
 
+/** Count how many entries carry each top-level field so schema coverage differences remain visible. */
 function fieldCounts(entries) {
 	const counts = {};
 	for (const entry of entries) for (const key of Object.keys(entry)) counts[key] = (counts[key] ?? 0) + 1;
 	return counts;
 }
 
+/** Find technology identities supplied by multiple category fragments and retain their owning folders. */
 function duplicateIds(fragments) {
 	const byId = new Map();
 	for (const { folder, entry } of fragments) byId.set(entry.id, [...(byId.get(entry.id) ?? []), folder]);
 	return [...byId].filter(([, folders]) => folders.length > 1);
 }
 
+/** Normalize display names to lowercase alphanumeric keys for the report's name comparison. */
 const nameKey = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
 const [deepscope, intelligence] = await Promise.all([loadDeepScope(resolve(args.deepscope)), loadIntelligence(resolve(args.intelligence))]);
@@ -197,6 +210,7 @@ for (const [id, left] of ds) {
 	if (Object.keys(change).length > 1) changed.push(change);
 }
 
+/** Count changed entries that satisfy one report condition without recomputing catalog differences. */
 const count = (predicate) => changed.filter(predicate).length;
 const summary = {
 	deepscope: { fragments: deepscope.fragments.length, technologies: ds.size, rules: [...ds.values()].reduce((n, t) => n + t.rules.length, 0), duplicateIds: duplicateIds(deepscope.fragments).length },
@@ -229,6 +243,7 @@ const schema = {
 	intelligenceTargetObjects: [...intel.values()].filter((t) => RELATION_FIELDS.some((f) => t[f].some((v) => v.includes('@')))).map((t) => t.id),
 };
 
+/** Render a bounded inline list and report omitted items explicitly; an empty list is shown as none. */
 const list = (values, limit = Infinity) => {
 	const shown = values.slice(0, limit).map((v) => `\`${v}\``).join(', ');
 	return values.length > limit ? `${shown}, ... (${values.length - limit} more)` : shown || '(none)';

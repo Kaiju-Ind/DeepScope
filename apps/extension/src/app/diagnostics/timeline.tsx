@@ -2,26 +2,15 @@ import { createMediaQuery } from '@solid-primitives/media';
 import { createVirtualizer } from '@tanstack/solid-virtual';
 import { For, Show, createEffect, createMemo, createSignal } from 'solid-js';
 
-import { FilterMenu } from '@/app/components/filter-menu';
-import * as state from '@/app/diagnostics/state';
-import type { DiagnosticRecord } from '@/lib/diagnostics/contracts';
-import * as query from '@/lib/diagnostics/query';
-import { Badge } from '@/ui/badge';
-import {
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
-} from '@/ui/dropdown-menu';
-import {
-	Drawer,
-	DrawerContent,
-	DrawerDescription,
-	DrawerHeader,
-	DrawerTitle,
-} from '@/ui/drawer';
-import { Input } from '@/ui/input';
-import { NativeSelect, NativeSelectOption } from '@/ui/native-select';
+import { FilterMenu } from "../components/filter-menu.tsx";
+import * as state from './state.ts';
+import type { DiagnosticRecord } from "../../lib/diagnostics/contracts.ts";
+import * as query from '../../lib/diagnostics/query.ts';
+import { Badge } from "../../ui/badge.tsx";
+import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "../../ui/dropdown-menu.tsx";
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "../../ui/drawer.tsx";
+import { Input } from "../../ui/input.tsx";
+import { NativeSelect, NativeSelectOption } from "../../ui/native-select.tsx";
 
 /** Inputs required by the virtual diagnostic record list. */
 export interface TimelinePropsType {
@@ -46,13 +35,18 @@ export function Timeline(props: TimelinePropsType) {
 		order: order(),
 	}));
 	const selected = createMemo(() => selectedId() ? props.records.find((record) => record.id === selectedId()) : undefined);
+	/** Count non-default level and surface selections for the filter summary. */
 	const filterCount = () => (level() === 'all' ? 0 : 1) + (surface() === 'all' ? 0 : 1);
 	let scrollElement: HTMLDivElement | undefined;
 	let restoredTabId: number | undefined;
 	const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
+		/** Give the virtualizer the current filtered record count instead of a captured initial length. */
 		get count() { return records().length; },
+		/** Expose the mounted timeline scroll owner, returning null before its element is available. */
 		getScrollElement: () => scrollElement ?? null,
+		/** Start virtual row measurement at an 84-pixel estimate; the virtualizer owns later measurement corrections. */
 		estimateSize: () => 84,
+		/** Keep virtual rows tied to diagnostic IDs, falling back to the index only when the requested record is absent. */
 		getItemKey: (index) => records()[index]?.id ?? index,
 		overscan: 8,
 	});

@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { analyzeSite } from '@/lib/detection/engine';
-import { estimateBytes, normalizeMetaMap, truncate } from '@/lib/detection/normalizers';
-import { collectCookieNames } from '@/lib/content/collect-page-signals';
-import { technologies } from '@/registry/technologies';
-import { SOURCE_LIMITS } from '@/lib/detection/source-limits';
-import type { PageSignals, TechnologyDefinition } from '@/lib/detection/types';
-import { validatePageSignals } from '@/lib/detection/validate';
-import { extractVersion } from '@/lib/detection/version';
+import { analyzeSite } from "@deepscope/detection/engine";
+import { estimateBytes, normalizeMetaMap, truncate } from "@deepscope/detection/normalizers";
+import { collectCookieNames } from "../../lib/content/signals/keys.ts";
+import { technologies } from "@deepscope/registry";
+import { SOURCE_LIMITS } from "@deepscope/detection/limits";
+import type { PageSignals } from "@deepscope/detection/types";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
+import { validatePageSignals } from "@deepscope/detection/validate";
+import { extractVersion } from "@deepscope/detection/version";
 
 
 const technologyDefinitions = technologies;

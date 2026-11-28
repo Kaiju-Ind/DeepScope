@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import * as revision from '@/lib/background/revision';
+import * as revision from '../../lib/background/revision.ts';
 
 describe('visible matcher revision policy', () => {
 	it('publishes the first partial result immediately', () => {

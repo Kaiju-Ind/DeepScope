@@ -1,8 +1,8 @@
-import * as logging from '../../diagnostics/logging';
-import type { MatcherPartitionResult, RunMatcherPartitionRequest } from '../contracts';
-import { MatcherError } from '../error';
-import { MATCHER_PARTITION_CONCURRENCY } from '../policy';
-import { Pool, type DiagnosticSink } from './pool';
+import * as logging from '../../diagnostics/logging.ts';
+import type { MatcherPartitionResult, RunMatcherPartitionRequest } from "../contracts.ts";
+import { MatcherError } from "../error.ts";
+import { MATCHER_PARTITION_CONCURRENCY } from "../policy.ts";
+import { Pool, type DiagnosticSink } from "./pool.ts";
 
 const logger = logging.get('matcher', 'worker-executor');
 
@@ -59,6 +59,7 @@ export class WorkerExecutor {
 	 */
 	#generation = 0;
 
+	/** Retain the executor's configured worker count, idle policy and diagnostic destination before any partition is admitted. */
 	constructor(options: WorkerExecutorOptions = {}) {
 		this.#options = options;
 	}
@@ -208,6 +209,7 @@ export class WorkerExecutor {
 		this.#options.onIdle?.(reason, this.#generation);
 	}
 
+	/** Cancel this executor's pending idle shutdown and clear its timer identity before another lifecycle schedules one. */
 	#clearIdleTimer(): void {
 		if (this.#idleTimer === undefined) return;
 		globalThis.clearTimeout(this.#idleTimer);

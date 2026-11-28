@@ -1,22 +1,2 @@
-export type {
-	BackgroundDetectionPersistence,
-	DetectionPersistenceMaintenance,
-	DetectionReplayStore,
-	DetectionSessionIndexEntry,
-	DetectionSessionIndexRecord,
-	DetectionSessionSnapshotWriteResult,
-	DetectionSnapshotLifecycleStore,
-	DetectionSnapshotReader,
-	DetectionSnapshotRevisionSource,
-	DetectionSnapshotStore,
-	DetectionSnapshotWriter,
-	MatcherJobStore,
-} from './ports';
-export {
-	browserDetectionPersistence,
-	browserDetectionPersistenceMaintenance,
-	browserDetectionReplayStore,
-	browserDetectionSnapshotRevisionSource,
-	browserDetectionSnapshotStore,
-	browserMatcherJobStore,
-} from './browser';
+export type { BackgroundDetectionPersistence, DetectionPersistenceMaintenance, DetectionReplayStore, DetectionSessionIndexEntry, DetectionSessionIndexRecord, DetectionSessionSnapshotWriteResult, DetectionSnapshotLifecycleStore, DetectionSnapshotReader, DetectionSnapshotRevisionSource, DetectionSnapshotStore, DetectionSnapshotWriter, MatcherJobStore } from "./ports.ts";
+export { browserDetectionPersistence, browserDetectionPersistenceMaintenance, browserDetectionReplayStore, browserDetectionSnapshotRevisionSource, browserDetectionSnapshotStore, browserMatcherJobStore } from "./browser.ts";

@@ -17,26 +17,29 @@ capability and affected domain owners; no umbrella skill is required. Add these 
 | Changed decision | Companion |
 | --- | --- |
 | Reusable API, exports, ownership, or package consumer | `build-libraries` |
-| Extension context, manifest, permission, browser difference or store package | `build-extensions` |
-| Persisted execution, IndexedDB stores, replay, claims, recovery | `build-workflows` |
+| CLI grammar, resolution, streams, interaction | `build-clis` |
+| API input/output, middleware, service or gateway | `build-apis` |
+| Storage authority, query adapter, migration | `build-data` |
+| Persisted execution, replay, claims, recovery | `build-workflows` |
+| Site content, feeds, rendering, publishing | `build-sites` |
 | URL/cache/session/local state and product flows | `build-web-apps` |
 | Renderer reactivity/lifetimes, browser semantics, keyboard/focus verification, assets or motion execution, even in one app | `build-web` |
 | Layout, hierarchy, visual direction, interface polish | `design-interfaces` |
-| Generator, script, CI/task, build or release tooling | `build-devtools` |
-| Vendored utility package (`@utils/*`) API or programming model | `use-utils` |
+| Generator, CI/task, build or release tooling | `build-devtools` |
+| Code run/tested by Deno, Deno/JSR imports/exports/publication, permissions or package artifacts; no manifest edit required | `deno-software` |
+| Kaiju Utils package (`@kaiju-ind/*`) API or programming model | `use-kaiju-utils` |
 | Okikio library such as `@okikio/undent` | `use-okikio` |
 | Material dependency choice or integration | `explore-ecosystems` |
 
 Choose the runtime of the code being reviewed, not the tools you happen to run
-in this session. A read-only review of background code still needs
-`build-extensions`: the same module runs in Chrome's service worker, Firefox's
-event page and Safari's background page. Node under Vitest is the test host,
-not a supported runtime.
+in this session. A read-only review of a Deno-run workflow still needs
+`deno-software`. A rejected Deno example in an explicitly Node/browser-only
+package does not make Deno a supported consumer.
 
-Domain, renderer, and runtime are independent choices. A side-panel regression
-that only shows in Firefox's sidebar needs `build-web-apps`, `build-web`,
-`build-extensions`, and the shared quality contract: state placement does not
-settle tracked reads or the browser contract. Add `design-interfaces` only if visual judgment is requested.
+Domain, renderer, and runtime are independent choices. A Solid application
+regression run by Deno needs `build-web-apps`, `build-web`, `deno-software`, and
+the shared quality contract: state placement does not settle tracked reads or the test
+execution contract. Add `design-interfaces` only if visual judgment is requested.
 Read the selected companion SKILL files before making their decisions; knowing
 a framework or command already does not replace the installed guidance. A
 byte-identical copy of this application guide needs only one read per task.
@@ -79,10 +82,8 @@ ordinary obvious choices.
 | Lifetime has one owner | Keep imports inert; declare owned versus borrowed resources; propagate cancellation and await cleanup | Cancellation proves cleanup; a log/progress event proves terminal completion |
 | Evidence supports the claim | Check the actual public entrypoint, consumer, artifact, runtime, or user flow being claimed | Type checks prove networking, screenshots prove keyboard behavior, or memory proves durability |
 
-For DeepScope TypeScript, default to strict ESM, Vitest (globals, the
-`runtime`, `utils` and `ui` projects) with `fast-check` for properties, and
-Vitest `bench` for measured performance. The vendored utilities keep their
-upstream `node:test` files, which a shim runs under Vitest; do not rewrite them.
+For Deno-first TypeScript packages, default to strict ESM with explicit file
+extensions, `node:test` and `@std/expect`, and Mitata for measured performance.
 Preserve a deliberately selected local runner or runtime. Keep same-source
 portable logic separate from runtime-specific adapters. Prefer focused existing
 capabilities over a second implementation; do not install adjacent packages
@@ -96,25 +97,23 @@ computations, async work, and the owner that disposes them. Do not solve a stale
 read by copying React's render/effect recipe. Load the selected renderer
 reference for exact primitives and verify the changed reactive behavior.
 
-For current utility APIs, start from the vendored `@utils/*` packages in
-`utils/` (`use-utils`): each package owns its implementation and its export map
-establishes public entries. They are copied from Kaiju Utils at a recorded
-commit so DeepScope never depends on a private package; inspect the copy, not
-upstream `main`. Older archives supply context for explicit historical work,
-not competing defaults. Verify the consumer's resolved revision and
+For current utility APIs, start from the published Kaiju Utils packages
+(`use-kaiju-utils`): each package owns its implementation and its export map
+establishes public entries.
+A repository may use local utility identities; inspect the resolved consumer revision. Core and application archives supply context for explicit historical
+work, not competing defaults. Verify the consumer's resolved revision and
 exports. A source hash establishes which snapshot was read, not that it remains
 current or has been published.
 
-Start with the value the caller needs. A selector parse does not require
-Context, Task, or workflow. When message contracts are needed, distinguish
-import-safe definitions, the context that implements them, live ownership, and
-the transport (`comctx` over extension messaging). A content-script timeout, a
-domain failure, a cancelled scan, workflow history, and a snapshot revision have
-different contracts.
+Start with the value the caller needs. A CSV parse does not require Context,
+Task, or workflow. When service contracts are needed, distinguish import-safe
+definitions, exact implementation bindings, compilation, live ownership, and
+host transport. An HTTP problem, domain failure, local Task, workflow history,
+and effect announcement have different contracts.
 
-Place code by ownership rather than imposing folder names. Generic mechanisms
-live in `utils/` and `src/utils/`; DeepScope capabilities live in `src/lib/`
-(moving to `packages/*` as `@deepscope/*`); entrypoints only compose them. A namespace used for runtime operations does not turn
+Place code by ownership rather than imposing folder names. In the utility
+workspace, generic mechanisms live under `packages/`; an application can arrange
+those roles differently. A namespace used for runtime operations does not turn
 test-runner imports into namespaces or private fixtures into public APIs.
 
 Before designing motion, identify the transition it explains and its frequency,

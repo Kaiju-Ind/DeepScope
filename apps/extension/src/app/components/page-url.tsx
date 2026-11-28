@@ -1,6 +1,6 @@
 import { Show } from 'solid-js';
 
-import * as url from '@/utils/url';
+import * as url from '../../utils/url.ts';
 
 /** URL presentation modes used by dense page and history surfaces. */
 export type PageUrlModeType = 'compact' | 'detail';
@@ -22,8 +22,11 @@ export interface PageUrlPropsType {
  * remain available in the detail view when a diagnostic investigation needs them.
  */
 export function PageUrl(props: PageUrlPropsType) {
+	/** Reparse the reactive URL value through the shared display parser when the caller changes it. */
 	const parts = () => url.getParts(props.value);
+	/** Default to the compact URL presentation unless the caller requests the expanded mode. */
 	const compact = () => (props.mode ?? 'compact') === 'compact';
+	/** Keep the host as the default focus; explicit path focus controls the display's ordering. */
 	const pathFirst = () => (props.focus ?? 'host') === 'path';
 
 	return (

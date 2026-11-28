@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { VisibleTabIdentity } from '@/lib/messaging';
-import * as tabIdentity from '@/lib/messaging/identity';
+import type { VisibleTabIdentity } from "../../lib/messaging/index.ts";
+import * as tabIdentity from '../../lib/messaging/identity.ts';
 
 const base: VisibleTabIdentity = {
 	windowId: 1, tabId: 7, frameId: 0, url: 'https://example.com/a', hostname: 'example.com',

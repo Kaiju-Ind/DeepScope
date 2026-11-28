@@ -2,18 +2,18 @@ import CopyIcon from '~icons/fluent/copy-24-regular';
 import RefreshIcon from '~icons/fluent/arrow-clockwise-24-regular';
 import WarningIcon from '~icons/fluent/warning-24-regular';
 import { Show, createEffect, createResource, createSignal } from 'solid-js';
-import { browser } from 'wxt/browser';
+import { openDiagnostics } from '../browser/surface.ts';
 
-import * as state from '@/app/diagnostics/state';
-import { Timeline } from '@/app/diagnostics/timeline';
-import { Contexts, Jobs, Metric, Overview, Raw } from '@/app/diagnostics/views';
-import { clearDiagnosticJournal } from '@/lib/diagnostics/journal';
-import { formatDiagnosticReport, getDiagnosticSnapshot } from '@/lib/diagnostics/report';
-import * as clipboard from '@/utils/clipboard';
-import { Alert, AlertDescription, AlertTitle } from '@/ui/alert';
-import { Button } from '@/ui/button';
-import { Spinner } from '@/ui/spinner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs';
+import * as state from '../diagnostics/state.ts';
+import { Timeline } from "../diagnostics/timeline.tsx";
+import { Contexts, Jobs, Metric, Overview, Raw } from "../diagnostics/views.tsx";
+import { clearDiagnosticJournal } from "../../lib/diagnostics/journal/read.ts";
+import { formatDiagnosticReport, getDiagnosticSnapshot } from "../../lib/diagnostics/report.ts";
+import * as clipboard from '../../utils/clipboard.ts';
+import { Alert, AlertDescription, AlertTitle } from "../../ui/alert.tsx";
+import { Button } from "../../ui/button.tsx";
+import { Spinner } from "../../ui/spinner.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs.tsx";
 
 /** Options accepted by the diagnostics investigator in a side panel or standalone page. */
 export interface DiagnosticsViewPropsType {
@@ -34,8 +34,11 @@ export function DiagnosticsView(props: DiagnosticsViewPropsType) {
 	const [tab, setTab] = createSignal<state.TabType>(state.get(props.tabId).tab);
 
 	createEffect(() => setTab(state.get(props.tabId).tab));
+	/** Derive error and fatal records from the current diagnostic snapshot without retaining an older snapshot's results. */
 	const failures = () => snapshot()?.records.filter((record) => record.level === 'error' || record.level === 'fatal') ?? [];
+	/** Derive warning records from the current snapshot, returning an empty list while it is unavailable. */
 	const warnings = () => snapshot()?.records.filter((record) => record.level === 'warning') ?? [];
+	/** Select jobs explicitly marked as interrupted by a context shutdown for the recovery summary. */
 	const interruptedJobs = () => snapshot()?.jobs.filter((job) => job.reason === 'context-interrupted') ?? [];
 
 	/** Copy the same bounded, redacted support snapshot shown by the interface. */
@@ -94,7 +97,7 @@ export function DiagnosticsView(props: DiagnosticsViewPropsType) {
 					{copyState() === 'copied' ? 'Copied report' : copyState() === 'failed' ? 'Copy failed' : 'Copy report'}
 				</Button>
 				<Button variant="outline" disabled={snapshot.loading} onClick={() => void refetch()}><RefreshIcon /> Refresh</Button>
-				<Show when={props.showOpenFullPage}><Button variant="outline" onClick={() => void browser.runtime.openOptionsPage()}>Open full page</Button></Show>
+				<Show when={props.showOpenFullPage}><Button variant="outline" onClick={() => void openDiagnostics()}>Open full page</Button></Show>
 			</div>
 
 			<Show when={actionError()}>{(message) => <Alert variant="destructive"><AlertTitle>Diagnostics action failed</AlertTitle><AlertDescription>{message()}</AlertDescription></Alert>}</Show>

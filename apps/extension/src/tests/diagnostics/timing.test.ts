@@ -1,8 +1,8 @@
 import { expect, it, vi } from 'vitest';
-import { timeAsyncSpan, timeSyncSpan } from '@/lib/diagnostics/timing';
+import { timeAsyncSpan, timeSyncSpan } from "../../lib/diagnostics/timing.ts";
 
 const debug = vi.hoisted(() => vi.fn());
-vi.mock('@/lib/diagnostics/logging', () => ({ get: () => ({ debug }) }));
+vi.mock('../../lib/diagnostics/logging.ts', () => ({ get: () => ({ debug }) }));
 
 it.each([false, true])('logs timed failures according to the matcher privacy flag: %s', async (incognito) => {
 	const original = new Error('Matcher failed at https://failure.example/private/source');

@@ -11,7 +11,7 @@ describe('automatic scan setting', { concurrent: false }, () => {
 		vi.doMock('wxt/browser', () => ({
 			browser: { storage: { local: { get, set: vi.fn() } } },
 		}));
-		const settings = await import('@/lib/autostart/settings');
+		const settings = await import('../../lib/autostart/settings.ts');
 
 		await expect(settings.getAutoScanEnabled()).resolves.toBe(true);
 	});
@@ -30,7 +30,7 @@ describe('automatic scan setting', { concurrent: false }, () => {
 				},
 			},
 		}));
-		const settings = await import('@/lib/autostart/settings');
+		const settings = await import('../../lib/autostart/settings.ts');
 
 		await expect(settings.getAutoScanEnabled()).resolves.toBe(false);
 		await settings.setAutoScanEnabled(false);

@@ -2,7 +2,7 @@ import { type ButtonRootProps, Root } from "@kobalte/core/button";
 import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 import { cva, type VariantProps } from "class-variance-authority";
 import { type ComponentProps, splitProps, type ValidComponent } from "solid-js";
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 const buttonVariants = cva(
   "group/button z-button inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap outline-hidden disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
@@ -38,6 +38,7 @@ type ButtonProps<T extends ValidComponent = "button"> = PolymorphicProps<T, Butt
   VariantProps<typeof buttonVariants> &
   Pick<ComponentProps<T>, "class">;
 
+/** Apply local size and variant styles while forwarding refs, events and button semantics to the underlying primitive. */
 const Button = <T extends ValidComponent = "button">(props: ButtonProps<T>) => {
   const [local, others] = splitProps(props as ButtonProps, ["variant", "size", "class"]);
   return (

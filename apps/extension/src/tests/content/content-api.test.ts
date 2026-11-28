@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ContentScriptContext } from 'wxt/utils/content-script-context';
 
-import { VALIDATION_KEY, type ArtifactRuntimeType } from '@/lib/content/artifact';
-import type * as observe from '@/lib/content/observe';
-import type { ContentPageSessionSnapshotTarget } from '@/lib/messaging/analysis';
-import type { PageSignals } from '@/lib/detection/types';
-import type { ObservationBatch } from '@/lib/observations';
+import { VALIDATION_KEY, type ArtifactRuntimeType } from "../../lib/content/artifact.ts";
+import type * as observe from '../../lib/content/observe/index.ts';
+import type { ContentPageSessionSnapshotTarget } from "../../lib/messaging/analysis.ts";
+import type { PageSignals } from "@deepscope/detection/types";
+import type { ObservationBatch } from "@deepscope/detection/observations";
 
-import { createMockBrowserStorageArea } from '../support/mock-browser';
+import { createMockBrowserStorageArea } from "../support/mock-browser.ts";
 
 function makeSignals(overrides: Partial<PageSignals> = {}): PageSignals {
 	return {
@@ -75,23 +75,23 @@ const SNAPSHOT_TARGET: ContentPageSessionSnapshotTarget = {
 async function loadContentApiFactory(options: { incognito?: boolean; realObserver?: boolean } = {}) {
 	vi.resetModules();
 	vi.stubGlobal('defineContentScript', (options: unknown) => options);
-	vi.doMock('@/lib/content/collect-page-signals', () => ({
+	vi.doMock('../../lib/content/signals/index.ts', () => ({
 		collectPageSignals: vi.fn(() => makeSignals()),
 		collectResourceEntries: vi.fn(() => []),
 		collectResourceTimings: vi.fn(() => []),
 	}));
 	const createObserver = vi.fn();
-	if (!options.realObserver) vi.doMock('@/lib/content/observe', () => ({ create: createObserver }));
-	vi.doMock('@/lib/detection/validate', () => ({
+	if (!options.realObserver) vi.doMock('../../lib/content/observe/index.ts', () => ({ create: createObserver }));
+	vi.doMock('@deepscope/detection/validate', () => ({
 		validatePageSignals: vi.fn(() => null),
 	}));
 	const writeContentPageSessionSnapshot = vi.fn(async () => null);
-	vi.doMock('@/lib/content/page-session-snapshots', () => ({
+	vi.doMock('../../lib/content/page-session-snapshots.ts', () => ({
 		writeContentPageSessionSnapshot,
 	}));
 	const sendMessage = vi.fn(async () => undefined);
 	const debug = vi.fn();
-	vi.doMock('@/lib/diagnostics/logging', () => ({ configure: vi.fn(), get: () => ({ debug }) }));
+	vi.doMock('../../lib/diagnostics/logging.ts', () => ({ configure: vi.fn(), get: () => ({ debug }) }));
 	vi.doMock('wxt/browser', () => ({
 		browser: {
 			extension: { inIncognitoContext: options.incognito === true },
@@ -104,7 +104,8 @@ async function loadContentApiFactory(options: { incognito?: boolean; realObserve
 	}));
 
 	return {
-		...(await import('@/entrypoints/content')),
+		...(await import('../../entrypoints/content.ts')),
+		...(await import('../../lib/content/api.ts')),
 		createObserver,
 		debug,
 		provideContentApi,
@@ -116,11 +117,11 @@ async function loadContentApiFactory(options: { incognito?: boolean; realObserve
 afterEach(() => {
 	vi.useRealTimers();
 	vi.unstubAllGlobals();
-	vi.doUnmock('@/lib/content/collect-page-signals');
-	vi.doUnmock('@/lib/content/observe');
-	vi.doUnmock('@/lib/detection/validate');
-	vi.doUnmock('@/lib/diagnostics/logging');
-	vi.doUnmock('@/lib/content/page-session-snapshots');
+	vi.doUnmock('../../lib/content/signals/index.ts');
+	vi.doUnmock('../../lib/content/observe/index.ts');
+	vi.doUnmock('@deepscope/detection/validate');
+	vi.doUnmock('../../lib/diagnostics/logging.ts');
+	vi.doUnmock('../../lib/content/page-session-snapshots.ts');
 	vi.doUnmock('wxt/browser');
 	vi.doUnmock('comctx');
 	vi.resetModules();
@@ -404,7 +405,7 @@ describe('content API observation baseline', { concurrent: false }, () => {
 		onInvalidated.mock.calls[0]![0]();
 		events.dispatchEvent(new Event('messageerror'));
 		await vi.advanceTimersByTimeAsync(1);
-		const { getDiagnosticRecords, getDiagnosticContexts } = await import('@/lib/diagnostics/journal');
+		const { getDiagnosticRecords, getDiagnosticContexts } = await import('../../lib/diagnostics/journal/read.ts');
 		const crashRecords = await getDiagnosticRecords();
 		expect(crashRecords).toHaveLength(1);
 		const contextRecords = await getDiagnosticContexts();
@@ -505,6 +506,69 @@ describe('content API observation baseline', { concurrent: false }, () => {
 		} else {
 			await expect(async () => entrypoint.main(context)).rejects.toBe(startupError);
 		}
+	});
+
+	/** A failed install has no invalidation callback to release its acquired owners later. */
+	it.each(['observer', 'artifact', 'rpc', 'invalidation'] as const)(
+		'releases crash hooks and observation ownership when %s setup fails',
+		async (stage) => {
+			vi.stubGlobal('__kaijuDeepScopeContentRuntimeV1', undefined);
+			vi.stubGlobal('__kaijuDeepScopeCrashHooksV2', undefined);
+			const events = new EventTarget();
+			const add = vi.fn(events.addEventListener.bind(events));
+			const remove = vi.fn(events.removeEventListener.bind(events));
+			vi.stubGlobal('addEventListener', add);
+			vi.stubGlobal('removeEventListener', remove);
+			const { default: entrypoint, createObserver, provideContentApi } = await loadContentApiFactory();
+			const disconnect = vi.fn();
+			createObserver.mockReturnValue({ disconnect });
+			const failure = new Error(`Failed ${stage} setup`);
+			const { context, onInvalidated } = contentScriptContext();
+			if (stage === 'observer') createObserver.mockImplementationOnce(() => { throw failure; });
+			if (stage === 'artifact') vi.stubGlobal(VALIDATION_KEY, { publish() { throw failure; } });
+			if (stage === 'rpc') provideContentApi.mockImplementationOnce(() => { throw failure; });
+			if (stage === 'invalidation') onInvalidated.mockImplementationOnce(() => { throw failure; });
+
+			await expect(async () => entrypoint.main(context)).rejects.toBe(failure);
+
+			expect(add.mock.calls.map(([type]) => type)).toEqual(['unhandledrejection', 'messageerror']);
+			expect(remove.mock.calls).toEqual(add.mock.calls);
+			expect((globalThis as Record<string, unknown>).__kaijuDeepScopeCrashHooksV2).toBeUndefined();
+			expect((globalThis as Record<string, unknown>).__kaijuDeepScopeContentRuntimeV1).toBeUndefined();
+			expect(disconnect).toHaveBeenCalledTimes(stage === 'observer' ? 0 : 1);
+		},
+	);
+
+	/** A replaced WXT context may invalidate later; it must not release the new build's hooks. */
+	it('keeps replacement ownership intact when the older context invalidates later', async () => {
+		vi.stubGlobal('__kaijuDeepScopeContentRuntimeV1', undefined);
+		vi.stubGlobal('__kaijuDeepScopeCrashHooksV2', undefined);
+		vi.stubGlobal('__KAIJU_BUILD_ID__', 'build-before-replacement');
+		const events = new EventTarget();
+		const add = vi.fn(events.addEventListener.bind(events));
+		const remove = vi.fn(events.removeEventListener.bind(events));
+		vi.stubGlobal('addEventListener', add);
+		vi.stubGlobal('removeEventListener', remove);
+		const { default: entrypoint, createObserver } = await loadContentApiFactory();
+		const previousDisconnect = vi.fn();
+		const nextDisconnect = vi.fn();
+		createObserver.mockReturnValueOnce({ disconnect: previousDisconnect }).mockReturnValueOnce({ disconnect: nextDisconnect });
+		const previous = contentScriptContext();
+		const next = contentScriptContext();
+		await entrypoint.main(previous.context);
+		vi.stubGlobal('__KAIJU_BUILD_ID__', 'build-after-replacement');
+		await entrypoint.main(next.context);
+		expect(previousDisconnect).toHaveBeenCalledOnce();
+		expect(remove).toHaveBeenCalledTimes(2);
+		previous.onInvalidated.mock.calls[0]![0]();
+		expect(previousDisconnect).toHaveBeenCalledOnce();
+		expect(nextDisconnect).not.toHaveBeenCalled();
+		expect(remove).toHaveBeenCalledTimes(2);
+		expect((globalThis as Record<string, unknown>).__kaijuDeepScopeCrashHooksV2).toMatchObject({ buildId: 'build-after-replacement' });
+		next.onInvalidated.mock.calls[0]![0]();
+		expect(nextDisconnect).toHaveBeenCalledOnce();
+		expect(remove.mock.calls).toEqual(add.mock.calls);
+		expect((globalThis as Record<string, unknown>).__kaijuDeepScopeContentRuntimeV1).toBeUndefined();
 	});
 
 	/**

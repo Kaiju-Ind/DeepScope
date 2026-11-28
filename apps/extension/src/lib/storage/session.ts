@@ -1,5 +1,6 @@
-import type { SiteAnalysis } from '../detection/types';
-import type { DetectionPipelineStage } from '../pipeline';
+import type { DetectionReplaySummary } from '@deepscope/detection/pipeline/replay';
+import type { SiteAnalysis } from "@deepscope/detection/types";
+import type { DetectionPipelineStage } from "@deepscope/detection/pipeline";
 
 /** Schema marker for storage-backed detection session snapshots. */
 export const DETECTION_SESSION_SNAPSHOT_SCHEMA_VERSION = 3 as const;
@@ -155,28 +156,6 @@ export interface DetectionEnrichmentState {
 	readonly completedAt?: number;
 	/** Short machine-readable reason for failed, timed-out, skipped, or unnecessary enrichment. */
 	readonly reason?: string;
-}
-
-/**
- * Public-safe replay summary embedded in a detection snapshot.
- *
- * Full replay traces stay in their existing replay storage namespace. The
- * snapshot keeps only the counts and stage names needed for a snapshot-first side panel
- * render to say that explanation data exists and roughly how far the pipeline ran.
- */
-export interface DetectionReplaySummary {
-	/** Matcher run id that produced this replay, when available. */
-	readonly runId?: string;
-	/** Millisecond timestamp of the replayed analysis run. */
-	readonly analyzedAt: number;
-	/** Number of public replay events represented by the full trace. */
-	readonly eventCount: number;
-	/** Number of emitted detection explanations in the full trace. */
-	readonly explanationCount: number;
-	/** Number of final detections emitted by the replayed run. */
-	readonly resultCount: number;
-	/** Ordered unique pipeline stages represented by the summary. */
-	readonly stages: readonly DetectionPipelineStage[];
 }
 
 /** Source that wrote the visible snapshot revision. */

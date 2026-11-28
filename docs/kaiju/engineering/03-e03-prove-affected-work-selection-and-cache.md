@@ -14,8 +14,9 @@ intermediates, deterministic task results and immutable release artifacts.
 Maintain a **cache ledger** for each selected task, without creating another runtime cache owner. Include task identity,
 discovered test/source set, owning package, input patterns and dependency closure, tool versions, output contract, cache
 owner, local/remote scope, key explanation, trust/read-write mode, bytes transferred, restore/save duration, hit/miss
-reason, and validation receipt. Distinguish these layers: toolchain downloads, the pnpm store, compiler/transform
-intermediates, deterministic task results, and immutable build/release artifacts. One layer's hit does not imply a hit in another. A task-cache hit must be attributable to exact
+reason, and validation receipt. Distinguish these layers: toolchain downloads, pnpm/Deno dependency stores,
+compiler/transform intermediates, deterministic task results, BuildKit cache mounts and image layers, and immutable
+build/release artifacts. One layer's hit does not imply a hit in another. A task-cache hit must be attributable to exact
 inputs, not simply reported as a shortened job.
 
 **Choose task granularity from behavior and dependency ownership.** One broad result keyed on a large source/test file
@@ -32,25 +33,33 @@ must invalidate all consumers. Unknown import edges or incomplete test discovery
 Cache-sensitive restructuring must not hide integration contracts or increase duplication enough to erase savings. The
 oracle is the complete discovered suite, not a static list embedded in a test.
 
-## DeepScope's declarations
+## Example task declarations, not universal defaults
 
-```ts
-// vitest.config.ts: projects select tests by glob, never by file list.
-projects: [
-	{ test: { name: 'runtime', include: ['src/tests/**/*.test.{ts,tsx}'], exclude: [UI_TESTS] } },
-	{ test: { name: 'utils', include: ['utils/**/*.test.ts'] } },
-	{ plugins: [solid()], test: { name: 'ui', include: [UI_TESTS] } },
-],
+```jsonc
+// An example Deno project: the test runner discovers its own tests.
+{
+	"tasks": {
+		"test": "deno test",
+		"bench": "deno bench"
+	}
+}
 ```
 
-```bash
-# .mise/tasks/test: forward arguments; Vitest discovers the files.
-exec pnpm run test:run "$@"
+```toml
+# An example Node repository with test discovery and one native Mise result-cache owner.
+# Validate the actual project command, supported source globs and dependency closure.
+[tasks.test]
+run = "node --test"
+sources = ["src/**", "test/**", "tests/**", "package.json", "pnpm-lock.yaml"]
+outputs = []
+cache = { enabled = true, env = ["NODE_ENV"] }
 ```
 
-DeepScope caches only dependency downloads (Mise tools and the pnpm store) and caches no task results: a Mise result
-cache stored a type-check result but never restored it, and was removed. Do not cache browser journeys, store uploads,
-release builds or benchmark measurements.
+The Mise cache above is experimental and needs the appropriate `experimental` setting and a proved deterministic test
+task. An independently owned `deno task` can instead declare `files` input globs, `output` globs and `env` variable
+names for Deno's native task caching. Do **not** stack Deno's and Mise's result caches on the same test without
+measuring and assigning one authority. Neither example is permission to cache browser journeys, external services,
+deployments, live time, or performance benchmark measurements.
 
 Run invalidation tests for changes to each input class, deleted/moved files, altered permissions, tool versions, task
 definitions, generated outputs and environment values. Prove cache-miss execution, hit restoration on a **fresh
@@ -66,5 +75,7 @@ dependency/identity contract is not an optimization. Protect release consumers f
 Reuse authenticated tool downloads and verified lockfile stores before compiler work when useful; compare against
 restoring an authenticated, content-addressed task artifact first to avoid unnecessary installs. Restore task outputs
 only when their producer and complete dependency identity match. Separate read-only untrusted PR cache consumers from
-trusted writers; do not allow PR-writable caches to become protected release inputs. The Release workflow restores no cache at
-all: it installs cold from the lockfile.
+trusted writers; do not allow PR-writable caches to become protected release inputs. For Docker, minimize the context,
+order stable manifests and dependency acquisition ahead of frequently changing source, use BuildKit mounts for download
+caches, and test remote layer imports/exports for each target architecture. A BuildKit layer hit is not evidence that
+another runner reused its writable mount cache.

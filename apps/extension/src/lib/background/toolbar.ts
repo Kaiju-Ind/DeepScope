@@ -1,7 +1,7 @@
 import { browser } from 'wxt/browser';
 
-import { SIDE_PANEL_ACTION_NOTIFICATION_TYPE } from '../messaging/side-panel-notifications';
-import { panelPageUrl } from '../panel/page';
+import { SIDE_PANEL_ACTION_NOTIFICATION_TYPE } from "../messaging/side-panel-notifications.ts";
+import { panelPageUrl } from "../panel/page.ts";
 
 /** Diagnostic logger used by the toolbar handler. */
 type Log = (event: string, details?: Record<string, unknown>) => void;
@@ -62,6 +62,7 @@ function openSurface(tabId: number, windowId: number): Promise<'side-panel' | 's
 	return browser.tabs.create({ url: panelPageUrl(tabId), windowId, openerTabId: tabId }).then(() => 'page' as const);
 }
 
+/** Normalize a toolbar failure to readable text for its caller's error-reporting policy. */
 function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }

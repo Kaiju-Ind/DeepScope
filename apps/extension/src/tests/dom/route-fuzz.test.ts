@@ -1,8 +1,8 @@
 import { test } from '@fast-check/vitest';
 import { describe, expect } from 'vitest';
 
-import { close, parse } from '../support/dom';
-import { apply, fuzzCase, violations } from '../support/route-fuzz';
+import { close, parse } from "../support/dom.ts";
+import { apply, fuzzCase, violations } from "../support/route-fuzz.ts";
 
 /** Runs per property; raise with DOM_ROUTE_FUZZ_RUNS for audits. */
 const RUNS = Number(process.env.DOM_ROUTE_FUZZ_RUNS ?? 300);

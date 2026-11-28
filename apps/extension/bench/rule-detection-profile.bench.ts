@@ -1,24 +1,13 @@
 import { afterAll, describe, test } from 'vitest';
 
-import {
-	createCuratedRuleProfileCases,
-	createGeneratedRuleMissCases,
-	createGeneratedRulePassCases,
-	createPayloadScanCases,
-	findRuleProfileBudgetViolations,
-	findRuleProfileExpectationMismatches,
-	formatRuleTimingRecord,
-	makeNextHydrationPayload,
-	makeReactRouterHydrationPayload,
-	profileRuleCase,
-	getRuleProfileBudgets,
-	recordSlowRule,
-	summarizeRuleProfileCoverage,
-	type RuleProfileCase,
-	type RuleTimingRecord,
-} from '@/lib/detection/rule-performance-profile';
-import { technologyDefinitions } from '@/registry/technologies';
-import { RULE_PERFORMANCE_FIXTURES } from '../src/tests/support/rule-performance-fixtures';
+import { createCuratedRuleProfileCases, createGeneratedRuleMissCases, createGeneratedRulePassCases, createPayloadScanCases } from "@deepscope/detection/profile/cases";
+import { findRuleProfileBudgetViolations, findRuleProfileExpectationMismatches, formatRuleTimingRecord, getRuleProfileBudgets, recordSlowRule } from "@deepscope/detection/profile/report";
+import { makeNextHydrationPayload, makeReactRouterHydrationPayload } from "@deepscope/detection/profile/observations";
+import { profileRuleCase } from "@deepscope/detection/profile";
+import { summarizeRuleProfileCoverage } from "@deepscope/detection/profile/catalog";
+import { type RuleProfileCase, type RuleTimingRecord } from "@deepscope/detection/profile/types";
+import { technologyDefinitions } from "@deepscope/registry";
+import { RULE_PERFORMANCE_FIXTURES } from "@deepscope/detection/testing/rules";
 
 const BENCHMARK_OPTIONS = {
 	time: 250,
@@ -157,6 +146,7 @@ afterAll(() => {
 	}
 });
 
+/** Profile each selected case with fixed warmup and sample counts, retaining slow-rule records and consuming its match result. */
 function consumeProfiledCases(cases: readonly RuleProfileCase[]): void {
 	let matchCount = 0;
 	for (const profileCase of cases) {
@@ -169,12 +159,14 @@ function consumeProfiledCases(cases: readonly RuleProfileCase[]): void {
 	consumeMatchState(matchCount);
 }
 
+/** Profile one rule case with the same sampling policy as batch cases and retain its observable match result. */
 function consumeProfiledCase(profileCase: RuleProfileCase): void {
 	const record = profileRuleCase(profileCase, { samples: 5, warmup: 1 });
 	recordSlowRule(slowestByKey, record);
 	consumeMatchState(record.matched ? 1 : 0);
 }
 
+/** Keep benchmark results observable through a bounded accumulator so repeated work is not an unused result. */
 function consumeMatchState(value: number): void {
 	consumedMatchState = (consumedMatchState + value) % Number.MAX_SAFE_INTEGER;
 }

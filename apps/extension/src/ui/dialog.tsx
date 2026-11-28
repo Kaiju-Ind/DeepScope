@@ -4,12 +4,14 @@ import X from "~icons/fluent/dismiss-24-regular";
 import type { Component, ComponentProps, ValidComponent } from "solid-js";
 import { mergeProps, Show, splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
-import { Button } from "@/ui/button";
-import { releaseBackgroundFocus } from "@/ui/modal-focus";
+import { cn } from "../utils/cn.ts";
+import { Button } from "./button.tsx";
+import { releaseBackgroundFocus } from "./modal-focus.ts";
 
+/** Apply the shared background-focus policy before forwarding open changes, without adding another dialog state owner. */
 const Dialog: Component<DialogPrimitive.DialogRootProps> = (props) => {
   const [local, others] = splitProps(props, ["onOpenChange"]);
+  /** Release background focus for the new open state before notifying the caller's open-change handler. */
   const onOpenChange = (open: boolean) => {
     releaseBackgroundFocus(open);
     local.onOpenChange?.(open);
@@ -23,10 +25,12 @@ type DialogTriggerProps<T extends ValidComponent = "button"> = PolymorphicProps<
   DialogPrimitive.DialogTriggerProps<T>
 >;
 
+/** Use the dialog primitive's trigger so activation remains connected to its open and focus owner. */
 const DialogTrigger = <T extends ValidComponent = "button">(props: DialogTriggerProps<T>) => {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
 };
 
+/** Delegate content placement and portal lifetime to the dialog primitive. */
 const DialogPortal = (props: DialogPrimitive.DialogPortalProps) => {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 };
@@ -36,8 +40,10 @@ type DialogCloseProps<T extends ValidComponent = "button"> = PolymorphicProps<
   DialogPrimitive.DialogCloseButtonProps<T>
 >;
 
+/** Forward primitive dismissal with an explicit or plain-text-derived accessible label. */
 const DialogClose = <T extends ValidComponent = "button">(props: DialogCloseProps<T>) => {
   const [local, others] = splitProps(props as DialogCloseProps, ["aria-label", "children"]);
+  /** Prefer the caller's accessible label and infer one only from plain string children. */
   const label = () => local["aria-label"] ?? (typeof local.children === "string" ? local.children : undefined);
   return (
     <DialogPrimitive.CloseButton data-slot="dialog-close" aria-label={label()} {...others}>
@@ -52,6 +58,7 @@ type DialogOverlayProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Style the modal overlay while preserving the primitive's dismissal and presence behavior. */
 const DialogOverlay = <T extends ValidComponent = "div">(props: DialogOverlayProps<T>) => {
   const [local, others] = splitProps(props as DialogOverlayProps, ["class"]);
   return (
@@ -71,6 +78,7 @@ type DialogContentProps<T extends ValidComponent = "div"> = PolymorphicProps<
     showCloseButton?: boolean;
   };
 
+/** Portal a centered dialog with its overlay and a default close control; the primitive retains focus and dismissal ownership. */
 const DialogContent = <T extends ValidComponent = "div">(props: DialogContentProps<T>) => {
   const mergedProps = mergeProps({ showCloseButton: true } as DialogContentProps, props);
   const [local, others] = splitProps(mergedProps, ["class", "children", "showCloseButton"]);
@@ -106,6 +114,7 @@ const DialogContent = <T extends ValidComponent = "div">(props: DialogContentPro
 
 type DialogHeaderProps = ComponentProps<"div">;
 
+/** Group the dialog heading and supporting content without creating another dialog or focus scope. */
 const DialogHeader = (props: DialogHeaderProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -125,6 +134,7 @@ type DialogFooterProps<T extends ValidComponent = "div"> = PolymorphicProps<
     showCloseButton?: boolean;
   };
 
+/** Arrange footer actions and optionally add a primitive-owned Close action, which is omitted by default. */
 const DialogFooter = <T extends ValidComponent = "div">(props: DialogFooterProps<T>) => {
   const mergedProps = mergeProps({ showCloseButton: false } as DialogFooterProps, props);
   const [local, others] = splitProps(mergedProps, ["class", "children", "showCloseButton"]);
@@ -153,6 +163,7 @@ type DialogTitleProps<T extends ValidComponent = "h2"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Connect the styled title to the dialog primitive's accessible naming relationship. */
 const DialogTitle = <T extends ValidComponent = "h2">(props: DialogTitleProps<T>) => {
   const [local, others] = splitProps(props as DialogTitleProps, ["class"]);
   return (
@@ -170,6 +181,7 @@ type DialogDescriptionProps<T extends ValidComponent = "p"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Connect supporting text to the dialog primitive's accessible description relationship. */
 const DialogDescription = <T extends ValidComponent = "p">(props: DialogDescriptionProps<T>) => {
   const [local, others] = splitProps(props as DialogDescriptionProps, ["class"]);
   return (

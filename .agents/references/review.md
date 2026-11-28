@@ -48,7 +48,7 @@ CI scanner for a judgment that requires following runtime behavior.
 
 ### Runtime-coupling review
 
-Inventory direct Node global accesses and static builtin imports in shared
+Inventory direct Node/Deno global accesses and static builtin imports in shared
 code, including imports that merely make a host global explicit. Report concrete
 sites and affected consumers; replacing `process` with `node:process` does not
 make a browser entrypoint portable. Inspect the repository's existing `utils/`
@@ -74,7 +74,7 @@ Check:
 - are unsafe patterns introduced
 - are inputs validated at input entrypoints
 - does the change introduce hidden assumptions
-- does the change keep public TSDoc accurate for the exports it touches
+- does the change affect `deno doc --lint` compliance
 
 ### 3. Types and narrowing
 

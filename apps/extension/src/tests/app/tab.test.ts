@@ -13,7 +13,7 @@ describe('side-panel tab target', () => {
 				tabs: { query: vi.fn(async () => []) },
 			},
 		}));
-		const { getWindowId } = await import('@/app/tab');
+		const { getWindowId } = await import("../../app/browser/tabs.ts");
 
 		await expect(getWindowId()).resolves.toBe(12);
 	});
@@ -26,7 +26,7 @@ describe('side-panel tab target', () => {
 				tabs: { query },
 			},
 		}));
-		const { getTabTarget } = await import('@/app/tab');
+		const { getTabTarget } = await import("../../app/browser/tabs.ts");
 
 		await expect(getTabTarget(12)).resolves.toEqual({ windowId: 12, tabId: 37 });
 		expect(query).toHaveBeenCalledWith({ active: true, windowId: 12 });
@@ -39,7 +39,7 @@ describe('side-panel tab target', () => {
 				tabs: { query: vi.fn(async () => [{}]) },
 			},
 		}));
-		const { getTabTarget } = await import('@/app/tab');
+		const { getTabTarget } = await import("../../app/browser/tabs.ts");
 
 		await expect(getTabTarget(12)).resolves.toBeUndefined();
 	});
@@ -75,7 +75,7 @@ describe('side-panel tab target', () => {
 				},
 			},
 		}));
-		const { subscribeTabTargetChanges } = await import('@/app/tab');
+		const { subscribeTabTargetChanges } = await import("../../app/browser/tabs.ts");
 		const sync = vi.fn();
 		const visibilityListeners = new Set<() => void>();
 		const visibility = {

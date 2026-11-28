@@ -41,7 +41,7 @@ When the user provides a newer archive, branch, document, test result, or genera
 - Implement the complete authorized change. Delegate independent slices when
   useful, but retain ownership of integration and final evidence.
 - Ask for clarification as early as possible when a missing requirement would change the real target.
-- Treat progress reports as bookkeeping only; they never replace finishing the work.
+- Use progress reports to share evidence anchors: the customer question, observation, scope, meaning, and next decision. They establish shared understanding and do not replace finishing the authorized deliverable.
 - Enforce the applicable repo instructions and these workflow rules.
 
 ## Constraints
@@ -80,6 +80,13 @@ After that point:
 - do not reframe missing work as a later phase unless the user explicitly changes scope
 
 ## Operating Standard
+Use [anchor-based product development](../guides/product/README.md) to identify
+the customer outcome and consequential unknowns before substantial implementation.
+Run cheap, direct experiments early and keep research connected to observed
+behavior. A discovery result may change or reject an implementation plan; record
+that decision explicitly. Do not force a negative or inconclusive experiment
+into a positive product-completion claim.
+
 Treat every task as a contract with four layers:
 1. Requested outcome: what the user actually needs delivered.
 2. Planned outcome: what the current plan claims will change.

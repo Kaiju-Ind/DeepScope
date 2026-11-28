@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { DiagnosticSnapshot } from '@/lib/diagnostics/contracts';
-import { formatDiagnosticReport } from '@/lib/diagnostics/report';
+import type { DiagnosticSnapshot } from "../../lib/diagnostics/contracts.ts";
+import { formatDiagnosticReport } from "../../lib/diagnostics/report.ts";
 
 const snapshot: DiagnosticSnapshot = {
 	createdAt: Date.UTC(2026, 7, 17, 1, 2, 3),

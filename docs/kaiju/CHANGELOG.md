@@ -1,30 +1,24 @@
 # Changelog
 
-## DeepScope adaptation (November 24, 2026)
+## 1.3.0 (November 25, 2026)
 
-Copied from Kaiju-Ind/Crawl `docs/kaiju/` at `a00f0036d` (its guidance is identical to `baee4f46a`) and adapted to
-DeepScope, a browser extension with no servers. Open Crawl branches were checked for newer guidance; the only change
-not in Crawl's main is a Crawl-specific handbook section on `claude/inngest-worker` about giving a built dependency
-(such as a scheduler image) its own package, which was not taken.
+Adopted anchor-based product development across intake, planning, experiments, execution, review and handoff. Every task
+starts with the customer outcome, decision-relevant unknowns and the smallest credible experiment. Progress reports use
+scoped observations, their product implication and the next decision. Implementation alone does not prove improvement.
 
-- **Start, handbook, procedures, project, agents, engineering:** kept and rewritten for extension work. Preview means a
-  per-browser build loaded in real browsers; promotion means a tagged GitHub Release with checksums, attestations and
-  the ghcr copy, then store submissions; recovery means fixing forward with a new version. The handbook describes
-  placement across extension contexts and the planned monorepo (`apps/extension`, `packages/*` as `@deepscope/*`,
-  `utils/*` as `@utils/*`, `tools/`, `docs/adr/`). Engineering uses pnpm, Node 26, Vitest projects and the Verify and
-  Release workflows; Deno, BuildKit and container images were removed.
-- **Services → platforms:** the Kubernetes and KubeBlocks, Bunny, Tailscale, Resend, Backblaze B2, model and user-access
-  cards were removed. New cards cover vendored packages, browser runtimes, Chrome Web Store, AMO, Safari and App Store
-  Connect, and GitHub Releases with ghcr. `references.md` lists browser and store documentation.
-- **Project record:** records live in the owning plan under `docs/migration/`; the model and agent selection record was
-  removed.
-- **Task prompts:** T12 (container image layers) removed; T16 rewritten to adopt the vendored `@utils/*` packages; T18
-  rewritten for the Vitest projects; `deno-software` removed from every prompt; `use-kaiju-utils` is now `use-utils`.
-- **Failure catalogue:** Crawl's 46 deployment entries and the ItsAPlan and OpenATS retrospective coverage were removed.
-  DeepScope's own entries DS-01 to DS-13 were added.
-- **Skills:** folders name `build-extensions` and `use-utils`; `build-data` and `deno-software` are no longer named.
+Added a shared product-method route, early direct tests with minimal setup, the research/experiment operating cadence,
+concrete command and API bindings, retained failure evidence, valid inconclusive findings, and separate handling of
+larger architectural defects. The method uses the existing task record and does not require a new tracking system.
 
-## Unreleased
+Added generic and opt-in Kaiju profiles. Retained the original 122 playbook files, source examples, service cards,
+deployment controls and recovery practices. Existing T01 to T18 prompts now carry the product gate; T19 to T21 cover the
+smallest experiment, team anchor and concrete action plan. Corrected stale inline routing paths and mismatched rule
+links. The legacy `docs/kaiju/` path remains compatible.
+
+This is a documentation release. It does not establish a live Crawl result, install agent instructions, update external
+memory, change CI or authorize a deployment. The release archive records its source and validation separately.
+
+## Pre-1.3.0 working changes
 
 [Task prompts](tasks/README.md) T01 to T18 return as project-agnostic prompts. They replace the 24 Core CI prompts that
 were removed below: the Core paths, pull request numbers and pinned versions are gone, related prompts are merged, and

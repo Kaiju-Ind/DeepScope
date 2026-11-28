@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolvePackagedAssetUrl } from '@/lib/registry/asset-fetch';
+import { resolvePackagedAssetUrl } from "../../lib/registry/assets.ts";
 
 describe('resolvePackagedAssetUrl', () => {
 	// Safari Technology Preview: a matcher worker at this URL reports

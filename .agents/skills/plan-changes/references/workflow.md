@@ -5,6 +5,13 @@ Use these rules for delivery agents, reusable research notes, and repo-local aut
 
 ## Search and research order
 
+Use [anchor-based product development](../../../guides/product/README.md).
+Start with the customer question and run the first useful direct probe as soon
+as current research identifies it. Alternate research with experiments under
+the 60:10 operating rule. Existing notes can suggest a probe, but their claims
+need current scope and source checks. Do not finish a long research survey
+before trying an operation that can answer the question in minutes.
+
 When researching or searching, prefer this order unless the task clearly requires something else:
 1. the repository's established research cache, when one exists
 2. applicable instruction files, including `.github/instructions/`
@@ -60,13 +67,18 @@ script only if the repository has a recurring operation and a clear owner.
 Where Mise already owns repository tasks, keep `.mise/tasks/` as small shell
 entry points. Put substantial reusable logic in the appropriate package or a
 focused typed CLI, not a second `scripts/` or `.mise/lib/` task framework.
-In DeepScope, write such scripts in TypeScript or `.mjs` run by the pinned Node
-(`mise exec -- node script.ts`), and keep them in `.tmp/` unless they become a
-recurring project program (`tools/`).
+Use Deno and TypeScript when they fit the repository; do not introduce Deno
+into an unrelated project solely for a temporary edit.
 
-Prefer `node:` built-ins and the `@std/*` packages already in the manifest
-before adding a dependency for filesystem work, encodings, buffers,
-collections or paths.
+Feel free to use `jsr:` and `npm:` packages when they improve clarity, safety, or reviewability.
+
+Prefer `jsr:@std/*` modules when they fit the task, especially for:
+- filesystem work
+- encodings
+- buffers
+- collections
+- paths
+- related standard utilities
 
 Keep scripts narrow and task-specific.
 
@@ -94,16 +106,26 @@ Do not stop at tests, benchmarks, or lint when the real deliverable can be run d
 
 For runnable deliverables such as CLIs, jobs, migrations, generators, servers, or user-facing workflows, run the actual capability whenever possible.
 
-Verification is binary at the end: either the capability works and is proven, or the task is blocked.
+For implementation, verify every promised behavior at the required level and
+record any failure, blocker, or unrun check. For discovery, supported,
+contradicted, or unexpected observations can answer the requested question
+within their scope. An inconclusive result can complete a bounded investigation
+or support a reversible decision while leaving the original question open.
+An investigation completing does not imply that the product fix is complete.
+State the scope of the evidence and the decision it supports.
 
 If the capability cannot run because of missing environment, credentials, or
 infrastructure, report the exact blocker and remaining verification steps.
 Write a repository progress note only when the repository already uses that
 mechanism or the user requests a durable handoff.
 
-Plan completion is also binary at the end: either the plan coverage is complete and reviewed, or the task is blocked.
+Review plan coverage separately. If work remains, distinguish known unfinished
+work from a concrete blocker and name the next action.
 
 ## Progress notes
 
-You may use the repository's established progress mechanism for long-running
-work, but progress notes are bookkeeping only. They never replace completion.
+Use the repository's established progress mechanism or the requested handoff
+format to share [anchors](../../../guides/product/anchors.md): the customer
+question, actual observation, scope, evidence, meaning, and next decision.
+Progress updates establish shared understanding and do not replace completion
+of the full authorized deliverable.

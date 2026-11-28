@@ -1,4 +1,4 @@
-import type { DetectionExplanation, DetectionReplayTrace } from '@/lib/pipeline';
+import type { DetectionExplanation, DetectionReplayTrace } from "@deepscope/detection/pipeline";
 
 /** One technology that changed between two persisted detector runs. */
 export type TechnologyChangeType = {

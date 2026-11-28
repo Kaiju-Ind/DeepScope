@@ -1,6 +1,6 @@
 # Content page-session runtime
 
-Content page sessions make the first visible page lifecycle state durable before the background finishes privileged work. The popup already knows how to render stored snapshot revisions. The next step is letting the content script publish safe lifecycle revisions for the current document while the background remains disposable.
+Content page sessions make the first visible page lifecycle state durable before the background finishes privileged work. The panel already knows how to render stored snapshot revisions. The next step is letting the content script publish safe lifecycle revisions for the current document while the background remains disposable.
 
 The content script still does not own the full detector. It owns page-local observation: the initial page facts, mutation-driven updates, resource timing updates, and stop/expiry state for the document it can see. Background still owns tab identity, visible-tab permission flow, page-main-world global probes, same-origin source fetch policy, headers, enrichment, and snapshot promotion.
 
@@ -11,14 +11,23 @@ background receives visible tab identity
   -> content writes revision 1 as observing
   -> background writes later enriched revisions
   -> content writes stopped or observing lifecycle revisions as observers flush
-  -> popup applies the newest storage revision
+  -> panel applies the newest storage revision
 ```
 
 The important detail is the snapshot target. A content script can observe the page, but it cannot ask Chrome which tab id owns it. The background therefore passes a `ContentPageSessionSnapshotTarget` when it starts observation. That target contains the durable storage key, URL hash, hostname, and incognito flag for the current page session.
 
+## Source ownership
+
+`apps/extension/src/entrypoints/content.ts` only declares and installs the WXT
+content entry. `lib/content/install.ts` owns installation and document cleanup;
+`api.ts` owns RPC and serialized snapshot writes; `collect.ts` owns the initial
+observation batch. The `observe/` modules share one session state. DOM planning
+and matching live in `packages/dom`, while document handles, observers and
+timers remain owned by content.
+
 ## What content writes
 
-Content-owned revisions are intentionally small. They reuse the best existing `SiteAnalysis` for the same URL when one exists. If no analysis exists yet, content writes an empty `SiteAnalysis` with `status: "observing"` so the popup can show a truthful live state without storing raw observations.
+Content-owned revisions are intentionally small. They reuse the best existing `SiteAnalysis` for the same URL when one exists. If no analysis exists yet, content writes an empty `SiteAnalysis` with `status: "observing"` so the panel can show a truthful live state without storing raw observations.
 
 ```text
 no detector output yet
@@ -32,7 +41,7 @@ This keeps the storage record safe and stable. Raw HTML, cookie values, storage 
 
 ## Why this moves the architecture forward
 
-The final architecture wants page facts to arrive as events, not as one large popup-requested scan. Content-owned page-session revisions are a runtime bridge toward that model. They prove that the content script can keep the side-panel-visible session moving without background memory, while the heavier detector and enrichment work remain in the correct privileged contexts.
+The final architecture wants page facts to arrive as events, not as one large panel-requested scan. Content-owned page-session revisions are a runtime bridge toward that model. They prove that the content script can keep the side-panel-visible session moving without background memory, while the heavier detector and enrichment work remain in the correct privileged contexts.
 
 This also reduces the service-worker risk. If the background suspends after starting observation, the content script can still write lifecycle revisions for the active document. When the background wakes again, it can enrich or promote a newer revision instead of reconstructing the visible UI state from globals.
 
@@ -76,7 +85,7 @@ The tests and benchmark protect the new behavior from three directions:
 
 - content writes an initial observing revision when no detector analysis exists yet
 - content preserves background detector results while advancing lifecycle state
-- late observation batches publish newer snapshot revisions while the popup is open
+- late observation batches publish newer snapshot revisions while the panel is open
 - stopping observation preserves the stopped session identity for lifecycle reporting but releases session-only evidence
 - inactive snapshots do not retain page evidence in the content runtime after the response completes
 - active source collections cannot grow beyond the shared source limits
@@ -84,21 +93,21 @@ The tests and benchmark protect the new behavior from three directions:
 
 ## Faster observer revisions
 
-Late page facts now publish a content-owned snapshot as soon as the observer's throttled mutation scan queues new observations. The background still owns the detector rerun and enrichment, but the popup can see the session advance without waiting for the next background refresh request.
+Late page facts now publish a content-owned snapshot as soon as the observer's throttled mutation scan queues new observations. The background still owns the detector rerun and enrichment, but the panel can see the session advance without waiting for the next background refresh request.
 
 ```text
 MutationObserver batch
   -> throttled content scan
   -> observation batch queue accepts new facts
   -> content writes snapshot revision: observing
-  -> popup storage listener applies the newer revision
+  -> panel storage listener applies the newer revision
 ```
 
 The snapshot does not contain the raw observation batch. It only preserves the best existing `SiteAnalysis` and advances the lifecycle state, so this keeps the storage stream responsive without expanding what content persists.
 
 ## DOM selector routing
 
-Content matches registry DOM selectors against the live document with one time-sliced `TreeWalker` pass (`src/lib/dom/match.ts`). `Element.matches()` is the expensive step: Firefox content scripts reach page DOM through Xray wrappers, so every call crosses a compartment boundary. The walker therefore calls `matches()` only for selectors that could match the current element (`src/lib/dom/route.ts`).
+Content matches registry DOM selectors against the live document with one time-sliced `TreeWalker` pass (`packages/dom/match.ts`). `Element.matches()` is the expensive step: Firefox content scripts reach page DOM through Xray wrappers, so every call crosses a compartment boundary. The walker therefore calls `matches()` only for selectors that could match the current element (`packages/dom/route.ts`).
 
 ```text
 visited element
@@ -111,4 +120,4 @@ visited element
 
 Every routing test is a necessary condition taken from the right-most compound of a comma branch, compared ASCII case-insensitively and with `~=`/`|=` relaxed to substring and prefix tests. Routing can only admit extra candidates, never reject a selector that matches, so the matched set equals calling `matches()` for every pending selector. The route is derived inside the content script from `DomPlanType.selectors`; the serialized collection plan is unchanged. The plan's tag, attribute, id, and class tables still drive mutation filtering in the observer.
 
-The previous walker routed by the union of every tag, attribute name, id, and class in a selector. `link[href*='x']` was therefore checked on every element with `href`, and Wikipedia's "United States" article (21,965 elements) cost 9.4 million `matches()` calls and 17.9 s in Firefox. The branch routing checks the same page in Firefox 160 with 4,730 calls and about 110,000 in-script guard and branch tests, finishing the document scan in 0.41 s with the same two matched selectors. `src/tests/dom/match.test.ts` compares the result against direct DOM ground truth for every registry selector, hand-written edge cases, and random documents.
+The previous walker routed by the union of every tag, attribute name, id, and class in a selector. `link[href*='x']` was therefore checked on every element with `href`, and Wikipedia's "United States" article (21,965 elements) cost 9.4 million `matches()` calls and 17.9 s in Firefox. The branch routing checks the same page in Firefox 160 with 4,730 calls and about 110,000 in-script guard and branch tests, finishing the document scan in 0.41 s with the same two matched selectors. `apps/extension/src/tests/dom/match.test.ts` compares the result against direct DOM ground truth for every registry selector, hand-written edge cases, and random documents.

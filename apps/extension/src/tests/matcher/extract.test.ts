@@ -1,7 +1,7 @@
 import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
 
-import { requiredLiteral } from '@/lib/detection/match/extract';
+import { requiredLiteral } from "@deepscope/detection/match/extract";
 
 /**
  * Traps for required-literal extraction.

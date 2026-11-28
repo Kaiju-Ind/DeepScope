@@ -4,14 +4,16 @@ import Check from "~icons/fluent/checkmark-24-regular";
 import ChevronRight from "~icons/fluent/chevron-right-24-regular";
 import type { ComponentProps, ValidComponent } from "solid-js";
 import { mergeProps, splitProps } from "solid-js";
-import { cn } from "@/utils/cn";
-import { releaseBackgroundFocus } from "@/ui/modal-focus";
+import { cn } from "../utils/cn.ts";
+import { releaseBackgroundFocus } from "./modal-focus.ts";
 
 type DropdownMenuProps = DropdownMenuPrimitive.DropdownMenuRootProps;
 
+/** Default the trigger-to-menu gutter to four pixels and apply shared focus policy without taking over open state. */
 const DropdownMenu = (props: DropdownMenuProps) => {
   const mergedProps = mergeProps({ gutter: 4 }, props);
   const [local, others] = splitProps(mergedProps, ["onOpenChange"]);
+  /** Release background focus when opening, then forward the dropdown state change to the caller. */
   const onOpenChange = (open: boolean) => {
     releaseBackgroundFocus(open);
     local.onOpenChange?.(open);
@@ -22,6 +24,7 @@ const DropdownMenu = (props: DropdownMenuProps) => {
 
 type DropdownMenuPortalProps = DropdownMenuPrimitive.DropdownMenuPortalProps;
 
+/** Use the dropdown primitive's portal while preserving caller-supplied placement props. */
 const DropdownMenuPortal = (props: DropdownMenuPortalProps) => {
   return <DropdownMenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />;
 };
@@ -33,6 +36,7 @@ type DropdownMenuTriggerProps<T extends ValidComponent = "button"> = Polymorphic
   class?: string;
 };
 
+/** Connect the caller's trigger to primitive activation and focus behavior. */
 const DropdownMenuTrigger = <T extends ValidComponent = "button">(
   props: DropdownMenuTriggerProps<T>,
 ) => {
@@ -52,6 +56,7 @@ type DropdownMenuContentProps<T extends ValidComponent = "div"> = PolymorphicPro
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Portal scrollable menu content within the available height while preserving primitive position and dismissal ownership. */
 const DropdownMenuContent = <T extends ValidComponent = "div">(
   props: DropdownMenuContentProps<T>,
 ) => {
@@ -76,6 +81,7 @@ type DropdownMenuGroupProps<T extends ValidComponent = "div"> = PolymorphicProps
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Group related items through the primitive without changing their selection policy. */
 const DropdownMenuGroup = <T extends ValidComponent = "div">(props: DropdownMenuGroupProps<T>) => {
   const [local, others] = splitProps(props as DropdownMenuGroupProps, ["class"]);
   return (
@@ -91,6 +97,7 @@ type DropdownMenuLabelProps<T extends ValidComponent = "span"> = PolymorphicProp
     inset?: boolean;
   };
 
+/** Associate a group label and optionally align it with inset item text. */
 const DropdownMenuLabel = <T extends ValidComponent = "span">(props: DropdownMenuLabelProps<T>) => {
   const [local, others] = splitProps(props as DropdownMenuLabelProps, ["class", "inset"]);
   return (
@@ -112,6 +119,7 @@ type DropdownMenuItemProps<T extends ValidComponent = "div"> = PolymorphicProps<
     variant?: "default" | "destructive";
   };
 
+/** Default to the standard item variant while retaining caller selection handlers and primitive disabled behavior. */
 const DropdownMenuItem = <T extends ValidComponent = "div">(rawProps: DropdownMenuItemProps<T>) => {
   const props = mergeProps({ variant: "default" } as DropdownMenuItemProps<T>, rawProps);
   const [local, others] = splitProps(props as DropdownMenuItemProps, ["class", "inset", "variant"]);
@@ -131,6 +139,7 @@ const DropdownMenuItem = <T extends ValidComponent = "div">(rawProps: DropdownMe
 
 type DropdownMenuSubProps = DropdownMenuPrimitive.DropdownMenuSubProps;
 
+/** Register a nested dropdown with the existing menu hierarchy and state owner. */
 const DropdownMenuSub = (props: DropdownMenuSubProps) => {
   return <DropdownMenuPrimitive.Sub data-slot="dropdown-menu-sub" {...props} />;
 };
@@ -143,6 +152,7 @@ type DropdownMenuSubTriggerProps<T extends ValidComponent = "div"> = Polymorphic
     inset?: boolean;
   };
 
+/** Add the submenu arrow and optional inset while keeping nested keyboard and pointer behavior on the primitive. */
 const DropdownMenuSubTrigger = <T extends ValidComponent = "div">(
   props: DropdownMenuSubTriggerProps<T>,
 ) => {
@@ -173,6 +183,7 @@ type DropdownMenuSubContentProps<T extends ValidComponent = "div"> = Polymorphic
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Portal nested content with height limits, retaining the submenu's placement and presence lifecycle. */
 const DropdownMenuSubContent = <T extends ValidComponent = "div">(
   props: DropdownMenuSubContentProps<T>,
 ) => {
@@ -197,6 +208,7 @@ type DropdownMenuCheckboxItemProps<T extends ValidComponent = "div"> = Polymorph
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Render the primitive's checked indicator alongside caller content without duplicating checked state. */
 const DropdownMenuCheckboxItem = <T extends ValidComponent = "div">(
   props: DropdownMenuCheckboxItemProps<T>,
 ) => {
@@ -229,6 +241,7 @@ type DropdownMenuRadioGroupProps<T extends ValidComponent = "div"> = Polymorphic
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Keep mutually exclusive menu selection with the radio-group primitive and caller-provided value. */
 const DropdownMenuRadioGroup = <T extends ValidComponent = "div">(
   props: DropdownMenuRadioGroupProps<T>,
 ) => {
@@ -248,6 +261,7 @@ type DropdownMenuRadioItemProps<T extends ValidComponent = "div"> = PolymorphicP
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Show the selected indicator for the primitive-owned radio item and forward its value and events. */
 const DropdownMenuRadioItem = <T extends ValidComponent = "div">(
   props: DropdownMenuRadioItemProps<T>,
 ) => {
@@ -280,6 +294,7 @@ type DropdownMenuSeparatorProps<T extends ValidComponent = "hr"> = PolymorphicPr
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Style a non-interactive menu separator without adding another focus target. */
 const DropdownMenuSeparator = <T extends ValidComponent = "hr">(
   props: DropdownMenuSeparatorProps<T>,
 ) => {
@@ -295,6 +310,7 @@ const DropdownMenuSeparator = <T extends ValidComponent = "hr">(
 
 type DropdownMenuShortcutProps = ComponentProps<"span">;
 
+/** Display a shortcut hint while leaving actual keyboard handling with the caller. */
 const DropdownMenuShortcut = (props: DropdownMenuShortcutProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (

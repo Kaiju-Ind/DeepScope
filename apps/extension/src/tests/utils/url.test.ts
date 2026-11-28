@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import * as url from '@/utils/url';
+import * as url from '../../utils/url.ts';
 
 describe('URL utilities', () => {
 	it('returns an absolute URL origin', () => {

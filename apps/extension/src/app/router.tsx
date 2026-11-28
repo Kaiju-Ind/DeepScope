@@ -9,16 +9,16 @@ import {
 
 import { createEffect } from 'solid-js';
 
-import { usePanel } from '@/app/context';
-import * as session from '@/app/session';
-import { DiagnosticsPage } from '@/app/pages/diagnostics';
-import { HistoryPage } from '@/app/pages/history';
-import { SettingsPage } from '@/app/pages/settings';
-import { SummaryPage } from '@/app/pages/summary';
-import { TechnologiesPage } from '@/app/pages/technologies';
-import { TechnologyPage } from '@/app/pages/technology';
-import { PanelShell } from '@/app/shell';
-import { openPage, policyFromLocation } from '@/app/surface';
+import { usePanel } from "./panel/context.ts";
+import * as session from "./panel/routes.ts";
+import { DiagnosticsPage } from "./pages/diagnostics.tsx";
+import { HistoryPage } from "./pages/history.tsx";
+import { SettingsPage } from "./pages/settings.tsx";
+import { SummaryPage } from "./pages/summary.tsx";
+import { TechnologiesPage } from "./pages/technologies.tsx";
+import { TechnologyPage } from "./pages/technology.tsx";
+import { PanelShell } from "./shell.tsx";
+import { openPage, policyFromLocation } from "./browser/surface.ts";
 
 /** A full page is already pinned to its tab, so it does not offer to open another. */
 const isFullPage = policyFromLocation(globalThis.location.href).kind === 'pinned';
@@ -26,6 +26,7 @@ const isFullPage = policyFromLocation(globalThis.location.href).kind === 'pinned
 /** Compose the routed side panel around the current analysis owner. */
 function PanelRoot() {
 	const panel = usePanel();
+	/** Open the full-page surface only when the panel still has a visible tab identity. */
 	const openVisibleTabPage = (): void => {
 		const identity = panel.visibleTabIdentity();
 		if (identity) void openPage(identity);
@@ -37,6 +38,7 @@ function PanelRoot() {
 	/** Restore scroll after route composition and one delayed data-layout pass. */
 	function restoreScroll(top: number): void {
 		const generation = ++restoreGeneration;
+		/** Restore scroll position only for the latest route-restoration generation, ignoring superseded callbacks. */
 		const apply = () => {
 			if (generation === restoreGeneration) globalThis.scrollTo?.(0, top);
 		};
@@ -80,12 +82,12 @@ function PanelRoot() {
 }
 
 const rootRoute = createRootRoute({ component: PanelRoot });
-const summaryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: SummaryPage });
-const technologiesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/technologies', component: TechnologiesPage });
-const technologyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/technology/$technologyId', component: TechnologyPage });
-const historyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/history', component: HistoryPage });
-const diagnosticsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/diagnostics', component: DiagnosticsPage });
-const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: SettingsPage });
+const summaryRoute = createRoute({ /** Attach this route to the shared panel root so it inherits the same provider and surface lifecycle. */ getParentRoute: () => rootRoute, path: '/', component: SummaryPage });
+const technologiesRoute = createRoute({ /** Attach this route to the shared panel root so it inherits the same provider and surface lifecycle. */ getParentRoute: () => rootRoute, path: '/technologies', component: TechnologiesPage });
+const technologyRoute = createRoute({ /** Attach this route to the shared panel root so it inherits the same provider and surface lifecycle. */ getParentRoute: () => rootRoute, path: '/technology/$technologyId', component: TechnologyPage });
+const historyRoute = createRoute({ /** Attach this route to the shared panel root so it inherits the same provider and surface lifecycle. */ getParentRoute: () => rootRoute, path: '/history', component: HistoryPage });
+const diagnosticsRoute = createRoute({ /** Attach this route to the shared panel root so it inherits the same provider and surface lifecycle. */ getParentRoute: () => rootRoute, path: '/diagnostics', component: DiagnosticsPage });
+const settingsRoute = createRoute({ /** Attach this route to the shared panel root so it inherits the same provider and surface lifecycle. */ getParentRoute: () => rootRoute, path: '/settings', component: SettingsPage });
 const routeTree = rootRoute.addChildren([
 	summaryRoute,
 	technologiesRoute,

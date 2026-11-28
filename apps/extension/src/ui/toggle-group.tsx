@@ -14,8 +14,8 @@ import {
   useContext,
   type ValidComponent,
 } from "solid-js";
-import { cn } from "@/utils/cn";
-import { toggleVariants } from "@/ui/toggle";
+import { cn } from "../utils/cn.ts";
+import { toggleVariants } from "./toggle.tsx";
 
 type ToggleGroupContextValue = VariantProps<typeof toggleVariants> & {
   spacing?: number;
@@ -39,6 +39,7 @@ type ToggleGroupProps<T extends ValidComponent = "div"> = PolymorphicProps<
     orientation?: "horizontal" | "vertical";
   };
 
+/** Provide shared item styling with horizontal, zero-gap defaults while the primitive retains group selection behavior. */
 const ToggleGroup = <T extends ValidComponent = "div">(rawProps: ToggleGroupProps<T>) => {
   const props = mergeProps(
     {
@@ -91,6 +92,7 @@ type ToggleGroupItemComponentProps<T extends ValidComponent = "button"> = Polymo
   VariantProps<typeof toggleVariants> &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Prefer the group's variant and size when present and retain the item's primitive selection and disabled semantics. */
 const ToggleGroupItem = <T extends ValidComponent = "button">(
   rawProps: ToggleGroupItemComponentProps<T>,
 ) => {

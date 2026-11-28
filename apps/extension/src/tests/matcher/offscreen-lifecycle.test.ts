@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { MatcherPartitionTask, MatcherWorkerRunMessage } from '@/lib/matcher/contracts';
-import { createMatcherPartitionTasks } from '@/lib/matcher/partition';
-import type { Pool } from '@/lib/matcher/workers/pool';
+import type { MatcherPartitionTask, MatcherWorkerRunMessage } from "../../lib/matcher/contracts.ts";
+import { createMatcherPartitionTasks } from "../../lib/matcher/partition.ts";
+import type { Pool } from "../../lib/matcher/workers/pool.ts";
 
 /** Workers are the browser boundary; the real pool owns protocol, settlement and listener cleanup. */
 class WorkerPort extends EventTarget {
@@ -103,10 +103,10 @@ async function load() {
 			},
 		},
 	}));
-	vi.doMock('@/lib/diagnostics/logging', () => ({ get: () => logger }));
+	vi.doMock('../../lib/diagnostics/logging.ts', () => ({ get: () => logger }));
 	return {
-		...(await import('@/lib/matcher/workers/pool')),
-		client: await import('@/lib/matcher/offscreen/client'),
+		...(await import('../../lib/matcher/workers/pool.ts')),
+		client: await import('../../lib/matcher/offscreen/client.ts'),
 		logger,
 		sendMessage,
 	};
@@ -118,7 +118,7 @@ afterEach(() => {
 	WorkerPort.instances.length = 0;
 	vi.restoreAllMocks();
 	vi.doUnmock('wxt/browser');
-	vi.doUnmock('@/lib/diagnostics/logging');
+	vi.doUnmock('../../lib/diagnostics/logging.ts');
 	vi.unstubAllGlobals();
 	vi.resetModules();
 });

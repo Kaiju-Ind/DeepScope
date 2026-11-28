@@ -1,5 +1,6 @@
-import type { PageSignals } from '@/lib/detection/types';
-import type { CollectPageSignalsInput, ContentApi, ObservationStopReason } from '@/lib/messaging';
+import type { PageSignals } from "@deepscope/detection/types";
+import type { CollectPageSignalsInput } from "@deepscope/detection/collection/input";
+import type { ContentApi, ObservationStopReason } from "../messaging/index.ts";
 
 /** Isolated-world opt-in used only by the generated content-script runtime validator. */
 export const VALIDATION_KEY = '__kaijuDeepScopeContentArtifactValidationV1';

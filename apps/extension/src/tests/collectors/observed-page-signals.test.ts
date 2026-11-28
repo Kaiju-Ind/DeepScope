@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import * as observe from '@/lib/content/observe';
-import { SOURCE_LIMITS } from '@/lib/detection/source-limits';
-import * as dom from '@/lib/dom';
+import * as observe from '../../lib/content/observe/index.ts';
+import { SOURCE_LIMITS } from "@deepscope/detection/limits";
+import * as dom from "@deepscope/dom";
 
 class FakeClassList extends Array<string> {
 	contains(value: string): boolean {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import * as generation from '@/utils/generation';
+import * as generation from '../../utils/generation.ts';
 
 describe('keyed stale-work generation', () => {
 	it('invalidates captured work and gives a reused key a different generation', () => {

@@ -1,14 +1,15 @@
 import { describe, test } from 'vitest';
 
-import { createEvidenceCandidateBatch, refineEvidenceCandidateBatch } from '@/lib/candidates';
-import { matchIndexedObservationBatch } from '@/lib/detection/observation-matcher-index';
-import { createCompiledDetectionRegistry } from '@/lib/detection/registry-graph';
-import type { DetectionRule, MatcherTechnologyType, TechnologyDefinition } from '@/lib/detection/types';
-import { createMatcherPartitionTasks, createMatcherPipelineResult } from '@/lib/matcher';
-import { createObservationKindTechnologyRegistry } from '@/lib/registry';
-import { normalizePageSignals, type NormalizedObservationKind, type ObservationBatch } from '@/lib/observations';
-import { createObservationMatcherIndex } from '@/lib/detection/observation-matcher-index';
-import { makePageSignals } from '../src/tests/support/factories';
+import { createEvidenceCandidateBatch, refineEvidenceCandidateBatch } from "@deepscope/detection/candidates";
+import { matchIndexedObservationBatch } from "@deepscope/detection/matcher";
+import { createCompiledDetectionRegistry } from "@deepscope/detection/registry/graph";
+import type { DetectionRule } from "@deepscope/registry/rules";
+import type { MatcherTechnologyType, TechnologyDefinition } from "@deepscope/registry/types";
+import { createMatcherPartitionTasks, createMatcherPipelineResult } from "../src/lib/matcher/index.ts";
+import { createObservationKindTechnologyRegistry } from "@deepscope/detection/artifacts/packaged";
+import { normalizePageSignals, type NormalizedObservationKind, type ObservationBatch } from "@deepscope/detection/observations";
+import { createObservationMatcherIndex } from "@deepscope/detection/matcher/routing";
+import { makePageSignals } from "@deepscope/detection/testing/fixtures";
 
 /** Number of generated technologies used to approximate the shipped registry scale. */
 const LARGE_REGISTRY_SIZE = 1_000;
@@ -84,6 +85,7 @@ function runWholeIndexedMatcher(): number {
 	return refined.candidates.length;
 }
 
+/** Cache each observation-kind registry and index outside repeated benchmark execution. */
 function getShardArtifact(kind: NormalizedObservationKind) {
 	const existing = shardArtifactByKind.get(kind);
 	if (existing) {

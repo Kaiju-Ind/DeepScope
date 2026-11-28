@@ -4,16 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import {
-	identifierName,
-	isNode,
-	jsxRootName,
-	line,
-	parseSource,
-	walk,
-	type OxcNodeType,
-	type OxcSourceType,
-} from '@/tests/support/oxc';
+import { identifierName, isNode, jsxRootName, line, parseSource, walk, type OxcNodeType, type OxcSourceType } from "../support/oxc.ts";
 
 const SRC_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const UI_ROOTS = [

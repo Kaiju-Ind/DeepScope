@@ -1,13 +1,13 @@
 import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
 
-import { scan, table } from '@/lib/detection/match/literal';
-import type { TechnologyDefinition } from '@/lib/detection/types';
-import { normalizePageSignals } from '@/lib/observations/page-signals';
-import { technologyDefinitions } from '@/registry/technologies';
+import { scan, table } from "@deepscope/detection/match/literal";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
+import { normalizePageSignals } from "@deepscope/detection/observations/page";
+import { technologyDefinitions } from "@deepscope/registry";
 
-import { page } from '../support/corpus';
-import { loadShards } from '../support/shards';
+import { page } from "../support/corpus.ts";
+import { loadShards } from "../support/shards.ts";
 
 /**
  * The multi-literal scanner must report exactly what per-literal `includes`

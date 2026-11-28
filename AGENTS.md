@@ -4,7 +4,7 @@ DeepScope is a public, open-source Manifest V3 browser extension for Chrome, Fir
 technologies a web page uses, locally, from a registry of about 8,060 technologies derived from Wappalyzer data, and
 shows the evidence behind each result. It is built with WXT, Solid and TypeScript, and released as per-browser archives
 on GitHub Releases and ghcr, then submitted to the Chrome Web Store, addons.mozilla.org and the App Store. It has no
-servers, no database and no deployment.
+hosted service, remote database or deployment.
 
 ## How the instructions fit together
 
@@ -18,14 +18,15 @@ Three sources work together. Read the parts that the task needs from each.
 
 The skills and guides apply to every change, including scripts, tests and benchmarks. The playbook says which procedure
 a task belongs to; the skills say how to carry it out. Where they seem to disagree, DeepScope's records and this file
-decide (ADRs in `docs/adr/` once that folder exists), and the conflict is worth a note to the maintainer.
+decide (ADRs in `docs/adr/`), and the conflict is worth a note to the maintainer.
 
 [`tools/lint/guidance.test.ts`](tools/lint/guidance.test.ts) keeps the three sources consistent. It fails on a broken
-link, a route to a skill that does not exist, a skill that nothing routes to, a named `@kaiju-ind/*` package, an
+link, a route to a skill that does not exist, a skill that nothing routes to, a private package in current application sources or project-specific instructions, an
 `@okikio/*` name that is not an Okikio library, an `@utils/*` package that is not vendored, a task prompt that would
 lose its skills or rules when copied, or a playbook folder and skill that do not link to each other. Each playbook
 folder names its skills on a `Skills:` line, and each of those skills links back from a `Kaiju projects` section. It
-runs in `mise run test` (Vitest project `guidance`).
+runs in `mise run test` (Vitest project `guidance`). Shared handbook examples describe
+upstream packages; they are checked for routes and links, not treated as installed dependencies.
 
 Always read [.agents/guides/software-quality.md](.agents/guides/software-quality.md) and
 [.agents/references/standards.md](.agents/references/standards.md). Then select by the decision that the task changes:
@@ -34,14 +35,14 @@ Always read [.agents/guides/software-quality.md](.agents/guides/software-quality
 | ---------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | Plan or restructure work, move toward the monorepo layout        | `plan-changes`, `refactor-code`                          | [Handbook](docs/kaiju/handbook/README.md)                                          |
 | Extension contexts, manifests, messaging, badge, storage areas   | `build-extensions`                                       | [Platform readiness](docs/kaiju/platforms/README.md)                               |
-| Scan jobs, scheduler, queue, recovery after a background unload  | `build-workflows`, `use-utils`                           | [Agent execution](docs/kaiju/agents/README.md)                                     |
+| Scan jobs, scheduler, queue, recovery after a background unload  | `build-workflows`, `use-kaiju-utils`, `use-utils`                           | [Agent execution](docs/kaiju/agents/README.md)                                     |
 | Vendored utilities (`@utils/*`), `tools/utils/sync.ts`           | `use-utils`                                              | [Vendored packages](docs/kaiju/platforms/01-private-tooling-packages-and-runnable-artifacts.md) |
 | Panel UI (side panel, sidebar, popup, full page, options)        | `build-web`, `build-web-apps`, `design-interfaces`       |                                                                                   |
 | `src/ui` primitives, accessibility                               | `shadcn`, `accessibility`                                |                                                                                   |
 | Registry catalog, compiler, artifacts and matcher                | `build-libraries`, `benchmark-code`                      | [Engineering and CI](docs/kaiju/engineering/README.md)                             |
 | Mise tasks, WXT config, CI workflows, scripts                    | `build-devtools`                                         | [Engineering and CI](docs/kaiju/engineering/README.md)                             |
 | Tests and benchmarks                                             | `test-code`, `benchmark-code`                            | [Engineering and CI](docs/kaiju/engineering/README.md)                             |
-| Real-browser verification                                        | `verify-behavior`, `build-extensions`                    | [P03](docs/kaiju/procedures/03-p03-deliver-a-usable-preview.md)                    |
+| Real-browser verification                                        | `verify-behavior`, `build-extensions`                    | [P03](docs/kaiju/procedures/extensions/03-p03-deliver-a-usable-preview.md)                    |
 | Okikio libraries (`@okikio/observables`)                         | `use-okikio`                                             |                                                                                   |
 | A new dependency or an upgrade                                   | `explore-ecosystems`                                     | [P07](docs/kaiju/procedures/07-p07-update-upstream-artifacts-and-dependencies.md) |
 | Docs, architecture records and plans                             | `write-docs`                                             | [Project record](docs/kaiju/project/README.md)                                     |
@@ -55,8 +56,8 @@ Tools are pinned in `mise.toml` (pnpm 12, Node 26). Commands are thin Mise tasks
 | Command                                          | What it does                                                                     |
 | ------------------------------------------------ | -------------------------------------------------------------------------------- |
 | `mise install`, `mise exec -- pnpm install --frozen-lockfile` | Install tools and dependencies                                       |
-| `mise run check`                                 | Type-check app, utils and tools (`tsc --noEmit` per project, TypeScript 7)        |
-| `mise run test`                                  | Vitest 5, every project (`extension (runtime)`, `extension (ui)`, `utils`, `guidance`); add `--project <name>` |
+| `mise run check`                                 | Check packages, tools, app and utils through their native owners (TypeScript 7 and Node syntax checks)        |
+| `mise run test`                                  | Vitest 5, every project (`extension (runtime)`, `extension (ui)`, `dom`, `registry`, `detection`, `utils`, `guidance`); add `--project <name>` |
 | `mise run build <chrome\|firefox\|safari>`        | Unpacked Manifest V3 build in `.output/<browser>-mv3`                             |
 | `mise run zip <browser>`                         | Store archive (Firefox also emits a sources zip)                                  |
 | `mise run verify <firefox\|safari>`               | Real-browser scenarios against an existing build (`tools/verify/README.md`)     |
@@ -67,11 +68,11 @@ Tools are pinned in `mise.toml` (pnpm 12, Node 26). Commands are thin Mise tasks
 Benchmarks run with `pnpm bench` and the `bench:rules*` scripts (Vitest `bench`, `apps/extension/bench/*.bench.ts`).
 
 Layout: a pnpm workspace. `apps/extension/` is the WXT app (`@deepscope/extension`, the release version's source):
-`src/entrypoints/` (WXT entrypoints), `src/app/` (panel), `src/lib/` (extension capabilities), `src/registry/` (catalog),
+`src/entrypoints/` (WXT entrypoints), `src/app/` (panel), `src/lib/` (extension capabilities),
 `src/ui/` (component catalogue), `src/utils/`, `src/tests/`, `bench/`, `modules/` (WXT modules), `public/`. Beside it:
-`utils/` (vendored `@utils/*`), `tools/` (verify, release, registry, utils sync, lint), `docs/`; build output stays in
-the root `.output/`. In this file, `src/` paths are under `apps/extension/`. The planned direction adds
-`packages/{dom,registry,detection}` as `@deepscope/*` and `docs/adr/` for decisions
+`packages/{dom,registry,detection}` (portable `@deepscope/*` sources), `utils/` (vendored `@utils/*`),
+`tools/*` (native verify, release, registry, utils sync and lint packages), and `docs/`. Build output stays in
+the root `.output/`. In this file, `src/` paths are under `apps/extension/`. Decisions live in `docs/adr/`
 ([monorepo plan](docs/migration/monorepo-plan.md)). New code should fit that direction; see
 [the source layout plan](docs/migration/source-layout-plan.md).
 
@@ -84,15 +85,27 @@ the root `.output/`. In this file, `src/` paths are under `apps/extension/`. The
 - Native web standards over polyfills. Use what the minimum browsers ship; add a polyfill only for the browser that
   lacks it, by build alias.
 - Never infer a provider, host or store from a framework, and never infer a capability from a browser name.
-- Generic utilities come from the vendored `@utils/*` packages through `use-utils`. DeepScope never depends on a
-  private `@kaiju-ind/*` package, registry or token; `@okikio/*` is only for Okikio libraries.
-- Page-controlled strings never key a plain object; use `src/utils/dictionary.ts`.
+- Read `use-kaiju-utils` for current public package contracts, then `use-utils` for this repository's recorded
+  source closure. Preserve the credential-free source build until a complete published-package migration has the
+  evidence and decision in [the Utils ADR](docs/adr/01-public-source-builds.md). `@okikio/*` is only for Okikio libraries.
+- Page-controlled strings never key a plain object; use `@deepscope/detection/observations/dictionary`.
 - Private tabs persist nothing.
 - Find tests and files by discovery. Do not list test or file paths in `package.json`, Mise tasks or workflows.
 - Repository files describe the system as it is. Plans in `docs/migration/` carry task state; other files contain no
   task IDs, commit SHAs or work-session words. Agent probes and reports go in `.tmp/`, which git ignores.
 - Commit one behaviour, contract or capability at a time, with a Conventional Commit subject. Dependent pull requests
   form a stack.
+
+## Anchor-based product development
+
+Use [the product guide](.agents/guides/product/README.md) and
+[A01](docs/kaiju/product/01-a01-start-from-the-product-question.md) before substantial implementation.
+Start from the user outcome, the next decision, relevant unknowns and the smallest direct experiment.
+The [DeepScope profile](docs/kaiju/profiles/deepscope.md) binds the generic method to this extension.
+Run an existing native operation as soon as it can answer a material question. For each 60 research minutes,
+spend at least 10 active minutes preparing, executing and interpreting relevant experiments; do not wait or pad time.
+Keep the actual observation, conditions, source identity, product implication and next question in the owning plan.
+Preserve failed and inconclusive evidence. Setup, a unit test and a built-extension journey prove different things.
 
 ## Using the playbook
 
@@ -101,8 +114,8 @@ The playbook routes work; current repository instructions, the skills and guides
 user's requirements remain authoritative.
 
 Keep one active-task record ([AE01](docs/kaiju/agents/01-ae01-maintain-the-active-task-record.md)) in the plan under
-`docs/migration/` that owns the work (its "Active task" section): outcome, decisions, authorization, sources, known
-failures, next action and a self-contained continuation. After a reset, handoff or interruption, reconcile it with the
+`docs/migration/` that owns the work (its "Active task" section): outcome, questions, options, executed probes, observations, accepted decisions, authorization, sources, known
+failures, full concrete plan, next action and a self-contained continuation. After a reset, handoff or interruption, reconcile it with the
 latest user message, the branch, local changes and running workflows
 ([AE07](docs/kaiju/agents/07-ae07-preserve-work-and-resume-from-current.md)). Do not replay historical commands because
 a record mentions them.

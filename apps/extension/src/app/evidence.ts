@@ -1,4 +1,4 @@
-import type { EvidencePreview } from '@/app/model';
+import type { EvidencePreview } from "./model/explanations.ts";
 
 /** Format one already-redacted evidence row for human inspection. */
 export function formatEvidencePreview(item: EvidencePreview): string {
@@ -8,6 +8,7 @@ export function formatEvidencePreview(item: EvidencePreview): string {
 	return value ? `${item.kind}${source}: ${value}${version}` : `${item.kind}${source}${version}`;
 }
 
+/** Prefer a relationship source or a meaningful key/value pair, avoiding redundant empty and boolean-true text. */
 function formatEvidenceValue(item: EvidencePreview): string | undefined {
 	if (item.kind === 'relationship') return item.matchedValue ?? item.sourceTechnologyId;
 	const value = item.matchedValue;
@@ -18,6 +19,7 @@ function formatEvidenceValue(item: EvidencePreview): string | undefined {
 	return value ?? item.sourceTechnologyId;
 }
 
+/** Append user-facing evidence attributes while omitting the internal rule-position field. */
 function formatEvidenceAttributes(item: EvidencePreview): string {
 	const entries = Object.entries(item.attributes ?? {}).filter(([key]) => key !== 'ruleIndex');
 	return entries.length ? ` (${entries.map(([key, value]) => `${key}: ${String(value)}`).join(', ')})` : '';

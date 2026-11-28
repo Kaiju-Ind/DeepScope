@@ -1,23 +1,10 @@
 import { browser } from 'wxt/browser';
 
-import * as logging from '../../diagnostics/logging';
-import { diagnosticErrorType } from '../../privacy/redaction';
-import {
-	MATCHER_OFFSCREEN_CHANNEL,
-	type CancelMatcherJobMessage,
-	type CancelMatcherTabMessage,
-	type MatcherHostIdleMessage,
-	type MatcherOffscreenResponse,
-	type QueryMatcherHostIdleMessage,
-	type MatcherPartitionResult,
-	type MatcherJobTerminalReason,
-	type ReleaseMatcherLifecycleMessage,
-	type RunMatcherPartitionMessage,
-	type RunMatcherPartitionRequest,
-	type TouchMatcherLifecycleMessage,
-} from '../contracts';
-import { MatcherError } from '../error';
-import { MATCHER_PARTITION_CONCURRENCY, MATCHER_PARTITION_TRANSPORT_DEADLINE_MS } from '../policy';
+import * as logging from '../../diagnostics/logging.ts';
+import { diagnosticErrorType } from "@deepscope/detection/privacy/redaction";
+import { MATCHER_OFFSCREEN_CHANNEL, type CancelMatcherJobMessage, type CancelMatcherTabMessage, type MatcherHostIdleMessage, type MatcherOffscreenResponse, type QueryMatcherHostIdleMessage, type MatcherPartitionResult, type MatcherJobTerminalReason, type ReleaseMatcherLifecycleMessage, type RunMatcherPartitionMessage, type RunMatcherPartitionRequest, type TouchMatcherLifecycleMessage } from "../contracts.ts";
+import { MatcherError } from "../error.ts";
+import { MATCHER_PARTITION_CONCURRENCY, MATCHER_PARTITION_TRANSPORT_DEADLINE_MS } from "../policy.ts";
 
 const logger = logging.get('background', 'matcher-offscreen');
 

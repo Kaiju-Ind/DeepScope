@@ -1,10 +1,6 @@
-import type { ContentApi } from '@/lib/messaging';
-import {
-	CONTENT_SCRIPT_TIMEOUT_MS,
-	injectionFailure,
-	withTimeout,
-} from '@/lib/messaging/rpc';
-import { errorResponse, ok, type ExtensionResult } from '@/lib/messaging/result';
+import type { ContentApi } from "../messaging/index.ts";
+import { CONTENT_SCRIPT_TIMEOUT_MS, injectionFailure, withTimeout } from "../messaging/rpc.ts";
+import { errorResponse, ok, type ExtensionResult } from "../messaging/result.ts";
 
 /** How long a ping waits for an already-running content script. */
 export const PING_TIMEOUT_MS = 750;
@@ -32,6 +28,7 @@ export interface ContentInjector {
 	forget(tabId: number): void;
 }
 
+/** Own per-tab injection promises and readiness retries while callers supply browser and messaging adapters. */
 export function create(dependencies: ContentInjectorDependencies): ContentInjector {
 	const { log } = dependencies;
 	/**
@@ -43,6 +40,7 @@ export function create(dependencies: ContentInjectorDependencies): ContentInject
 	 */
 	const injectionByTab = new Map<number, Promise<ExtensionResult<void>>>();
 
+	/** Probe existing top-frame content with a bounded timeout; transport failure or cancellation reports unavailable. */
 	async function ping(tabId: number, signal?: AbortSignal, timeoutMs = PING_TIMEOUT_MS): Promise<boolean> {
 		try {
 			const contentApi = dependencies.createContentApiClient(tabId, 0);
@@ -53,6 +51,7 @@ export function create(dependencies: ContentInjectorDependencies): ContentInject
 		}
 	}
 
+	/** Check document cancellation before and after script injection and normalize browser failures. */
 	async function inject(tabId: number, signal?: AbortSignal): Promise<ExtensionResult<void>> {
 		try {
 			signal?.throwIfAborted();
@@ -64,6 +63,7 @@ export function create(dependencies: ContentInjectorDependencies): ContentInject
 		}
 	}
 
+	/** Inject once, then allow one longer readiness retry rather than creating a competing runtime. */
 	async function injectAndWait(tab: { readonly id: number; readonly incognito: boolean }, signal?: AbortSignal): Promise<ExtensionResult<void>> {
 		const tabId = tab.id;
 		log('content-runtime-inject-start', { tabId });
@@ -98,6 +98,7 @@ export function create(dependencies: ContentInjectorDependencies): ContentInject
 
 	return {
 		ping,
+		/** Reuse a live runtime or the tab's in-flight injection, releasing the promise entry when its owning attempt settles. */
 		async ensure(tab, signal) {
 			const tabId = tab.id;
 			signal?.throwIfAborted();
@@ -120,6 +121,7 @@ export function create(dependencies: ContentInjectorDependencies): ContentInject
 				if (injectionByTab.get(tabId) === injection) injectionByTab.delete(tabId);
 			}
 		},
+		/** Forget a retired tab's injection claim without pretending an already submitted browser injection can be canceled. */
 		forget(tabId) {
 			injectionByTab.delete(tabId);
 		},

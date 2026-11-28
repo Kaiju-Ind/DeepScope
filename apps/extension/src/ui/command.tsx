@@ -2,16 +2,11 @@ import { Command as CommandPrimitive } from "cmdk-solid";
 import Check from "~icons/fluent/checkmark-24-regular";
 import SearchIcon from "~icons/fluent/search-24-regular";
 import { type ComponentProps, mergeProps, splitProps } from "solid-js";
-import { cn } from "@/utils/cn";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/ui/dialog";
-import { InputGroup, InputGroupAddon } from "@/ui/input-group";
+import { cn } from "../utils/cn.ts";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./dialog.tsx";
+import { InputGroup, InputGroupAddon } from "./input-group.tsx";
 
+/** Provide the command surface while forwarding the caller's props to the existing command primitive. */
 function Command(props: ComponentProps<"div">) {
   return (
     <CommandPrimitive
@@ -29,6 +24,7 @@ type CommandDialogProps = ComponentProps<typeof Dialog> &
     showCloseButton?: boolean;
   };
 
+/** Place command content in a dialog with default accessible title and description and no close button unless requested. */
 function CommandDialog(props: CommandDialogProps) {
   const mergedProps = mergeProps(
     {
@@ -63,6 +59,7 @@ function CommandDialog(props: CommandDialogProps) {
   );
 }
 
+/** Compose a decorative search icon with the primitive's query input; query ownership and filtering stay with the command primitive. */
 function CommandInput(props: ComponentProps<typeof CommandPrimitive.Input>) {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -84,6 +81,7 @@ function CommandInput(props: ComponentProps<typeof CommandPrimitive.Input>) {
   );
 }
 
+/** Constrain the command results to a scrollable list while preserving primitive item navigation. */
 function CommandList(props: ComponentProps<typeof CommandPrimitive.List>) {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -95,6 +93,7 @@ function CommandList(props: ComponentProps<typeof CommandPrimitive.List>) {
   );
 }
 
+/** Style the primitive's empty-results presentation without duplicating its filtering state. */
 function CommandEmpty(props: ComponentProps<typeof CommandPrimitive.Empty>) {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -106,6 +105,7 @@ function CommandEmpty(props: ComponentProps<typeof CommandPrimitive.Empty>) {
   );
 }
 
+/** Style a command group while leaving its heading and filtered-item membership with the primitive. */
 function CommandGroup(props: ComponentProps<typeof CommandPrimitive.Group>) {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -117,6 +117,7 @@ function CommandGroup(props: ComponentProps<typeof CommandPrimitive.Group>) {
   );
 }
 
+/** Divide command groups using the primitive's separator behavior. */
 function CommandSeparator(props: ComponentProps<typeof CommandPrimitive.Separator>) {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -128,6 +129,7 @@ function CommandSeparator(props: ComponentProps<typeof CommandPrimitive.Separato
   );
 }
 
+/** Style an actionable result and its checked indicator while leaving selection and command execution with the primitive and caller. */
 function CommandItem(props: ComponentProps<typeof CommandPrimitive.Item>) {
   const [local, others] = splitProps(props, ["class", "children"]);
   return (
@@ -145,6 +147,7 @@ function CommandItem(props: ComponentProps<typeof CommandPrimitive.Item>) {
   );
 }
 
+/** Display a command's shortcut hint without installing a keyboard handler. */
 function CommandShortcut(props: ComponentProps<"span">) {
   const [local, others] = splitProps(props, ["class"]);
   return (

@@ -1,20 +1,12 @@
-import {
-	collectImageSources,
-	collectLinkTags,
-	collectMetaTags,
-	collectResourceTimings,
-	collectScriptContents,
-	collectScriptSources,
-	collectStylesheetContents,
-	collectStylesheetRules,
-	collectStylesheetSources,
-} from '../collect-page-signals';
-import { mergeStringsByTotalChars } from '../../detection/normalizers';
-import { SOURCE_LIMITS } from '../../detection/source-limits';
-import * as dom from '../../dom';
-import type { DomPlanType, MatchStatsType } from '../../dom';
-import type { SnapshotOptionsType, SnapshotType } from './types';
-import * as dictionary from '../../../utils/dictionary';
+import { collectImageSources, collectLinkTags, collectMetaTags, collectScriptContents, collectScriptSources, collectStylesheetContents, collectStylesheetRules, collectStylesheetSources } from "../signals/elements.ts";
+import { collectResourceTimings } from "../signals/resources.ts";
+import { mergeStringsByTotalChars } from "@deepscope/detection/normalizers";
+import { SOURCE_LIMITS } from "@deepscope/detection/limits";
+import * as dom from "@deepscope/dom";
+import type { DomPlanType, MatchStatsType } from "@deepscope/dom";
+import type { SnapshotOptionsType } from "./types.ts";
+import type { SnapshotType } from "@deepscope/detection/observations/snapshot";
+import * as dictionary from '@deepscope/detection/observations/dictionary';
 
 /** Inputs for one bounded live-DOM scan. */
 export type ScanType = {
@@ -64,6 +56,7 @@ export async function node(input: ScanType): Promise<SnapshotType> {
 		matched: input.matched,
 		...(input.signal ? { signal: input.signal } : {}),
 		...(input.onStats ? { onStats: input.onStats } : {}),
+		/** Collect bounded facts from each cooperatively visited element into this scan's owned snapshot. */
 		visit(element) {
 			collect(snapshot, element, input.content);
 		},

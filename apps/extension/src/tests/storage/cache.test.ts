@@ -2,15 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.setConfig({ testTimeout: 20_000 });
 
-import {
-	STORAGE_LIMITS,
-	getAnalysisResponseKey,
-	getDetectionOriginSnapshotKey,
-	getReplayTraceCacheKey,
-	getReplayTraceHistoryCacheKey,
-} from '@/lib/storage/contracts';
-import { makeDetectionReplayTrace, makeDetectionSessionSnapshot } from '../support/factories';
-import { createMockBrowserStorageArea } from '../support/mock-browser';
+import { STORAGE_LIMITS, getAnalysisResponseKey, getDetectionOriginSnapshotKey, getReplayTraceCacheKey, getReplayTraceHistoryCacheKey } from "../../lib/storage/contracts.ts";
+import { makeDetectionReplayTrace } from "@deepscope/detection/testing/fixtures";
+import { makeDetectionSessionSnapshot } from "../support/factories.ts";
+import { createMockBrowserStorageArea } from "../support/mock-browser.ts";
 
 async function loadStorageHarness() {
 	vi.resetModules();
@@ -24,7 +19,7 @@ async function loadStorageHarness() {
 		},
 	}));
 
-	const storage = await import('@/lib/storage');
+	const storage = await import('../../lib/storage/index.ts');
 	return { ...storage, local, values };
 }
 

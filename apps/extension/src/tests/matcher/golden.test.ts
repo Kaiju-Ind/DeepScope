@@ -4,21 +4,18 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { matchIndexedObservationBatch, type ObservationMatcherDiagnostics } from '@/lib/detection/observation-matcher-index';
-import {
-	createCuratedRuleProfileCases,
-	createGeneratedRuleMissCases,
-	createGeneratedRulePassCases,
-} from '@/lib/detection/rule-performance-profile';
-import type { TechnologyDefinition } from '@/lib/detection/types';
-import type { NormalizedObservation, ObservationBatch } from '@/lib/observations';
-import { normalizePageSignals } from '@/lib/observations/page-signals';
-import { normalizePackagedRegistryObservationKind, PACKAGED_REGISTRY_OBSERVATION_KINDS } from '@/lib/registry/packaged-artifacts';
-import { technologyDefinitions } from '@/registry/technologies';
+import { matchIndexedObservationBatch } from "@deepscope/detection/matcher";
+import { type ObservationMatcherDiagnostics } from "@deepscope/detection/matcher/diagnostics";
+import { createCuratedRuleProfileCases, createGeneratedRuleMissCases, createGeneratedRulePassCases } from "@deepscope/detection/profile/cases";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
+import type { NormalizedObservation, ObservationBatch } from "@deepscope/detection/observations";
+import { normalizePageSignals } from "@deepscope/detection/observations/page";
+import { normalizePackagedRegistryObservationKind, PACKAGED_REGISTRY_OBSERVATION_KINDS } from "@deepscope/detection/artifacts/packaged";
+import { technologyDefinitions } from "@deepscope/registry";
 
-import { page } from '../support/corpus';
-import { RULE_PERFORMANCE_FIXTURES } from '../support/rule-performance-fixtures';
-import { loadShards } from '../support/shards';
+import { page } from "../support/corpus.ts";
+import { RULE_PERFORMANCE_FIXTURES } from "@deepscope/detection/testing/rules";
+import { loadShards } from "../support/shards.ts";
 
 /**
  * Golden output for the packaged, indexed matcher.

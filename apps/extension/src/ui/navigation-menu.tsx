@@ -14,7 +14,7 @@ import { cva } from "class-variance-authority";
 import ChevronDown from "~icons/fluent/chevron-down-24-regular";
 import type { ComponentProps, JSX, ValidComponent } from "solid-js";
 import { mergeProps, Show, splitProps } from "solid-js";
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type NavigationMenuProps<T extends ValidComponent = "ul"> = PolymorphicProps<
   T,
@@ -22,6 +22,7 @@ type NavigationMenuProps<T extends ValidComponent = "ul"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Compose the shared items and viewport with bottom-start placement and an eight-pixel gutter by default. */
 const NavigationMenu = <T extends ValidComponent = "ul">(props: NavigationMenuProps<T>) => {
   const mergedProps = mergeProps({ gutter: 8, placement: "bottom-start" }, props);
   const [local, others] = splitProps(mergedProps as NavigationMenuProps, ["class", "children"]);
@@ -47,6 +48,7 @@ const NavigationMenu = <T extends ValidComponent = "ul">(props: NavigationMenuPr
 
 type NavigationMenuItemProps = ComponentProps<"div">;
 
+/** Give each navigation item its own menu primitive while forwarding layout props to its visible element. */
 const NavigationMenuItem = (props: NavigationMenuItemProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -72,6 +74,7 @@ type NavigationMenuTriggerProps<T extends ValidComponent = "div"> = PolymorphicP
     showIcon?: boolean;
   };
 
+/** Style the primitive trigger and show a decorative expansion indicator unless the caller disables it. */
 const NavigationMenuTrigger = <T extends ValidComponent = "div">(
   props: NavigationMenuTriggerProps<T>,
 ) => {
@@ -101,6 +104,7 @@ type NavigationMenuContentProps<T extends ValidComponent = "ul"> = PolymorphicPr
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Portal navigation content through the primitive without replacing its open, positioning or focus lifecycle. */
 const NavigationMenuContent = <T extends ValidComponent = "ul">(
   props: NavigationMenuContentProps<T>,
 ) => {
@@ -124,6 +128,7 @@ type NavigationMenuLinkProps = ComponentProps<"a"> & {
   children?: JSX.Element;
 };
 
+/** Style a native navigation link while leaving destination and routing interception with the caller. */
 const NavigationMenuLink = (props: NavigationMenuLinkProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -139,6 +144,7 @@ type NavigationMenuIndicatorProps = ComponentProps<"div"> & {
   class?: string;
 };
 
+/** Draw the navigation pointer at the caller-selected position without calculating an active item. */
 const NavigationMenuIndicator = (props: NavigationMenuIndicatorProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (

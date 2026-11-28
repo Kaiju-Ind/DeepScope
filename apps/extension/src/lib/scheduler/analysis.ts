@@ -1,24 +1,14 @@
-import type {
-	AnalyzeVisibleTabInput,
-	AnalyzeVisibleTabOutput,
-	VisibleTabIdentity,
-} from '@/lib/messaging/analysis';
-import { errorResponse, type ExtensionResult } from '@/lib/messaging/result';
+import type { AnalyzeVisibleTabInput, AnalyzeVisibleTabOutput, VisibleTabIdentity } from "../messaging/analysis.ts";
+import { errorResponse, type ExtensionResult } from "../messaging/result.ts";
 
-import * as database from './database';
-import * as fairness from './fairness';
-import * as generation from '@/utils/generation';
-import * as lane from './lane';
-import * as priority from './priority';
-import * as session from './session';
-import * as fence from '@/utils/fence';
-import {
-	AnalysisWorkSchema,
-	EXECUTION_SCHEMA_VERSION,
-	type AnalysisSourceType,
-	type AnalysisWorkType,
-	type WorkType,
-} from './schema';
+import * as database from './database.ts';
+import * as fairness from './fairness.ts';
+import * as generation from '../../utils/generation.ts';
+import * as lane from './lane.ts';
+import * as priority from './priority.ts';
+import * as session from './session.ts';
+import * as fence from '../../utils/fence.ts';
+import { AnalysisWorkSchema, EXECUTION_SCHEMA_VERSION, type AnalysisSourceType, type AnalysisWorkType, type WorkType } from "./schema.ts";
 
 const MAX_PENDING_ANALYSES = 256;
 const CLAIM_CLEANUP_ATTEMPTS = 3;
@@ -76,13 +66,10 @@ type ClaimCleanupResult =
 	| Readonly<{ kind: 'failed'; error: unknown }>;
 
 /**
- * Remove one terminal analysis claim without replacing its primary result.
- *
- * Cleanup retries are bounded. A false result means another claim now owns the
- * deterministic work id and must never be touched by this execution. A storage
- * failure is reported separately so cleanup cannot erase a successful analysis
- * or the original analysis failure. Startup reconciliation remains the fallback
- * for a claim that survives all cleanup attempts.
+ * Remove a terminal claim without replacing its analysis result.
+ * Retry storage failures at most CLAIM_CLEANUP_ATTEMPTS times. A stale claim
+ * belongs to a newer admission and must remain untouched. Report exhausted
+ * storage failures separately; startup reconciliation retries surviving claims.
  */
 async function removeClaim(id: string, claimToken: string): Promise<ClaimCleanupResult> {
 	let lastError: unknown;
@@ -194,6 +181,7 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 		return rest ? { kind: 'analysis', work: rest } : undefined;
 	}
 
+	/** Claim analysis work for this scheduler owner within the selected priority range and browser session. */
 	function claimRange(browserSessionId: string, minPriorityRank: number, maxPriorityRank: number): Promise<WorkType | undefined> {
 		return database.claim({ browserSessionId, kind: 'analysis', owner, minPriorityRank, maxPriorityRank });
 	}
@@ -226,6 +214,7 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 		}
 	}
 
+	/** Resolve and execute a claimed target, then publish completion only if claim cleanup and the tab generation still permit it. */
 	async function execute(work: AnalysisWorkType): Promise<void> {
 		const claimToken = work.claimToken;
 		if (!claimToken) {
@@ -309,6 +298,7 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 		resolveCompletion(work.id, canceled('Analysis canceled because its tab changed while it ran.'));
 	}
 
+	/** Remove the local completion registrations before settling the caller, preventing later cleanup from settling them again. */
 	function resolveCompletion(id: string, result: ExtensionResult<AnalyzeVisibleTabOutput>): void {
 		const deferred = deferredById.get(id);
 		if (!deferred) return;
@@ -321,6 +311,7 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 		readonly resolve: (result: ExtensionResult<AnalyzeVisibleTabOutput>) => void;
 	}>();
 
+	/** Register or reuse the local completion before durable admission makes the work visible to another drain. */
 	function getCompletion(id: string): Completion {
 		const existing = completions.get(id);
 		if (existing) return existing;
@@ -333,9 +324,11 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 		return completion;
 	}
 
+	/** Represent canceled admission through the existing validation-failure envelope used by scheduled analysis callers. */
 	const canceled = (message: string): ExtensionResult<AnalyzeVisibleTabOutput> => errorResponse('VALIDATION_ERROR', message);
 
 	return {
+		/** Admit normal-tab analysis with a generation and cleanup fence; private targets bypass durable storage entirely. */
 		async analyze(input, source = 'interactive') {
 			if (input.target.incognito) return await options.analyze(input);
 
@@ -422,6 +415,7 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 			return await completion;
 		},
 
+		/** Update the active tab, persist the window's revised work priorities and request another scheduler drain. */
 		async activateTab(tabId, windowId) {
 			activeTabByWindow.set(windowId, tabId);
 			const browserSessionId = await session.get();
@@ -430,6 +424,7 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 			void drain();
 		},
 
+		/** Deduplicate transient background tasks by caller-provided key and retain their tab generation until settlement. */
 		runBackground(input) {
 			const existing = backgroundTasks.get(input.key);
 			if (existing) return existing.completion;
@@ -450,6 +445,7 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 			return completion;
 		},
 
+		/** Invalidate tab work before serialized durable cleanup, settling local waiters without allowing late admission to revive the tab. */
 		async cancelTab(tabId) {
 			for (const [windowId, activeTabId] of activeTabByWindow) {
 				if (activeTabId === tabId) activeTabByWindow.delete(windowId);
@@ -470,6 +466,7 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 			});
 		},
 
+		/** Pause new claims while removing other browser sessions and recovering this scheduler's abandoned analysis claims. */
 		async reconcile() {
 			paused = true;
 			const browserSessionId = await session.get();
@@ -480,6 +477,7 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 			});
 		},
 
+		/** Allow claims after reconciliation and request a drain of retained work. */
 		resume() {
 			paused = false;
 			void drain();
@@ -487,6 +485,7 @@ export function create(options: AnalysisSchedulerOptions): AnalysisScheduler {
 	};
 }
 
+/** Deduplicate analysis by browser session, tab, URL, mode and observation choice; preserve this durable identity format. */
 function getWorkId(browserSessionId: string, input: AnalyzeVisibleTabInput): string {
 	return [
 		'analysis',

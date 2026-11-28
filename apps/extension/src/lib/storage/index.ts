@@ -1,34 +1,13 @@
 import { browser } from 'wxt/browser';
-import * as dictionary from '@/utils/dictionary';
-import { readStorageEntries, readStorageKeys } from '@/utils/storage-entries';
+import * as dictionary from '@deepscope/detection/observations/dictionary';
+import { readStorageEntries, readStorageKeys } from "../../utils/storage-entries.ts";
 
-import type {
-	DetectionOriginSummary,
-	DetectionSessionSnapshot,
-	DetectionStorageStatusSnapshot,
-} from './session';
-import type { AnalysisStatus } from '../detection/types';
-import type { DetectionReplayTrace } from '../pipeline';
-import {
-	ANALYSIS_RESPONSE_PREFIX,
-	CONTENT_SESSION_LIFECYCLE_PREFIX,
-	DETECTION_ORIGIN_SNAPSHOT_PREFIX,
-	DETECTION_ORIGIN_SUMMARY_PREFIX,
-	DETECTION_SESSION_INDEX_PREFIX,
-	DETECTION_SESSION_SNAPSHOT_PREFIX,
-	DETECTION_STORAGE_STATUS_KEY,
-	MATCHER_JOB_CACHE_PREFIX,
-	REPLAY_TRACE_CACHE_PREFIX,
-	REPLAY_TRACE_HISTORY_CACHE_PREFIX,
-	STORAGE_LIMITS,
-	getReplayTraceCacheKey,
-	getReplayTraceHistoryCacheKey,
-} from './contracts';
-import {
-	isDetectionOriginSummary,
-	isDetectionStorageStatusSnapshot,
-	refreshDetectionStorageStatusSnapshot,
-} from './detection-snapshots';
+import type { DetectionOriginSummary, DetectionSessionSnapshot, DetectionStorageStatusSnapshot } from "./session.ts";
+import type { AnalysisStatus } from "@deepscope/detection/types";
+import type { DetectionReplayTrace } from "@deepscope/detection/pipeline";
+import { ANALYSIS_RESPONSE_PREFIX, CONTENT_SESSION_LIFECYCLE_PREFIX, DETECTION_ORIGIN_SNAPSHOT_PREFIX, DETECTION_ORIGIN_SUMMARY_PREFIX, DETECTION_SESSION_INDEX_PREFIX, DETECTION_SESSION_SNAPSHOT_PREFIX, DETECTION_STORAGE_STATUS_KEY, MATCHER_JOB_CACHE_PREFIX, REPLAY_TRACE_CACHE_PREFIX, REPLAY_TRACE_HISTORY_CACHE_PREFIX, STORAGE_LIMITS, getReplayTraceCacheKey, getReplayTraceHistoryCacheKey } from "./contracts.ts";
+import { isDetectionOriginSummary, isDetectionStorageStatusSnapshot } from './snapshots/schema.ts';
+import { refreshDetectionStorageStatusSnapshot } from './snapshots/origins.ts';
 
 
 const DETECTION_STORAGE_PREFIXES = [
@@ -54,6 +33,7 @@ export async function clearStoredDetectionData(): Promise<number> {
 	return keys.length;
 }
 
+/** Limit detector cleanup to its status key and owned storage prefixes, leaving unrelated extension data intact. */
 function isDetectorStorageKey(key: string): boolean {
 	return key === DETECTION_STORAGE_STATUS_KEY || DETECTION_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix));
 }
@@ -159,6 +139,7 @@ export async function saveReplayTrace(trace: DetectionReplayTrace): Promise<Dete
 	return normalized;
 }
 
+/** Prefer the stored status summary, rebuild it from origin summaries when needed, and fall back to validated origin snapshots. */
 export async function getStatus(): Promise<AnalysisStatus> {
 	const storedStatus = await getStoredDetectionStatus();
 	if (storedStatus) {
@@ -193,6 +174,7 @@ export async function getStatus(): Promise<AnalysisStatus> {
 	};
 }
 
+/** Accept the stored status only when it matches the current schema; callers own the fallback path. */
 async function getStoredDetectionStatus(): Promise<DetectionStorageStatusSnapshot | null> {
 	const raw = await browser.storage.local.get(DETECTION_STORAGE_STATUS_KEY);
 	const value = raw[DETECTION_STORAGE_STATUS_KEY];
@@ -200,6 +182,7 @@ async function getStoredDetectionStatus(): Promise<DetectionStorageStatusSnapsho
 	return isDetectionStorageStatusSnapshot(value) ? value : null;
 }
 
+/** Expose count and last-analysis fields while keeping storage-specific schema metadata internal. */
 function toAnalysisStatus(status: DetectionStorageStatusSnapshot): AnalysisStatus {
 	return {
 		totalAnalyses: status.totalAnalyses,
@@ -300,25 +283,13 @@ function cloneReplayTrace(trace: DetectionReplayTrace): DetectionReplayTrace {
 	};
 }
 
-export type { DetectionSessionIndexEntry, DetectionSessionIndexRecord, DetectionSessionSnapshotWriteResult } from '../persistence/ports';
-export {
-	getBestVisibleDetectionSessionSnapshot,
-	getDetectionStorageStatusSnapshot,
-	getDetectionSessionIndex,
-	getLatestDetectionOriginSummary,
-	getLatestDetectionOriginSnapshot,
-	getLatestDetectionSessionSnapshot,
-	isDetectionOriginSummary,
-	markDetectionSessionSnapshotsForTab,
-	isDetectionSessionSnapshot,
-	refreshDetectionStorageStatusSnapshot,
-	removeDetectionSessionIndex,
-	saveDetectionSessionSnapshot,
-} from './detection-snapshots';
-export { removeTabSessions } from './sweep';
+export type { DetectionSessionIndexEntry, DetectionSessionIndexRecord, DetectionSessionSnapshotWriteResult } from "../persistence/ports.ts";
+export { getBestVisibleDetectionSessionSnapshot, getLatestDetectionOriginSnapshot, getLatestDetectionSessionSnapshot } from './snapshots/read.ts';
+export { getDetectionStorageStatusSnapshot, getLatestDetectionOriginSummary, refreshDetectionStorageStatusSnapshot } from './snapshots/origins.ts';
+export { getDetectionSessionIndex, removeDetectionSessionIndex } from './snapshots/sessions.ts';
+export { isDetectionOriginSummary, isDetectionSessionSnapshot } from './snapshots/schema.ts';
+export { markDetectionSessionSnapshotsForTab } from './snapshots/lifecycle.ts';
+export { saveDetectionSessionSnapshot } from './snapshots/write.ts';
+export { removeTabSessions } from "./sweep.ts";
 
-export {
-	getMatcherJobRecord,
-	saveMatcherJobRecord,
-	updateMatcherJobRecord,
-} from './matcher-jobs';
+export { getMatcherJobRecord, saveMatcherJobRecord, updateMatcherJobRecord } from "./matcher-jobs.ts";

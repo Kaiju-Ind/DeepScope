@@ -156,7 +156,7 @@ Test missing optional dependencies. Core imports should continue to work.
 ## Conditional exports
 
 Use conditional exports only for meaningful runtime differences with equivalent
-public contracts. Do not create browser, Node, worker, import, and require
+public contracts. Do not create browser, Node, Deno, worker, import, and require
 branches without testing every branch.
 
 Keep runtime-specific code in leaf modules. Avoid conditions that silently
@@ -249,7 +249,7 @@ condition.
 ## Verification
 
 - pack the exact publishable artifact;
-- install it into clean Node or bundler consumers as supported;
+- install it into clean Deno, Node, or bundler consumers as supported;
 - import every public subpath and reject private paths;
 - run type checking against declarations;
 - bundle core and adapter consumers with metafile analysis;

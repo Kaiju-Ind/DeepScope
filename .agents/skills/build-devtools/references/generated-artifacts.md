@@ -95,10 +95,10 @@ const model = parseAndValidate(source.bytes);
 const next = render(model); // stable sort, stable newline, no current time
 const current = await readText(output);
 
-if (next === current) return 0;
+if (next === current) Deno.exit(0);
 if (mode === "check") {
   reportSemanticDrift(current, next, source.provenance);
-  return 1;
+  Deno.exit(1);
 }
 
 await atomicReplace(output, next);
@@ -287,13 +287,13 @@ CI should run the repository's true check command with only required permissions
 For a committed artifact:
 
 ```sh
-node tools/utils/sync.ts --check --source ../kaiju-utils
-mise run test --project utils
-git diff --exit-code -- utils/
+deno task generate:check
+deno task test:generated-consumer
+git diff --exit-code -- path/to/generated
 ```
 
 The last command is a defense in depth, not the implementation of check mode.
-Do not run a formatter across Markdown merely to make a generated
+Do not run `deno fmt` or Prettier across Markdown merely to make a generated
 section pass. Scope code formatting to generated code or render already-formatted
 bytes. In dirty worktrees, compare only owned paths and refuse write mode when
 an output contains unrelated user edits unless an explicit merge is supported.

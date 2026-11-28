@@ -30,6 +30,14 @@ Do not recursively load companion skills or historical material for reassurance.
 
 Read [validation](../../references/validator.md) for internal contracts and [verification](references/verifier.md) for the real consumer workflow. Read [delivery evidence](../../references/delivery.md) for multi-surface reconciliation. Keep those proof levels separate: a green type check or source test cannot establish an unrun built artifact or native runtime.
 
+Use [experiments](../../guides/product/experiments.md) to choose the smallest
+execution that can answer the current product question. Verify early when a
+direct operation is available; do not reserve all evidence for final integration.
+Keep direct component, application, and customer-outcome claims separate. A
+contradicted hypothesis can complete an investigation while the requested
+product fix remains open. Publish the observation and next decision as an
+[anchor](../../guides/product/anchors.md), including failed or blocked attempts.
+
 Name the exact target, inputs, runtime, artifact, credential owner and permitted state changes before executing. Use disposable fixtures and reversible local workflows where applicable. Inspect package/archive contents, extract or install the exact produced artifact in a clean location, and exercise its public entrypoint. Check output/state and cleanup, not exit code alone. Never use production credentials or external writes merely to make a verification claim.
 
 Inspect comments, docs, names, imports and readability as part of validation. Do not edit the implementation during a verification-only request. Report each required scenario as observed, failed or blocked, with commands and limits. Reconcile request, plan, actual implementation and proof; one passing scenario cannot erase a failed or unrun required scenario. Suggest a concrete next step rather than substituting mock evidence for a real capability.
@@ -41,4 +49,8 @@ locate a decision-specific resource; it is not a reading checklist.
 
 ## Kaiju projects
 
-In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Failure catalogue](../../../docs/kaiju/failures/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).
+In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Task prompts](../../../docs/kaiju/tasks/README.md).
+
+For any project using the pack, see [Product development](../../../docs/kaiju/product/README.md).
+
+For DeepScope, also read the [extension failure evidence](../../../docs/kaiju/failures/README.md) before choosing a browser regression check.

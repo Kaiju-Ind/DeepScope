@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import * as fairness from '@/lib/scheduler/fairness';
+import * as fairness from '../../lib/scheduler/fairness.ts';
 
 const foreground = {
 	jobId: 'foreground',

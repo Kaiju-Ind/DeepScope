@@ -279,5 +279,5 @@ A before/after heap subtraction without lifecycle repetition is not a leak test.
 - ECMAScript Explicit Resource Management proposal and current runtime support,
   reviewed 2026-07-23.
 - V8 memory and garbage collection documentation, reviewed 2026-07-23.
-- Vitest benchmark guidance.
+- Deno benchmark and resource-sanitizer guidance, reviewed 2026-07-23.
 - Library-first guidebook, reviewed 2026-07-23.

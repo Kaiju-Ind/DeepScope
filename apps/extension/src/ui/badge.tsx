@@ -2,7 +2,7 @@ import { type BadgeRootProps, Root } from "@kobalte/core/badge";
 import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 import { cva, type VariantProps } from "class-variance-authority";
 import { splitProps, type ValidComponent } from "solid-js";
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 const badgeVariants = cva(
   "group/badge z-badge inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap outline-hidden [&>svg]:pointer-events-none",
@@ -26,6 +26,7 @@ const badgeVariants = cva(
 type BadgeProps<T extends ValidComponent = "span"> = PolymorphicProps<T, BadgeRootProps<T>> &
   VariantProps<typeof badgeVariants>;
 
+/** Apply the selected badge appearance while forwarding the caller's element, content and native attributes. */
 const Badge = <T extends ValidComponent = "span">(props: BadgeProps<T>) => {
   const [local, others] = splitProps(props as BadgeProps, ["class", "variant"]);
   return (

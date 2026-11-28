@@ -14,14 +14,9 @@ import ChevronsUpDown from "~icons/fluent/chevron-up-down-24-regular";
 import X from "~icons/fluent/dismiss-24-regular";
 import type { ComponentProps, JSX, ValidComponent } from "solid-js";
 import { mergeProps, Show, splitProps } from "solid-js";
-import { cn } from "@/utils/cn";
-import { releaseBackgroundFocus } from "@/ui/modal-focus";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@/ui/input-group";
+import { cn } from "../utils/cn.ts";
+import { releaseBackgroundFocus } from "./modal-focus.ts";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "./input-group.tsx";
 
 // ============================================================================
 // Combobox Root
@@ -33,6 +28,7 @@ type ComboboxProps<O, OptGroup = never, T extends ValidComponent = "div"> = Poly
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Default to input-triggered contains filtering and a same-width bottom popup; the primitive owns selection, query and open state. */
 const Combobox = <O, OptGroup = never, T extends ValidComponent = "div">(
   props: ComboboxProps<O, OptGroup, T>,
 ) => {
@@ -47,6 +43,7 @@ const Combobox = <O, OptGroup = never, T extends ValidComponent = "div">(
     props,
   );
   const [local, others] = splitProps(mergedProps, ["onOpenChange"]);
+  /** Apply shared focus release before forwarding both the new open state and its trigger mode. */
   const onOpenChange: NonNullable<typeof props.onOpenChange> = (open, triggerMode) => {
     releaseBackgroundFocus(open);
     local.onOpenChange?.(open, triggerMode);
@@ -65,6 +62,7 @@ type ComboboxControlProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Style the primitive control without separating it from the surrounding combobox state. */
 const ComboboxControl = <T extends ValidComponent = "div">(props: ComboboxControlProps<T>) => {
   const [local, others] = splitProps(props as ComboboxControlProps, ["class"]);
   return (
@@ -90,6 +88,7 @@ type ComboboxInputProps<T extends ValidComponent = "input"> = PolymorphicProps<
     children?: JSX.Element;
   };
 
+/** Compose the native combobox input with an optional trigger and clear action, deriving selection state from the primitive control. */
 const ComboboxInput = <T extends ValidComponent = "input">(rawProps: ComboboxInputProps<T>) => {
   const props = mergeProps({ showTrigger: true, showClear: false }, rawProps);
   const [local, others] = splitProps(props as ComboboxInputProps, [
@@ -164,6 +163,7 @@ type ComboboxTriggerProps<T extends ValidComponent = "button"> = PolymorphicProp
     size?: "sm" | "default";
   };
 
+/** Provide a standard-size standalone trigger and indicator while the primitive retains selection and popup ownership. */
 const ComboboxTrigger = <T extends ValidComponent = "button">(
   rawProps: ComboboxTriggerProps<T>,
 ) => {
@@ -201,6 +201,7 @@ type ComboboxContentProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Portal the primitive-generated option list inside a bounded popup; option rendering remains configured on the root. */
 const ComboboxContent = <T extends ValidComponent = "div">(props: ComboboxContentProps<T>) => {
   const [local, others] = splitProps(props as ComboboxContentProps, ["class"]);
   return (
@@ -229,6 +230,7 @@ type ComboboxSectionProps<T extends ValidComponent = "li"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Group options through the primitive's section semantics without creating another selection model. */
 const ComboboxSection = <T extends ValidComponent = "li">(props: ComboboxSectionProps<T>) => {
   const [local, others] = splitProps(props as ComboboxSectionProps, ["class"]);
   return (
@@ -248,6 +250,7 @@ type ComboboxSectionLabelProps = ComponentProps<"span"> & {
   class?: string;
 };
 
+/** Style caller-provided section text; option grouping and label association remain with the surrounding section composition. */
 const ComboboxSectionLabel = (props: ComboboxSectionLabelProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -271,6 +274,7 @@ type ComboboxItemProps<T extends ValidComponent = "li"> = PolymorphicProps<
     children?: JSX.Element;
   };
 
+/** Connect visible option text and its selection indicator to the primitive-owned option item. */
 const ComboboxItem = <T extends ValidComponent = "li">(props: ComboboxItemProps<T>) => {
   const [local, others] = splitProps(props as ComboboxItemProps, ["class", "children"]);
   return (
@@ -303,6 +307,7 @@ type ComboboxEmptyProps = ComponentProps<"div"> & {
   class?: string;
 };
 
+/** Style caller-selected empty-results content without deciding whether the option collection is empty. */
 const ComboboxEmpty = (props: ComboboxEmptyProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -322,6 +327,7 @@ type ComboboxSeparatorProps<T extends ValidComponent = "hr"> = ComponentProps<T>
   class?: string;
 };
 
+/** Insert a non-interactive visual divider between option groups. */
 const ComboboxSeparator = <T extends ValidComponent = "hr">(
   props: PolymorphicProps<T, ComboboxSeparatorProps<T>>,
 ) => {

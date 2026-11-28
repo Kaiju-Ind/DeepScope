@@ -18,8 +18,8 @@ async function loadHarness() {
 	}));
 
 	const [{ Host }, { MATCHER_OFFSCREEN_CHANNEL }] = await Promise.all([
-		import('@/lib/matcher/offscreen/host'),
-		import('@/lib/matcher/contracts'),
+		import('../../lib/matcher/offscreen/host.ts'),
+		import('../../lib/matcher/contracts.ts'),
 	]);
 	const host = new Host();
 	host.start();

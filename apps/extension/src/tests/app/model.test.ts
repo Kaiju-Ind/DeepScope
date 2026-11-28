@@ -1,32 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	buildAnalysisUpdate,
-	buildExplanationLookup,
-	createVisibleRevisionFromAnalysisResponse,
-	formatError,
-	getReplayState,
-	getAnalysisActivity,
-	getMatcherStatusFromSnapshot,
-	getObservationLabel,
-	getObservationModeFromAnalysis,
-	getObservationModeFromSession,
-	getObservationModeFromSnapshot,
-	groupDetectionsByPrimaryCategory,
-	isVisibleRevisionPending,
-	shouldApplyReplayState,
-	shouldApplySnapshotRevision,
-	shouldKeepLiveUpdatesActive,
-	shouldPreserveReplayState,
-} from '@/app/model';
-import {
-	makeAnalysis,
-	makeAnalyzeVisibleTabOutput,
-	makeDetection,
-	makeDetectionReplayTrace,
-	makeDetectionSessionSnapshot,
-	makeObservationSession,
-} from '../support/factories';
+import { buildAnalysisUpdate, formatError } from "../../app/model/update.ts";
+import { buildExplanationLookup } from "../../app/model/explanations.ts";
+import { createVisibleRevisionFromAnalysisResponse, isVisibleRevisionPending, shouldApplyReplayState, shouldApplySnapshotRevision } from "../../app/model/revision.ts";
+import { getReplayState, shouldPreserveReplayState } from "../../app/model/replay.ts";
+import { getAnalysisActivity, getMatcherStatusFromSnapshot } from "../../app/model/matcher.ts";
+import { getObservationLabel, getObservationModeFromAnalysis, getObservationModeFromSession, getObservationModeFromSnapshot, shouldKeepLiveUpdatesActive } from "../../app/model/observation.ts";
+import { groupDetectionsByPrimaryCategory } from "../../app/model/categories.ts";
+import { makeAnalysis, makeDetection, makeDetectionReplayTrace } from "@deepscope/detection/testing/fixtures";
+import { makeAnalyzeVisibleTabOutput, makeDetectionSessionSnapshot, makeObservationSession } from "../support/factories.ts";
 
 describe('side panel model', () => {
 	it('groups detections by their first category and keeps category priority order', () => {

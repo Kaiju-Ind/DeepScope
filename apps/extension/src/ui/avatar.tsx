@@ -3,7 +3,7 @@ import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 import type { ComponentProps, ValidComponent } from "solid-js";
 import { mergeProps, splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type AvatarRootProps<T extends ValidComponent = "span"> = PolymorphicProps<
   T,
@@ -13,6 +13,7 @@ type AvatarRootProps<T extends ValidComponent = "span"> = PolymorphicProps<
     size?: "sm" | "default" | "lg";
   };
 
+/** Default the avatar size while leaving image load state and fallback timing with the image primitive. */
 const Avatar = <T extends ValidComponent = "span">(props: AvatarRootProps<T>) => {
   const mergedProps = mergeProps({ size: "default" }, props);
   const [local, others] = splitProps(mergedProps as AvatarRootProps, ["class", "size"]);
@@ -35,6 +36,7 @@ type AvatarImageProps<T extends ValidComponent = "img"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Fit the caller's image into its avatar slot and forward image source, alternative text and load behavior. */
 const AvatarImage = <T extends ValidComponent = "img">(props: AvatarImageProps<T>) => {
   const [local, others] = splitProps(props as AvatarImageProps, ["class"]);
   return (
@@ -52,6 +54,7 @@ type AvatarFallbackProps<T extends ValidComponent = "span"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Style fallback content selected by the image primitive, using the parent avatar's size state. */
 const AvatarFallback = <T extends ValidComponent = "span">(props: AvatarFallbackProps<T>) => {
   const [local, others] = splitProps(props as AvatarFallbackProps, ["class"]);
   return (
@@ -68,6 +71,7 @@ const AvatarFallback = <T extends ValidComponent = "span">(props: AvatarFallback
 
 type AvatarBadgeProps = ComponentProps<"span">;
 
+/** Overlay caller-owned status content with sizing inherited from the surrounding avatar. */
 function AvatarBadge(props: AvatarBadgeProps) {
   const [local, others] = splitProps(props as AvatarBadgeProps, ["class"]);
   return (
@@ -87,6 +91,7 @@ function AvatarBadge(props: AvatarBadgeProps) {
 
 type AvatarGroupProps = ComponentProps<"div">;
 
+/** Arrange overlapping avatars with separating rings; membership and accessible labeling remain with the caller. */
 function AvatarGroup(props: AvatarGroupProps) {
   const [local, others] = splitProps(props as AvatarGroupProps, ["class"]);
   return (
@@ -103,6 +108,7 @@ function AvatarGroup(props: AvatarGroupProps) {
 
 type AvatarGroupCountProps = ComponentProps<"div">;
 
+/** Style an overflow-count slot; the caller computes and supplies the count. */
 function AvatarGroupCount(props: AvatarGroupCountProps) {
   const [local, others] = splitProps(props as AvatarGroupCountProps, ["class"]);
   return (

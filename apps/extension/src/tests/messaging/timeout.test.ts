@@ -4,7 +4,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { RpcTimeoutError, withTimeout } from '@/lib/messaging/rpc';
+import { RpcTimeoutError, withTimeout } from "../../lib/messaging/rpc.ts";
 
 /** A parent signal that counts its live abort listeners. */
 function counted() {

@@ -2,7 +2,7 @@
 
 Use benchmarks to answer a concrete performance question. A benchmark is not useful because it produces a number. It is useful when its workload, baseline, measurement method, and interpretation are close enough to the real decision that the result can guide engineering work.
 
-DeepScope uses Vitest 5 `bench` (`apps/extension/bench/*.bench.ts`, run with `pnpm bench` or the `bench:rules*` scripts). Follow the repository-selected owner instead of creating parallel benchmark stacks.
+This project family normally prefers `mitata` for cross-runtime JavaScript/TypeScript benchmarks. A repository can select another harness, such as Vitest benchmarks, when that environment owns the scenario. Follow the repository-selected owner instead of creating parallel benchmark stacks.
 
 ## Start with the claim
 
@@ -41,7 +41,7 @@ Do not compare a cold implementation with a warm competitor and call the result 
 
 ## Garbage collection and allocation
 
-Control garbage collection deliberately: warm up, take several samples and compare medians (the rule-profile gates use the median of five warmed samples). Allocation-heavy scenarios may need `node --expose-gc` and an explicit collection between samples when per-iteration stability matters.
+For Mitata, use its GC controls deliberately. Allocation-heavy scenarios often benefit from inner GC control when per-iteration stability matters. Outer control has less overhead when the benchmark can tolerate more inter-iteration noise.
 
 Do not put ad-hoc heap sampling inside the hot callback unless heap sampling itself is the workload. Memory regressions are often clearer in a separate lifecycle test or benchmark that measures retained heap after a known sequence of operations and cleanup.
 

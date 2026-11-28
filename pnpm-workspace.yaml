@@ -1,7 +1,9 @@
-# apps/*: the extension (@deepscope/extension). utils/*: vendored Kaiju Utils
-# packages (@utils/*); see utils/README.md.
+# apps/* owns browser adapters; packages/* owns reusable capabilities.
+# utils/* contains vendored Kaiju Utils; see utils/README.md.
 packages:
   - apps/*
+  - packages/*
+  - tools/*
   - utils/*
 
 allowBuilds:

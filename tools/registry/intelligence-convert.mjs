@@ -14,7 +14,7 @@
  *       Writes every converted file under <dir>/<folder>/<technology>.ts.
  *   node tools/registry/intelligence-convert.mjs --intelligence <packages/registry> --compare
  *       Prints which converted files are new, identical, or different from
- *       src/registry/technology/catalog, and which DeepScope files have no
+ *       packages/registry/catalog, and which DeepScope files have no
  *       Intelligence counterpart.
  *
  * Intelligence-only fields (`names`, `profile`) are dropped and reported:
@@ -28,7 +28,7 @@ import { parseArgs } from 'node:util';
 const { values: args } = parseArgs({
 	options: {
 		intelligence: { type: 'string', default: resolve('../Intelligence/packages/registry') },
-		catalog: { type: 'string', default: resolve('apps/extension/src/registry/technology/catalog') },
+		catalog: { type: 'string', default: resolve('packages/registry/catalog') },
 		out: { type: 'string' },
 		compare: { type: 'boolean', default: false },
 		json: { type: 'string' },
@@ -71,8 +71,8 @@ export function removeTopLevelProperty(text, field) {
  */
 export function convertEntrySource(source, existing) {
 	let text = source
-		.replace("import type { TechnologyEntry } from '#/entry.ts';", "import type { TechnologyDefinition } from '@/lib/detection/types';")
-		.replace("import type * as entry from '#/entry.ts';", "import type { TechnologyDefinition } from '@/lib/detection/types';")
+		.replace("import type { TechnologyEntry } from '#/entry.ts';", "import type { TechnologyDefinition } from '../../types.ts';")
+		.replace("import type * as entry from '#/entry.ts';", "import type { TechnologyDefinition } from '../../types.ts';")
 		.replace(/export const (\w+)Entry: (?:entry\.)?TechnologyEntry =/g, 'export const $1TechnologyDefinition: TechnologyDefinition =')
 		.replace(/satisfies (?:entry\.)?TechnologyEntry\b/g, 'satisfies TechnologyDefinition')
 		.replace(/\n\tcategory: '[a-z-]+',\n(?:[ \t]*\n)?\ttags: \[/g, '\n\tcategories: [');
@@ -93,6 +93,7 @@ export function convertEntrySource(source, existing) {
 	return { text, dropped, problems };
 }
 
+/** Discover sorted catalog definition files one category directory deep, excluding entrypoints and tests. */
 async function technologyFiles(root) {
 	const files = [];
 	for (const folder of (await readdir(root, { withFileTypes: true })).filter((d) => d.isDirectory())) {

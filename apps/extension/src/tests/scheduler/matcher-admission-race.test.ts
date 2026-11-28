@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createCompiledDetectionGraph } from '@/lib/detection/registry-graph';
-import type { RunMatcherJobRequest } from '@/lib/matcher/contracts';
-import { normalizePageSignals } from '@/lib/observations';
-import { makePageSignals } from '../support/factories';
-import { settle } from '../support/settle';
+import { createCompiledDetectionGraph } from "@deepscope/detection/registry/graph";
+import type { RunMatcherJobRequest } from "../../lib/matcher/contracts.ts";
+import { normalizePageSignals } from "@deepscope/detection/observations";
+import { makePageSignals } from "@deepscope/detection/testing/fixtures";
+import { settle } from "../support/settle.ts";
 
 function createRequest(): RunMatcherJobRequest {
 	const batch = normalizePageSignals(makePageSignals({
@@ -27,8 +27,8 @@ function createRequest(): RunMatcherJobRequest {
 
 
 afterEach(() => {
-	vi.doUnmock('@/lib/scheduler/database');
-	vi.doUnmock('@/lib/scheduler/session');
+	vi.doUnmock('../../lib/scheduler/database.ts');
+	vi.doUnmock('../../lib/scheduler/session.ts');
 	vi.resetModules();
 });
 
@@ -41,7 +41,7 @@ describe('matcher durable admission cancellation', { concurrent: false }, () => 
 		});
 		const save = vi.fn(async () => undefined);
 		const remove = vi.fn(async () => undefined);
-		vi.doMock('@/lib/scheduler/database', () => ({
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
 			claimId: vi.fn(),
 			listKind: vi.fn(),
 			remove,
@@ -51,12 +51,12 @@ describe('matcher durable admission cancellation', { concurrent: false }, () => 
 			save,
 			setPriority: vi.fn(),
 		}));
-		vi.doMock('@/lib/scheduler/session', () => ({
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
 			createId: vi.fn(() => 'matcher-scheduler-owner'),
 			get: vi.fn(() => sessionPromise),
 		}));
 
-		const matcher = await import('@/lib/scheduler/matcher');
+		const matcher = await import('../../lib/scheduler/matcher/index.ts');
 		const cancelJob = vi.fn(async () => undefined);
 		const scheduler = matcher.create({
 			kind: 'offscreen-worker-pool',
@@ -85,7 +85,7 @@ describe('matcher durable admission cancellation', { concurrent: false }, () => 
 		const sessionPromise = new Promise<string>((resolve) => {
 			resolveSession = resolve;
 		});
-		vi.doMock('@/lib/scheduler/database', () => ({
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
 			claimId: vi.fn(),
 			listKind: vi.fn(),
 			remove: vi.fn(async () => undefined),
@@ -95,12 +95,12 @@ describe('matcher durable admission cancellation', { concurrent: false }, () => 
 			save: vi.fn(async () => undefined),
 			setPriority: vi.fn(),
 		}));
-		vi.doMock('@/lib/scheduler/session', () => ({
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
 			createId: vi.fn(() => 'matcher-scheduler-owner'),
 			get: vi.fn(() => sessionPromise),
 		}));
 
-		const matcher = await import('@/lib/scheduler/matcher');
+		const matcher = await import('../../lib/scheduler/matcher/index.ts');
 		const scheduler = matcher.create({
 			kind: 'offscreen-worker-pool',
 			capacity: 2,

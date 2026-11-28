@@ -1,19 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-	BACKGROUND_RPC_CHANNEL,
-	BACKGROUND_RPC_NAMESPACE,
-} from '@/lib/messaging/adapters/background';
-import { CONTENT_RPC_CHANNEL, CONTENT_RPC_NAMESPACE } from '@/lib/messaging/adapters/content';
-import { RpcTimeoutError, contentScriptFailure, injectionFailure, withLivenessDeadline, withTimeout } from '@/lib/messaging/rpc';
-import {
-	SIDE_PANEL_ACTION_NOTIFICATION_TYPE,
-	SIDE_PANEL_TAB_NOTIFICATION_TYPE,
-	isSidePanelActionNotification,
-	isSidePanelTabNotification,
-	isSidePanelTabUpdateChange,
-} from '@/lib/messaging';
-import { errorResponse, ok } from '@/lib/messaging/result';
+import { BACKGROUND_RPC_CHANNEL, BACKGROUND_RPC_NAMESPACE } from "../../lib/messaging/adapters/background.ts";
+import { CONTENT_RPC_CHANNEL, CONTENT_RPC_NAMESPACE } from "../../lib/messaging/adapters/content.ts";
+import { RpcTimeoutError, contentScriptFailure, injectionFailure, withLivenessDeadline, withTimeout } from "../../lib/messaging/rpc.ts";
+import { SIDE_PANEL_ACTION_NOTIFICATION_TYPE, SIDE_PANEL_TAB_NOTIFICATION_TYPE, isSidePanelActionNotification, isSidePanelTabNotification, isSidePanelTabUpdateChange } from "../../lib/messaging/index.ts";
+import { errorResponse, ok } from "../../lib/messaging/result.ts";
 
 describe('messaging contract helpers', () => {
 	it('returns stable success envelopes', () => {

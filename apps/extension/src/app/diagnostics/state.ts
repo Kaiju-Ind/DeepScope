@@ -1,4 +1,4 @@
-import * as session from '@/app/session';
+import * as session from "../panel/routes.ts";
 
 /** Diagnostics sections retained for an investigator during one mounted document session. */
 export type TabType = 'overview' | 'timeline' | 'jobs' | 'contexts' | 'raw';

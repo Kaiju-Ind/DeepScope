@@ -1,12 +1,8 @@
-import type {
-	DetectionSessionKey,
-	DetectionSessionSnapshot,
-	DetectionSessionStatus,
-} from '../storage/session';
-import type { AnalysisStatus } from '../detection/types';
-import type { VisibleTabIdentity } from '../messaging/analysis';
-import type { DetectionReplayTrace } from '../pipeline/replay';
-import type { MatcherJobLifecycleRecord, MatcherJobRecord } from '../matcher';
+import type { DetectionSessionKey, DetectionSessionSnapshot, DetectionSessionStatus } from "../storage/session.ts";
+import type { AnalysisStatus } from "@deepscope/detection/types";
+import type { VisibleTabIdentity } from "../messaging/analysis.ts";
+import type { DetectionReplayTrace } from "@deepscope/detection/pipeline/replay";
+import type { MatcherJobLifecycleRecord, MatcherJobRecord } from "../matcher/index.ts";
 
 /** Pointer from a browser tab to one known page-session snapshot. */
 export interface DetectionSessionIndexEntry {

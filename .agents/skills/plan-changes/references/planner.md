@@ -1,5 +1,13 @@
 # Plan the complete requested change
 
+Use the shared [product planning guide](../../../guides/product/planning.md)
+to connect customer questions, early direct experiments, and evidence checkpoints
+to the implementation. Bind work items to verified files, symbols, contracts,
+tooling, expected results, failure/cleanup behavior, consumer migration, and
+acceptance evidence. List consequential unknowns before substantial solution
+work; narrow discovery probes can establish that list. A plan must expose
+conditional decisions instead of hiding them behind detailed speculation.
+
 Use this reference when scope, alternatives, dependencies or proof need a concrete
 plan. The user’s requested mode controls whether the task stops at planning or
 continues into implementation. This reference does not forbid authorized edits.

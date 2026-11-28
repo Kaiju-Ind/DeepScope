@@ -22,7 +22,7 @@ Choose the asset integration where the renderer owns the output:
 
 One visual system may use the same Fluent collection across Astro and Solid while using different renderers. Do not make a framework island responsible for an otherwise static icon. Do not import fonts inside reusable leaf components.
 
-DeepScope: icons come from Unplugin Icons with `@iconify/json` (compiled at build time, no runtime fetch); fonts come from pinned `@fontsource-variable/space-grotesk` and `@fontsource/space-mono` packages through a hand-written `fonts.css`. A font tool that downloads from a CDN at build time (Fontless did) can order `@font-face` rules by download completion and break byte-identical rebuilds; check that two builds of one commit produce identical archives.
+When `build-sites` is active, load its `icons.md` and `fonts.md` for the complete Astro-specific configuration, provider, preload, fallback, accessibility, and verification rules.
 
 ## Icon contract
 

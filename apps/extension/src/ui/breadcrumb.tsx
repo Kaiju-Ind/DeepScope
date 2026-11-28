@@ -11,7 +11,7 @@ import Ellipsis from "~icons/fluent/more-horizontal-24-regular";
 import type { ComponentProps, ValidComponent } from "solid-js";
 import { splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type BreadcrumbProps<T extends ValidComponent = "nav"> = PolymorphicProps<
   T,
@@ -19,6 +19,7 @@ type BreadcrumbProps<T extends ValidComponent = "nav"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Provide a breadcrumb-labeled navigation root while allowing the caller to supply native navigation attributes. */
 const Breadcrumb = <T extends ValidComponent = "nav">(props: BreadcrumbProps<T>) => {
   const [local, others] = splitProps(props as BreadcrumbProps, ["class"]);
   return (
@@ -33,6 +34,7 @@ const Breadcrumb = <T extends ValidComponent = "nav">(props: BreadcrumbProps<T>)
 
 type BreadcrumbListProps = ComponentProps<"ol">;
 
+/** Keep breadcrumb items in an ordered, wrapping list without deriving the route hierarchy. */
 const BreadcrumbList = (props: BreadcrumbListProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -46,6 +48,7 @@ const BreadcrumbList = (props: BreadcrumbListProps) => {
 
 type BreadcrumbItemProps = ComponentProps<"li">;
 
+/** Group one breadcrumb link or current-page label in a list item. */
 const BreadcrumbItem = (props: BreadcrumbItemProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -63,6 +66,7 @@ type BreadcrumbLinkProps<T extends ValidComponent = "a"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Style a navigable breadcrumb while leaving destination and link behavior with the caller and link primitive. */
 const BreadcrumbLink = <T extends ValidComponent = "a">(props: BreadcrumbLinkProps<T>) => {
   const [local, others] = splitProps(props as BreadcrumbLinkProps, ["class"]);
   return (
@@ -72,6 +76,7 @@ const BreadcrumbLink = <T extends ValidComponent = "a">(props: BreadcrumbLinkPro
 
 type BreadcrumbPageProps = ComponentProps<"span">;
 
+/** Mark the current breadcrumb as a disabled current-page link label; it does not initiate navigation. */
 const BreadcrumbPage = (props: BreadcrumbPageProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -94,6 +99,7 @@ type BreadcrumbSeparatorProps<T extends ValidComponent = "span"> = PolymorphicPr
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Add a decorative breadcrumb separator that is hidden from the accessibility tree by default. */
 const BreadcrumbSeparator = <T extends ValidComponent = "span">(
   props: BreadcrumbSeparatorProps<T>,
 ) => {
@@ -111,6 +117,7 @@ const BreadcrumbSeparator = <T extends ValidComponent = "span">(
 
 type BreadcrumbEllipsisProps = ComponentProps<"span">;
 
+/** Show a decorative omitted-path marker without creating a navigation or expansion control. */
 const BreadcrumbEllipsis = (props: BreadcrumbEllipsisProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (

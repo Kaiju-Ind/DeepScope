@@ -85,11 +85,13 @@ function origin(file: string): { readonly dir: string; readonly ref: string; rea
 	return { dir: base, ref: config.base };
 }
 
+/** Read a selected upstream package file from its recorded base or overlay origin, never from whichever checkout is newest. */
 function read(file: string): string {
 	return readFileSync(join(origin(file).dir, 'packages', file), 'utf8');
 }
 
 const manifests = new Map<string, UpstreamPackage>();
+/** Cache package metadata from the selected base snapshot so dependency reconstruction uses one consistent source. */
 function manifest(name: string): UpstreamPackage {
 	let value = manifests.get(name);
 	if (!value) {
@@ -146,6 +148,7 @@ const packages = [...new Set([...closure].map((file) => file.split('/')[0]!))].s
 
 // 2. Unit tests whose imports stay inside the copy, plus the fixtures they need.
 const allowed = config.testExternals.map((pattern) => new RegExp(`^${pattern}$`));
+/** List files relative to the selected source directory for closure and ownership checks. */
 function walkFiles(dir: string, prefix = ''): string[] {
 	const out: string[] = [];
 	for (const entry of readdirSync(join(dir, prefix), { withFileTypes: true })) {
@@ -202,10 +205,12 @@ for (const file of copied) {
 	if (existsSync(join(base, 'packages', readme))) readmes.add(readme);
 }
 
+/** Apply the recorded vendoring namespace substitution; source selection and dependency closure are handled separately. */
 function rewrite(text: string): string {
 	return text.replaceAll('@kaiju-ind/', '@utils/');
 }
 
+/** Emit the recorded origin, license and local-change attribution for each vendored file using the existing reproducible header format. */
 function header(file: string): string {
 	const from = origin(file);
 	const source = from.source ? ` (${from.source})` : '';
@@ -232,10 +237,12 @@ function internalImports(pkg: string, files: Iterable<string>): string[] {
 	}
 	return [...names].sort();
 }
+/** Extract a bare or scoped package name while leaving subpath selection to import resolution. */
 function packageOf(specifier: string): string {
 	const parts = specifier.split('/');
 	return specifier.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0]!;
 }
+/** Require an explicit recorded version for every external package, excluding Node built-ins from package manifests. */
 function pinned(names: Iterable<string>, table: Readonly<Record<string, string>>): Record<string, string> {
 	const out: Record<string, string> = {};
 	for (const name of [...new Set(names)].sort()) {
@@ -286,12 +293,14 @@ output.set('LICENSE', readFileSync(join(base, 'LICENSE'), 'utf8'));
 // 5. Write into a staging copy of utils/, apply patches there, then compare or replace.
 const stage = mkdtempSync(join(tmpdir(), 'utils-stage-'));
 execFileSync('cp', ['-R', `${utils}/.`, stage]);
+/** Select only generated package manifests and marked source or README files for synchronization ownership. */
 function owned(path: string): boolean {
 	if (path.endsWith('package.json')) return packages.includes(path.split('/')[0]!) || manifestOwned(path);
 	if (!path.endsWith('.ts') && !path.endsWith('.md')) return false;
 	const text = readFileSync(join(stage, path), 'utf8');
 	return text.startsWith(MARKER) || text.startsWith(README_MARKER);
 }
+/** Recognize a generated vendored manifest by its ownership description before replacing or removing it. */
 function manifestOwned(path: string): boolean {
 	const text = readFileSync(join(stage, path), 'utf8');
 	return text.includes('"description": "Vendored from Kaiju-Ind/Utils');

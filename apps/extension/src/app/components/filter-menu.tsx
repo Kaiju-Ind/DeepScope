@@ -2,13 +2,9 @@ import FilterIcon from '~icons/fluent/filter-24-regular';
 import type { JSX } from 'solid-js';
 import { Show } from 'solid-js';
 
-import { Badge } from '@/ui/badge';
-import { Button } from '@/ui/button';
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuTrigger,
-} from '@/ui/dropdown-menu';
+import { Badge } from "../../ui/badge.tsx";
+import { Button } from "../../ui/button.tsx";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "../../ui/dropdown-menu.tsx";
 
 /** Props for the shared compact filter control used by investigation lists. */
 export interface FilterMenuPropsType {

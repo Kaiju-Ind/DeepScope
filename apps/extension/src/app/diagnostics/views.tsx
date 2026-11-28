@@ -1,12 +1,12 @@
 import { For, Show, createEffect, createMemo, createSignal } from 'solid-js';
 
-import * as state from '@/app/diagnostics/state';
-import type { DiagnosticSnapshot } from '@/lib/diagnostics/contracts';
-import * as bytes from '@/utils/bytes';
-import { Badge } from '@/ui/badge';
-import { Button } from '@/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
-import { Input } from '@/ui/input';
+import * as state from './state.ts';
+import type { DiagnosticSnapshot } from "../../lib/diagnostics/contracts.ts";
+import * as bytes from '../../utils/bytes.ts';
+import { Badge } from "../../ui/badge.tsx";
+import { Button } from "../../ui/button.tsx";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../ui/card.tsx";
+import { Input } from "../../ui/input.tsx";
 
 /** Props for the high-signal diagnostic health summary. */
 export interface OverviewPropsType {

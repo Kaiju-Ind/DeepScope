@@ -1,0 +1,14 @@
+{
+  "name": "@deepscope/lint-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "@types/node": "^26.6.6",
+    "vitest": "5.1.0"
+  }
+}

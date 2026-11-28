@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import * as priority from '@/lib/scheduler/priority';
+import * as priority from '../../lib/scheduler/priority.ts';
 
 describe('scheduler priority policy', () => {
 	it('orders interactive, foreground, background, then maintenance work', () => {

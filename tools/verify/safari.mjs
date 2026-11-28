@@ -47,10 +47,12 @@ if (!existsSync(join(extensionDir, 'manifest.json'))) throw new Error(`No build 
 // Results recorded before the control page exists; the harness adds the rest.
 const staticResults = [];
 let harness;
+/** Retain and print a static Safari artifact result separately from browser scenario results. */
 function recordStatic(scenario, pass, details) {
 	staticResults.push({ scenario, pass, ...details });
 	console.log(`${pass ? 'PASS' : 'FAIL'} ${scenario} ${JSON.stringify(details).slice(0, 600)}`);
 }
+/** Write combined static and browser results and derive failure status unless the caller supplies an explicit exit code. */
 function finish(code) {
 	const out = options.out ?? join(workDir, 'results.json');
 	const all = [...staticResults, ...(harness?.results ?? [])];
@@ -91,6 +93,7 @@ const { child: driver, base } = await startDriver(driverPath, ['--port', options
 });
 console.log(`work dir: ${workDir}\nfixtures: ${origin}\ndriver: ${driverPath}`);
 
+/** Stop the harness-owned driver process and local fixture server after verification. */
 function cleanup() {
 	driver.kill();
 	server.close();
@@ -259,6 +262,7 @@ async function openControlWindow() {
 	throw new Error('control page closed and Safari cannot open extension pages through WebDriver; rerun');
 }
 
+/** Restore the extension control window through the existing surface-opening owner. */
 async function ensureControl() {
 	await openControlWindow();
 }
@@ -360,6 +364,7 @@ try {
 			// the idle-wake scenario infers an unload from a background restart.
 			openExtensionTab,
 			ensureControl,
+			/** Replace a harness-installed Safari extension and discover its new control surface; externally supplied base URLs do not expose this action. */
 			reinstall: extensionId && !options['base-url'] ? async () => {
 				await session.cmd('DELETE', `/webextension/${encodeURIComponent(extensionId)}`);
 				const again = await installExtension();

@@ -1,15 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-	collectCookieNames,
-	collectImageSources,
-	collectLinkTags,
-	collectMetaTags,
-	collectScriptContents,
-	collectScriptSources,
-	collectStylesheetContents,
-	collectStylesheetSources,
-} from '@/lib/content/collect-page-signals';
+import { collectCookieNames } from "../../lib/content/signals/keys.ts";
+import { collectImageSources, collectLinkTags, collectMetaTags, collectScriptContents, collectScriptSources, collectStylesheetContents, collectStylesheetSources } from "../../lib/content/signals/elements.ts";
 
 function makeScript(input: { src?: string; text?: string }): HTMLScriptElement {
 	return {
@@ -151,8 +143,8 @@ describe('content page signal limits', () => {
 			styleSheets: [],
 		});
 
-		const { collectPageSignals } = await import('@/lib/content/collect-page-signals');
-		const { SOURCE_LIMITS } = await import('@/lib/detection/source-limits');
+		const { collectPageSignals } = await import('../../lib/content/signals/index.ts');
+		const { SOURCE_LIMITS } = await import('@deepscope/detection/limits');
 		const runtime = {
 			images: [],
 			scripts: [],
@@ -188,7 +180,7 @@ describe('content page signal limits', () => {
 			styleSheets: [],
 		});
 
-		const { collectPageSignals } = await import('@/lib/content/collect-page-signals');
+		const { collectPageSignals } = await import('../../lib/content/signals/index.ts');
 		const signals = await collectPageSignals({
 			includeScriptContent: false,
 			includeStylesheetContent: false,

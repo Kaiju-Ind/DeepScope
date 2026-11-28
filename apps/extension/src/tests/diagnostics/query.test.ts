@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { DiagnosticRecord } from '@/lib/diagnostics/contracts';
-import * as query from '@/lib/diagnostics/query';
+import type { DiagnosticRecord } from "../../lib/diagnostics/contracts.ts";
+import * as query from '../../lib/diagnostics/query.ts';
 
 /** Build a deterministic synthetic diagnostic record for large-query coverage. */
 function record(index: number): DiagnosticRecord {

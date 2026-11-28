@@ -1,10 +1,6 @@
 import { describe, test } from 'vitest';
 
-import {
-	createObservationBatchController,
-	type NormalizedObservation,
-	type ObservationBatchPolicy,
-} from '@/lib/observations';
+import { createObservationBatchController, type NormalizedObservation, type ObservationBatchPolicy } from "@deepscope/detection/observations";
 
 /** Number of observations used to approximate one heavy mutation burst. */
 const OBSERVATION_COUNT = 2_000;

@@ -29,32 +29,11 @@ const ENTRYPOINT_CAP = 120;
 
 /** Modules over the cap when the ratchet was added (lines as `wc -l` counts them). Shrink only. */
 const OVERSIZED: Readonly<Record<string, number>> = {
-	'lib/background/runtime.ts': 3039,
-	'app/provider.tsx': 1349,
-	'app/model.ts': 935,
-	'lib/detection/engine.ts': 987,
-	// +2 for the Safari-safe batched storage reads (bug C, stress test); split in Phase B.
-	'lib/storage/detection-snapshots.ts': 941,
-	'lib/content/observe/runtime.ts': 947,
-	'lib/candidates/refine.ts': 861,
-	'lib/detection/observation-matcher-index.ts': 708,
-	'lib/scheduler/matcher.ts': 647,
-	'entrypoints/content.ts': 649,
-	'lib/detection/rule-performance-profile.ts': 655,
-	// +1 for the Safari-safe batched storage reads (bug C, stress test); split in Phase B.
-	'lib/diagnostics/journal.ts': 629,
-	'lib/content/collect-page-signals.ts': 624,
-	'lib/collectors/background-signals.ts': 516,
 };
 
 /** Entrypoints over the entrypoint cap when the ratchet was added. Shrink only. */
 const THICK_ENTRYPOINTS: Readonly<Record<string, number>> = {
-	'entrypoints/background.ts': 332,
-	'entrypoints/content.ts': 649,
 };
-
-/** Import-time statements in `app/model` that predate the rule (moves to `app/artifact.ts`). */
-const MODEL_SIDE_EFFECTS = new Set(['app/model.ts: publishArtifactRuntime()']);
 
 /** Authored TypeScript under `src`, relative to it, with forward slashes. */
 function sources(): string[] {
@@ -161,6 +140,13 @@ describe('dependency direction', () => {
 		expect(violations(sources().filter(under('lib')), under('app'))).toEqual([]);
 	});
 
+	it('keeps browser and concrete persistence adapters inside app/browser', () => {
+		const panels = sources().filter((path) => under('app')(path) && !under('app/browser')(path));
+		const concrete = (target: string) => target === 'wxt/browser' || target === 'comctx' ||
+			under('lib/persistence/browser')(target) || target === 'lib/storage' || target === 'lib/storage/index';
+		expect(violations(panels, concrete)).toEqual([]);
+	});
+
 	describe('app/model stays pure', () => {
 		const model = sources().filter((path) => path === 'app/model.ts' || path.startsWith('app/model/'));
 
@@ -175,7 +161,7 @@ describe('dependency direction', () => {
 		});
 
 		it('runs nothing at import time', () => {
-			const effects = model.flatMap((path) => parse(path).effects).filter((effect) => !MODEL_SIDE_EFFECTS.has(effect));
+			const effects = model.flatMap((path) => parse(path).effects);
 			expect(effects).toEqual([]);
 		});
 	});

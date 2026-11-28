@@ -11,6 +11,7 @@ export class MatcherError extends Error {
 	/** Stable machine-readable reason used by background lifecycle policy and diagnostics. */
 	readonly reason: MatcherFailureType;
 
+	/** Retain the typed matcher failure reason and optional cause while exposing a recognizable Error name. */
 	constructor(reason: MatcherFailureType, message: string, options?: ErrorOptions) {
 		super(message, options);
 		this.name = 'MatcherError';

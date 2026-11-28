@@ -1,18 +1,13 @@
 import { DisposableStack } from '@utils/dispose';
 import { browser } from 'wxt/browser';
 
-import type { DiagnosticTransportMessage } from '../../diagnostics/contracts';
-import { isDiagnosticTransportMessage } from '../../diagnostics/journal';
-import * as logging from '../../diagnostics/logging';
-import { diagnosticErrorType } from '../../privacy/redaction';
-import type {
-	MatcherPartitionResult,
-	MatcherPartitionTask,
-	MatcherWorkerResponseMessage,
-	MatcherWorkerRunMessage,
-} from '../contracts';
-import { MatcherError } from '../error';
-import { MATCHER_PARTITION_DEADLINE_MS } from '../policy';
+import type { DiagnosticTransportMessage } from "../../diagnostics/contracts.ts";
+import { isDiagnosticTransportMessage } from "../../diagnostics/journal/schema.ts";
+import * as logging from '../../diagnostics/logging.ts';
+import { diagnosticErrorType } from "@deepscope/detection/privacy/redaction";
+import type { MatcherPartitionResult, MatcherPartitionTask, MatcherWorkerResponseMessage, MatcherWorkerRunMessage } from "../contracts.ts";
+import { MatcherError } from "../error.ts";
+import { MATCHER_PARTITION_DEADLINE_MS } from "../policy.ts";
 
 const logger = logging.get('offscreen', 'matcher-pool');
 
@@ -85,6 +80,7 @@ class Slot {
 	readonly #deadlineMs: number;
 	/** Destination for diagnostics this slot's worker posts. */
 	readonly #onDiagnostic: DiagnosticSink;
+	/** Forward validated worker diagnostic envelopes through this slot's persistent diagnostic sink. */
 	readonly #diagnosticListener = (event: MessageEvent<unknown>): void => {
 		if (!isDiagnosticTransportMessage(event.data)) return;
 		this.#onDiagnostic(event.data);
@@ -113,6 +109,7 @@ class Slot {
 	#activeReject: ((error: Error) => void) | undefined;
 	#disposed = false;
 
+	/** Create one worker slot with its fixed index, partition deadline and persistent diagnostic destination. */
 	constructor(index: number, deadlineMs: number, onDiagnostic: DiagnosticSink) {
 		this.#index = index;
 		this.#deadlineMs = deadlineMs;
@@ -136,7 +133,9 @@ class Slot {
 			// Everything this run acquires is released together, once, by whichever
 			// of result, failure, deadline or cancellation settles the run first.
 			const resources = new DisposableStack();
+			/** Release this dispatched partition's timers and listeners through their shared resource owner. */
 			const cleanup = (): void => resources.dispose();
+			/** Release partition resources before rejecting, redact private-job details and replace the worker only for host-level failures. */
 			const fail = (
 				error: Error,
 				event: string,
@@ -154,6 +153,7 @@ class Slot {
 				reject(error);
 				if (replaceWorker) this.#replaceWorker();
 			};
+			/** Accept completion only for the dispatched job and partition; transported diagnostics belong to the separate journal listener. */
 			const onMessage = (event: MessageEvent<MatcherWorkerResponseMessage | DiagnosticTransportMessage>): void => {
 				if (isDiagnosticTransportMessage(event.data)) return;
 				if (event.data.type === 'matcher-worker.partition-complete') {
@@ -169,12 +169,14 @@ class Slot {
 					fail(new Error(event.data.message), 'Matcher worker reported a partition failure.');
 				}
 			};
+			/** Convert a worker JavaScript error into partition failure and replace the unusable worker slot. */
 			const onError = (event: ErrorEvent): void => fail(
 				event.error instanceof Error ? event.error : new Error(event.message || 'Matcher worker failed.'),
 				'Matcher worker JavaScript error.',
 				{ filename: event.filename, line: event.lineno, column: event.colno },
 				true,
 			);
+			/** Fail a partition whose reply cannot be decoded and replace the worker before later dispatches. */
 			const onMessageError = (): void => fail(
 				new Error('Matcher worker returned a message that could not be deserialized.'),
 				'Matcher worker message deserialization failed.',
@@ -185,6 +187,7 @@ class Slot {
 				this.#activeTask = undefined;
 				this.#activeReject = undefined;
 			});
+			/** Let cancellation settle the active partition only after releasing its temporary listeners and deadline. */
 			this.#activeReject = (error) => {
 				cleanup();
 				reject(error);

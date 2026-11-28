@@ -1,0 +1,27 @@
+{
+  "name": "@deepscope/dom",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./index.ts",
+    "./plan": "./plan.ts",
+    "./route": "./route.ts",
+    "./match": "./match.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "postcss-selector-parser": "^7.2.0"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vitest": "5.1.0",
+    "jsdom": "^31.0.1",
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^26.6.6"
+  }
+}

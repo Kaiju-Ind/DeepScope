@@ -1,13 +1,9 @@
 import { expect, it, vi } from 'vitest';
 
-import type { TechnologyDefinition } from '@/lib/detection/types';
-import type { MatcherWorkerResponseMessage, MatcherWorkerRunMessage } from '@/lib/matcher/contracts';
-import {
-	createObservationKindTechnologyRegistry,
-	PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION,
-	renderPackagedRegistryJson,
-} from '@/lib/registry/packaged-artifacts';
-import { packageMatcherIndex } from '@/lib/registry/matcher-artifact';
+import type { TechnologyDefinition } from "@deepscope/registry/types";
+import type { MatcherWorkerResponseMessage, MatcherWorkerRunMessage } from "../../lib/matcher/contracts.ts";
+import { createObservationKindTechnologyRegistry, PACKAGED_REGISTRY_ASSET_SCHEMA_VERSION, renderPackagedRegistryJson } from "@deepscope/detection/artifacts/packaged";
+import { packageMatcherIndex } from "@deepscope/detection/artifacts/matcher";
 
 it.each([false, true])('keeps worker diagnostics within the job privacy policy: %s', async (incognito) => {
 	const registry: readonly TechnologyDefinition[] = [{
@@ -72,7 +68,7 @@ it.each([false, true])('keeps worker diagnostics within the job privacy policy: 
 	const fetchAsset = vi.fn(async () => new Response(shard, { headers: { 'content-type': 'application/json' } }));
 
 	vi.resetModules();
-	vi.doMock('@/lib/diagnostics/logging', () => ({ configure: vi.fn(), get: () => logger }));
+	vi.doMock('../../lib/diagnostics/logging.ts', () => ({ configure: vi.fn(), get: () => logger }));
 	vi.doMock('wxt/browser', () => ({ browser: {} }));
 	vi.stubGlobal('location', { origin: 'chrome-extension://privacy-test', href: 'chrome-extension://privacy-test/assets/matcher.worker.js' });
 	vi.stubGlobal('fetch', fetchAsset);
@@ -88,9 +84,9 @@ it.each([false, true])('keeps worker diagnostics within the job privacy policy: 
 	vi.spyOn(performance, 'now').mockImplementation(() => elapsed += 300);
 	let disposeCrashHooks: (() => void) | undefined;
 	try {
-		const { installDiagnosticCrashHooks } = await import('@/lib/diagnostics/crash');
+		const { installDiagnosticCrashHooks } = await import('../../lib/diagnostics/crash.ts');
 		disposeCrashHooks = () => installDiagnosticCrashHooks('matcher-worker').dispose();
-		await import('@/lib/matcher/workers/matcher.worker');
+		await import('../../lib/matcher/workers/matcher.worker.ts');
 		events.dispatchEvent(new MessageEvent('message', { data: request }));
 		await vi.advanceTimersByTimeAsync(0);
 
@@ -134,7 +130,7 @@ it.each([false, true])('keeps worker diagnostics within the job privacy policy: 
 		vi.useRealTimers();
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
-		vi.doUnmock('@/lib/diagnostics/logging');
+		vi.doUnmock('../../lib/diagnostics/logging.ts');
 		vi.doUnmock('wxt/browser');
 		vi.resetModules();
 	}

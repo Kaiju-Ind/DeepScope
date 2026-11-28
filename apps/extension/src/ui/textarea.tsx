@@ -1,9 +1,10 @@
 import { type ComponentProps, splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type TextareaProps = ComponentProps<"textarea">;
 
+/** Style a native content-sized textarea while keeping value, selection, input events and form ownership with the caller. */
 const Textarea = (props: TextareaProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (

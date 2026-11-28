@@ -19,6 +19,7 @@ export type ColorModeContextValue = {
 
 export const ColorModeContext = createContext<ColorModeContextValue>();
 
+/** Own the initial color-mode signal and expose both a raw setter and a toggle that also updates the document and cookie. */
 export function ColorModeProvider(
   props: ParentProps<{
     initialColorMode: ColorMode;
@@ -26,6 +27,7 @@ export function ColorModeProvider(
 ) {
   const [colorMode, setColorMode] = createSignal<ColorMode>(props.initialColorMode);
 
+  /** Toggle the signal, replace the document's theme class and persist the selected mode in the existing theme cookie. */
   const toggleColorMode = () => {
     setColorMode((prev) => (prev === "dark" ? "light" : "dark"));
 
@@ -46,6 +48,7 @@ export function ColorModeProvider(
   );
 }
 
+/** Require the surrounding color-mode owner so consumers cannot silently create a separate theme state. */
 export function useColorMode(): ColorModeContextValue {
   const context = useContext(ColorModeContext);
   if (context === undefined) {
@@ -54,6 +57,7 @@ export function useColorMode(): ColorModeContextValue {
   return context;
 }
 
+/** Prefer the stored theme cookie and fall back to the browser's current color-scheme preference. */
 export const getClientColorMode = () =>
   document.cookie
     .split("; ")

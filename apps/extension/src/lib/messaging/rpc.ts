@@ -1,11 +1,12 @@
 import * as context from '@utils/context';
 import { asyncDispose } from '@utils/dispose';
 
-import { errorResponse, type ExtensionFailure } from '@/lib/messaging/result';
+import { errorResponse, type ExtensionFailure } from "./result.ts";
 
 export const CONTENT_SCRIPT_TIMEOUT_MS = 10_000;
 
 export class RpcTimeoutError extends Error {
+	/** Create a recognizable timeout error while preserving the caller's description of the failed wait. */
 	constructor(message: string) {
 		super(message);
 		this.name = 'RpcTimeoutError';
@@ -14,6 +15,7 @@ export class RpcTimeoutError extends Error {
 
 /** The receiver kept answering liveness probes but did not finish within the hard cap. */
 export class RpcBusyError extends RpcTimeoutError {
+	/** Mark a timeout caused by a responsive but unfinished receiver so callers can distinguish busy from unavailable. */
 	constructor(message: string) {
 		super(message);
 		this.name = 'RpcBusyError';
@@ -73,6 +75,7 @@ export function withTimeout<T>(
 		? scope.signal.reason
 		: getAbortReason(parent!);
 	if (controller) {
+		/** Forward cancellation only while the RPC is unsettled, preserving the caller's selected cancellation reason. */
 		const forward = () => {
 			if (!settled) controller.abort(reason());
 		};
@@ -168,6 +171,7 @@ function getAbortReason(signal: AbortSignal): Error {
 	return new DOMException(typeof signal.reason === 'string' ? signal.reason : 'Operation canceled.', 'AbortError');
 }
 
+/** Distinguish an actively responding but overdue page from an unavailable content receiver in the public failure envelope. */
 export function contentScriptFailure(error: unknown): ExtensionFailure {
 	if (error instanceof RpcBusyError) {
 		return errorResponse(

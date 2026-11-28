@@ -1,13 +1,14 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { type ComponentProps, type JSX, splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
-import { Button, type ButtonProps } from "@/ui/button";
-import { Input } from "@/ui/input";
-import { Textarea } from "@/ui/textarea";
+import { cn } from "../utils/cn.ts";
+import { Button, type ButtonProps } from "./button.tsx";
+import { Input } from "./input.tsx";
+import { Textarea } from "./textarea.tsx";
 
 type InputGroupProps = ComponentProps<"div">;
 
+/** Group a native control with its addons and adapt layout to block addons without owning the control's value. */
 const InputGroup = (props: InputGroupProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -43,10 +44,13 @@ const inputGroupAddonVariants = cva(
 
 type InputGroupAddonProps = ComponentProps<"div"> & VariantProps<typeof inputGroupAddonVariants>;
 
+/** Align supplementary content and delegate non-button clicks to the neighboring input's focus. */
 const InputGroupAddon = (props: InputGroupAddonProps) => {
   const [local, others] = splitProps(props, ["class", "align", "onClick"]);
+  /** Default addons to the inline start while keeping the caller's reactive alignment choice. */
   const align = () => local.align ?? "inline-start";
 
+  /** Leave nested buttons alone; other addon clicks focus the sibling input before invoking a function-valued caller handler. */
   const handleClick: JSX.EventHandler<HTMLDivElement, MouseEvent> = (e) => {
     if ((e.target as HTMLElement).closest("button")) {
       return;
@@ -90,10 +94,14 @@ type InputGroupButtonProps = Omit<ButtonProps, "size"> &
     type?: "button" | "submit" | "reset";
   };
 
+/** Use compact ghost-button defaults and avoid implicit form submission unless the caller requests another type. */
 const InputGroupButton = (props: InputGroupButtonProps) => {
   const [local, others] = splitProps(props, ["class", "type", "variant", "size"]);
+  /** Default grouped actions to the compact xs appearance while retaining reactive caller sizing. */
   const size = () => local.size ?? "xs";
+  /** Default grouped actions to ghost styling so the input group's outer surface remains primary. */
   const variant = () => local.variant ?? "ghost";
+  /** Default grouped buttons to a non-submit action; callers must opt into submission behavior. */
   const type = () => local.type ?? "button";
 
   return (
@@ -109,6 +117,7 @@ const InputGroupButton = (props: InputGroupButtonProps) => {
 
 type InputGroupTextProps = ComponentProps<"span">;
 
+/** Align non-interactive addon text and icons without affecting the control's form state. */
 const InputGroupText = (props: InputGroupTextProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -121,10 +130,12 @@ const InputGroupText = (props: InputGroupTextProps) => {
 
 type InputGroupInputProps = ComponentProps<"input">;
 
+/** Use the shared input's bare surface so the surrounding group owns the visual border and background. */
 const InputGroupInput = (props: InputGroupInputProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
     <Input
+      surface="bare"
       data-slot="input-group-control"
       class={cn("z-input-group-input flex-1", local.class)}
       {...others}
@@ -134,6 +145,7 @@ const InputGroupInput = (props: InputGroupInputProps) => {
 
 type InputGroupTextareaProps = ComponentProps<"textarea">;
 
+/** Compose a vertically resizable multiline control while leaving value and input events with the caller. */
 const InputGroupTextarea = (props: InputGroupTextareaProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (

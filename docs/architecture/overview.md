@@ -1,132 +1,85 @@
-# Event architecture overview
+# Detection from page facts to visible results
 
-The extension now tells one runtime story: facts from the visible tab become observations, observations become rule matches, rule matches become candidate technologies, graph rules refine those candidates, and final detections are shown in the popup.
+DeepScope analyzes a supported browser tab locally. Content collects facts from
+the document. Background adapters add privileged facts. Portable detection
+turns observations into evidence, candidate technologies and final results.
+The panel reads the latest stored result and follows accepted revisions.
 
-```text
-facts from the page
-  -> rules that matched those facts
-  -> technologies we think are present
-  -> relationship rules clean up that list
-  -> final detections shown to the user
+```mermaid
+flowchart TD
+  C["Content collection"] --> O["Normalized observations"]
+  B["Background enrichment"] --> O
+  O --> M["Indexed matching"]
+  M --> E["Evidence and candidates"]
+  E --> G["Relationship refinement"]
+  G --> R["Results and redacted replay"]
+  R --> S["Snapshot persistence"]
+  S --> P["Panel projection"]
 ```
 
-The implementation vocabulary is the same story with the engine terms attached:
+The source owners are described in [source ownership](source-layout.md).
+`packages/dom` owns selector planning and matching. `packages/registry` owns
+technology definitions and schema. `packages/detection` owns the computation
+and compiler. `apps/extension` owns browser access, scheduling, persistence,
+worker hosting and Solid UI. No portable package imports the extension.
 
-```text
-observations
-  -> evidence
-  -> candidates
-  -> graph refinement
-  -> detections + replay trace
-```
+## One scan and its lifetime
 
-## Current runtime map
+The mounted panel resolves a browser window and exact tab identity, or follows
+a pinned target from a full-page surface. Automatic tab events enter the same
+background analysis scheduler. Background validates the current document,
+checks a matching snapshot, and injects content only when collection is needed.
 
-The popup still owns user interaction, the background runtime coordinates privileged extension work, and the content script owns page-local DOM reads. The detector path is event-only for extension analysis. The service-worker entrypoint itself is only a composition root: it wires concrete browser/RPC/persistence adapters into `createBackgroundRuntime(...)` and registers listeners.
+Content returns normalized observations. Background enrichment can read selected
+page-owned globals, same-origin response headers, and bounded script or style
+text. Matching runs through the chosen browser worker adapter. The compiler's
+rule-free runtime artifact serves planning and relationship work; matcher
+workers load only the observation-kind shards they need.
 
-```text
-Popup extension page
-  -> snapshot/replay persistence ports
-      -> browser storage adapter
-      -> read latest DetectionSessionSnapshot
-  -> BackgroundApi.analyzeVisibleTab(target)
-      -> visible target validation
-      -> origin snapshot lookup
-      -> content script readiness
-      -> ExtensionObservationCollector
-          -> ContentApi.collectObservationBatch()
-          -> background observation enrichment
-              -> response headers
-              -> MAIN-world js globals
-              -> same-origin script/style text
-      -> runObservationBatchPipeline()
-          -> indexed observation matching
-          -> evidence entries
-          -> candidate technologies
-          -> relationship refinement
-          -> SiteAnalysis emission
-      -> createDetectionReplayTrace()
-      -> snapshot/replay persistence ports
-          -> browser storage adapter
-          -> save DetectionSessionSnapshot + replay trace
-  -> popup view model
-  -> popup named regions
-```
+A matcher result can publish only while it still owns the current document and
+visible session. Snapshot writes retain their ordered fence. Tab activation
+changes priority; it does not cancel admitted work. Navigation and tab closure
+abort document work and revoke publication ownership before cleanup proceeds.
+An already-submitted adapter write cannot be canceled by those in-memory fences.
 
-The content script still uses the bounded DOM collector internally because it is the safe place to read the active document. That snapshot is an implementation detail inside the content runtime. The background receives normalized observations and does not call the old direct `analyzeSite(signals, technologies)` path for extension analysis.
+## Persistence and recovery
 
-### Background composition boundary
+`DetectionSessionSnapshot` stores normalized `SiteAnalysis`, session identity,
+enrichment state and a compact replay summary. Content writes small lifecycle
+revisions; background writes detector revisions; the panel reads and subscribes
+through persistence capabilities. The concrete browser adapter owns storage.
 
-```text
-Browser service-worker entrypoint
-  -> wires browser tabs / scripting
-  -> wires content RPC client factory
-  -> wires registry + collector + matcher adapters
-  -> wires persistence + logging
-  -> createBackgroundRuntime(...)
-       -> owns disposable coordination state
-       -> exposes BackgroundApi
-       -> handles runtime notifications
-       -> exposes tab lifecycle cleanup callbacks
-```
+Stored results do not contain raw HTML, cookie values, storage values, source
+bodies or complete observation batches. Replay stores redacted diagnostics and
+per-detection explanations. Private-tab policies remain explicit in the
+existing producers and stores; a local type check does not prove the complete
+private browsing journey.
 
-This separates extension startup mechanics from the analysis workflow. Background API tests can construct the runtime directly with fake adapters, while the browser entrypoint stays small and declarative.
+A live observation refresh combines the existing event batch with late facts,
+deduplicates observations and reruns matching and relationship refinement. It
+does not append final detections, because `implies`, `requires` and `excludes`
+need the complete candidate set. If background memory is lost, recovery
+recollects the current document. Durable intent and matcher records identify
+interrupted work; they do not preserve an in-memory batch for continuation.
 
-### Persistence boundary
+## UI ownership
 
-Snapshot persistence is a shared infrastructure capability, not background-owned state. Content can publish lifecycle revisions, background can publish detector revisions, and popup can read or subscribe to revisions. Application modules depend on narrow persistence ports; the browser entrypoints wire those ports to the concrete `chrome.storage` adapter.
+One `PanelProvider` retains state across Summary, Technologies, History,
+Diagnostics and Settings routes. Its operations live in `app/panel/`; browser
+and persistence implementations live in `app/browser/`. Pure projections live
+in `app/model/`. The independent options page can show diagnostics without the
+panel state owner.
 
-```text
-content runtime ── snapshot writer ──┐
-background runtime ─ snapshot/replay ├─> persistence ports -> browser storage adapter -> chrome.storage.local
-popup runtime ─ snapshot/replay read ┘                         |
-            └─ revision subscription <-------------------------┘
-```
+Opening the panel or pressing Refresh may start one panel-owned observation.
+Switching tabs or closing the panel requests an exact-target stop. A delayed
+response cannot overwrite a newer target. Automatic scans remain one-shot
+work and do not retain a panel observer on each tab.
 
-This keeps the single-source revision rules in the storage implementation while preventing content, popup, and lifecycle application logic from depending directly on browser storage APIs.
+## Verification limits
 
-## Durable visible state
-
-The extension now has a durable snapshot contract for side-panel-visible detection state. `DetectionSessionSnapshot` stores the latest normalized `SiteAnalysis`, session identity, enrichment status, and a compact replay summary in `chrome.storage.local`. The side panel can use this record before it asks the background to refresh the visible page.
-
-```text
-DetectionSessionSnapshot revision
-  -> exact session key
-  -> origin latest key
-  -> popup snapshot-first render
-```
-
-This storage model supports the streaming rewrite without changing detector semantics. Observations still become evidence, candidates, graph-refined detections, and replay traces. The snapshot is the durable visible output of that pipeline.
-
-## Dirty refresh behavior
-
-Late page changes are not merged as final detections. A final-result merge can break graph semantics because `requires`, `excludes`, and `implies` need to see the whole candidate set together.
-
-The current refresh flow keeps an event batch for the active popup session:
-
-```text
-initial event batch
-  + late observer batch
-  -> deduplicated combined observations
-  -> rerun matching/evidence/candidates/graph/emission
-```
-
-If the Manifest V3 service worker loses that in-memory batch, the background recollects the current document and reruns event analysis. That recovery path is slower, but it is safer than treating a late-only batch as a complete explanation.
-
-## Collector capability model
-
-The extension collector can collect DOM, HTML snippets, script URLs, stylesheet URLs, resource URLs, request-like performance entries, readable cookie names, metadata, storage keys, response headers, page globals, and bounded same-origin source text. It still does not collect request headers, DNS records, certificate issuers, robots.txt, or arbitrary probe responses in the extension runtime. Those are CLI or future permission-expansion concerns, not hidden extension behavior.
-
-## Replay and explanation model
-
-Fresh event runs create a redacted replay trace beside the visible detector snapshot. The trace stores stage names, counts, scalar diagnostics, final emission metadata, and per-detection explanation summaries. It does not store raw HTML, raw cookies, page text, source bodies, or full observation payloads.
-
-## Remaining architecture work
-
-The scoped extension runtime is event-first. The remaining work is no longer about switching the popup from legacy to event mode. It is mostly hardening:
-
-- browser-level Manifest V3 tests for service-worker suspension, runtime injection, popup teardown, and visible-tab permission timing
-- a full replay inspector if maintainers need step-by-step event debugging in the popup
-- JSON or YAML registry source migration if the team wants to replace the TypeScript rule tree
-- more principled exclusion-component solving for conflicts where local pairwise tie-breaks are not enough
-- explicit privacy and incognito handling before store-readiness review
+The lifecycle, privacy, queue, storage, detector and panel tests protect the
+source contracts. Generated-artifact inspection protects packaging and data
+formats. Real browser scenarios must additionally cover worker suspension,
+content injection, toolbar gestures, tab races, observation disposal, private
+windows and memory recovery. Follow the [verification workflow](verification-workflow.md)
+and record unrun browser gates separately from passing builds.

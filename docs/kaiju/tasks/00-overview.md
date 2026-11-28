@@ -1,28 +1,32 @@
 # Overview
 
-These prompts turn the playbook's engineering rules into tasks an agent can run. Each prompt is a complete instruction:
+These prompts turn the playbook's product and engineering rules into tasks an agent can run. Every copied prompt
+starts with A01: customer outcome, questions, smallest useful test and evidence that supports the next decision. Each prompt is a complete instruction:
 it names the repository frame, the skills to load, the rules to follow, the steps, the exit condition and where to stop.
 Nothing outside the fenced block is needed once it is copied.
 
 ## Run one prompt per session
 
-1. Pick the prompt for the work. Start with [T01](01-t01-map-source-owners.md) when the owners of the change are not yet
-   known.
-2. Copy the fenced block into a new session and replace `<owner/name>` and `<name>`. For DeepScope the repository is
-   this one; name the branch.
+1. Pick the prompt for the decision. Use [T19](19-t19-answer-one-product-question.md) for an immediately testable
+   unknown, [T20](20-t20-report-a-team-anchor.md) for a useful progress update, and
+   [T21](21-t21-make-the-next-action-concrete.md) to turn findings into a concrete plan. Use
+   [T01](01-t01-map-source-owners.md) when source ownership needs investigation. Independent experiments need not wait
+   for a complete architecture inventory.
+2. Copy the fenced block into a new session and replace `<owner/name>` and `<name>`.
 3. Let the session finish and record its stopping point before starting the next prompt.
 
 T01 to T03 and T06 are read-only. They produce the ownership map, the capability audit, the baseline and the task
-register that the other prompts depend on. Run T07 before T08, and T13 before T14. T12 (container image layers) was dropped: DeepScope builds no images. A prompt whose inputs do not exist
+register that the other prompts depend on. Run T07 before T08, and T13 before T14. A prompt whose inputs do not exist
 yet is not ready; run the read-only prompt that produces them instead.
 
-A prompt never authorizes a merge, a tag, a release, a store submission, a change in another repository or a costly
-workflow run. The owner grants
-those separately.
+A prompt does not expand authorization. Apply existing authorization for the same scope and destination without
+asking again. Obtain only a genuinely missing decision before a consequential action. Read-only prompts stay read-only;
+use another authorized task for mutations. An experiment can answer its discovery question without fixing the product.
+Implementation and delivery prompts retain their acceptance exits.
 
 ## How the prompts are checked
 
-The repository's guidance check (see `AGENTS.md`) reads every prompt in this folder. A prompt fails the check
+The repository's guidance check (`tools/lint/guidance.ts`) reads every prompt in this folder. A prompt fails the check
 when:
 
 - its `Skills:` line is missing or names a skill that does not exist in `.agents/skills/`;

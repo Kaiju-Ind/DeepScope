@@ -7,11 +7,12 @@ import {
   type ValidComponent,
 } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { cn } from "@/utils/cn";
-import { Separator, type SeparatorProps } from "@/ui/separator";
+import { cn } from "../utils/cn.ts";
+import { Separator, type SeparatorProps } from "./separator.tsx";
 
 type ItemGroupProps = ComponentProps<"div">;
 
+/** Provide list semantics and vertical layout for caller-owned items. */
 const ItemGroup = (props: ItemGroupProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -27,6 +28,7 @@ const ItemGroup = (props: ItemGroupProps) => {
 
 type ItemSeparatorProps = SeparatorProps;
 
+/** Separate adjacent items with a horizontal primitive while preserving caller-supplied separator props. */
 const ItemSeparator = (props: ItemSeparatorProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -68,6 +70,7 @@ type ItemProps<T extends ValidComponent = "div"> = {
 } & VariantProps<typeof itemVariants> &
   Omit<ComponentProps<T>, "as" | "class" | "children">;
 
+/** Default an item to a div with standard size and variant, forwarding behavior to the selected element. */
 const Item = <T extends ValidComponent = "div">(rawProps: ItemProps<T>) => {
   const props = mergeProps(
     { as: "div" as T, variant: "default", size: "default" } as const,
@@ -104,6 +107,7 @@ const itemMediaVariants = cva(
 
 type ItemMediaProps = ComponentProps<"div"> & VariantProps<typeof itemMediaVariants>;
 
+/** Style leading item media with the standard variant unless the caller selects another treatment. */
 const ItemMedia = (rawProps: ItemMediaProps) => {
   const props = mergeProps({ variant: "default" } as const, rawProps);
   const [local, others] = splitProps(props, ["class", "variant"]);
@@ -119,6 +123,7 @@ const ItemMedia = (rawProps: ItemMediaProps) => {
 
 type ItemContentProps = ComponentProps<"div">;
 
+/** Give the primary item content flexible space while allowing adjacent content slots to retain their natural width. */
 const ItemContent = (props: ItemContentProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -135,6 +140,7 @@ const ItemContent = (props: ItemContentProps) => {
 
 type ItemTitleProps = ComponentProps<"div">;
 
+/** Keep the visible item title to one line; the caller owns its text and interactive semantics. */
 const ItemTitle = (props: ItemTitleProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -148,6 +154,7 @@ const ItemTitle = (props: ItemTitleProps) => {
 
 type ItemDescriptionProps = ComponentProps<"p">;
 
+/** Present supporting item text as a paragraph with a two-line visual clamp. */
 const ItemDescription = (props: ItemDescriptionProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -164,6 +171,7 @@ const ItemDescription = (props: ItemDescriptionProps) => {
 
 type ItemActionsProps = ComponentProps<"div">;
 
+/** Align item controls without intercepting their events or deriving their enabled state. */
 const ItemActions = (props: ItemActionsProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -177,6 +185,7 @@ const ItemActions = (props: ItemActionsProps) => {
 
 type ItemHeaderProps = ComponentProps<"div">;
 
+/** Arrange item header content vertically or horizontally according to the enclosing item's available width. */
 const ItemHeader = (props: ItemHeaderProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -190,6 +199,7 @@ const ItemHeader = (props: ItemHeaderProps) => {
 
 type ItemFooterProps = ComponentProps<"div">;
 
+/** Arrange item footer content responsively while retaining the caller's native element attributes. */
 const ItemFooter = (props: ItemFooterProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (

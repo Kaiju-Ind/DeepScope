@@ -1,7 +1,7 @@
-import { createMatcherPartitionTasks } from '@/lib/matcher/partition';
-import type { MatcherPartitionResult, MatcherPartitionTask, MatcherWorkerRunMessage } from '@/lib/matcher/contracts';
-import { normalizePageSignals } from '@/lib/observations';
-import { makePageSignals } from './factories';
+import { createMatcherPartitionTasks } from "../../lib/matcher/partition.ts";
+import type { MatcherPartitionResult, MatcherPartitionTask, MatcherWorkerRunMessage } from "../../lib/matcher/contracts.ts";
+import { normalizePageSignals } from "@deepscope/detection/observations";
+import { makePageSignals } from "@deepscope/detection/testing/fixtures";
 
 /** Minimal DedicatedWorker test double that keeps message ownership observable. */
 export class FakeWorker {

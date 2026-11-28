@@ -47,7 +47,7 @@ runs:
       shell: bash
       env:
         CACHE_PLATFORM: ${{ runner.os }}-${{ runner.arch }}
-        CACHE_INPUTS: ${{ hashFiles('mise.toml', 'mise.lock', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', 'apps/*/package.json', 'utils/*/package.json') }}
+        CACHE_INPUTS: ${{ hashFiles('mise.toml', 'mise.lock', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', 'apps/*/package.json', 'packages/*/package.json', 'tools/*/package.json', 'utils/*/package.json') }}
       run: |
         printf 'key=deepscope-pnpm-v2-%s-%s-%s-%s\n' "$CACHE_PLATFORM" \
           "$(mise exec -- node --version)" "$(mise exec -- pnpm --version)" "$CACHE_INPUTS" >> "$GITHUB_OUTPUT"

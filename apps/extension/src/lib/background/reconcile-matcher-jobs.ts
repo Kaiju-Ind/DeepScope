@@ -1,6 +1,6 @@
-import type { MatcherJobLifecycleRecord } from '@/lib/matcher';
-import * as offscreen from '@/lib/matcher/offscreen';
-import { reconcileMatcherJobRecords } from '@/lib/storage/matcher-jobs';
+import type { MatcherJobLifecycleRecord } from "../matcher/index.ts";
+import * as offscreen from '../matcher/offscreen/index.ts';
+import { reconcileMatcherJobRecords } from "../storage/matcher-jobs.ts";
 
 /**
  * Classify durable matcher diagnostics orphaned by a previous background context.
@@ -21,6 +21,7 @@ export async function reconcileInterruptedMatcherJobs(
 ): Promise<MatcherJobLifecycleRecord[]> {
 	const interrupted = await reconcileMatcherJobRecords(currentContextId, {
 		cancel,
+		/** Report only migration stage and count when legacy private-job cleanup fails, without exposing job payloads. */
 		reportFailure(stage, count) {
 			log?.('matcher-job-legacy-private-migration-failed', { stage, count });
 		},

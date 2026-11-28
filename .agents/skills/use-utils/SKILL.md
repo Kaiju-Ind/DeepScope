@@ -22,6 +22,12 @@ still owns its design and verdict.
 
 ## Utility authority
 
+Read the current `use-kaiju-utils` skill for published upstream contracts.
+This project companion maintains the existing source closure under
+[the public source-build decision](../../../docs/adr/01-public-source-builds.md).
+A published-package migration must first satisfy that decision's complete
+reviewer-build and consumer evidence. The following rules govern the present closure.
+
 DeepScope's generic utilities come from the `@utils/*` workspace packages in
 [`utils/`](../../../utils/README.md). They are copied from Kaiju-Ind/Utils
 (MIT) at a recorded commit, renamed from the upstream `@kaiju-ind/*` scope, and
@@ -31,11 +37,13 @@ publishes without access to private packages.
 1. Before you write a generic utility, find its owner in the
    [package map](references/packages.md). A second local copy of a vendored
    capability is a defect, not a shortcut.
-2. Never add a `@kaiju-ind/*` dependency, registry scope or token. The
-   vendored copy is the contract; Utils `main` can differ from it.
-3. If no vendored package fits, check whether upstream has one that was not
-   copied, and vendor it through `utils/sync.json` rather than by hand.
-   Otherwise write the smallest local code that the task needs and name the gap.
+2. Do not introduce a private registry credential into the current public source
+   build. Verify an exact published-package migration against the ADR before
+   replacing the closure; Utils `main` can differ from it.
+3. If no vendored package fits, compare the current published public exports
+   and the exact upstream source. If source inclusion remains the chosen build
+   contract, update `utils/sync.json` rather than copying by hand. Otherwise
+   record the actual contract gap before writing local code.
 
 `@okikio/*` libraries are a separate ecosystem (DeepScope uses
 `@okikio/observables` through the vendored packages). Use `use-okikio` for

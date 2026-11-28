@@ -7,9 +7,9 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import * as injection from '@/lib/background/injection';
-import type { ContentApi } from '@/lib/messaging';
-import { ok } from '@/lib/messaging/result';
+import * as injection from '../../lib/background/injection.ts';
+import type { ContentApi } from "../../lib/messaging/index.ts";
+import { ok } from "../../lib/messaging/result.ts";
 
 const TAB = { id: 7, incognito: true };
 

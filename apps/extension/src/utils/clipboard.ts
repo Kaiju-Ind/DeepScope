@@ -15,10 +15,14 @@ export async function copy(text: string): Promise<void> {
 	textarea.value = text;
 	textarea.style.position = 'fixed';
 	textarea.style.opacity = '0';
-	document.body.append(textarea);
-	textarea.select();
-
-	const copied = document.execCommand('copy');
-	textarea.remove();
-	if (!copied) throw new Error('Browser clipboard access is unavailable.');
+	try {
+		document.body.append(textarea);
+		textarea.select();
+		if (!document.execCommand('copy')) {
+			throw new Error('Browser clipboard access is unavailable.');
+		}
+	} finally {
+		// The fallback owns this node, including when selection or permission checks throw.
+		textarea.remove();
+	}
 }

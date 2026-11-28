@@ -15,3 +15,14 @@ Skills: `review-code`, `release-software`, `verify-behavior`, `build-extensions`
 | [Background runtime](05-runtime.md)                                                                      | DS-08 executor label, DS-09 private tabs, DS-10 stale badge, DS-14, DS-15.         |
 | [Verification and CI](06-verification.md)                                                                | DS-11 Safari settings, DS-12 task cache, DS-13 smoke job; what does not apply.     |
 | [Add the next incident without losing its lesson](09-add-the-next-incident-without-losing-its-lesson.md) | How to add an entry.                                                               |
+
+## Shared incident lessons
+
+The supplied handbook also retains [deployment symptoms](03-access-preparation-and-test-environments.md),
+[data and initialization failures](04-data-private-networking-and-initialization.md),
+[provider and delivery failures](05-provider-identity-plans-and-public-delivery.md),
+[external runtime failures](06-runtime-consumers-email-storage-and-recovery.md),
+[source gaps](07-current-source-gaps-and-acceptance-limits.md),
+[derived safeguards](08-safeguards-derived-from-contracts.md), and
+[retrospective coverage](retrospectives/README.md). These are historical examples;
+DeepScope's DS entries and current reproductions determine a local incident.

@@ -2,12 +2,14 @@
 import { createServer } from 'node:http';
 
 const pages = {
+	/** Serve stable WordPress and jQuery markers for the basic page-detection scenario. */
 	'/wp.html': () => `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="generator" content="WordPress 6.4.2">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="stylesheet" href="/wp-content/themes/twentytwentyfour/style.css">
 <script src="/wp-includes/js/jquery/jquery.min.js?ver=3.7.1"></script>
 <title>WordPress fixture</title></head><body><h1>WordPress fixture</h1></body></html>`,
+	/** Serve a Docusaurus marker and a pushState control for same-document navigation checks. */
 	'/spa.html': () => `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="generator" content="Docusaurus v3.1.0"><title>SPA fixture</title></head>
 <body><div id="__docusaurus">SPA fixture</div>
@@ -17,12 +19,16 @@ const pages = {
 	'/busy.html': () => `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="generator" content="WordPress 6.4.2"><title>Busy fixture</title></head><body><h1>Busy</h1>
 <script>setInterval(() => { const end = performance.now() + 900; while (performance.now() < end); }, 1000);</script></body></html>`,
+	/** Serve a page with no declared technology marker for comparison and stale-result checks. */
 	'/plain.html': () => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Plain</title></head><body>plain</body></html>`,
 	// One generator each, so a result naming another page's generator is a
 	// result published for the wrong document (see STRESS_FIXTURES).
 	'/hugo.html': () => generatorPage('Hugo 0.120.4', 'Hugo fixture'),
+	/** Serve only the Ghost generator marker so results from another fixture can be detected as stale. */
 	'/ghost.html': () => generatorPage('Ghost 5.75', 'Ghost fixture'),
+	/** Serve only the Drupal generator marker for document-identity checks. */
 	'/drupal.html': () => generatorPage('Drupal 10', 'Drupal fixture'),
+	/** Serve only the Joomla generator marker for document-identity checks. */
 	'/joomla.html': () => generatorPage('Joomla! 4.4', 'Joomla fixture'),
 	// A large DOM: tens of thousands of elements for the DOM scan to walk.
 	'/huge.html': (url) => {
@@ -56,6 +62,7 @@ const pages = {
 		window.go = (path) => history.pushState({}, '', path);`),
 };
 
+/** Build controlled local fixture markup from harness-owned generator, title, body and optional script text. */
 function generatorPage(generator, title, body = `<h1>${title}</h1>`, script = '') {
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="generator" content="${generator}"><title>${title}</title></head>
@@ -87,6 +94,7 @@ export const STRESS_MARKERS = [...new Set(Object.values(STRESS_FIXTURES).flatMap
 // The first fixtures send a PHP header; the stress fixtures send none.
 const LEGACY_PHP = new Set(['/wp.html', '/spa.html', '/busy.html', '/plain.html']);
 
+/** Serve local detection fixtures and synthetic assets on loopback; the caller owns closing the returned server. */
 export function startFixtureServer(port = 0) {
 	const server = createServer(async (request, response) => {
 		const url = new URL(request.url, 'http://localhost');

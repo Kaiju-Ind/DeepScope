@@ -3,14 +3,8 @@ import {
 	type LinkComponent,
 } from '@tanstack/solid-router'
 
-import {
-	Button,
-	type ButtonProps,
-} from '@/ui/button.tsx'
-import {
-	SidebarMenuButton,
-	type SidebarMenuButtonProps,
-} from '@/ui/sidebar.tsx'
+import { Button, type ButtonProps } from "./button.tsx";
+import { SidebarMenuButton, type SidebarMenuButtonProps } from "./sidebar.tsx";
 
 type ButtonLinkBaseProps =
 	Omit<ButtonProps<'a'>, 'as'>

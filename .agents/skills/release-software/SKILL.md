@@ -36,9 +36,11 @@ For multiple targets, capture independent immutable results. If one succeeds and
 
 ## Kaiju projects
 
-In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Procedures](../../../docs/kaiju/procedures/README.md), [Platform readiness](../../../docs/kaiju/platforms/README.md), [Failure catalogue](../../../docs/kaiju/failures/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).
+In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Procedures](../../../docs/kaiju/procedures/README.md), [Failure catalogue](../../../docs/kaiju/failures/README.md), [Task prompts](../../../docs/kaiju/tasks/README.md).
 
 ## Resource navigation
 
 The [complete resource index](references/resources.md) lists this capability’s maintained detail and assets. Use it only to
 locate a decision-specific resource; it is not a reading checklist.
+
+DeepScope release work uses the retained [browser and store readiness cards](../../../docs/kaiju/platforms/README.md) and [extension release procedure](../../../docs/kaiju/procedures/extensions/04-p04-promote-the-reviewed-candidate.md).

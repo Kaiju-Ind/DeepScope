@@ -1,9 +1,9 @@
 import { createSignal, onMount } from 'solid-js';
-import { browser } from 'wxt/browser';
+import { openDiagnostics } from '../browser/surface.ts';
 
-import type { DiagnosticSurface } from '@/lib/diagnostics/contracts';
-import * as clipboard from '@/utils/clipboard';
-import { persistDiagnosticFailure } from '@/lib/diagnostics/journal';
+import type { DiagnosticSurface } from "../../lib/diagnostics/contracts.ts";
+import * as clipboard from '../../utils/clipboard.ts';
+import { persistDiagnosticFailure } from "../../lib/diagnostics/journal/index.ts";
 
 export type SupportFallbackPropsType = {
 	readonly surface: Extract<DiagnosticSurface, 'sidepanel' | 'popup' | 'page' | 'options'>;
@@ -14,6 +14,7 @@ export type SupportFallbackPropsType = {
 /** Minimal support UI that avoids Zaidan primitives when the normal application tree fails. */
 export function SupportFallback(props: SupportFallbackPropsType) {
 	const [status, setStatus] = createSignal('');
+	/** Expose the current error message with a string fallback for non-Error failures. */
 	const message = () => props.error instanceof Error ? props.error.message : String(props.error);
 
 	onMount(() => {
@@ -25,10 +26,11 @@ export function SupportFallback(props: SupportFallbackPropsType) {
 		});
 	});
 
+	/** Load diagnostics on demand, copy the current report and keep preparation or failure status visible in the fallback UI. */
 	async function copyReport(): Promise<void> {
 		setStatus('Preparing report…');
 		try {
-			const { formatDiagnosticReport, getDiagnosticSnapshot } = await import('@/lib/diagnostics/report');
+			const { formatDiagnosticReport, getDiagnosticSnapshot } = await import('../../lib/diagnostics/report.ts');
 			const report = formatDiagnosticReport(await getDiagnosticSnapshot());
 			await clipboard.copy(report);
 			setStatus('Diagnostic report copied.');
@@ -48,7 +50,7 @@ export function SupportFallback(props: SupportFallbackPropsType) {
 			<div style={{ display: 'flex', gap: '0.5rem', 'flex-wrap': 'wrap', 'margin-top': '1rem' }}>
 				<button type="button" onClick={() => void copyReport()} style={buttonStyle}>Copy diagnostic report</button>
 				{props.surface !== 'options' && (
-					<button type="button" onClick={() => void browser.runtime.openOptionsPage()} style={buttonStyle}>Open diagnostics page</button>
+					<button type="button" onClick={() => void openDiagnostics()} style={buttonStyle}>Open diagnostics page</button>
 				)}
 				{props.reset && <button type="button" onClick={props.reset} style={buttonStyle}>Retry UI</button>}
 			</div>

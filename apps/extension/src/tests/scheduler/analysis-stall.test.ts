@@ -9,10 +9,10 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AnalyzeVisibleTabInput } from '@/lib/messaging/analysis';
-import { LANE_TIMEOUT_MS } from '@/lib/scheduler/lane';
-import { EXECUTION_SCHEMA_VERSION, type AnalysisWorkType } from '@/lib/scheduler/schema';
-import { settle } from '../support/settle';
+import type { AnalyzeVisibleTabInput } from "../../lib/messaging/analysis.ts";
+import { LANE_TIMEOUT_MS } from "../../lib/scheduler/lane.ts";
+import { EXECUTION_SCHEMA_VERSION, type AnalysisWorkType } from "../../lib/scheduler/schema.ts";
+import { settle } from "../support/settle.ts";
 
 function input(tabId: number): AnalyzeVisibleTabInput {
 	return {
@@ -80,19 +80,19 @@ function mockDatabase() {
 }
 
 afterEach(() => {
-	vi.doUnmock('@/lib/scheduler/database');
-	vi.doUnmock('@/lib/scheduler/session');
+	vi.doUnmock('../../lib/scheduler/database.ts');
+	vi.doUnmock('../../lib/scheduler/session.ts');
 	vi.useRealTimers();
 	vi.resetModules();
 });
 
 async function createScheduler(store: ReturnType<typeof mockDatabase>, analyze: (input: AnalyzeVisibleTabInput) => Promise<unknown>) {
-	vi.doMock('@/lib/scheduler/database', () => store.database);
-	vi.doMock('@/lib/scheduler/session', () => ({
+	vi.doMock('../../lib/scheduler/database.ts', () => store.database);
+	vi.doMock('../../lib/scheduler/session.ts', () => ({
 		createId: vi.fn(() => 'owner'),
 		get: vi.fn(async () => 'browser-session'),
 	}));
-	const analysis = await import('@/lib/scheduler/analysis');
+	const analysis = await import('../../lib/scheduler/analysis.ts');
 	return { analysis, scheduler: analysis.create({
 		resolveTarget: vi.fn(async (work: AnalysisWorkType) => ({ ok: true as const, value: input(work.tabId).target })),
 		analyze: analyze as never,

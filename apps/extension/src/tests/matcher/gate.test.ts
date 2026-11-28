@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { gate, gateSubject } from '@/lib/detection/match/gate';
-import { createObservationMatcherIndex, matchIndexedObservationBatch, type IndexedObservationRule } from '@/lib/detection/observation-matcher-index';
-import { makeRuleProfileObservation } from '@/lib/detection/rule-performance-profile';
-import type { DetectionRule, MatcherTechnologyType } from '@/lib/detection/types';
-import type { ObservationBatch } from '@/lib/observations';
-import { hydrateMatcherIndex, packageMatcherIndex } from '@/lib/registry/matcher-artifact';
+import { gate, gateSubject } from "@deepscope/detection/match/gate";
+import { createObservationMatcherIndex } from "@deepscope/detection/matcher/routing";
+import { matchIndexedObservationBatch } from "@deepscope/detection/matcher";
+import { type IndexedObservationRule } from "@deepscope/detection/matcher/routing/types";
+import { makeRuleProfileObservation } from "@deepscope/detection/profile/observations";
+import type { DetectionRule } from "@deepscope/registry/rules";
+import type { MatcherTechnologyType } from "@deepscope/registry/types";
+import type { ObservationBatch } from "@deepscope/detection/observations";
+import { hydrateMatcherIndex, packageMatcherIndex } from "@deepscope/detection/artifacts/matcher";
 
 describe('literal gates', () => {
 	it('gate only the regex the matcher needs', () => {

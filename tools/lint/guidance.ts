@@ -8,8 +8,8 @@
  *
  * - {@link links}: every relative Markdown link resolves to a file or folder.
  * - {@link routes}: every skill named in a routing table exists, and every skill is routed from the pack's start page.
- * - {@link authority}: no named `@kaiju-ind/*` package, `@okikio/*` names only an Okikio library, nothing names the
- *   `okikio/utils` workspace, and every `@utils/<package>` in the guidance is a vendored package.
+ * - {@link authority}: project sources and extension-specific guidance use the recorded public-build dependency
+ *   contract. Shared handbook examples remain upstream examples, rather than installed dependencies.
  * - {@link reciprocal}: each playbook folder names the skills that carry out its work, and each of those skills links
  *   back to the folder.
  * - {@link prompts}: each task prompt names existing skills and playbook rules, and its copyable block carries them.
@@ -41,8 +41,11 @@ export interface Finding {
 /** The guidance files: the root instructions, the pack and the playbook. */
 export const GUIDANCE = /^(AGENTS\.md|CLAUDE\.md|\.agents\/.+\.md|docs\/kaiju\/.+\.md)$/u;
 
-/** Source and manifest files whose package names the authority check reads. */
-export const SOURCES = /^((apps\/[^/]+\/)?package\.json|(apps\/[^/]+\/src|utils|tools)\/.+\.(ts|tsx|json))$/u;
+/** Project-specific instructions bound to the current public source-build contract. */
+export const PROJECT_GUIDANCE = /^(AGENTS\.md|CLAUDE\.md|\.agents\/skills\/(build-extensions|use-utils)\/.+\.md|docs\/kaiju\/(platforms\/.+|(?:project|procedures)\/extensions\/.+|profiles\/deepscope)\.md)$/u;
+
+/** Every application, portable package, vendored package and tool source or manifest. */
+export const SOURCES = /^((apps\/[^/]+\/)?package\.json|(apps\/[^/]+\/src|packages|utils|tools)\/.+\.(ts|tsx|mjs|json))$/u;
 
 /**
  * The libraries that Okikio maintains outside Kaiju-Ind/Utils. Any other `@okikio/<name>` is either a utility package
@@ -164,11 +167,13 @@ export function routes(documents: ReadonlyMap<string, string>, skills: ReadonlyS
 }
 
 /**
- * Find utility sources that DeepScope must not use. DeepScope is public and builds without private packages, so no
- * file names a `@kaiju-ind/<package>`: the vendored `@utils/<package>` is the source. `@okikio/*` names only an Okikio
- * library, and nothing names the `okikio/utils` workspace. When `vendored` is given (the folder names under `utils/`
- * that hold a `package.json`), every `@utils/<package>` must be one of them. Code examples count: an example teaches
- * an import as much as prose does.
+ * Check a source or project-specific instruction against DeepScope's current dependency contract.
+ *
+ * The source-build ADR retains the recorded `@utils/*` closure until published releases can meet the reviewer
+ * build contract. Callers select {@link SOURCES} and {@link PROJECT_GUIDANCE}; shared upstream guides still describe
+ * published packages and are checked by the other guidance rules. `@okikio/*` names only an Okikio library. When
+ * `vendored` is given, every `@utils/<package>` must name an actual package in the closure. Code examples within
+ * project-specific instructions count because they teach the local import contract.
  */
 export function authority(file: string, text: string, vendored?: ReadonlySet<string>): Finding[] {
 	const found: Finding[] = [];

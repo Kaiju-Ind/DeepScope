@@ -19,7 +19,7 @@ import {
   splitProps,
   useContext,
 } from "solid-js";
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 // Register ECharts components - using SVG renderer for CSS variable support
 // Note: SVG is required because Canvas cannot parse CSS variables like var(--chart-1)
@@ -90,6 +90,7 @@ type ChartContextValue = {
 
 const ChartContext = createContext<ChartContextValue>({ config: {} });
 
+/** Require chart configuration from the surrounding ChartContainer instead of supplying unrelated defaults. */
 export function useChart() {
   const context = useContext(ChartContext);
   if (!context) {

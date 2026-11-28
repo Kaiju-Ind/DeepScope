@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type * as observe from '@/lib/content/observe';
-import {
-	EXTENSION_OBSERVATION_POLICY,
-	canRefreshObservationSession,
-	getObservationRefreshBlockReason,
-	isObservationSessionForUrl,
-	shouldStartObservation,
-} from '@/lib/lifecycle/observation';
+import type * as observe from '../../lib/content/observe/index.ts';
+import { EXTENSION_OBSERVATION_POLICY, canRefreshObservationSession, getObservationRefreshBlockReason, isObservationSessionForUrl, shouldStartObservation } from "../../lib/lifecycle/observation.ts";
 
 function makeSession(overrides: Partial<observe.StateType> = {}): observe.StateType {
 	return {

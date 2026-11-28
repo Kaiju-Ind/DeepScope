@@ -1,8 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
-import type { MatcherJobRecord } from '@/lib/matcher';
-import { getMatcherJobCacheKey } from '@/lib/storage/contracts';
-import { createMockBrowserStorageArea } from '../support/mock-browser';
+import type { MatcherJobRecord } from "../../lib/matcher/index.ts";
+import { getMatcherJobCacheKey } from "../../lib/storage/contracts.ts";
+import { createMockBrowserStorageArea } from "../support/mock-browser.ts";
 
 /** Exercise both recovery and the real offscreen client with only browser I/O replaced. */
 async function recoveryFixture(getContexts?: () => Promise<unknown>) {
@@ -21,7 +21,7 @@ async function recoveryFixture(getContexts?: () => Promise<unknown>) {
 		runtime: { sendMessage, getContexts, getURL: (path: string) => 'chrome-extension://fixture' + path, ContextType: { OFFSCREEN_DOCUMENT: 'OFFSCREEN_DOCUMENT' } },
 		storage: { local: storage.local },
 	} }));
-	const { reconcileInterruptedMatcherJobs } = await import('@/lib/background/reconcile-matcher-jobs');
+	const { reconcileInterruptedMatcherJobs } = await import('../../lib/background/reconcile-matcher-jobs.ts');
 	return { record, key, storage, sendMessage, log, reconcile: () => reconcileInterruptedMatcherJobs('context-current', log) };
 }
 
@@ -74,7 +74,7 @@ it.each(['unavailable', 'rejected', 'malformed'] as const)('retains the key when
 it('keeps ordinary live-owner cancellation best effort when the receiver disappears', async () => {
 	const fixture = await recoveryFixture();
 	fixture.sendMessage.mockRejectedValue(new Error('No receiver'));
-	const { cancel } = await import('@/lib/matcher/offscreen');
+	const { cancel } = await import('../../lib/matcher/offscreen/index.ts');
 	await expect(cancel(fixture.record.jobId)).resolves.toBeUndefined();
 	expect(fixture.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'matcher.cancel-job', jobId: fixture.record.jobId }));
 });

@@ -1,19 +1,26 @@
 # Owner actions before long implementation
 
-Send this table as soon as known blockers appear. Update it instead of making the owner rediscover requirements across
-messages. The plan's `## Owner actions` section is where DeepScope keeps it.
+Send this table as soon as known blockers appear. Update it instead of making Carl rediscover requirements across
+messages.
 
-| Need                     | Exact requested action                                                           | Where it applies                       |
-| ------------------------ | -------------------------------------------------------------------------------- | -------------------------------------- |
-| Licence                  | Choose DeepScope's licence (the vendored utilities are MIT)                       | Before public promotion                |
-| Data and asset rights    | Confirm the catalog's upstream and licence, and the American Kestrel font's terms | Before public promotion                |
-| Firefox add-on id        | Choose `browser_specific_settings.gecko.id`                                       | Firefox lint and AMO                   |
-| Store accounts           | Chrome Web Store listing and API credentials; AMO listing and JWT credentials     | Store jobs in the Release workflow     |
-| Apple                    | Apple Developer Program team, bundle id, signing, App Store Connect API key       | Safari distribution                    |
-| Repository settings      | Immutable releases, `v*` tag ruleset, environments, required checks, runners      | Release and CI                         |
-| ghcr visibility          | Make the package public after the first push                                     | Download verification                  |
-| Local Safari automation  | Enable Remote Automation and allow unsigned extensions on the test Mac           | `mise run verify safari`               |
+| Need                   | Exact requested action                                                                                                 | Owner                            | Where it applies                             | Evidence that closes it                                                                         | Work that can continue                       | Status      |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------- | ----------- |
+| Package publication    | Name exact package/version/export and intended registry                                                                | Package owner                    | Consumer repository and runtime              | Published artifact installs and exercises the intended export                                   | Source contract, fixtures, independent tests | Not checked |
+| Private package access | Grant intended CI principal access to every locked direct/transitive package, or use approved existing read credential | Repository/package administrator | New repo and relevant environments           | Fresh native dependency preparation succeeds under that identity                                | Architecture and available checks            | Not checked |
+| Native generation      | Provide a controlled compatible CI runtime for the exact generator source                                              | CI owner                         | Provider SDK/lock owner                      | Authentic artifact plus hashes, native checks and frozen install                                | Consumer review and non-native checks        | Not checked |
+| Image publication/pull | Provide publication permission and runtime pull access separately                                                      | Registry/platform owner          | CI, Bunny, Kubernetes setup Jobs             | Exact digest is published and pulled by each intended consumer                                  | Local image checks                           | Not checked |
+| Deployment identity    | Bind approved cloud, cluster, state and private-network identities                                                     | Platform owner                   | Exact stack/account/namespace                | Read-only target access and ownership verification                                              | App modeling and source tests                | Not checked |
+| Public access          | Confirm domain ownership, DNS/TLS route and callback origins                                                           | Domain/platform owner            | Preview and production independently         | Correct DNS/TLS and actual auth callback                                                        | Internal runtime tests                       | Not checked |
+| Email                  | Confirm verified sender, restricted key reference, test recipient and permission for a bounded test                    | Email/product owner              | Every sending process                        | App submission and intended receipt evidence                                                    | Mail sink tests and other journeys           | Not checked |
+| Objects                | Confirm bucket policies, endpoint/region, scoped key and retention                                                     | Storage/product owner            | App, worker, migration and restore consumers | Required driver round trip and privacy result                                                   | Fake/local storage tests                     | Not checked |
+| Database               | Allocate supported engine/catalog/storage and define recovery owner                                                    | Platform/data owner              | App instance                                 | Runtime app-role access and migration; reset or restore evidence according to the data contract | Source/artifact checks                       | Not checked |
+| AI                     | Confirm account, selected model/protocol, key reference, data policy and bounded probe budget                          | Product/provider owner           | Actual app/runner consumer                   | Required text/tool/structured/stream behavior passes                                            | Offline contract tests                       | Not checked |
 
-Select rows from the journey; this is not a request to set up everything. Record four facts for each credential
-separately: it exists, the operator can retrieve it, the workflow job can use it, and the store accepts it.
-[AE02](../agents/02-ae02-prove-access-and-report-owner-actions-early.md) gives the procedure.
+This is a starting inventory, not a request to create every service. Select rows from the journey. A credential that
+already exists and is authorized should be used through its approved route. Report an actual access failure precisely
+rather than asking for permission again.
+
+For each relevant credential, record four facts separately: existence in the agreed source, operator retrieval access,
+intended job/runtime usability and destination acceptance. Include role, scope, lifetime and rotation owner. Report a
+scoped access problem accurately; do not use an organization-wide vault inventory to compensate for missing project
+context. [AE02](../agents/02-ae02-prove-access-and-report-owner-actions-early.md) supplies the discovery procedure.

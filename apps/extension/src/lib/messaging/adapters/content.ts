@@ -22,11 +22,13 @@ type SenderWithDocumentMetadata = Browser.runtime.MessageSender & {
 
 type ContentMessage = Partial<Message<ContentRpcMeta>>;
 
+/** Bind content RPC to one tab, frame and optional document identity so navigation cannot silently redirect a reply. */
 export function createContentClientAdapter(
   tabId: number,
 	frameId = 0,
 	documentId?: string,
 ): Adapter<ContentRpcMeta> {
+	/** Address the selected frame and document explicitly while carrying the same identity in the RPC envelope. */
 	const sendMessage: SendMessage<ContentRpcMeta> = async (message) => {
 		const options = {
 			frameId,
@@ -49,7 +51,9 @@ export function createContentClientAdapter(
 		);
 	};
 
+  /** Subscribe to responses for this content target and give listener cleanup back to the RPC owner. */
   const onMessage: OnMessage<ContentRpcMeta> = (callback) => {
+	/** Reject responses from another tab, frame or pinned document and attach browser-supplied document metadata. */
 	const listener = (rawMessage: unknown, sender: Browser.runtime.MessageSender) => {
 		const message = rawMessage as ContentMessage;
 
@@ -90,7 +94,9 @@ export function createContentClientAdapter(
   return { sendMessage, onMessage };
 }
 
+/** Expose the current content document as an RPC server without owning its observation runtime or invalidation lifetime. */
 export function createContentServerAdapter(): Adapter<ContentRpcMeta> {
+  /** Send a content reply through extension messaging with the required content channel marker. */
   const sendMessage: SendMessage<ContentRpcMeta> = async (message) => {
     await browser.runtime.sendMessage({
       ...message,
@@ -101,7 +107,9 @@ export function createContentServerAdapter(): Adapter<ContentRpcMeta> {
     });
   };
 
+  /** Register one content request listener and return its removal function to the caller. */
   const onMessage: OnMessage<ContentRpcMeta> = (callback) => {
+    /** Accept content-channel requests and prevent a child frame from answering a request addressed to the top document. */
     const listener = (rawMessage: unknown) => {
       const message = rawMessage as ContentMessage;
 
@@ -125,6 +133,7 @@ export function createContentServerAdapter(): Adapter<ContentRpcMeta> {
   return { sendMessage, onMessage };
 }
 
+/** Require both namespace and channel markers before interpreting a message as content RPC. */
 function isContentRpcMessage(message: ContentMessage): boolean {
 	return (
 		message.namespace === CONTENT_RPC_NAMESPACE &&
@@ -132,6 +141,7 @@ function isContentRpcMessage(message: ContentMessage): boolean {
 	);
 }
 
+/** Copy optional browser document metadata without inventing an identity on runtimes that omit it. */
 function getSenderDocumentMetadata(sender: Browser.runtime.MessageSender) {
 	const extendedSender = sender as SenderWithDocumentMetadata;
 	return {

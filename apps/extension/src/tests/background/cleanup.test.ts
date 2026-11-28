@@ -5,8 +5,9 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { makeAnalysis, makeDetection, makeDetectionSessionSnapshot } from '../support/factories';
-import * as harness from '../support/runtime';
+import { makeAnalysis, makeDetection } from "@deepscope/detection/testing/fixtures";
+import { makeDetectionSessionSnapshot } from "../support/factories.ts";
+import * as harness from '../support/runtime.ts';
 
 afterEach(() => harness.unload());
 

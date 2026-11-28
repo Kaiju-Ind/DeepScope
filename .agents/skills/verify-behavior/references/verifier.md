@@ -25,7 +25,7 @@ Examples include a CLI invocation, browser flow, clean package consumer, migrati
 Name the exact workflow before running anything. Avoid vague targets such as “the package works.” Prefer:
 
 ```text
-unzip the release archive for Firefox and load it with `mise run verify firefox`
+install the generated package tarball in a clean Deno consumer and call the public parser API
 run `tool inspect fixture.json` and verify exit status, stdout JSON, and generated file
 open the built extension in Chromium and verify the side-panel scan flow
 apply migration 12 to a seeded database, restart the service, and read the migrated record
@@ -88,16 +88,16 @@ If the real workflow fails, do not hide it because unit tests pass. If the real 
 
 ## Mixed scenarios
 
-A capability can have multiple independent scenarios. For example, DeepScope claims Chrome, Firefox and Safari, and each background model is a separate scenario.
+A capability can have multiple independent scenarios. For example, a storage package may claim Window, Worker, Node, Deno, and Bun support.
 
 Report each scenario separately:
 
 | Scenario | Result | Evidence |
 | --- | --- | --- |
-| Vitest (Node) | verified | exact command and observed output |
-| Firefox 160 event page | verified | `mise run verify firefox` scenario output |
-| Chrome service worker + offscreen | verified | loaded unpacked build and observed state |
-| Safari background page | blocked | Remote Automation not enabled |
+| Node | verified | exact command and observed output |
+| Deno | blocked | executable unavailable |
+| Chromium Worker | verified | browser test and observed state |
+| WebKit | failed | exact runtime failure |
 
 The overall result cannot be `verified` when a required scenario is failed or blocked.
 

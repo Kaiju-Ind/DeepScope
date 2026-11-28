@@ -1,5 +1,5 @@
-import { createDetectionStorageHash } from "@/lib/storage/contracts";
-import { createFnv1a32Hash } from "@/lib/storage/hash";
+import { createDetectionStorageHash } from "../../lib/storage/contracts.ts";
+import { createFnv1a32Hash } from "../../lib/storage/hash.ts";
 import { describe, expect, it } from "vitest";
 
 describe("createDetectionStorageHash", () => {

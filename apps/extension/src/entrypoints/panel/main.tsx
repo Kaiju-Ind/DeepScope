@@ -1,5 +1,5 @@
-import { mountPanel } from '@/app/mount';
-import { policyFromLocation } from '@/app/surface';
+import { mountPanel } from "../../app/mount.tsx";
+import { policyFromLocation } from "../../app/browser/surface.ts";
 
 import '@/styles/app.css';
 import '@/styles/panel.css';

@@ -1,6 +1,6 @@
-import { installDiagnosticCrashHooks } from '@/lib/diagnostics/crash';
-import * as logging from '@/lib/diagnostics/logging';
-import { Host } from '@/lib/matcher/offscreen/host';
+import { installDiagnosticCrashHooks } from "../../lib/diagnostics/crash.ts";
+import * as logging from '../../lib/diagnostics/logging.ts';
+import { Host } from "../../lib/matcher/offscreen/host.ts";
 
 logging.configure('offscreen');
 installDiagnosticCrashHooks('offscreen');

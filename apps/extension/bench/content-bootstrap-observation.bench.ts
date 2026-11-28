@@ -1,8 +1,8 @@
 import { describe, test } from 'vitest';
 
-import type { PageSignals } from '@/lib/detection/types';
-import { normalizePageSignals } from '@/lib/observations';
-import { makePageSignals } from '../src/tests/support/factories';
+import type { PageSignals } from "@deepscope/detection/types";
+import { normalizePageSignals } from "@deepscope/detection/observations";
+import { makePageSignals } from "@deepscope/detection/testing/fixtures";
 
 /** Vitest benchmark settings tuned for local regression checks without making CI runs excessive. */
 const BENCHMARK_OPTIONS = {

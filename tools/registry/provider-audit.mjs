@@ -28,7 +28,9 @@ const PROVIDER_IDS = new Set([
 	'acquia-cloud-platform', 'supabase', 'expo', 'deno-deploy', 'azure', 'azure-static-web-apps', 'google-cloud', 'digitalocean',
 	'railway', 'surge', 'hostinger', 'replit', 'glitch', 'bunny',
 ]);
+/** Classify providers only by the explicit provider ID and category sets used by this audit. */
 const isProvider = (technology) => Boolean(technology && (PROVIDER_IDS.has(technology.id) || technology.categories.some((category) => PROVIDER_CATEGORIES.has(category))));
+/** Select framework-category technologies while excluding entries already classified as providers. */
 const isFramework = (technology) => Boolean(technology?.categories.some((category) => FRAMEWORK_CATEGORIES.has(category))) && !isProvider(technology);
 
 /** Signals owned by hosting providers. */
@@ -36,6 +38,7 @@ const PROVIDER_SIGNAL = /vercel|netlify|\bcf-ray\b|cloudflare|amplify|firebase(?
 /** Signals that frameworks emit by default wherever they are hosted. */
 const FRAMEWORK_SIGNAL = /_next\/|__NEXT_DATA__|__next|_nuxt|__NUXT__|__sveltekit|_app\/immutable|___gatsby|__remixContext|__reactRouterContext|_astro\/|astro-island|_\$HY|_build\/assets/i;
 
+/** Collect rule pattern sources and selector-like fields into searchable audit text without evaluating the patterns. */
 function ruleText(rule) {
 	return [rule.pattern, rule.valuePattern, rule.keyPattern, rule.hrefPattern].filter(Boolean).map((p) => p.source)
 		.concat([rule.key, rule.property, rule.selector].filter(Boolean)).join(' ');

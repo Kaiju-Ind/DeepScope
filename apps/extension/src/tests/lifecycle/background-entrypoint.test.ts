@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AnalyzeVisibleTabInput, VisibleTabIdentity } from '@/lib/messaging';
-import { ok } from '@/lib/messaging/result';
+import type { AnalyzeVisibleTabInput, VisibleTabIdentity } from "../../lib/messaging/index.ts";
+import { ok } from "../../lib/messaging/result.ts";
 
 const mocks = vi.hoisted(() => ({
 	onUpdated: vi.fn(),
@@ -35,11 +35,11 @@ vi.mock('wxt/browser', () => ({
 		runtime: { onMessage: { addListener: vi.fn() }, sendMessage: vi.fn(async () => undefined) },
 	},
 }));
-vi.mock('@/lib/background/reconcile-matcher-jobs', () => ({
+vi.mock('../../lib/background/reconcile-matcher-jobs.ts', () => ({
 	reconcileInterruptedMatcherJobs: vi.fn(async () => []),
 }));
 // Schedulers pass analysis straight through so these tests observe entrypoint wiring only.
-vi.mock('@/lib/scheduler/analysis', () => ({
+vi.mock('../../lib/scheduler/analysis.ts', () => ({
 	create: () => ({
 		analyze: (input: AnalyzeVisibleTabInput) => mocks.analyzeVisibleTab(input),
 		activateTab: vi.fn(async () => undefined),
@@ -49,16 +49,16 @@ vi.mock('@/lib/scheduler/analysis', () => ({
 		resume: mocks.resumeAnalysis,
 	}),
 }));
-vi.mock('@/lib/scheduler/matcher', () => ({
+vi.mock('../../lib/scheduler/matcher/index.ts', () => ({
 	create: () => ({
 		activateTab: vi.fn(async () => undefined),
 		reconcile: vi.fn(async () => []),
 		resume: mocks.resumeMatcher,
 	}),
 }));
-vi.mock('@/lib/registry/packaged-runtime', () => ({ createPackagedRuntimeTechnologyRegistryProvider: () => ({}) }));
-vi.mock('@/lib/autostart/settings', () => ({ getAutoScanEnabled: async () => true }));
-vi.mock('@/lib/background/runtime', () => ({
+vi.mock('../../lib/registry/runtime.ts', () => ({ createPackagedRuntimeTechnologyRegistryProvider: () => ({}) }));
+vi.mock('../../lib/autostart/settings.ts', () => ({ getAutoScanEnabled: async () => true }));
+vi.mock('../../lib/background/runtime/index.ts', () => ({
 	createBackgroundRuntime: () => ({
 		api: { getVisibleTabIdentity: mocks.getVisibleTabIdentity, analyzeVisibleTab: mocks.analyzeVisibleTab },
 		onTabNavigation: mocks.onTabNavigation,
@@ -67,18 +67,18 @@ vi.mock('@/lib/background/runtime', () => ({
 		analyzeScheduledTab: vi.fn(),
 	}),
 }));
-vi.mock('@/lib/collectors/extension-page-collector', () => ({ collectExtensionObservationBatch: vi.fn() }));
-vi.mock('@/lib/detection/registry-provider', () => ({ bundledRuntimeTechnologyRegistryProvider: {} }));
-vi.mock('@/lib/diagnostics/crash', () => ({ installDiagnosticCrashHooks: vi.fn() }));
-vi.mock('@/lib/diagnostics/logging', () => ({
+vi.mock('../../lib/collectors/extension-page-collector.ts', () => ({ collectExtensionObservationBatch: vi.fn() }));
+vi.mock('@deepscope/detection/provider', () => ({ bundledRuntimeTechnologyRegistryProvider: {} }));
+vi.mock('../../lib/diagnostics/crash.ts', () => ({ installDiagnosticCrashHooks: vi.fn() }));
+vi.mock('../../lib/diagnostics/logging.ts', () => ({
 	configure: vi.fn(),
 	get: () => ({ debug: mocks.debug, info: vi.fn() }),
 }));
-vi.mock('@/lib/diagnostics/journal', () => ({
+vi.mock('../../lib/diagnostics/journal/index.ts', () => ({
 	isDiagnosticTransportMessage: vi.fn(),
 	persistTransportedDiagnosticMessage: vi.fn(),
 }));
-vi.mock('@/lib/matcher/offscreen', () => ({
+vi.mock('../../lib/matcher/offscreen/index.ts', () => ({
 	start: vi.fn(),
 	capacity: 2,
 	cancel: vi.fn(),
@@ -88,7 +88,7 @@ vi.mock('@/lib/matcher/offscreen', () => ({
 	touchLifecycle: vi.fn(),
 	releaseLifecycle: vi.fn(),
 }));
-vi.mock('@/lib/persistence', () => ({
+vi.mock('../../lib/persistence/index.ts', () => ({
 	browserDetectionPersistence: {},
 	browserDetectionSnapshotStore: { markTabSnapshots: vi.fn(async () => []) },
 }));
@@ -115,7 +115,7 @@ describe('background entrypoint navigation wiring', () => {
 	it('classifies an activation lookup failure before the tab privacy mode is known', async () => {
 		mocks.getTab.mockRejectedValue(new Error('Could not read https://private.example/target'));
 		vi.stubGlobal('defineBackground', (setup: () => void) => setup());
-		await import('@/entrypoints/background');
+		await import('../../entrypoints/background.ts');
 		expect(mocks.onActivated).toHaveBeenCalledOnce();
 		for (const [activate] of mocks.onActivated.mock.calls) activate({ tabId: 7, windowId: 3 });
 		await vi.waitFor(() => expect(mocks.debug).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
@@ -138,7 +138,7 @@ describe('background entrypoint navigation wiring', () => {
 			start();
 			return undefined;
 		});
-		await import('@/entrypoints/background');
+		await import('../../entrypoints/background.ts');
 
 		const activeTab = { id: firstDocument.tabId, windowId: firstDocument.windowId, active: true };
 		for (const [listener] of mocks.onUpdated.mock.calls) listener(activeTab.id, { status: 'complete' }, activeTab);
@@ -157,7 +157,7 @@ describe('background entrypoint navigation wiring', () => {
 	it('resumes both schedulers in degraded mode when startup reconciliation fails', async () => {
 		mocks.reconcileAnalysis.mockRejectedValueOnce(new Error('IndexedDB unavailable'));
 		vi.stubGlobal('defineBackground', (setup: () => void) => setup());
-		await import('@/entrypoints/background');
+		await import('../../entrypoints/background.ts');
 
 		await vi.waitFor(() => {
 			expect(mocks.resumeMatcher).toHaveBeenCalledOnce();

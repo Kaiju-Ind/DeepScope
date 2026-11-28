@@ -1,0 +1,25 @@
+# Overview
+
+Select cards only for the services the customer journey or experiment actually needs. The named providers and private
+packages belong to the opt-in [Kaiju profile](../profiles/kaiju.md), or to another project that independently uses the
+same service. Under the [generic profile](../profiles/generic.md), bind the readiness contract to the actual provider
+and runtime. Do not adopt this infrastructure to run an isolated product experiment.
+
+Follow [A01](../product/01-a01-start-from-the-product-question.md): test the smallest useful service claim directly,
+then verify it from the real consuming runtime and user action. Keep both receipts and their different scopes.
+
+Use these readiness cards during P01 intake and [P02 service checks](../procedures/README.md). Bind each action to the
+selected repository's supported command, API or administration control. These are proposed common procedures, not a
+claim that one universal Kaiju preflight command already implements them.
+
+A service is ready for a named journey, environment and execution identity. A credential's presence, a provider
+dashboard or a successful laptop request is insufficient. Record the test, expected result, observed result,
+source/configuration identity, timestamp, owner and non-secret evidence location in the
+[project record](../project/README.md). Mark a check passed, failed, blocked, not checked or not required. State what
+invalidates a previous pass.
+
+Perform platform setup once, repeat cheap identity and health checks per deployment, and rerun compatibility tests when
+relevant inputs change. P03 consumes this evidence for a usable preview. P04 rechecks production access and data safety.
+P05 owns recovery, P06 owns cleanup, P07 owns upgrades, and P08 evaluates whether the procedure actually works. No card
+authorizes a new production mutation, paid probe or external message by itself; use the authorization already
+established for the task.

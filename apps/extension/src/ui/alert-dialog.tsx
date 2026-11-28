@@ -3,12 +3,14 @@ import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 import type { Component, ComponentProps, ValidComponent } from "solid-js";
 import { mergeProps, splitProps } from "solid-js";
 
-import { cn } from "@/utils/cn";
-import { Button, type ButtonProps } from "@/ui/button";
-import { releaseBackgroundFocus } from "@/ui/modal-focus";
+import { cn } from "../utils/cn.ts";
+import { Button, type ButtonProps } from "./button.tsx";
+import { releaseBackgroundFocus } from "./modal-focus.ts";
 
+/** Keep alert-dialog state with the primitive while applying shared background-focus policy before caller notifications. */
 const AlertDialog: Component<AlertDialogPrimitive.AlertDialogRootProps> = (props) => {
   const [local, others] = splitProps(props, ["onOpenChange"]);
+  /** Release background focus for the new open state before forwarding the alert-dialog change. */
   const onOpenChange = (open: boolean) => {
     releaseBackgroundFocus(open);
     local.onOpenChange?.(open);
@@ -24,12 +26,14 @@ type AlertDialogTriggerProps<T extends ValidComponent = "button"> = PolymorphicP
   AlertDialogPrimitive.AlertDialogTriggerProps<T>
 >;
 
+/** Connect activation to the alert-dialog primitive without managing a separate open signal. */
 const AlertDialogTrigger = <T extends ValidComponent = "button">(
   props: AlertDialogTriggerProps<T>,
 ) => {
   return <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props} />;
 };
 
+/** Use the alert-dialog primitive's portal and lifecycle for modal content. */
 const AlertDialogPortal: Component<AlertDialogPrimitive.AlertDialogPortalProps> = (props) => {
   return <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />;
 };
@@ -40,6 +44,7 @@ type AlertDialogOverlayProps<T extends ValidComponent = "div"> = PolymorphicProp
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Style the alert-dialog backdrop while leaving modal interaction policy with the primitive. */
 const AlertDialogOverlay = <T extends ValidComponent = "div">(
   props: AlertDialogOverlayProps<T>,
 ) => {
@@ -59,6 +64,7 @@ type AlertDialogContentProps<T extends ValidComponent = "div"> = PolymorphicProp
 > &
   Pick<ComponentProps<T>, "class"> & { size?: "default" | "sm" };
 
+/** Portal the centered alert dialog with its overlay and standard size unless the caller selects another size. */
 const AlertDialogContent = <T extends ValidComponent = "div">(
   props: AlertDialogContentProps<T>,
 ) => {
@@ -82,6 +88,7 @@ const AlertDialogContent = <T extends ValidComponent = "div">(
 
 type AlertDialogHeaderProps = ComponentProps<"div">;
 
+/** Group the alert-dialog heading and explanation in the shared header slot. */
 const AlertDialogHeader = (props: AlertDialogHeaderProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -95,6 +102,7 @@ const AlertDialogHeader = (props: AlertDialogHeaderProps) => {
 
 type AlertDialogFooterProps = ComponentProps<"div">;
 
+/** Arrange confirmation and cancellation actions using the dialog size and available width. */
 const AlertDialogFooter = (props: AlertDialogFooterProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -111,6 +119,7 @@ const AlertDialogFooter = (props: AlertDialogFooterProps) => {
 
 type AlertDialogMediaProps = ComponentProps<"div">;
 
+/** Style optional alert media without deriving severity or choosing its icon. */
 const AlertDialogMedia = (props: AlertDialogMediaProps) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
@@ -128,6 +137,7 @@ type AlertDialogTitleProps<T extends ValidComponent = "h2"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Associate the title with the alert-dialog primitive's accessible name. */
 const AlertDialogTitle = <T extends ValidComponent = "h2">(props: AlertDialogTitleProps<T>) => {
   const [local, others] = splitProps(props as AlertDialogTitleProps, ["class"]);
   return (
@@ -145,6 +155,7 @@ type AlertDialogDescriptionProps<T extends ValidComponent = "p"> = PolymorphicPr
 > &
   Pick<ComponentProps<T>, "class">;
 
+/** Associate explanatory text with the alert-dialog primitive's accessible description. */
 const AlertDialogDescription = <T extends ValidComponent = "p">(
   props: AlertDialogDescriptionProps<T>,
 ) => {
@@ -164,6 +175,7 @@ type AlertDialogActionProps<T extends ValidComponent = "button"> = PolymorphicPr
 > &
   Pick<ButtonProps, "variant" | "size" | "class">;
 
+/** Use the standard button appearance for a primitive close action; the caller owns the confirmed operation and its errors. */
 const AlertDialogAction = <T extends ValidComponent = "button">(
   props: AlertDialogActionProps<T>,
 ) => {
@@ -175,6 +187,7 @@ const AlertDialogAction = <T extends ValidComponent = "button">(
     "variant",
     "size",
   ]);
+  /** Prefer an explicit accessible label and infer one only when the button's children are plain text. */
   const label = () => local["aria-label"] ?? (typeof local.children === "string" ? local.children : undefined);
   return (
     <AlertDialogPrimitive.CloseButton
@@ -197,6 +210,7 @@ type AlertDialogCancelProps<T extends ValidComponent = "button"> = PolymorphicPr
 > &
   Pick<ButtonProps, "variant" | "size" | "class">;
 
+/** Use the outline appearance for cancellation while letting the primitive perform dialog dismissal. */
 const AlertDialogCancel = <T extends ValidComponent = "button">(
   props: AlertDialogCancelProps<T>,
 ) => {
@@ -208,6 +222,7 @@ const AlertDialogCancel = <T extends ValidComponent = "button">(
     "variant",
     "size",
   ]);
+  /** Prefer an explicit accessible label and infer one only when the button's children are plain text. */
   const label = () => local["aria-label"] ?? (typeof local.children === "string" ? local.children : undefined);
   return (
     <AlertDialogPrimitive.CloseButton

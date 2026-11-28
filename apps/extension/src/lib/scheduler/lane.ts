@@ -1,4 +1,4 @@
-import { errorResponse, type ExtensionResult } from '@/lib/messaging/result';
+import { errorResponse, type ExtensionResult } from "../messaging/result.ts";
 
 /**
  * Longest one analysis may hold the lane.

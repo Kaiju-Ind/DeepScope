@@ -9,17 +9,11 @@ import { createMediaQuery } from '@solid-primitives/media';
 import { Link, useLocation } from '@tanstack/solid-router';
 import type { Component, JSX } from 'solid-js';
 import { For, Show, createSignal } from 'solid-js';
-import { browser } from 'wxt/browser';
+import { getVersion } from './browser/surface.ts';
 
-import { Badge } from '@/ui/badge';
-import {
-	Drawer,
-	DrawerContent,
-	DrawerDescription,
-	DrawerHeader,
-	DrawerTitle,
-} from '@/ui/drawer';
-import { Spinner } from '@/ui/spinner';
+import { Badge } from "../ui/badge.tsx";
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "../ui/drawer.tsx";
+import { Spinner } from "../ui/spinner.tsx";
 
 export type PanelShellPropsType = {
 	readonly children: JSX.Element;
@@ -31,9 +25,6 @@ export type PanelShellPropsType = {
 	 */
 	readonly onOpenPage?: () => void;
 };
-
-/** Extension version shown in the More drawer, read from the built manifest. */
-const extensionVersion = browser.runtime.getManifest().version;
 
 type NavigationItemType = {
 	readonly to: '/' | '/technologies' | '/history';
@@ -49,13 +40,17 @@ const primaryNavigation: readonly NavigationItemType[] = [
 
 /** Persistent chrome around routed side-panel pages. */
 export function PanelShell(props: PanelShellPropsType) {
+	/** The installed manifest is fixed for this mounted panel. */
+	const extensionVersion = getVersion();
 	const location = useLocation();
 	const touch = createMediaQuery('(pointer: coarse), (hover: none)');
 	const [moreOpen, setMoreOpen] = createSignal(false);
+	/** Keep the technologies navigation item active for technology-detail routes as well as the list route. */
 	const isActive = (to: NavigationItemType['to']) => {
 		if (to === '/technologies') return location().pathname === to || location().pathname.startsWith('/technology/');
 		return location().pathname === to;
 	};
+	/** Mark the secondary navigation group active while diagnostics or settings is selected. */
 	const moreActive = () => location().pathname === '/diagnostics' || location().pathname === '/settings';
 
 	return (

@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { AUTO_SCAN_WATCHDOG_MS, createAutoScanController } from '@/lib/autostart/controller';
-import type { AnalyzeVisibleTabInput, AnalyzeVisibleTabOutput, VisibleTabIdentity } from '@/lib/messaging';
-import { errorResponse, ok } from '@/lib/messaging/result';
+import { AUTO_SCAN_WATCHDOG_MS, createAutoScanController } from "../../lib/autostart/controller.ts";
+import type { AnalyzeVisibleTabInput, AnalyzeVisibleTabOutput, VisibleTabIdentity } from "../../lib/messaging/index.ts";
+import { errorResponse, ok } from "../../lib/messaging/result.ts";
 
 const VISIBLE_IDENTITY: VisibleTabIdentity = {
 	windowId: 3,

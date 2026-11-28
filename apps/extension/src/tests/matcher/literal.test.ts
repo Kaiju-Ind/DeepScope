@@ -1,12 +1,13 @@
 import { fc } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
 
-import { gatePattern } from '@/lib/detection/match/gate';
-import type { IndexedObservationRule, LiteralPrefilteredObservationRule } from '@/lib/detection/observation-matcher-index';
-import type { DetectionPatternType, TechnologyDefinition } from '@/lib/detection/types';
-import { technologyDefinitions } from '@/registry/technologies';
+import { gatePattern } from "@deepscope/detection/match/gate";
+import type { IndexedObservationRule, LiteralPrefilteredObservationRule } from "@deepscope/detection/matcher/routing/types";
+import type { DetectionPatternType } from "@deepscope/registry/rules";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
+import { technologyDefinitions } from "@deepscope/registry";
 
-import { loadShards } from '../support/shards';
+import { loadShards } from "../support/shards.ts";
 
 /**
  * Soundness of the literal prefilter.

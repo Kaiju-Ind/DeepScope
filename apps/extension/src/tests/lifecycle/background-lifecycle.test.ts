@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { DetectionSnapshotLifecycleStore } from '@/lib/persistence';
+import type { DetectionSnapshotLifecycleStore } from "../../lib/persistence/index.ts";
 
 type Listener<T extends readonly unknown[]> = (...args: T) => void;
 
@@ -36,7 +36,7 @@ async function loadLifecycleHarness() {
 	}));
 
 	return {
-		...(await import('@/lib/background/lifecycle')),
+		...(await import('../../lib/background/lifecycle.ts')),
 		onUpdated,
 		onRemoved,
 		onReplaced,

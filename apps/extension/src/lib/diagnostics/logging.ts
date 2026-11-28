@@ -9,9 +9,9 @@ import {
 	type Sink,
 } from '@logtape/logtape';
 
-import type { DiagnosticSurface } from './contracts';
-import { getDiagnosticBuildId } from './build';
-import { createDiagnosticJournalSink } from './journal';
+import type { DiagnosticSurface } from "./contracts.ts";
+import { getDiagnosticBuildId } from "./build.ts";
+import { createDiagnosticJournalSink } from "./journal/index.ts";
 
 /** Root category shared by every DeepScope execution surface. */
 export const category = ['kaiju', 'deepscope'] as const;

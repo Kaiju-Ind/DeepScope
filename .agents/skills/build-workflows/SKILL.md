@@ -1,6 +1,6 @@
 ---
 name: build-workflows
-description: Design, implement, migrate, review, diagnose, or verify durable workflows, workers, queues, scheduled jobs, timers, retries and resumable pipelines. Use for DeepScope's scan scheduler, the vendored `@utils/workflow` and IndexedDB queue and history stores, leases, checkpoints, idempotency, concurrency, batching, cancellation, replay, recovery after the background unloads, and private-tab memory-only work. Do not call an in-memory promise chain durable merely because it retries.
+description: Design, implement, migrate, review, diagnose, or verify durable workflows, workers, queues, scheduled jobs, timers, signals, retries, resumable pipelines, and multi-stage ingestion. Use for Temporal, Effect Workflow, control planes, leases, checkpoints, idempotency, concurrency, throttling, batching, singleton work, cancellation, replay, operator recovery, and cross-system reconciliation. Do not call an in-memory promise chain durable merely because it retries.
 ---
 
 # Build durable workflows and pipelines
@@ -38,18 +38,17 @@ rules by purpose; test-runner imports and trivial private fixtures are not
 public runtime APIs. If a companion is absent, use the bundled compact defaults
 and inspect local instructions rather than inventing unavailable guidance.
 
-If the reviewed workflow runs in an extension background, load
-`build-extensions` even for a read-only review: Chrome's service worker,
-Firefox's event page and Safari's background page unload on different terms,
-and only some of them can host a `Worker`.
+If the reviewed workflow is run or tested by Deno, load `deno-software` even
+for a read-only review of local control or replay. The execution environment is
+independent of whether a change to runtime configuration was requested.
 
 Durability is a recovery property, not a naming convention. Start from the state
 that must survive process loss, then design execution, queues, effects, leases,
 checkpoints, timers, signals, and operator recovery around that authority.
 
-`use-utils` owns the vendored store and workflow packages and their resync.
-`build-libraries` owns reusable restart/checkpoint contracts that do not
-themselves provide durable orchestration. the shared quality contract owns the
+`build-data` owns storage engines and artifact formats. `build-apis` owns public
+HTTP exposure. `build-libraries` owns reusable restart/checkpoint contracts that
+do not themselves provide durable orchestration. the shared quality contract owns the
 final completion verdict.
 
 ## Outcome
@@ -128,8 +127,8 @@ process, thread, browser context, async task, queue claim, or lease holder.
    work but do not survive process loss.
 2. **Choose the runtime from requirements.** Timers, long sleeps, signals,
    replay, throughput, latency, versioning, operational cost, deployment, and
-   browser constraints decide whether in-memory scheduling with re-collection,
-   the IndexedDB queue, or a `@utils/workflow` run with IndexedDB history fits. Do not select by familiarity.
+   language/runtime constraints decide whether Temporal, Effect Workflow, a
+   database control plane, or another owner fits. Do not select by familiarity.
 3. **Keep replay deterministic.** Orchestration code that may replay cannot read
    ambient time/random/network/filesystem/process state directly. Isolate
    nondeterministic I/O in activities/effects or recorded commands according to
@@ -194,18 +193,29 @@ A happy-path retry unit test does not prove durability.
 
 ## Reference routing
 
-- [utility-workflows.md](references/utility-workflows.md): Context/Task/
-  activity/history/dispatch model, DeepScope's IndexedDB and memory stores, and
-  the proof separating local replay from durable restart.
+- [utility-workflows.md](references/utility-workflows.md): current Context/Task/
+  activity/history/dispatch model and the proof separating local replay from
+  durable restart; use for current Core or standalone utility work.
 
 - [durability.md](references/durability.md): authority, engine selection,
   identities, determinism, completion, and durability classification.
+- [effect-workflow.md](references/effect-workflow.md): Effect services/Layers and
+  evidence-bounded `@effect/workflow` behavior, including placeholder warnings.
+- [temporal.md](references/temporal.md): Temporal clients, workflow code,
+  activities, execution processes, messages, schedules, retries, cancellation,
+  and deployment/versioning.
+- [control-plane.md](references/control-plane.md): definitions, registration,
+  admission, projections, runtime reachability, and API/CLI integration.
 - [atomicity.md](references/atomicity.md): transactions, outbox/inbox,
   idempotency, sequences, cross-system gaps, and reconciliation.
 - [workers.md](references/workers.md): queues, claims, leases/fencing, timers,
   waits, signals, schedules, backpressure, and poison work.
+- [pipelines.md](references/pipelines.md): staged ingestion, provenance,
+  bounded batches, checkpoints, manifests, sinks, and projections.
 - [recovery.md](references/recovery.md): restart/resume, lease expiry,
   reconciliation, replay, repair, and failpoint testing.
+- [streams.md](references/streams.md): event streams/SSE, cursor authority,
+  replay, retention, slow consumers, and cancellation.
 - [failures.md](references/failures.md): source-grounded failure signatures and
   recovery decisions.
 

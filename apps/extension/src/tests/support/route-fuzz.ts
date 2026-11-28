@@ -1,7 +1,7 @@
 import { fc } from '@fast-check/vitest';
 
-import { create } from '@/lib/dom/plan';
-import * as route from '@/lib/dom/route';
+import { create } from "@deepscope/dom/plan";
+import * as route from "@deepscope/dom/route";
 
 /**
  * Adversarial selector and document generators for DOM routing soundness.

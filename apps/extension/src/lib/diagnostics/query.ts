@@ -1,4 +1,4 @@
-import type { DiagnosticRecord, DiagnosticSurface } from './contracts';
+import type { DiagnosticRecord, DiagnosticSurface } from "./contracts.ts";
 
 /** Filters supported by the local diagnostic investigator. */
 export type QueryType = {

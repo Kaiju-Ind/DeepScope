@@ -5,10 +5,11 @@ import OctagonX from "~icons/fluent/dismiss-circle-24-regular";
 import TriangleAlert from "~icons/fluent/warning-24-regular";
 import type { Component, ComponentProps, JSX } from "solid-js";
 import { Toaster as Sonner } from "solid-sonner";
-import { useColorMode } from "@/ui/components/color-mode";
+import { useColorMode } from "./components/color-mode.tsx";
 
 type ToasterProps = ComponentProps<typeof Sonner>;
 
+/** Use the current color mode with local toast icons and top-center defaults, allowing caller props to override presentation. */
 const Toaster: Component<ToasterProps> = (props) => {
   const { colorMode } = useColorMode();
   return (

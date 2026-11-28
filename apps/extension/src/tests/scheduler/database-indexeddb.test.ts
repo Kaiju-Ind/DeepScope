@@ -2,9 +2,9 @@ import 'fake-indexeddb/auto';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import * as database from '@/lib/scheduler/database';
-import * as priority from '@/lib/scheduler/priority';
-import { EXECUTION_SCHEMA_VERSION, type AnalysisWorkType, type WorkPriorityType } from '@/lib/scheduler/schema';
+import * as database from '../../lib/scheduler/database.ts';
+import * as priority from '../../lib/scheduler/priority.ts';
+import { EXECUTION_SCHEMA_VERSION, type AnalysisWorkType, type WorkPriorityType } from "../../lib/scheduler/schema.ts";
 
 /**
  * These tests run the real `idb` transactions against fake-indexeddb, an

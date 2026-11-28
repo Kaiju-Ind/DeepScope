@@ -1,9 +1,10 @@
-import type { ContentPageSessionSnapshotTarget } from '@/lib/messaging/analysis';
+import type { ContentPageSessionSnapshotTarget } from "../../lib/messaging/analysis.ts";
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getContentSessionLifecycleKey, getDetectionSessionSnapshotKey } from '@/lib/storage/contracts';
-import { makeAnalysis, makeDetection, makeDetectionSessionSnapshot } from '../support/factories';
-import { createMockBrowserStorageArea } from '../support/mock-browser';
+import { getContentSessionLifecycleKey, getDetectionSessionSnapshotKey } from "../../lib/storage/contracts.ts";
+import { makeAnalysis, makeDetection } from "@deepscope/detection/testing/fixtures";
+import { makeDetectionSessionSnapshot } from "../support/factories.ts";
+import { createMockBrowserStorageArea } from "../support/mock-browser.ts";
 
 const SNAPSHOT_TARGET: ContentPageSessionSnapshotTarget = {
 	key: {
@@ -29,7 +30,7 @@ async function loadPageSessionSnapshotHarness(initialValues: Record<string, unkn
 	}));
 
 	return {
-		...(await import('@/lib/content/page-session-snapshots')),
+		...(await import('../../lib/content/page-session-snapshots.ts')),
 		storage,
 	};
 }

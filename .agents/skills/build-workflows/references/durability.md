@@ -2,7 +2,7 @@
 
 ## Snapshot scope (2026-10-14)
 
-Use the vendored `@utils/*` packages (`use-utils`) for utility contracts. Query parsing,
+Use the published Kaiju Utils packages (`use-kaiju-utils`) for utility contracts. Query parsing,
 local Task control, recorded workflow instructions, and durable external
 execution have distinct owners and guarantees. Inspect the selected package and
 adapter; apply transaction, authorization, and recovery criteria to the actual
@@ -56,20 +56,20 @@ Choose the authoritative source for each fact:
 - output artifacts.
 
 One system can own several facts, but do not call two independently mutable
-stores authoritative for the same fact. If the IndexedDB workflow history owns
-scan progress while `storage.local` holds the detection snapshot the panel
-reads, define how the snapshot is rebuilt and how disagreement is reconciled.
-If the queue claim and the history write live in one database, write them in
-one transaction; otherwise define the commit gap and recovery direction.
+stores authoritative for the same fact. If Temporal history owns workflow
+progress while PostgreSQL serves a product projection, define how the projection
+is rebuilt and how disagreement is reconciled. If PostgreSQL owns a custom
+control plane while `@effect/workflow` owns execution state, define the exact
+commit gaps and recovery direction.
 
 An authority map should look like:
 
 | Fact | Authority | Projection/cache | Rebuild/reconcile |
 |---|---|---|---|
-| Scan lifecycle | IndexedDB `workflow.history` | detection snapshot in extension storage | Re-collect the still-open document |
-| Detection result | detection snapshot revision | toolbar badge, panel state | Recompute badge from the latest revision |
-| Ready claim | IndexedDB `queue.items` row | background memory | Lease expiry, `abandon` after a restart |
-| Private-tab work | memory queue and history only | none | Lost on unload by design |
+| Run lifecycle | Temporal history | PostgreSQL `workflow_runs` | Scan/search attributes or event consumer |
+| Import records | PostgreSQL domain tables | ClickHouse analytics | Outbox/replay by domain revision |
+| Ready claim | PostgreSQL queue row | Worker memory | Lease expiry |
+| Artifact bytes | Object store | Manifest row | Hash/list/reconcile |
 
 ## Identity model
 
@@ -100,9 +100,12 @@ input is a conflict rather than accidental success.
 |---|---|---|
 | Synchronous request | Short work can complete within request and retry is client-owned | Cancellation, transaction, timeout |
 | Scheduled command | Periodic stateless/reconcilable task | Overlap, missed runs, lock, audit |
-| In-memory scheduler | Work that may be lost with the background (private tabs, matcher batches) | Re-collection on restart, no persistence |
-| `@utils/storage/queue/indexeddb` | Small control records that must survive a service-worker or event-page unload | Atomic claim, leases, fencing, `abandon` on restart |
-| `@utils/workflow` + IndexedDB history | Multi-step scans whose completed steps should not rerun after an unload | Fenced history writes, replay-safe effects, `forget` and pruning |
+| PostgreSQL job table | Moderate jobs, existing Postgres operations, simple timers | Atomic claim, leases, retry, poison, UI/API |
+| Broker queue | High delivery throughput and consumer decoupling | Durable state, dedupe, visibility/lease, replay |
+| Custom Postgres control plane + Effect | Product-specific admission/history with typed Effect execution | Engine persistence, atomic gaps, workers, recovery, operator surface |
+| `@effect/workflow` | Effect integration is valuable and exact alpha capabilities are verified | Version pin, production adapter proof, recovery/replay tests |
+| Temporal | Long-lived replay, durable timers/messages, mature worker/operator model | Temporal service/Cloud, deterministic code, deployment/version policy |
+| Data orchestrator | Data assets, partitions, lineage, scheduled/backfill semantics dominate | Domain workflow/message needs may not fit |
 
 Selection questions:
 
@@ -205,8 +208,11 @@ completed-with-warning only if the public contract names that state.
 
 ## Sources and freshness
 
-- `utils/README.md` (browser stores) and the browser-store design in
-  `docs/migration/cross-browser-runtime-plan.md`.
+- Temporal TypeScript documentation: https://docs.temporal.io/develop/typescript
+  (primary source, checked 2026-07-17).
+- Effect official site and monorepo: https://effect.website/ and
+  https://github.com/Effect-TS/effect (primary sources; Workflows currently
+  advertised as alpha).
 - Attachments, verified 2026-07-17: `evidence/app/product/utils/workflows/`
   and `evidence/app/better-auth/docs/workflows-mental-model.md` (observed,
   normative, experimental, and counterexample evidence explicitly separated).

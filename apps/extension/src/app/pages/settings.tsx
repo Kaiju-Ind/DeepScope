@@ -1,8 +1,8 @@
-import { useSettings } from '@/app/context';
-import { Button } from '@/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
-import { ButtonLink } from '@/ui/router-link';
-import { Switch } from '@/ui/switch';
+import { useSettings } from "../panel/context.ts";
+import { Button } from "../../ui/button.tsx";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../ui/card.tsx";
+import { ButtonLink } from "../../ui/router-link.tsx";
+import { Switch } from "../../ui/switch.tsx";
 
 /** Automatic scan, local storage, and privacy controls. */
 export function SettingsPage() {
@@ -68,6 +68,7 @@ export function SettingsPage() {
 	);
 }
 
+/** Present a caller-owned settings count with its label; this display does not query or mutate storage. */
 function SettingMetric(props: { readonly label: string; readonly value: number }) {
 	return (
 		<div class="rounded-lg border border-white/8 bg-white/[0.025] p-3">

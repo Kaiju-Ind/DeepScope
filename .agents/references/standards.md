@@ -2,8 +2,9 @@
 
 ## Purpose
 
-This reference collects the cross-project conventions that recur across Kaiju
-projects and that DeepScope (a WXT browser extension) applies. It exists so a task does not need to restate the same naming,
+This reference collects the cross-project conventions that now recur across
+Kaiju Platform, Kaiju Crawl, OPFS, MediaD, RDF/SPARQL, extension, and utility
+work. It exists so a task does not need to restate the same naming,
 documentation, schema, lifecycle, formatting, and verification rules.
 
 A project-specific requirement, current repository behavior, or explicit user
@@ -105,7 +106,7 @@ call site.
   `process`, `manager`, `helper`, `common`, `shared`, `misc`, `data`, `item`,
   `thing`, and `worker` when a more exact concept exists.
 - `worker` is valid only for the actual runtime concept, such as a Web Worker,
-  matcher `DedicatedWorker`, an extension service worker, or a queue worker. Otherwise name the real process, thread, page,
+  Deno Worker, or queue worker. Otherwise name the real process, thread, page,
   task, claim, lease, or operation.
 
 Prefer concrete verbs such as `get`, `create`, `open`, `save`, `inspect`,
@@ -127,11 +128,11 @@ Use namespace imports for coherent operation families when the namespace makes a
 short operation precise:
 
 ```ts
-import * as result from '@utils/result';
-import * as capacity from '@utils/scheduler/capacity';
+import * as csv from '@kaiju-ind/format/csv';
+import * as result from '@kaiju-ind/result';
 
-const admission = capacity.create({ workers: 2 });
-const parsed = result.ok(capacity.available(admission));
+const document = csv.parse('name\nSam\n', { headerRow: 1 });
+const parsed = result.ok(document);
 ```
 
 Prefer direct imports for schemas, schema-derived data types, individually
@@ -311,18 +312,21 @@ generated-file churn.
 
 Use repository placement to preserve ownership. The example below describes
 one application layout; it does not reserve `packages/` for domain code. The
-Kaiju Utils workspace owns generic mechanisms upstream; DeepScope vendors the
-ones it uses into `utils/` as `@utils/*` (resynced with `tools/utils/sync.ts`)
-so it never depends on a private package. Do not write a second local copy of a
-vendored capability.
+Kaiju-Ind/utils workspace owns generic mechanisms under `packages/*` and
+publishes them as `@kaiju-ind/*`; a repository consumes them, not a local copy.
 
 ```text
-utils/            @utils/* vendored generic programming models and primitives
-packages/         planned: @deepscope/{dom,registry,detection} capabilities
-                  (today: src/lib/*)
-registry          declarative technology definitions (today: src/registry/)
-apps/extension    planned: WXT entrypoints and panel composition
-                  (today: src/entrypoints/, src/app/)
+utils/
+  generic reusable programming models and primitives
+
+packages/
+  concrete capabilities, domain implementations, and provider integrations
+
+registry/
+  declarative definitions interpreted elsewhere
+
+clis/ and apps/
+  executable grammar, host adapters, dependency selection, and composition
 ```
 
 Do not fix a dependency cycle by creating `shared/`, `common/`, `misc/`, or an
@@ -396,19 +400,19 @@ completion, retries, writes, or disposal.
 These are strong defaults only where the repository or capability has selected
 that ecosystem. They are not reasons to add dependencies to unrelated projects.
 
-### Web APIs first
+### Deno and Web APIs
 
-Prefer the same production TypeScript source across supported browsers and
-extension contexts. Native web standards come before polyfills. When semantics
-are equivalent, prefer:
+Prefer the same production TypeScript source across supported runtimes. When
+semantics are equivalent, prefer:
 
-1. Web platform and WebExtension APIs (feature-detected, not browser-sniffed).
-2. `@std/*` packages already in the manifest.
-3. Existing focused utility programming models verified from the consumer's current exports; in DeepScope those are the vendored `@utils/*` packages in `utils/` (`use-utils`). DeepScope never depends on a private `@kaiju-ind/*` package.
+1. Web platform APIs.
+2. `@std/*` packages.
+3. Existing focused utility programming models verified from the consumer's current exports; Kaiju utility implementations are the published `@kaiju-ind/*` packages (`use-kaiju-utils`).
 4. Established focused third-party libraries.
 
-Keep Node-specific process, filesystem, and stdout/stderr behavior in build
-code, scripts and tests; nothing that ships in the extension may need it.
+Keep Deno-specific process, permission, filesystem, and stdout/stderr behavior
+behind adapters when a library is intended to work in Node, browsers, workers,
+or Bun too.
 
 ### LogTape
 
@@ -424,9 +428,13 @@ When LogTape is the repository logger:
 - give stable user-requested results, exports, and support bundles their own schema and exposure policy instead of blindly inheriting diagnostic-sink redaction;
 - use `@logtape/testing` for logger assertions where applicable;
 - keep durable record writers separate from transient diagnostic sinks;
-- keep reusable result and diagnostic writers runtime-neutral; do not bake `console` or `process.stdout` into a reusable contract; the extension's diagnostic journal is a sink, not a logger;
+- keep reusable result and diagnostic writers runtime-neutral when code can run outside Deno; do not bake `Deno.stdout` or `Deno.stderr` into a reusable CLI contract;
 - retain a project formatter that already communicates the domain well rather than replacing it with `@logtape/pretty` only for ecosystem conformity; treat the pretty package as a useful reference or fallback, not an automatic replacement;
 - in current LogTape 2.3.x, a plain `Sink` is synchronous; use `AsyncSink` with `fromAsyncSink()` when reusable output requires asynchronous I/O or backpressure, and close it through the asynchronous logging lifecycle.
+
+### Optique
+
+When Optique owns a CLI, let it own token grammar, choices, aliases, typo suggestions, help, completion, manuals, and parser-visible source composition. Use `@optique/logtape` when its logging grammar fits the repository instead of duplicating level, verbosity, destination, or format parsing in a second option system. Optique is project-selected rather than a universal runtime dependency; a project that deliberately owns a native parser keeps that parser authoritative.
 
 ### Unplugin and build-tool ecosystems
 
@@ -449,23 +457,25 @@ A green source-preview task does not prove a published package or deployment.
 
 A green type check is not completion.
 
-Use the repository's canonical gates. For DeepScope the complete
-changed-surface review can include:
+Use the repository's canonical gates. For the current Deno-first projects, the
+complete changed-surface review can include:
 
-- strict type checks (`mise run check`);
-- Vitest (`mise run test`: the `runtime`, `utils` and `ui` projects);
-- `mise run lint workflows` and `mise run lint firefox` where those surfaces change;
-- per-browser builds (`mise run build chrome|firefox|safari`) and the real-browser scenarios (`mise run verify firefox|safari`);
-- conformance and differential suites (the matcher golden test, selector routing properties, the queue conformance suite);
-- Vitest `bench` suites for performance claims;
-- builds, zips, byte-identical rebuilds, `SHA256SUMS` and clean installs;
+- formatting;
+- linting;
+- strict type checks;
+- `node:test` tests with `@std/expect` where that is the repository test model;
+- Deno runtime tests and permission checks where Deno behavior matters;
+- browser/worker/Node/Bun probes for claimed runtimes;
+- conformance and differential suites for parsers/protocols;
+- `mitata` or repository benchmark suites for performance claims;
+- builds, bundles, compiled artifacts, package tarballs, and clean consumers;
 - generated output and documentation validation;
 - runtime smoke tests and the actual user flow;
 - resource cleanup, cancellation, retry, recovery, and retained-memory checks
   when the change affects lifecycle.
 
-For registry or matcher work, test the representative data shape and volume
-(the full registry, large real pages), not only tiny fixtures. Keep benchmark correctness oracles and raw
+For large-scale data or crawler work, test the representative data shape and
+volume, not only tiny fixtures. Keep benchmark correctness oracles and raw
 samples when the benchmark can influence architecture.
 
 Report each check as `passed`, `failed`, `blocked`, or `not applicable`. Do not

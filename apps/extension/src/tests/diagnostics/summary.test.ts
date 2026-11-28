@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import * as summary from '@/lib/diagnostics/summary';
+import * as summary from '../../lib/diagnostics/summary.ts';
 
 describe('log summary', () => {
 	const details = { tabId: 7, hostname: 'example.com', status: '', sessionId: null, ids: ['a', 'b'], extra: 'hidden', missing: undefined };

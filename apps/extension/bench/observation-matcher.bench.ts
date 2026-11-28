@@ -1,14 +1,13 @@
 import { describe, test } from 'vitest';
 
-import type { DetectionRule, TechnologyDefinition } from '@/lib/detection/types';
-import { matchObservationBatch } from '@/lib/detection/observation-matcher';
-import {
-	createObservationMatcherIndex,
-	matchIndexedObservationBatch,
-} from '@/lib/detection/observation-matcher-index';
-import type { ObservationBatch } from '@/lib/observations';
-import { normalizePageSignals } from '@/lib/observations';
-import { makePageSignals } from '../src/tests/support/factories';
+import type { DetectionRule } from "@deepscope/registry/rules";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
+import { matchObservationBatch } from "@deepscope/detection/matcher/rule";
+import { createObservationMatcherIndex } from "@deepscope/detection/matcher/routing";
+import { matchIndexedObservationBatch } from "@deepscope/detection/matcher";
+import type { ObservationBatch } from "@deepscope/detection/observations";
+import { normalizePageSignals } from "@deepscope/detection/observations";
+import { makePageSignals } from "@deepscope/detection/testing/fixtures";
 
 /** Number of synthetic technologies used to approximate a large bundled registry. */
 const LARGE_REGISTRY_SIZE = 1_000;

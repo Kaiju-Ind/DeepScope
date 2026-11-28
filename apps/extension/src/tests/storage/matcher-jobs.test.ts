@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { MatcherJobRecord, MatcherJobStatus } from '@/lib/matcher';
-import { getMatcherJobCacheKey } from '@/lib/storage/contracts';
-import { createMockBrowserStorageArea } from '../support/mock-browser';
+import type { MatcherJobRecord, MatcherJobStatus } from "../../lib/matcher/index.ts";
+import { getMatcherJobCacheKey } from "../../lib/storage/contracts.ts";
+import { createMockBrowserStorageArea } from "../support/mock-browser.ts";
 
 /** A complete job whose URL makes an accidental private write observable. */
 function privateJob(status: MatcherJobStatus = 'queued'): MatcherJobRecord {
@@ -36,19 +36,19 @@ async function loadMatcherStore(initialValues: Record<string, unknown> = {}) {
 	const storage = createMockBrowserStorageArea(initialValues);
 	const cancel = vi.fn(async () => undefined);
 	vi.doMock('wxt/browser', () => ({ browser: { storage: { local: storage.local } } }));
-	vi.doMock('@/lib/matcher/offscreen', () => ({ cancel, cancelForRecovery: cancel }));
+	vi.doMock('../../lib/matcher/offscreen/index.ts', () => ({ cancel, cancelForRecovery: cancel }));
 	return {
 		storage,
 		cancel,
-		...(await import('@/lib/storage/matcher-jobs')),
-		...(await import('@/lib/persistence/browser')),
-		...(await import('@/lib/background/reconcile-matcher-jobs')),
+		...(await import('../../lib/storage/matcher-jobs.ts')),
+		...(await import('../../lib/persistence/browser.ts')),
+		...(await import('../../lib/background/reconcile-matcher-jobs.ts')),
 	};
 }
 
 afterEach(() => {
 	vi.doUnmock('wxt/browser');
-	vi.doUnmock('@/lib/matcher/offscreen');
+	vi.doUnmock('../../lib/matcher/offscreen/index.ts');
 	vi.restoreAllMocks();
 	vi.resetModules();
 });

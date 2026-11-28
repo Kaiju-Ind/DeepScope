@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AnalyzeVisibleTabInput, AnalyzeVisibleTabOutput } from '@/lib/messaging/analysis';
-import {
-	SNAPSHOT_REUSE_STATUSES,
-	ANALYSIS_MODES,
-	OBSERVATION_MODES,
-} from '@/lib/messaging/analysis';
+import type { AnalyzeVisibleTabInput, AnalyzeVisibleTabOutput } from "../../lib/messaging/analysis.ts";
+import { SNAPSHOT_REUSE_STATUSES, ANALYSIS_MODES, OBSERVATION_MODES } from "../../lib/messaging/analysis.ts";
 
 describe('visible-tab analysis contract', () => {
 	it('defines request modes and side-panel observation values', () => {

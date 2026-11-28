@@ -36,8 +36,8 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('wxt/browser', () => ({ browser: mocks.browser }));
 vi.mock('comctx', () => ({ defineProxy: () => [vi.fn(), vi.fn()] }));
-vi.mock('@/lib/background/reconcile-matcher-jobs', () => ({ reconcileInterruptedMatcherJobs: vi.fn(async () => []) }));
-vi.mock('@/lib/scheduler/analysis', () => ({
+vi.mock('../../lib/background/reconcile-matcher-jobs.ts', () => ({ reconcileInterruptedMatcherJobs: vi.fn(async () => []) }));
+vi.mock('../../lib/scheduler/analysis.ts', () => ({
 	create: () => ({
 		analyze: vi.fn(async () => ({ ok: true, value: {} })),
 		activateTab: vi.fn(async () => undefined),
@@ -47,23 +47,23 @@ vi.mock('@/lib/scheduler/analysis', () => ({
 		resume: vi.fn(),
 	}),
 }));
-vi.mock('@/lib/scheduler/matcher', () => ({
+vi.mock('../../lib/scheduler/matcher/index.ts', () => ({
 	create: () => ({ activateTab: vi.fn(async () => undefined), reconcile: vi.fn(async () => []), resume: vi.fn() }),
 }));
-vi.mock('@/lib/autostart/controller', () => ({
+vi.mock('../../lib/autostart/controller.ts', () => ({
 	createAutoScanController: () => ({
 		onTabNavigation: mocks.record('autoscan.onTabNavigation'),
 		onTabRemoved: mocks.record('autoscan.onTabRemoved'),
 		scanVisibleTab: vi.fn(async () => undefined),
 	}),
 }));
-vi.mock('@/lib/background/badge', () => ({
+vi.mock('../../lib/background/badge.ts', () => ({
 	badgeText: () => '',
 	createBadgeWriter: () => ({ set: vi.fn(async () => undefined), clear: vi.fn(async () => undefined), forget: mocks.record('badges.forget') }),
 }));
-vi.mock('@/lib/registry/packaged-runtime', () => ({ createPackagedRuntimeTechnologyRegistryProvider: () => ({}) }));
-vi.mock('@/lib/autostart/settings', () => ({ getAutoScanEnabled: async () => true }));
-vi.mock('@/lib/background/runtime', () => ({
+vi.mock('../../lib/registry/runtime.ts', () => ({ createPackagedRuntimeTechnologyRegistryProvider: () => ({}) }));
+vi.mock('../../lib/autostart/settings.ts', () => ({ getAutoScanEnabled: async () => true }));
+vi.mock('../../lib/background/runtime/index.ts', () => ({
 	createBackgroundRuntime: () => ({
 		api: { getVisibleTabIdentity: vi.fn(), analyzeVisibleTab: vi.fn() },
 		onTabNavigation: mocks.record('runtime.onTabNavigation'),
@@ -73,16 +73,16 @@ vi.mock('@/lib/background/runtime', () => ({
 		handleRuntimeMessage: vi.fn(),
 	}),
 }));
-vi.mock('@/lib/collectors/extension-page-collector', () => ({ collectExtensionObservationBatch: vi.fn() }));
-vi.mock('@/lib/diagnostics/crash', () => ({ installDiagnosticCrashHooks: vi.fn() }));
-vi.mock('@/lib/diagnostics/logging', () => ({ configure: vi.fn(), get: () => ({ debug: vi.fn(), info: vi.fn() }) }));
-vi.mock('@/lib/diagnostics/journal', () => ({ isDiagnosticTransportMessage: vi.fn(), persistTransportedDiagnosticMessage: vi.fn() }));
-vi.mock('@/lib/matcher/workers/local', () => ({ canRunWorkersLocally: () => false }));
-vi.mock('@/lib/matcher/offscreen', () => ({
+vi.mock('../../lib/collectors/extension-page-collector.ts', () => ({ collectExtensionObservationBatch: vi.fn() }));
+vi.mock('../../lib/diagnostics/crash.ts', () => ({ installDiagnosticCrashHooks: vi.fn() }));
+vi.mock('../../lib/diagnostics/logging.ts', () => ({ configure: vi.fn(), get: () => ({ debug: vi.fn(), info: vi.fn() }) }));
+vi.mock('../../lib/diagnostics/journal/index.ts', () => ({ isDiagnosticTransportMessage: vi.fn(), persistTransportedDiagnosticMessage: vi.fn() }));
+vi.mock('../../lib/matcher/workers/local.ts', () => ({ canRunWorkersLocally: () => false }));
+vi.mock('../../lib/matcher/offscreen/index.ts', () => ({
 	start: vi.fn(), capacity: 2, cancel: vi.fn(), cancelForRecovery: vi.fn(async () => undefined), cancelTab: vi.fn(),
 	runPartition: vi.fn(), touchLifecycle: vi.fn(), releaseLifecycle: vi.fn(),
 }));
-vi.mock('@/lib/persistence', () => ({
+vi.mock('../../lib/persistence/index.ts', () => ({
 	browserDetectionPersistence: {},
 	browserDetectionSnapshotStore: {
 		markTabSnapshots: vi.fn(async (tabId: number, status: string) => {
@@ -100,7 +100,7 @@ async function start(): Promise<string[]> {
 		main();
 		registeredOnFirstTick = [...mocks.listeners.keys()].sort();
 	});
-	await import('@/entrypoints/background');
+	await import('../../entrypoints/background.ts');
 	return registeredOnFirstTick;
 }
 

@@ -6,5 +6,5 @@
  * files; jiti transforms them one at a time, which took about 19 seconds on a
  * fresh machine, while a single Rolldown pass takes about one second.
  */
-export { technologies } from '../src/registry/technologies';
-export { compileTechnologyRegistry } from '../src/lib/registry/compiler';
+export { technologies } from "@deepscope/registry";
+export { compileTechnologyRegistry } from "@deepscope/detection/compiler";

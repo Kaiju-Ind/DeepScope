@@ -10,7 +10,7 @@ import {
 } from "@kobalte/core/radio-group";
 import { type ComponentProps, splitProps, type ValidComponent } from "solid-js";
 
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type RadioGroupProps<T extends ValidComponent = "div"> = PolymorphicProps<
   T,
@@ -18,6 +18,7 @@ type RadioGroupProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Style a selection group while preserving the primitive's value, keyboard and form ownership. */
 const RadioGroup = <T extends ValidComponent = "div">(props: RadioGroupProps<T>) => {
   const [local, others] = splitProps(props as RadioGroupProps, ["class"]);
   return (
@@ -35,6 +36,7 @@ type RadioGroupItemProps<T extends ValidComponent = "div"> = PolymorphicProps<
 > &
   Pick<ComponentProps<T>, "class" | "children">;
 
+/** Compose one radio input and visual indicator, forwarding its value and disabled policy to the item primitive. */
 const RadioGroupItem = <T extends ValidComponent = "div">(props: RadioGroupItemProps<T>) => {
   const [local, others] = splitProps(props as RadioGroupItemProps, ["class", "id"]);
   return (

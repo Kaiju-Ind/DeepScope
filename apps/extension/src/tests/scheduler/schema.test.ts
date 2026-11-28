@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AnalysisWorkSchema, EXECUTION_SCHEMA_VERSION, MatcherWorkSchema } from '@/lib/scheduler/schema';
+import { AnalysisWorkSchema, EXECUTION_SCHEMA_VERSION, MatcherWorkSchema } from "../../lib/scheduler/schema.ts";
 
 const common = {
 	schemaVersion: EXECUTION_SCHEMA_VERSION,

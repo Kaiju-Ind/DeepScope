@@ -1,8 +1,8 @@
 import { Show } from 'solid-js';
 
-import type { AnalysisActivity } from '@/app/model';
-import { Progress } from '@/ui/progress';
-import { Spinner } from '@/ui/spinner';
+import type { AnalysisActivity } from "../model/matcher.ts";
+import { Progress } from "../../ui/progress.tsx";
+import { Spinner } from "../../ui/spinner.tsx";
 
 /** Visible analysis activity with determinate matcher progress when available. */
 export function AnalysisProgress(props: { readonly activity: AnalysisActivity }) {
@@ -31,10 +31,12 @@ export function AnalysisProgress(props: { readonly activity: AnalysisActivity })
 	);
 }
 
+/** Use a measured percentage only for determinate work; indeterminate activity starts at zero for the progress primitive. */
 function getProgressPercent(activity: AnalysisActivity): number {
 	return activity.progress.kind === 'determinate' ? activity.progress.percent : 0;
 }
 
+/** Show completed and total counts only when the activity provides a determinate work estimate. */
 function getProgressLabel(activity: AnalysisActivity): string {
 	return activity.progress.kind === 'determinate'
 		? `${activity.progress.completed}/${activity.progress.total}`

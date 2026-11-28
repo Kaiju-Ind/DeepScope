@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createCompiledDetectionGraph } from '@/lib/detection/registry-graph';
-import type { AnalyzeVisibleTabInput } from '@/lib/messaging/analysis';
-import type { RunMatcherJobRequest } from '@/lib/matcher/contracts';
-import { normalizePageSignals } from '@/lib/observations';
-import { makePageSignals } from '../support/factories';
-import { settle } from '../support/settle';
+import { createCompiledDetectionGraph } from "@deepscope/detection/registry/graph";
+import type { AnalyzeVisibleTabInput } from "../../lib/messaging/analysis.ts";
+import type { RunMatcherJobRequest } from "../../lib/matcher/contracts.ts";
+import { normalizePageSignals } from "@deepscope/detection/observations";
+import { makePageSignals } from "@deepscope/detection/testing/fixtures";
+import { settle } from "../support/settle.ts";
 
 function analysisInput(): AnalyzeVisibleTabInput {
 	return {
@@ -37,8 +37,8 @@ function matcherRequest(): RunMatcherJobRequest {
 
 
 afterEach(() => {
-	vi.doUnmock('@/lib/scheduler/database');
-	vi.doUnmock('@/lib/scheduler/session');
+	vi.doUnmock('../../lib/scheduler/database.ts');
+	vi.doUnmock('../../lib/scheduler/session.ts');
 	vi.resetModules();
 });
 
@@ -47,7 +47,7 @@ describe('tab cleanup admission fence', { concurrent: false }, () => {
 		let releaseCleanup!: () => void;
 		const removeTabKind = vi.fn(() => new Promise<readonly unknown[]>((resolve) => { releaseCleanup = () => resolve([]); }));
 		const admitAnalysis = vi.fn(async (work: unknown) => ({ accepted: true, created: true, work }));
-		vi.doMock('@/lib/scheduler/database', () => ({
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
 			admitAnalysis,
 			claim: vi.fn(async () => undefined),
 			recoverClaims: vi.fn(async () => []),
@@ -58,12 +58,12 @@ describe('tab cleanup admission fence', { concurrent: false }, () => {
 			reprioritizeWindow: vi.fn(async () => 0),
 			setPriority: vi.fn(async () => true),
 		}));
-		vi.doMock('@/lib/scheduler/session', () => ({
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
 			createId: vi.fn(() => 'analysis-owner'),
 			get: vi.fn(async () => 'browser-session-1'),
 		}));
 
-		const analysis = await import('@/lib/scheduler/analysis');
+		const analysis = await import('../../lib/scheduler/analysis.ts');
 		const scheduler = analysis.create({ resolveTarget: vi.fn(), analyze: vi.fn() });
 		const cleanup = scheduler.cancelTab(7);
 		await settle();
@@ -80,7 +80,7 @@ describe('tab cleanup admission fence', { concurrent: false }, () => {
 		let releaseCleanup!: () => void;
 		const removeTabKind = vi.fn(() => new Promise<readonly unknown[]>((resolve) => { releaseCleanup = () => resolve([]); }));
 		const save = vi.fn(async () => undefined);
-		vi.doMock('@/lib/scheduler/database', () => ({
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
 			claimId: vi.fn(async () => undefined),
 			listKind: vi.fn(async () => []),
 			remove: vi.fn(async () => undefined),
@@ -90,12 +90,12 @@ describe('tab cleanup admission fence', { concurrent: false }, () => {
 			save,
 			setPriority: vi.fn(async () => true),
 		}));
-		vi.doMock('@/lib/scheduler/session', () => ({
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
 			createId: vi.fn(() => 'matcher-owner'),
 			get: vi.fn(async () => 'browser-session-1'),
 		}));
 
-		const matcher = await import('@/lib/scheduler/matcher');
+		const matcher = await import('../../lib/scheduler/matcher/index.ts');
 		const scheduler = matcher.create({
 			kind: 'offscreen-worker-pool',
 			capacity: 1,

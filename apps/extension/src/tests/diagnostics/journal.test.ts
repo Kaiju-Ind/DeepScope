@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { DIAGNOSTIC_TRANSPORT_CHANNEL } from '@/lib/diagnostics/contracts';
-import { createDiagnosticJournalSink, getDiagnosticRecords } from '@/lib/diagnostics/journal';
+import { DIAGNOSTIC_TRANSPORT_CHANNEL } from "../../lib/diagnostics/contracts.ts";
+import { createDiagnosticJournalSink, startDiagnosticJournal } from "../../lib/diagnostics/journal/index.ts";
+import { getDiagnosticRecords } from "../../lib/diagnostics/journal/read.ts";
 
 const JOURNAL_STATE_KEY = '__kaijuDeepScopeDiagnosticJournalV3';
 
@@ -44,6 +45,29 @@ afterEach(() => {
 });
 
 describe('diagnostic journal', () => {
+	it('continues an existing dotted-category rate bucket when a sink is recreated', async () => {
+		vi.useFakeTimers();
+		installStorage();
+		const journal = startDiagnosticJournal('background')!;
+		// Existing journals survive same-build reinjection, including their category keys.
+		const key = 'debug|kaiju-deepscope.background.matcher|matcher-partition-complete|matcher partition complete';
+		journal.rateBuckets.set(key, {
+			key,
+			windowStart: makeRecord(0).timestamp,
+			accepted: 20,
+			suppressed: 0,
+		});
+		const sink = createDiagnosticJournalSink('background');
+
+		sink(makeRecord(1));
+
+		expect(journal.rateBuckets.size).toBe(1);
+		expect(journal.rateBuckets.get(key)?.suppressed).toBe(1);
+		const records = await getDiagnosticRecords(100);
+		expect(records).toHaveLength(1);
+		expect(records[0]).toMatchObject({ repeatCount: 1, properties: { acceptedCount: 20, suppressedCount: 1 } });
+	});
+
 	it('compacts high-volume successful records without rate-dropping the diagnostic fact', async () => {
 		vi.useFakeTimers();
 		installStorage();

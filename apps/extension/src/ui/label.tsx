@@ -1,9 +1,10 @@
 import type { ComponentProps } from "solid-js";
 import { splitProps } from "solid-js";
-import { cn } from "@/utils/cn";
+import { cn } from "../utils/cn.ts";
 
 type LabelProps = ComponentProps<"label">;
 
+/** Style a native label and forward its control association; the caller supplies the matching control ID. */
 const Label = (props: LabelProps) => {
   const [local, others] = splitProps(props, ["class"]);
 

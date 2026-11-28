@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { MatcherPartitionExecutor } from '@/lib/scheduler/matcher';
-import { EXECUTION_SCHEMA_VERSION } from '@/lib/scheduler/schema';
-import { createDetectionStorageHash } from '@/lib/storage/contracts';
+import type { MatcherPartitionExecutor } from "../../lib/scheduler/matcher/types.ts";
+import { EXECUTION_SCHEMA_VERSION } from "../../lib/scheduler/schema.ts";
+import { createDetectionStorageHash } from "../../lib/storage/contracts.ts";
 
 const sessionId = 'browser-session-1';
 
@@ -39,7 +39,7 @@ async function loadHarness(records: readonly ReturnType<typeof matcherWork>[]) {
 	const cancelTab = vi.fn(async () => undefined);
 	const log = vi.fn();
 
-	vi.doMock('@/lib/scheduler/database', () => ({
+	vi.doMock('../../lib/scheduler/database.ts', () => ({
 		claimId: vi.fn(),
 		listKind,
 		remove,
@@ -49,12 +49,12 @@ async function loadHarness(records: readonly ReturnType<typeof matcherWork>[]) {
 		save: vi.fn(),
 		setPriority: vi.fn(),
 	}));
-	vi.doMock('@/lib/scheduler/session', () => ({
+	vi.doMock('../../lib/scheduler/session.ts', () => ({
 		createId: vi.fn(() => 'matcher-scheduler-owner'),
 		get: vi.fn(async () => sessionId),
 	}));
 
-	const matcher = await import('@/lib/scheduler/matcher');
+	const matcher = await import('../../lib/scheduler/matcher/index.ts');
 	const executor = {
 		kind: 'offscreen-worker-pool',
 		capacity: 2,
@@ -69,8 +69,8 @@ async function loadHarness(records: readonly ReturnType<typeof matcherWork>[]) {
 }
 
 afterEach(() => {
-	vi.doUnmock('@/lib/scheduler/database');
-	vi.doUnmock('@/lib/scheduler/session');
+	vi.doUnmock('../../lib/scheduler/database.ts');
+	vi.doUnmock('../../lib/scheduler/session.ts');
 	vi.resetModules();
 });
 

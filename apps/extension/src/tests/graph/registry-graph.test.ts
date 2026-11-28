@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	createCompiledDetectionRegistry,
-	listRegistryRelationshipTargets,
-} from '@/lib/detection/registry-graph';
-import type { TechnologyDefinition } from '@/lib/detection/types';
+import { createCompiledDetectionRegistry, listRegistryRelationshipTargets } from "@deepscope/detection/registry/graph";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
 
 function technology(input: Partial<TechnologyDefinition> & Pick<TechnologyDefinition, 'id'>): TechnologyDefinition {
 	return {

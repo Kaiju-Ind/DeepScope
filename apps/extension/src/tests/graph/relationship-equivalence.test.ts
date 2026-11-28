@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { analyzeSite } from '@/lib/detection/engine';
-import type { PageSignals, TechnologyDefinition } from '@/lib/detection/types';
+import { analyzeSite } from "@deepscope/detection/engine";
+import type { PageSignals } from "@deepscope/detection/types";
+import type { TechnologyDefinition } from "@deepscope/registry/types";
 
 function createSignals(overrides: Partial<PageSignals> = {}): PageSignals {
 	return {

@@ -207,6 +207,13 @@
 		}
 	}
 
+	/* A composed control owns decoration and focus when its native input is bare. */
+	.z-input-bare {
+		height: var(--z-density-input-height);
+		font-size: var(--z-density-text-input);
+		@apply rounded-none border-0 bg-transparent px-0 text-white shadow-none placeholder:text-white/42 hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50;
+	}
+
 	/* MARK: Input Group */
 	.z-input-group {
 		min-height: var(--z-density-input-height);

@@ -1,5 +1,5 @@
 {
-  "$comment": "Strict options shared by every workspace project. apps/extension layers WXT's generated config on top; utils/ and tools/ use these alone.",
+  "$comment": "Strict options shared by every workspace project. apps/extension layers WXT's generated config on top; packages/, tools/* and utils/ use these alone.",
   "compilerOptions": {
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "target": "ESNext",
