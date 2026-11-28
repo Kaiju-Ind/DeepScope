@@ -132,7 +132,7 @@ Chrome tabs.onActivated
 
 Side-panel visibility is not part of the automatic scan ownership rule. Automatic scanning never creates a live content observation session. The live observer is reserved for explicit panel-open or Refresh work.
 
-A content observation stop names the exact `sessionId` and expected document URL. The content runtime validates both values immediately before disconnecting observers. This makes the stop operation atomic inside the content runtime: a delayed stop from tab A or an older session cannot terminate a newer session that reused the same tab id. Background tab activation also cancels matcher work and requests a targeted stop for observation sessions that belong to the previously active tab in that window.
+A content observation stop names the exact `sessionId` and expected document URL. The content runtime validates both values immediately before disconnecting observers. This makes the stop operation atomic inside the content runtime: a delayed stop from tab A or an older session cannot terminate a newer session that reused the same tab id. Background tab activation does not cancel matcher work or stop observation in the previously active tab; it only raises the priority of the newly active tab's scheduled work. Navigation, tab closure and tab replacement are what cancel a document's work.
 
 ## Message timeline: late WordPress/plugin evidence
 

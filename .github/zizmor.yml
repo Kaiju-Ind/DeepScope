@@ -1,0 +1,7 @@
+# zizmor configuration (https://docs.zizmor.sh/configuration/).
+rules:
+  # GitHub's `uses: $/...` self-repository syntax is preferred by zizmor, but
+  # actionlint 1.7.12 rejects it. Re-enable once actionlint accepts it, then
+  # switch the `./.github/actions/setup` references.
+  self-repository:
+    disable: true

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Lint GitHub workflows with actionlint and audit them with zizmor"
+#MISE tools={actionlint="1.7.12", shellcheck="0.11.0", zizmor="1.32.0"}
+set -euo pipefail
+# Require the pinned integration instead of depending on the host's PATH.
+shellcheck_bin=$(command -v shellcheck)
+actionlint -shellcheck "$shellcheck_bin"
+# Offline audit: no GitHub API calls, so it needs no token.
+exec zizmor --offline .github

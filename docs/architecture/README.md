@@ -6,6 +6,7 @@ Start with the overview when you need the runtime map, then use the workflow or 
 
 | Document | Use it when |
 | --- | --- |
+| [`source-layout.md`](source-layout.md) | You need current full paths, state owners, package exports or native tool ownership. |
 | [`overview.md`](overview.md) | You need the current event runtime map, collector flow, refresh behavior, or remaining architecture work. |
 | [`verification-workflow.md`](verification-workflow.md) | You need to decide which commands, targeted tests, or manual Chrome checks belong on a patch or pull request. |
 | [`side-panel-composition.md`](side-panel-composition.md) | You are changing side-panel browser ownership, page composition, shared state, routing, or the current named visual regions. |

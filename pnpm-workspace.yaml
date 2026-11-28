@@ -1,3 +1,20 @@
+# apps/* owns browser adapters; packages/* owns reusable capabilities.
+# utils/* contains vendored Kaiju Utils; see utils/README.md.
+packages:
+  - apps/*
+  - packages/*
+  - tools/*
+  - utils/*
+
 allowBuilds:
   esbuild: true
   spawn-sync: false
+
+overrides:
+  # GHSA-g3hv-75wg-m249 (minimatch < 11.0.1). minimatch is reached only through
+  # shadcn's CLI (shadcn > ts-morph > @ts-morph/common), a build-time tool;
+  # @ts-morph/common calls only `minimatch(path, pattern)`, unchanged in 11.
+  '@ts-morph/common>minimatch': ^11.0.1
+
+patchedDependencies:
+  comctx@1.7.7: patches/comctx@1.7.7.patch

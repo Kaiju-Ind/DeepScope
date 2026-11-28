@@ -1,0 +1,119 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { createCompiledDetectionGraph } from "@deepscope/detection/registry/graph";
+import type { AnalyzeVisibleTabInput } from "../../lib/messaging/analysis.ts";
+import type { RunMatcherJobRequest } from "../../lib/matcher/contracts.ts";
+import { normalizePageSignals } from "@deepscope/detection/observations";
+import { makePageSignals } from "@deepscope/detection/testing/fixtures";
+import { settle } from "../support/settle.ts";
+
+function analysisInput(): AnalyzeVisibleTabInput {
+	return {
+		target: {
+			windowId: 1,
+			tabId: 7,
+			frameId: 0,
+			url: 'https://example.com/new',
+			hostname: 'example.com',
+			originHash: 'origin',
+			urlHash: 'new-document',
+			incognito: false,
+		},
+		mode: 'refresh',
+		observe: 'none',
+	};
+}
+
+function matcherRequest(): RunMatcherJobRequest {
+	const batch = normalizePageSignals(makePageSignals({ url: 'https://example.com/new' }));
+	return {
+		job: { jobId: 'new-matcher', tabId: 7, windowId: 1, expectedUrl: batch.target.url },
+		mode: 'complete',
+		batch,
+		registry: [],
+		relationshipGraph: createCompiledDetectionGraph([], []),
+	};
+}
+
+
+afterEach(() => {
+	vi.doUnmock('../../lib/scheduler/database.ts');
+	vi.doUnmock('../../lib/scheduler/session.ts');
+	vi.resetModules();
+});
+
+describe('tab cleanup admission fence', { concurrent: false }, () => {
+	it('does not admit a new analysis document until old tab cleanup settles', async () => {
+		let releaseCleanup!: () => void;
+		const removeTabKind = vi.fn(() => new Promise<readonly unknown[]>((resolve) => { releaseCleanup = () => resolve([]); }));
+		const admitAnalysis = vi.fn(async (work: unknown) => ({ accepted: true, created: true, work }));
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
+			admitAnalysis,
+			claim: vi.fn(async () => undefined),
+			recoverClaims: vi.fn(async () => []),
+			remove: vi.fn(async () => undefined),
+			removeClaim: vi.fn(async () => true),
+			removeOtherSessions: vi.fn(async () => 0),
+			removeTabKind,
+			reprioritizeWindow: vi.fn(async () => 0),
+			setPriority: vi.fn(async () => true),
+		}));
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
+			createId: vi.fn(() => 'analysis-owner'),
+			get: vi.fn(async () => 'browser-session-1'),
+		}));
+
+		const analysis = await import('../../lib/scheduler/analysis.ts');
+		const scheduler = analysis.create({ resolveTarget: vi.fn(), analyze: vi.fn() });
+		const cleanup = scheduler.cancelTab(7);
+		await settle();
+		const admission = scheduler.analyze(analysisInput());
+		await settle();
+		expect(admitAnalysis).not.toHaveBeenCalled();
+		releaseCleanup();
+		await cleanup;
+		await vi.waitFor(() => expect(admitAnalysis).toHaveBeenCalledOnce());
+		void admission;
+	});
+
+	it('does not persist a new matcher document until old tab cleanup settles', async () => {
+		let releaseCleanup!: () => void;
+		const removeTabKind = vi.fn(() => new Promise<readonly unknown[]>((resolve) => { releaseCleanup = () => resolve([]); }));
+		const save = vi.fn(async () => undefined);
+		vi.doMock('../../lib/scheduler/database.ts', () => ({
+			claimId: vi.fn(async () => undefined),
+			listKind: vi.fn(async () => []),
+			remove: vi.fn(async () => undefined),
+			removeOtherSessions: vi.fn(async () => 0),
+			removeTabKind,
+			reprioritizeWindow: vi.fn(async () => 0),
+			save,
+			setPriority: vi.fn(async () => true),
+		}));
+		vi.doMock('../../lib/scheduler/session.ts', () => ({
+			createId: vi.fn(() => 'matcher-owner'),
+			get: vi.fn(async () => 'browser-session-1'),
+		}));
+
+		const matcher = await import('../../lib/scheduler/matcher/index.ts');
+		const scheduler = matcher.create({
+			kind: 'offscreen-worker-pool',
+			capacity: 1,
+			runPartition: vi.fn(),
+			cancelJob: vi.fn(async () => undefined),
+			cancelTab: vi.fn(async () => undefined),
+			touchLifecycle: vi.fn(async () => undefined),
+			releaseLifecycle: vi.fn(async () => undefined),
+		});
+		const cleanup = scheduler.cancelTab(7, 'navigation');
+		await settle();
+		const admission = scheduler.runJob(matcherRequest());
+		await settle();
+		expect(save).not.toHaveBeenCalled();
+		releaseCleanup();
+		await cleanup;
+		await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
+		await scheduler.cancelJob('new-matcher');
+		await expect(admission).rejects.toMatchObject({ reason: 'canceled' });
+	});
+});

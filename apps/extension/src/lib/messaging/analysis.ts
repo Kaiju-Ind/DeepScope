@@ -1,0 +1,290 @@
+import type { CollectPageSignalsInput } from '@deepscope/detection/collection/input';
+import type * as observe from '../content/observe/index.ts';
+import type { DetectionEvidenceState, DetectionSessionKey } from "../storage/session.ts";
+import type { AnalysisStatus, SiteAnalysis } from "@deepscope/detection/types";
+import type { DetectionReplayTrace } from "@deepscope/detection/pipeline";
+import type { DomPlanType } from "@deepscope/dom";
+import type { ObservationBatch, ObservationBatchControllerStats } from "@deepscope/detection/observations";
+import type { ExtensionResult } from "./result.ts";
+
+/**
+ * Analysis modes accepted by the side-panel-to-background request.
+ *
+ * `snapshot-first` lets the background return a stored `SiteAnalysis` for the
+ * active origin. `refresh` skips that lookup and collects the page again.
+ */
+export const ANALYSIS_MODES = ['snapshot-first', 'refresh'] as const;
+
+/** Request mode for visible-tab analysis. */
+export type AnalyzeVisibleTabMode = typeof ANALYSIS_MODES[number];
+
+/**
+ * Observation choices accepted by the background API.
+ *
+ * `none` is a one-shot collection. `while-panel-open` starts one live content
+ * session that the mounted panel owns and stops on tab change or panel close.
+ * The observation policy still supplies an expiry as a safety limit.
+ */
+export const OBSERVATION_MODES = ['none', 'while-panel-open'] as const;
+
+/** Request value that controls whether live page watching starts. */
+export type VisibleTabObservationMode = typeof OBSERVATION_MODES[number];
+
+
+/** Progressive enrichment states returned with an analysis response. */
+export const ANALYSIS_ENRICHMENT_STATUSES = ['not-needed', 'pending', 'complete', 'failed', 'timed-out', 'skipped'] as const;
+
+/** Whether deeper evidence collection is pending, complete, failed, timed out, unnecessary, or skipped. */
+export type AnalysisEnrichmentStatus = typeof ANALYSIS_ENRICHMENT_STATUSES[number];
+
+/** User-visible enrichment state for progressive visible-tab detection. */
+export type AnalysisEnrichmentState = {
+	/** Current enrichment lifecycle state for this analysis response. */
+	status: AnalysisEnrichmentStatus;
+	/** Millisecond timestamp when enrichment completed, when known. */
+	completedAt?: number;
+	/** Short machine-readable reason for skipped, terminal, or unnecessary enrichment. */
+	reason?: string;
+};
+
+/** Snapshot reuse states returned to the side panel after visible-tab analysis. */
+export const SNAPSHOT_REUSE_STATUSES = ['hit', 'miss', 'bypassed'] as const;
+
+/** Snapshot reuse state returned with a visible-tab analysis response. */
+export type SnapshotReuseStatus = typeof SNAPSHOT_REUSE_STATUSES[number];
+
+/**
+ * How a panel surface's tab target relates to tab activation.
+ *
+ * - `active` (default): the surface follows the active tab of its window, so the
+ *   background rejects a target that is no longer active with `NO_ACTIVE_TAB`.
+ * - `pinned`: the surface was opened for one specific tab (for example a full
+ *   page that is itself the active tab). The target may be inactive; window, URL,
+ *   inspectability and private-tab rules are still validated.
+ *
+ * Activation only decides whether a request is accepted. Once admitted, work for
+ * an inactive tab keeps running; activation changes its priority, not its life.
+ */
+export type TabTargetFollow = 'active' | 'pinned';
+
+/** Tab lookup sent by a panel surface before it chooses a cached snapshot. */
+export type VisibleTabIdentityInput = {
+	readonly tabId: number;
+	readonly windowId: number;
+	/** Defaults to `active`. */
+	readonly follow?: TabTargetFollow;
+};
+
+/**
+ * Request sent by the side panel when it asks the background to synchronize a visible tab target.
+ */
+export type AnalyzeVisibleTabInput = {
+	/** Visible tab target captured before the side panel requested analysis. */
+	readonly target: VisibleTabIdentity;
+	/** Whether the target must still be the active tab. Defaults to `active`. */
+	readonly follow?: TabTargetFollow;
+	/** Whether the background may reuse a stored snapshot for the target origin. */
+	readonly mode: AnalyzeVisibleTabMode;
+	/** Whether the content script should watch the page after a fresh analysis. */
+	readonly observe: VisibleTabObservationMode;
+};
+
+/**
+ * Minimal visible-tab identity needed before side-panel analysis starts.
+ *
+ * The side panel uses this record to choose a storage snapshot first, then asks the
+ * background to synchronize the page. Keeping identity separate from analysis
+ * avoids loading the detector registry just to decide which cached result can be
+ * painted during side-panel startup.
+ */
+export type VisibleTabIdentity = {
+	/** Browser window that owns the side-panel tab target. */
+	readonly windowId: number;
+	/** Browser tab id that owns the active top-frame page. */
+	readonly tabId: number;
+	/** Frame id used by current detection sessions; top frame is always `0`. */
+	readonly frameId: number;
+	/** Full visible URL used for explicit target validation and replay lookup. */
+	readonly url: string;
+	/** Hostname shown in the side panel before a stored analysis is rendered. */
+	readonly hostname: string;
+	/** Stable storage partition for origin-level snapshot lookup. */
+	readonly originHash: string;
+	/** Stable storage partition for exact active URL comparisons. */
+	readonly urlHash: string;
+	/** Whether persistent reads and writes should be skipped for this side-panel request. */
+	readonly incognito: boolean;
+};
+
+/**
+ * Stable handle for the observation session created by one side-panel analysis.
+ *
+ * The side panel keeps this handle so refresh and stop actions target the same tab
+ * and document that started observation, even if the user activates another tab
+ * before cleanup or a manual stop.
+ */
+export type ObservationSessionTarget = {
+	/** Tab that owns the content-script observation session. */
+	tabId: number;
+	/** Session id generated by the background and accepted by the content script. */
+	sessionId: string;
+	/** Document URL that the session was created to observe. */
+	expectedUrl: string;
+	/** Whether persistent analysis and replay storage must be skipped. */
+	incognito?: boolean;
+};
+
+/** Request that targets a specific existing observation session. */
+export type ObservationSessionTargetInput = ObservationSessionTarget;
+
+/** Content-local session identity used to make stop requests atomic inside one page runtime. */
+export type ContentObservationSessionTarget = Pick<ObservationSessionTarget, 'sessionId' | 'expectedUrl'>;
+
+/** Request for replay history tied to the analysis currently visible in the side panel. */
+export type ReplayTraceHistoryInput = {
+	/** Analysis URL that owns the replay history record. */
+	readonly url: string;
+};
+
+/**
+ * Response returned to the side panel after visible-tab analysis.
+ *
+ * `analysis` remains the stable rendering shape. `replayTrace` and
+ * `replayHistory` carry redacted pipeline details that let the side panel explain
+ * detections without widening `SiteAnalysis` itself.
+ */
+export type AnalyzeVisibleTabOutput = {
+	/** Normalized detector output safe for side-panel rendering and snapshot storage. */
+	analysis: SiteAnalysis;
+	/** Snapshot reuse metadata that explains whether stored output was reused. */
+	snapshot: {
+		/** Whether the analysis reused a snapshot, missed a snapshot, or bypassed snapshot reuse. */
+		status: SnapshotReuseStatus;
+		/** Diagnostic key associated with the response origin. */
+		key: string;
+		/** Millisecond timestamp when the response should be treated as stale. */
+		expiresAt?: number;
+	};
+	/** Live observation state when the fresh analysis started page watching. */
+	session?: observe.StateType;
+	/** Stable session handle the side panel should use for refresh, stop, and cleanup. */
+	sessionTarget?: ObservationSessionTarget;
+	/**
+	 * Redacted pipeline trace for fresh or stored analysis runs.
+	 *
+	 * Older stored replay records can omit this field when they predate replay trace
+	 * retention. Callers should treat it as optional explanation data rather than
+	 * part of the stable `SiteAnalysis` envelope.
+	 */
+	replayTrace?: DetectionReplayTrace;
+	/** Bounded newest-first replay traces saved for the active origin. */
+	replayHistory?: readonly DetectionReplayTrace[];
+	/** Whether deeper evidence collection is still running or already reflected. */
+	enrichment?: AnalysisEnrichmentState;
+	/** Evidence coverage represented by this detector output. */
+	evidence?: DetectionEvidenceState;
+};
+
+/** Reason a content-script observation session stopped. */
+export type ObservationStopReason = observe.StopReasonType;
+
+/**
+ * Storage target a content script can use after the background identifies the tab.
+ *
+ * Content scripts cannot ask Chrome for their own `tabId`, so the background
+ * sends the durable storage identity when it starts observation. Once the target
+ * is known, content can publish status revisions without depending on service
+ * worker memory.
+ */
+export type ContentPageSessionSnapshotTarget = {
+	/** Exact session key shared by content and background snapshot writers. */
+	readonly key: DetectionSessionKey;
+	/** Full document URL used by the public analysis envelope. */
+	readonly url: string;
+	/** Stable hash of the exact document URL for side panel snapshot filtering. */
+	readonly urlHash: string;
+	/** Hostname shown by the side panel before richer analysis is available. */
+	readonly hostname: string;
+	/** Private browsing sessions skip durable snapshot writes. */
+	readonly incognito?: boolean;
+};
+
+/**
+ * Request sent from the background to the content script to start page watching.
+ */
+export type BeginObservationSessionInput = {
+	/** Unique id generated by the background for this observation session. */
+	sessionId: string;
+	/** URL the background expects the content script to still be observing. */
+	expectedUrl: string;
+	/** Durable snapshot target used by content-owned observation status writes. */
+	snapshotTarget?: ContentPageSessionSnapshotTarget;
+	/** Limits that keep content-script observation bounded. */
+	policy: {
+		/** How long the content script should keep watching the page. */
+		durationMs: number;
+		/** How often pending DOM changes may be scanned. */
+		throttleMs: number;
+		/** Maximum queued nodes before falling back to a full document scan. */
+		maxPendingNodes: number;
+		/** Maximum observed mutations before the session stops itself. */
+		maxMutations: number;
+	};
+	/** Keep newly observed inline/exposed script content when the registry needs it. */
+	includeScriptContent?: boolean;
+	/** Keep newly observed inline/exposed stylesheet content when the registry needs it. */
+	includeStylesheetContent?: boolean;
+	/** Parsed DOM selector metadata used to filter live DOM observation. */
+	domSelectorPlan?: DomPlanType;
+};
+
+/** Content-script response for collecting the active document as observations. */
+export type CollectObservationBatchOutput = {
+	/** Bounded normalized observations emitted from the current document scan. */
+	batch: ObservationBatch;
+};
+
+/** Content-script response for flushing queued late observation events. */
+export type FlushObservationBatchOutput = {
+	/** Next bounded batch when late evidence-bearing facts are queued. */
+	batch?: ObservationBatch;
+	/** Queue and drop counters from the content-side batch controller. */
+	stats: ObservationBatchControllerStats;
+	/** Observation session state after pending DOM mutation scans are flushed. */
+	session: observe.StateType;
+};
+
+/** Side-panel-to-background API exposed through the messaging adapter. */
+export interface BackgroundApi {
+	/** Return aggregate cache status for the extension. */
+	getAnalysisStatus(): Promise<ExtensionResult<AnalysisStatus>>;
+	/**
+	 * Return identity for the supplied browser tab without collecting or analyzing page data.
+	 * The tab must be active unless `follow` is `pinned`.
+	 */
+	getVisibleTabIdentity(input: VisibleTabIdentityInput): Promise<ExtensionResult<VisibleTabIdentity>>;
+	/** Synchronize the side-panel-visible tab target and optionally start a content-script observation session. */
+	analyzeVisibleTab(input: AnalyzeVisibleTabInput): Promise<ExtensionResult<AnalyzeVisibleTabOutput>>;
+	/** Re-analyze a known observation session when its queued page facts are dirty. */
+	refreshObservationSession(input: ObservationSessionTargetInput): Promise<ExtensionResult<AnalyzeVisibleTabOutput>>;
+	/** Stop a known content-script observation session. */
+	stopObservationSession(input: ObservationSessionTargetInput): Promise<ExtensionResult<observe.StateType>>;
+	/** Read a known content-script observation session state. */
+	getObservationSessionState(input: ObservationSessionTargetInput): Promise<ExtensionResult<observe.StateType>>;
+	/** Return bounded replay history for the analysis URL already visible in the side panel. */
+	getReplayTraceHistory(input: ReplayTraceHistoryInput): Promise<ExtensionResult<readonly DetectionReplayTrace[]>>;
+}
+
+/** Background-to-content API exposed through the content-script messaging adapter. */
+export interface ContentApi {
+	/** Collect the current content script document as normalized observations. */
+	collectObservationBatch(input: CollectPageSignalsInput): Promise<ExtensionResult<CollectObservationBatchOutput>>;
+	/** Start watching late-added scripts, links, styles, and metadata. */
+	beginObservationSession(input: BeginObservationSessionInput): Promise<ExtensionResult<observe.StateType>>;
+	/** Stop the exact observation session only if it still owns this content runtime. */
+	stopObservationSession(input: ContentObservationSessionTarget): Promise<ExtensionResult<observe.StateType>>;
+	/** Flush late normalized observations queued by DOM and resource observers. */
+	flushObservationBatch(): Promise<ExtensionResult<FlushObservationBatchOutput>>;
+	/** Return the current observation session state. */
+	getObservationSessionState(): Promise<ExtensionResult<observe.StateType>>;
+}

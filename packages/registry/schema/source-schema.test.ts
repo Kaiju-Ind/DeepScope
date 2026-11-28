@@ -1,0 +1,122 @@
+import { describe, expect, it } from 'vitest';
+
+import { REGISTRY_SOURCE_SCHEMA_VERSION, validateRegistrySource } from "./index.ts";
+
+describe('registry source schema', () => {
+	it('accepts the current TypeScript technology shape', () => {
+		const result = validateRegistrySource({
+			schemaVersion: REGISTRY_SOURCE_SCHEMA_VERSION,
+			technologies: [
+				{
+					id: 'example-framework',
+					name: 'Example Framework',
+					website: 'https://example.test',
+					categories: ['framework'],
+					rules: [
+						{ kind: 'scriptSrc', pattern: /example-framework\.js/, confidence: 85 },
+						{ kind: 'meta', key: 'generator', valuePattern: /Example Framework/ },
+					],
+					implies: ['example-runtime'],
+				},
+			],
+		});
+
+		expect(result.valid).toBe(true);
+		expect(result.diagnostics).toEqual([]);
+	});
+
+	it('accepts rendered image rules and catalog component metadata', () => {
+		const result = validateRegistrySource({
+			schemaVersion: REGISTRY_SOURCE_SCHEMA_VERSION,
+			technologies: [{
+				id: 'image-catalog-tech',
+				name: 'Image Catalog Tech',
+				website: 'https://image-catalog.example',
+				categories: ['infrastructure-hosting'],
+				rules: [{ kind: 'imageSrc', pattern: /image-catalog\.example/ }],
+				component: {
+					kind: 'feature-provider',
+					sourceIdentities: [{
+						kind: 'repository',
+						value: 'example/image-catalog-tech',
+						url: 'https://github.com/example/image-catalog-tech',
+					}],
+				},
+				versioning: { enabled: true, scheme: 'semver' },
+			}],
+		});
+
+		expect(result.valid).toBe(true);
+		expect(result.diagnostics).toEqual([]);
+	});
+
+	it('returns diagnostics for malformed source fields', () => {
+		const result = validateRegistrySource({
+			schemaVersion: REGISTRY_SOURCE_SCHEMA_VERSION,
+			technologies: [
+				{
+					id: '',
+					name: 'Broken',
+					website: 'https://broken.test',
+					categories: ['framework'],
+					rules: [{ kind: 'dom' }],
+				},
+			],
+		});
+
+		expect(result.valid).toBe(false);
+		expect(result.diagnostics).toEqual([
+			expect.objectContaining({
+				severity: 'error',
+				code: 'schema.invalid',
+			}),
+			expect.objectContaining({
+				severity: 'error',
+				code: 'schema.invalid',
+			}),
+		]);
+	});
+
+	it.each(['not-real', '__proto__', 'constructor', 'toString', 'valueOf'])('rejects unknown category %s before compilation', (category) => {
+		const result = validateRegistrySource({
+			schemaVersion: REGISTRY_SOURCE_SCHEMA_VERSION,
+			technologies: [
+				{
+					id: 'unknown-category-tech',
+					name: 'Unknown Category Tech',
+					website: 'https://unknown-category.test',
+					categories: [category],
+					rules: [],
+				},
+			],
+		});
+
+		expect(result.valid).toBe(false);
+		expect(result.diagnostics).toContainEqual(
+			expect.objectContaining({
+				code: 'schema.invalid',
+				location: expect.objectContaining({
+					path: ['technologies', '0', 'categories', '0'],
+				}),
+			}),
+		);
+	});
+
+	it('keeps RegExp objects available for the current TypeScript registry source', () => {
+		const pattern = /example ([\d.]+)/;
+		const result = validateRegistrySource({
+			schemaVersion: REGISTRY_SOURCE_SCHEMA_VERSION,
+			technologies: [
+				{
+					id: 'regexp-tech',
+					name: 'RegExp Tech',
+					website: 'https://regexp.test',
+					categories: ['framework'],
+					rules: [{ kind: 'scriptSrc', pattern }],
+				},
+			],
+		});
+
+		expect(result.value?.technologies[0]?.rules[0]).toMatchObject({ pattern });
+	});
+});

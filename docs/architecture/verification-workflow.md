@@ -1,61 +1,68 @@
 # Verification workflow
 
-This workflow gives reviewers a repeatable way to validate migration patches without pretending that every environment can run every check. It separates command-level validation, targeted subsystem validation, and manual Chrome verification so each pull request can report what actually ran.
-
-Phase 8 does not add a new test runner. It documents the checks that already matter for this WXT extension and the boundaries introduced by phases 1 through 7.
+Use the native package scripts and Mise tasks to check source and build the WXT
+extension. Inspect each affected browser's output and run its actual extension
+flows before release. Record commands, source/output identity, results and checks
+that remain unrun.
 
 ## Validation layers
 
-Use this diagram to choose the narrowest useful check first, then widen validation as the patch touches more runtime surface.
+Start with tests for the changed subsystem. Run the full discovered Vitest suite
+and native source checks when a change crosses owners. Build every affected
+browser for changes to entrypoints, UI, dependencies, manifests or bundling.
+Inspect generated files, then exercise the affected flows in those browsers.
 
-```text
-patch applies
-  -> formatting check
-  -> targeted subsystem tests
-  -> full Vitest suite
-  -> TypeScript compile
-  -> WXT Chrome build
-  -> generated Chrome artifact runtime check
-  -> manual Chrome QA
-```
-
-The top of the stack is cheap and should run for every generated patch stack. The bottom of the stack is needed when behavior crosses extension runtime interfaces that unit tests cannot reproduce.
+The build scripts finish at WXT output generation. Hosted Chrome artifact smoke
+checks the packaged pages' startup; full manual or driver scenarios remain
+separate. Firefox and Safari background pages use local matcher workers, while
+Chrome's service worker uses an offscreen host. Verify the actual owner selected
+by capabilities rather than applying a Chrome-only lifecycle to every browser.
 
 ## Required command set
 
 | Command | Purpose | Run when | Report as passing only when |
 | --- | --- | --- | --- |
-| `git apply --check <patch>` | Confirms the patch applies to the intended branch state. | Every patch stack. | The command exits with code 0 for every patch. |
-| `git diff --check` | Catches whitespace errors before patches are packaged. | Every patch stack after application. | No whitespace warnings are reported. |
+| `git diff --check` | Catches whitespace errors in the change. | Before review. | No whitespace warnings are reported. |
 | `pnpm test:run` | Runs the Vitest suite non-interactively. | Runtime, contract, detector, collector, side-panel, storage, or test-support changes. | The command exits successfully. |
-| `pnpm compile` | Runs TypeScript without emitting files. | Any TypeScript or TSX change. | The command exits successfully after WXT preparation exists. |
-| `pnpm validate:chrome-artifact` | Executes generated Chrome runtime paths in headless Chrome or Chromium. | Content, lifecycle, messaging, side-panel, options, URL utilities, or build-sensitive changes. | Generated collection, live observation, analysis-update, and side-panel/options root-binding startup checks complete without the guarded runtime failures. |
-| `pnpm build:chrome` | Type-checks, builds through WXT, then validates the generated Chrome artifact. | Side-panel, WXT, manifest, content, background, or build-sensitive changes. | Every stage exits successfully and `.output/chrome-mv3` is produced. |
-| `pnpm check:release` | Runs TypeScript, the full Vitest suite, a Chrome WXT build, and generated-artifact validation. | Every release candidate. | Every stage exits successfully. |
-| `pnpm zip:chrome` | Type-checks, runs Vitest, creates the Chrome zip through WXT, and validates generated Chrome runtime paths. | Release-oriented checkpoints. | Every stage exits successfully and the Chrome package is created. |
+| `pnpm compile` | Runs each portable/tool package check, then extension, Utils and root TypeScript without emitting files. | Any TypeScript or TSX change. | The command exits successfully after WXT preparation exists. |
+| `pnpm build:chrome` | Runs TypeScript, then builds through WXT for Chrome. | Side-panel, WXT, manifest, content, background, or build-sensitive changes. | Both stages exit successfully and `.output/chrome-mv3` is produced. |
+| `mise run build <browser>` | Runs WXT for `chrome`, `firefox` or `safari`; native source checks are separate. | Changes affecting that browser's emitted extension. | WXT succeeds, the generated manifest/assets are inspected, and preceding source checks are recorded. |
+| `pnpm check:release` | Runs TypeScript, the full Vitest suite, then a Chrome WXT build. | Every release candidate. | All three stages exit successfully. |
+| `pnpm zip:chrome` | Runs the extension package TypeScript and Vitest checks, then creates the Chrome zip through WXT. Run root checks separately for portable/tool changes. | Release packaging. | All three stages exit successfully and the Chrome package is created. |
+| `pnpm validate:chrome-artifact` | Checks an existing `.output/chrome-mv3` build, then opens its generated panel/options pages in Chromium or Chrome for Testing. The hosted Chrome artifact smoke job runs it. | Build-sensitive changes; run separately from local build scripts with a compatible `CHROME_BIN`. | Every JSON assertion passes, including actual startup and cleanup; a missing browser is a failure. |
 
 When a command cannot be run or cannot complete, record the exact reason. Do not describe a partial command as passed.
+
+## Native owner selection
+
+Root checks select `./packages/*` and `./tools/*` through pnpm with
+`--fail-if-no-match`; package names are not required. Vitest discovers native
+project configurations for these packages. To check one owner, use
+`pnpm --filter ./packages/detection --fail-if-no-match run check`. A successful
+selector proves only the tasks that actually ran. A Node `--check` loop proves
+syntax. The release package also enables strict `checkJs`; do not describe
+syntax-only checks in other packages as JavaScript type safety.
 
 ## Targeted subsystem checks
 
 Run targeted tests when the full suite is unavailable or when the patch only touches one seam. These commands are examples, not substitutes for full validation before release.
 
 ```bash
-pnpm vitest run src/tests/app/model.test.ts --reporter=verbose
-pnpm vitest run src/tests/storage/cache.test.ts --reporter=verbose
-pnpm vitest run src/tests/collectors/planning.test.ts --reporter=verbose
-pnpm vitest run src/tests/messaging/messages.test.ts --reporter=verbose
+pnpm exec vitest run apps/extension/src/tests/app/model.test.ts --reporter=verbose
+pnpm exec vitest run apps/extension/src/tests/storage/cache.test.ts --reporter=verbose
+pnpm exec vitest run packages/detection/collection/plan.test.ts --reporter=verbose
+pnpm exec vitest run apps/extension/src/tests/messaging/messages.test.ts --reporter=verbose
 ```
 
-Use targeted tests to answer a specific review question. For example, a side-panel page or TSX change should run panel tests and build. A storage mock change should run storage tests and at least one consumer test that imports the shared mock. Architecture tests parse handwritten TypeScript and TSX with Oxc instead of depending on the TypeScript compiler API, so TypeScript-native toolchain changes do not silently disable source-structure checks.
+Use targeted tests to answer a specific review question. For example, a side-panel page or TSX change should run panel tests and build. A storage mock change should run storage tests and at least one consumer test that imports the shared mock. The generated-name and UI-binding rules use Oxc to inspect TypeScript and TSX syntax. Runtime tests exercise the behavior of the owning APIs.
 
-## Generated Chrome artifact runtime check
+## Inspect and run the generated extension
 
-`pnpm validate:chrome-artifact` executes code from `.output/chrome-mv3` in headless Chrome or Chromium. It does not import the TypeScript source as a substitute for the emitted artifact.
+After `pnpm build:chrome`, inspect the manifest, HTML entrypoints, JavaScript, registry assets, and font assets in `.output/chrome-mv3`. Confirm that generated references resolve to packaged files and that extension HTML has no unwanted `preload` or `modulepreload` tags.
 
-The content check covers bounded DOM collection, images, metadata, inline scripts, stylesheets, visible text, cookie names, storage key names, live mutation observation, flush, stop, and cleanup. The app-model check executes the emitted `buildAnalysisUpdate` path for active and idle observation state. Separate startup checks execute each generated `sidepanel.html` and `options.html` entry prefix through its root guard with a real DOM root. They reject root-binding failures such as a generated URL helper replacing the browser `document` object without claiming that the complete routed UI has been mounted. The validator also rejects generated HTML `preload` and `modulepreload` tags so extension-resource and unused-preload warnings cannot re-enter the packaged artifact unnoticed.
+Load that output as an unpacked extension in Chrome or Chromium. Open the side panel and options page, then exercise collection, live observation, flush, stop, and cleanup. Check runtime errors and the diagnostic journal for failures introduced by bundling or minification, including invalid bindings in generated entrypoints.
 
-This stage exists because source tests and `node --check` can both pass while scope hoisting or minification changes the meaning of a generated identifier. A missing Chrome/Chromium executable is a failed validation stage. Set `CHROME_BIN=/absolute/path/to/chrome` or pass `--chrome=/absolute/path/to/chrome` when automatic discovery is not suitable.
+These checks are separate from the package scripts in the table. Record the browser and built output used, the scenarios exercised, and any checks that could not run.
 
 ## Manual Chrome QA
 
@@ -68,7 +75,7 @@ Run this checklist after changes that touch side panel, background, content, lif
 3. Pin the side panel, switch between two supported tabs in the same browser window, and confirm the panel follows the active tab without showing the previous tab or `NO_ACTIVE_TAB`. With automatic scanning disabled, confirm tab switching alone does not start a new analysis or observer.
 4. Open a second browser window, keep its active tab changing, and confirm those activations do not retarget the panel mounted in the first window.
 5. Open an unsupported page such as `chrome://extensions` and confirm the side panel shows `UNSUPPORTED_URL` without hanging.
-6. Close the side panel while observation is active and confirm that exact panel-owned observation stops. Reopen on the same origin and confirm a snapshot hit renders without creating an observer. On a snapshot miss, confirm the fresh panel-open analysis can start one panel-owned observation.
+6. Close the side panel while observation is active and confirm the exact panel-owned stop request and UI unsubscription. Record any remote stop failure; immediate remote cleanup is best-effort. Reopen on the same origin and confirm a snapshot hit renders without creating an observer. On a snapshot miss, confirm the fresh panel-open analysis can start one panel-owned observation.
 7. Click Refresh and confirm analysis bypasses stored snapshot reuse and starts observation again.
 8. Switch away from a tab with panel observation active and confirm the old tab's observer stops. Switch repeatedly with automatic scanning disabled and confirm only retained snapshots change the UI until Refresh is pressed.
 9. Test a page that lazy-loads scripts, links, or meta tags and confirm late detections can appear while the side panel is subscribed to storage revisions.
@@ -76,7 +83,7 @@ Run this checklist after changes that touch side panel, background, content, lif
 11. Open Technologies, a technology detail, History, Diagnostics, and Settings. Confirm route changes do not restart analysis or replace the visible-tab state owner.
 12. Open Diagnostics, copy the report, and confirm it contains build identity, current extension contexts, recent context runs, matcher jobs, and recent warnings/failures without raw page bodies or cookie/header values.
 13. Use **Open full page** from Diagnostics. Confirm the options page opens in its own tab and works without the side-panel detector state.
-14. Interrupt or reload the background service worker while matcher work is non-terminal. Reopen Diagnostics and confirm the orphaned job is marked `context-interrupted` with its previous status retained.
+14. Interrupt or reload the background service worker while matcher work is non-terminal. Reopen Diagnostics and confirm the orphaned lifecycle record is marked `context-interrupted` with its previous status kept only as diagnostic history. If the exact tab and document still exist, confirm DeepScope recollects it as new recovery work rather than resuming the lost in-memory batch.
 15. Exercise a page with many or repeatedly changing stylesheets. Confirm source collection stays within aggregate script/stylesheet limits and does not surface `PAYLOAD_TOO_LARGE` from cumulative observation snapshots.
 16. Switch tabs while analysis is in flight, including onto a newly loading HTTP/HTTPS tab. Confirm the previous result cannot win after the active target changes.
 17. Open every filter menu in Technologies, History, and Diagnostics. Repeatedly search, filter, sort, scroll, select records, and switch away from and back to Timeline. Confirm no Kobalte context errors are logged, no `Cannot read properties of undefined (reading 'index')` failure occurs, no TanStack `data-index` measurement warning appears, and extension HTML emits no unused/cross-world preload warnings.
@@ -87,11 +94,26 @@ Run this checklist after changes that touch side panel, background, content, lif
 
 If a step cannot be verified, record the browser, page URL type, and failure mode in the pull request notes.
 
+## Firefox and Safari scenarios
+
+Use `mise run verify firefox` or `mise run verify safari` against the respective
+built output and the setup in [the driver guide](../../tools/verify/README.md).
+The shared scenario dispatcher includes local pre-install/load, panel, privacy,
+navigation, observation and stress paths. Record the selected scenarios; a
+filtered run does not establish every scenario. Safari requires a macOS host,
+its native driver and the extension setup described there.
+
+For these background-page builds, check local worker disposal/restart instead
+of expecting a Chrome offscreen document. Test the supported sidebar, popup or
+full-page surface. Keep browser setup failures separate from extension failures,
+and preserve cleanup errors as failed results. A Safari ZIP or unsigned Xcode
+project alone does not prove Safari runtime behavior.
+
 ## Pull request acceptance checklist
 
-Use this checklist for migration PRs after phase 8.
+Use this checklist when preparing a change for review.
 
-- The patch applies cleanly to `mvp`.
+- The change is based on the intended branch and preserves concurrent work.
 - The commit scope matches the subsystem touched.
 - Public TypeScript exports have TSDoc that explains why they exist and what contract they protect.
 - Comments explain constraints, invariants, or non-obvious control flow rather than restating syntax.
@@ -102,21 +124,22 @@ Use this checklist for migration PRs after phase 8.
 
 ## Reporting template
 
-Use this shape in generated patch summaries and pull request descriptions.
+Record actual outcomes in the pull request description, including commands that failed or did not run.
 
 ```text
 Validation:
-- git apply --check: passed
-- git diff --check: passed
-- pnpm test:run: failed, reason ...
-- pnpm compile: not run, reason ...
-- pnpm build:chrome: passed
-- pnpm validate:chrome-artifact: passed
-- manual Chrome QA: not run in sandbox
+- git diff --check: <result>
+- pnpm test:run: <result, test counts or failure>
+- pnpm compile: <result or reason not run>
+- pnpm build:chrome: <result or reason not run>
+- Other affected browser builds: <browser and result, or not run>
+- Generated-output inspection: <files inspected and result, or not run>
+- Chrome runtime scenarios: <browser, scenarios and result, or not run>
+- Firefox/Safari scenarios: <versions, selected scenarios and result, or not run>
 
 Notes:
-- No benchmark added because the patch changes docs/test support only.
+- Benchmark: <measured change and baseline, or why it was not needed>
 - Full suite failure is pre-existing or unrelated only if the failure was observed before the patch or isolated by targeted tests.
 ```
 
-The point is not to make every local environment perfect. The point is to make validation claims precise enough that another maintainer can reproduce or challenge them.
+Include enough detail for another maintainer to reproduce the checks and assess their limits.

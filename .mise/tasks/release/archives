@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+#MISE description="Zip each browser and write release-named archives plus SHA256SUMS"
+#USAGE flag "--out <dir>" default=".output/release" help="Candidate directory under .output or outside the checkout; absent, empty or an intact previous collection"
+#USAGE arg "[browser]..." help="Browsers to package (default: all)" {
+#USAGE   choices "chrome" "firefox" "safari"
+#USAGE }
+set -euo pipefail
+read -r -a browsers <<< "${usage_browser:-chrome firefox safari}"
+for browser in "${browsers[@]}"; do
+  mise run zip "$browser"
+done
+exec node tools/release/archives.mjs collect --out "${usage_out:?}" "${browsers[@]}"

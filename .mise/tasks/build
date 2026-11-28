@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Build the unpacked extension for one browser into .output/<browser>-mv3"
+#USAGE arg "<browser>" help="Target browser" {
+#USAGE   choices "chrome" "firefox" "safari"
+#USAGE }
+# --mv3 is explicit because WXT 0.21 defaults Firefox and Safari to MV2 unless
+# wxt.config.ts sets manifestVersion: 3. It is harmless once the config does.
+set -euo pipefail
+exec pnpm --dir apps/extension exec wxt build -b "${usage_browser:?}" --mv3

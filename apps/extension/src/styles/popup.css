@@ -1,0 +1,12 @@
+/*
+ * Toolbar popups have a browser-imposed size. Chrome allows at most 800x600;
+ * Safari sizes popups to their content and asks for responsive layouts, which
+ * matters on iOS. Give the panel a fixed, comfortable size on desktop and let
+ * it fill narrow screens.
+ */
+html,
+body {
+	width: min(420px, 100vw);
+	height: min(600px, 100vh);
+	overflow: hidden;
+}

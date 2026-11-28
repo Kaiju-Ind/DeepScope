@@ -1,0 +1,840 @@
+// Vendored from Kaiju-Ind/Utils packages/workflow/dispatch.ts @ 9f2f0a4 (PR #29 perf/quadratic).
+// MIT (c) 2026 Okikio, see utils/LICENSE. Local changes: none. Resync: scripts/utils/sync.ts.
+/**
+ * Durable activity dispatch contracts and the process-local reference store.
+ *
+ * A dispatch owner retains logical activity items, executor registrations,
+ * temporary attempt leases, placement decisions, and terminal results. Workflow
+ * schedulers and activity executors can therefore run in different hosts while
+ * sharing one storage implementation.
+ *
+ * @module
+ */
+import { temporal } from '@utils/duration/temporal';
+import * as context from '@utils/context';
+import * as record from '@utils/collection/record';
+import { freeze as freezeAffinity, rejection } from './affinity.ts';
+export { rejection } from './affinity.ts';
+export type { PlacementActivityType, PlacementHostType, PlacementReasonType } from './affinity.ts';
+import * as assert from './assert.ts';
+import * as compute from './compute.ts';
+import * as placement from './placement.ts';
+import * as durable from './durable.ts';
+import type {
+	ActivityAddOptions,
+	ActivityClaimOptions,
+	ActivityClaimType,
+	ActivityDispatch,
+	ActivityDispatchStatsType,
+	ActivityJobResultType,
+	ActivityJobType,
+	ActivityRefType,
+	ActivityRetryOptions,
+	ExecutorJoinOptions,
+	ExecutorLeaseType,
+	HistoryValueType,
+	MemoryDispatchOptions,
+} from './types.ts';
+
+export type {
+	ActivityAddOptions,
+	ActivityClaimOptions,
+	ActivityClaimType,
+	ActivityDispatch,
+	ActivityDispatchStatsType,
+	ActivityJobResultType,
+	ActivityJobType,
+	ActivityRefType,
+	ActivityRetryOptions,
+	ComputeType,
+	EngineAffinityType,
+	ExecutorActivityType,
+	ExecutorJoinOptions,
+	ExecutorLeaseType,
+	HistoryFailureOccurrenceType,
+	HistoryValueType,
+	MemoryDispatchOptions,
+} from './types.ts';
+
+/** Raised after an activity dispatch owner has stopped permanently. */
+export class DispatchClosedError extends Error {
+	/** Original dispatch shutdown reason. */
+	readonly reason: unknown;
+
+	/** Create one lifecycle error for an operation attempted after dispatch shutdown. */
+	constructor(reason?: unknown) {
+		super('The activity dispatch owner is closed.', reason === undefined ? undefined : { cause: reason });
+		this.name = 'DispatchClosedError';
+		this.reason = reason;
+	}
+}
+
+/** Raised when process-local dispatch reaches its configured active-item bound. */
+export class DispatchCapacityError extends RangeError {
+	/** Maximum active logical items configured for the dispatch owner. */
+	readonly capacity: number;
+
+	/** Create one capacity error before another active item is retained. */
+	constructor(capacity: number) {
+		super(`Activity dispatch reached its configured capacity of ${capacity} active items.`);
+		this.name = 'DispatchCapacityError';
+		this.capacity = capacity;
+	}
+}
+
+/** Raised when an executor mutation uses a replaced, expired, or closed generation. */
+export class StaleExecutorError extends Error {
+	/** Replaced, expired, or closed executor registration identity. */
+	readonly executorId: string;
+
+	/** Create one stale-generation error for a rejected executor mutation. */
+	constructor(executorId: string) {
+		super(`Executor registration ${JSON.stringify(executorId)} no longer owns its generation.`);
+		this.name = 'StaleExecutorError';
+		this.executorId = executorId;
+	}
+}
+
+/** Raised when a late activity attempt tries to mutate work owned by another claim. */
+export class StaleActivityClaimError extends Error {
+	/** Stable logical item identity targeted by the stale claim. */
+	readonly itemId: string;
+	/** Attempt claim identity that no longer owns the item. */
+	readonly claimId: string;
+
+	/** Create one ownership error for a rejected late attempt mutation. */
+	constructor(itemId: string, claimId: string) {
+		super(`Activity claim ${JSON.stringify(claimId)} no longer owns item ${JSON.stringify(itemId)}.`);
+		this.name = 'StaleActivityClaimError';
+		this.itemId = itemId;
+		this.claimId = claimId;
+	}
+}
+
+type ItemStatus = 'queued' | 'claimed' | 'completed' | 'cancelled';
+
+/** Mutable state for one logical activity item. */
+interface ItemState {
+	readonly id: string;
+	readonly key: string;
+	readonly value: ActivityJobType;
+	readonly order: number;
+	state: ItemStatus;
+	attempt: number;
+	availableAt: Temporal.Instant;
+	claim?: ActivityClaimType;
+	result?: ActivityJobResultType;
+}
+
+/** Mutable state for one executor generation. */
+interface ExecutorState {
+	/** Validated immutable registration path reused during matching; generations remain authority-checked. */
+	readonly lineage: readonly placement.BoundaryType[];
+	lease: ExecutorLeaseType;
+	active: number;
+	draining: boolean;
+	closed: boolean;
+}
+
+/** One blocked dispatch caller. */
+interface Waiter {
+	readonly resolve: () => void;
+	readonly reject: (reason: unknown) => void;
+	readonly unlink: () => void;
+}
+
+/**
+ * Create a bounded process-local activity dispatch owner.
+ *
+ * The implementation exercises the same item, registration, placement, lease,
+ * and stale-completion contract required from SQL, OPFS, or remote adapters.
+ * Process exit still loses every record.
+ */
+export function memory(options: MemoryDispatchOptions = {}): ActivityDispatch {
+	return new Runtime(options).dispatch;
+}
+
+/** Mutable process-local owner behind the immutable dispatch facade. */
+class Runtime {
+	readonly #capacity: number;
+	readonly #clock: context.Clock;
+	readonly #id: () => string;
+	readonly #items = new Map<string, ItemState>();
+	/** Ids of live claims, so a new claim id is checked for collisions without scanning every item. */
+	readonly #claimIds = new Set<string>();
+	/** Ids of items that are not terminal. Admission checks its size instead of scanning every retained item. */
+	readonly #unfinished = new Set<string>();
+	/**
+	 * No live claim expires before this instant, so expiry can skip its item scan until then. It is a lower bound: a
+	 * claim that ends or is renewed leaves it early, which costs one extra scan, and each scan sets it exactly again.
+	 */
+	#expiry: Temporal.Instant | undefined;
+	/** Admission keys retain the original item ID so retries resolve to the same logical work. */
+	readonly #keys = new Map<string, string>();
+	/** Live and draining registrations remain addressable by their exact lease ID. */
+	readonly #executors = new Map<string, ExecutorState>();
+	/** Current registration per engine and host; replacing it revokes the previous lease. */
+	readonly #current = new Map<string, ExecutorState>();
+	/** Keep generations after removal so returning hosts cannot reuse stale authority. */
+	readonly #generations = new Map<string, number>();
+	/** Trusted namespace registration and incarnation authority, independent of live executor leases. */
+	readonly #topology = new placement.Registry();
+	/** Wake blocked claims to recheck both eligible work and capacity. */
+	readonly #claimWaiters = new Set<Waiter>();
+	/** Wait for one item's terminal result without waking subscribers for unrelated work. */
+	readonly #resultWaiters = new Map<string, Set<Waiter>>();
+	/** Wake observers of claim and registration state changes. */
+	readonly #stateWaiters = new Set<Waiter>();
+	readonly #dispatch: ActivityDispatch;
+	#order = 0;
+	#closed = false;
+	#reason: unknown;
+
+	constructor(options: MemoryDispatchOptions) {
+		this.#capacity = options.capacity === undefined
+			? Number.POSITIVE_INFINITY
+			: assert.positive(options.capacity, 'dispatch capacity');
+		this.#clock = options.clock ?? context.SystemClock;
+		this.#id = options.id ?? (() => crypto.randomUUID());
+		this.#dispatch = Object.freeze(
+			{
+				add: (ctx, value, addOptions) => this.#add(ctx, value, addOptions),
+				result: (ctx, ref) => this.#result(ctx, ref),
+				cancel: (ctx, ref, reason) => this.#cancel(ctx, ref, reason),
+				join: (ctx, joinOptions) => this.#join(ctx, joinOptions),
+				renewExecutor: (ctx, lease, duration) => this.#renewExecutor(ctx, lease, duration),
+				resize: (ctx, lease, capacity) => this.#resize(ctx, lease, capacity),
+				drain: (ctx, lease) => this.#drain(ctx, lease),
+				leave: (ctx, lease) => this.#leave(ctx, lease),
+				claim: (ctx, lease, claimOptions) => this.#claim(ctx, lease, claimOptions),
+				watch: (ctx, claim) => this.#watch(ctx, claim),
+				renew: (ctx, claim, duration) => this.#renew(ctx, claim, duration),
+				complete: (ctx, claim, result) => this.#complete(ctx, claim, result),
+				retry: (ctx, claim, retryOptions) => this.#retry(ctx, claim, retryOptions),
+				stats: () => this.#stats(),
+				close: (reason) => this.#close(reason),
+				[Symbol.asyncDispose]: () => this.#close('Activity dispatch was disposed.'),
+			} satisfies ActivityDispatch,
+		);
+	}
+
+	/** Return the stable public view; its methods keep the state owner as their receiver. */
+	get dispatch(): ActivityDispatch {
+		return this.#dispatch;
+	}
+
+	/** Retain a detached logical item once per key; duplicates reuse the existing item even after terminal completion. */
+	async #add(ctx: context.Context, value: ActivityJobType, options: ActivityAddOptions): Promise<ActivityRefType> {
+		context.check(ctx);
+		this.#open();
+		record.assert(options, 'activity add options');
+		assert.id(options.key, 'activity item key');
+		const existing = this.#keys.get(options.key);
+		if (existing !== undefined) return Object.freeze({ id: existing } satisfies ActivityRefType);
+		if (this.#unfinished.size >= this.#capacity) throw new DispatchCapacityError(this.#capacity);
+		const id = unique(this.#id, this.#items);
+		const snapshot = durable.snapshot({
+			...value,
+			...(value.location === undefined ? {} : { location: placement.SelectionSchema.parse(value.location) }),
+		}, 'activity item') as unknown as ActivityJobType;
+		const item: ItemState = {
+			id,
+			key: options.key,
+			value: snapshot,
+			order: this.#order++,
+			state: 'queued',
+			attempt: 0,
+			availableAt: this.#clock.now(),
+		};
+		this.#items.set(id, item);
+		this.#unfinished.add(id);
+		this.#keys.set(options.key, id);
+		this.#wake(this.#claimWaiters);
+		return Object.freeze({ id } satisfies ActivityRefType);
+	}
+
+	/** Recheck stored terminal state after each mutation or future lease boundary; ready work requires an executor, not a polling spin. */
+	async #result(ctx: context.Context, ref: ActivityRefType): Promise<ActivityJobResultType> {
+		while (true) {
+			context.check(ctx);
+			const observed = this.#clock.now();
+			this.#expire();
+			const item = this.#item(ref.id);
+			if (terminal(item)) return item.result!;
+			this.#open();
+			let waiters = this.#resultWaiters.get(item.id);
+			if (waiters === undefined) {
+				waiters = new Set();
+				this.#resultWaiters.set(item.id, waiters);
+			}
+			const next = this.#next(item);
+			// Already-ready queued work needs an executor mutation, not zero-delay polling.
+			const future = next !== undefined && temporal.Instant.compare(next, observed) > 0 ? next : undefined;
+			await wait(ctx, waiters, this.#clock, this.#delay(future));
+		}
+	}
+
+	/** Save cancellation and release occupancy before waking result consumers; remote work must stop cooperatively. */
+	async #cancel(ctx: context.Context, ref: ActivityRefType, reason?: HistoryValueType): Promise<void> {
+		context.check(ctx);
+		const item = this.#item(ref.id);
+		if (terminal(item)) return;
+		this.#release(item);
+		item.state = 'cancelled';
+		this.#unfinished.delete(item.id);
+		this.#unclaim(item);
+		item.result = Object.freeze(
+			{
+				type: 'cancelled',
+				reason: reason === undefined
+					? Object.freeze({ kind: 'undefined' })
+					: durable.snapshot(reason, 'activity cancellation') as unknown as HistoryValueType,
+			} satisfies ActivityJobResultType,
+		);
+		this.#settle(item);
+	}
+
+	/** Replace the prior engine/host generation and return a detached advertised capability lease. */
+	async #join(ctx: context.Context, options: ExecutorJoinOptions): Promise<ExecutorLeaseType> {
+		context.check(ctx);
+		this.#open();
+		record.assert(options, 'executor join options');
+		assert.id(options.engineId, 'executor engine');
+		assert.id(options.hostId, 'executor host');
+		assert.positive(options.capacity, 'executor capacity');
+		assert.positive(options.protocolVersion, 'executor protocolVersion');
+		if (options.activities.length === 0) throw new TypeError('Executor must advertise at least one activity.');
+		const advertised = durable.snapshot(
+			options.activities,
+			'executor activities',
+		) as unknown as ExecutorJoinOptions['activities'];
+		const activities = Object.freeze(advertised.map((activity) => {
+			assert.id(activity.id, 'executor activity');
+			assert.id(activity.version, 'executor activity version');
+			return Object.freeze({ id: activity.id, version: activity.version });
+		}));
+		const affinity = options.affinity === undefined ? undefined : freezeAffinity(options.affinity, 'executor affinity');
+		const computeValue = options.compute === undefined ? undefined : compute.freeze(options.compute);
+		const duration = options.duration === undefined
+			? undefined
+			: assert.duration(options.duration, 'executor lease duration');
+		const lineage = placement.path(computeValue);
+		this.#topology.register(lineage);
+		this.#expire();
+		const key = executorKey(options.engineId, options.hostId);
+		const previous = this.#current.get(key);
+		if (previous !== undefined) this.#revoke(previous);
+		const generation = (this.#generations.get(key) ?? 0) + 1;
+		this.#generations.set(key, generation);
+		const lease = Object.freeze(
+			{
+				id: unique(this.#id, this.#executors),
+				engineId: options.engineId,
+				hostId: options.hostId,
+				generation,
+				protocolVersion: options.protocolVersion,
+				activities,
+				...(affinity === undefined ? {} : { affinity }),
+				...(computeValue === undefined ? {} : { compute: computeValue }),
+				capacity: options.capacity,
+				...(duration === undefined ? {} : { expiresAt: this.#clock.now().add(duration) }),
+			} satisfies ExecutorLeaseType,
+		);
+		const state: ExecutorState = { lease, lineage, active: 0, draining: false, closed: false };
+		this.#executors.set(lease.id, state);
+		this.#current.set(key, state);
+		this.#wake(this.#claimWaiters);
+		return lease;
+	}
+
+	/** Extend a current executor registration. Expiry and generation checks run before changing its deadline. */
+	async #renewExecutor(
+		ctx: context.Context,
+		lease: ExecutorLeaseType,
+		duration: Temporal.Duration | Temporal.DurationLike | string,
+	): Promise<ExecutorLeaseType> {
+		context.check(ctx);
+		const state = this.#executor(lease);
+		state.lease = Object.freeze(
+			{
+				...state.lease,
+				expiresAt: this.#clock.now().add(assert.duration(duration, 'executor lease renewal duration')),
+			} satisfies ExecutorLeaseType,
+		);
+		return state.lease;
+	}
+
+	/** Change future admission capacity without revoking already active attempts, then wake waiting claimers. */
+	async #resize(ctx: context.Context, lease: ExecutorLeaseType, capacity: number): Promise<ExecutorLeaseType> {
+		context.check(ctx);
+		const state = this.#executor(lease);
+		state.lease = Object.freeze(
+			{ ...state.lease, capacity: assert.positive(capacity, 'executor capacity') } satisfies ExecutorLeaseType,
+		);
+		this.#wake(this.#claimWaiters);
+		return state.lease;
+	}
+
+	/** Stop admission to this executor and wait until completion or expiry releases all active attempts. */
+	async #drain(ctx: context.Context, lease: ExecutorLeaseType): Promise<void> {
+		const state = this.#executor(lease);
+		state.draining = true;
+		this.#wake(this.#claimWaiters);
+		while (state.active > 0) {
+			context.check(ctx);
+			const observed = this.#clock.now();
+			this.#expire();
+			if (state.active === 0) break;
+			await wait(ctx, this.#stateWaiters, this.#clock, this.#delay(this.#soonest(observed)));
+			this.#expire();
+		}
+	}
+
+	/** Remove an executor only after its active attempts have drained; leaving cannot abandon occupied slots. */
+	async #leave(ctx: context.Context, lease: ExecutorLeaseType): Promise<void> {
+		context.check(ctx);
+		const state = this.#executor(lease);
+		if (state.active > 0) throw new Error('Executor must drain active attempts before leaving.');
+		this.#revoke(state);
+	}
+
+	/** Expire stale permission, filter placement and FIFO order, then reserve no more than this executor can own. */
+	async #claim(
+		ctx: context.Context,
+		lease: ExecutorLeaseType,
+		options: ActivityClaimOptions,
+	): Promise<readonly ActivityClaimType[]> {
+		const limit = assert.positive(options.limit ?? 1, 'activity claim limit');
+		const duration = assert.duration(options.duration, 'activity claim duration');
+		while (true) {
+			context.check(ctx);
+			this.#open();
+			const observed = this.#clock.now();
+			this.#expire();
+			const executor = this.#executor(lease);
+			if (executor.draining) return Object.freeze([]);
+			const available = Math.max(0, executor.lease.capacity - executor.active);
+			const ready = [...this.#items.values()]
+				.filter((item) => item.state === 'queued' && temporal.Instant.compare(item.availableAt, observed) <= 0)
+				.sort((left, right) => left.order - right.order);
+			const claims: ActivityClaimType[] = [];
+			for (const item of ready) {
+				if (claims.length >= Math.min(limit, available)) break;
+				// Re-evaluate ancestor budgets after each synchronous reservation.
+				if (this.#selects(item, executor)) claims.push(this.#take(item, executor, duration));
+			}
+			if (claims.length > 0) return Object.freeze(claims);
+			if (options.wait !== true) return Object.freeze([]);
+			await wait(ctx, this.#claimWaiters, this.#clock, this.#delay(this.#soonest(observed)));
+		}
+	}
+
+	/** Extend this exact live attempt; a replaced or expired claim cannot regain permission by renewing. */
+	async #renew(
+		ctx: context.Context,
+		claim: ActivityClaimType,
+		duration: Temporal.Duration | Temporal.DurationLike | string,
+	): Promise<ActivityClaimType> {
+		context.check(ctx);
+		const item = this.#claimed(claim);
+		const renewed = Object.freeze(
+			{
+				...claim,
+				expiresAt: this.#clock.now().add(assert.duration(duration, 'activity claim renewal duration')),
+			} satisfies ActivityClaimType,
+		);
+		item.claim = renewed;
+		this.#bound(renewed.expiresAt);
+		return renewed;
+	}
+
+	/** Observe cancellation or replacement of this exact attempt; notification only requests another authoritative state check. */
+	async #watch(ctx: context.Context, claim: ActivityClaimType): Promise<'cancelled' | 'lost'> {
+		while (true) {
+			context.check(ctx);
+			this.#expire();
+			const item = this.#item(claim.itemId);
+			if (item.state === 'cancelled') return 'cancelled';
+			if (item.state !== 'claimed' || item.claim?.id !== claim.id || item.claim.executorId !== claim.executorId) {
+				return 'lost';
+			}
+			await wait(ctx, this.#stateWaiters, this.#clock, this.#delay(this.#next(item)));
+		}
+	}
+
+	/** Snapshot the result before releasing occupancy, then publish one terminal answer to waiting callers. */
+	async #complete(ctx: context.Context, claim: ActivityClaimType, result: ActivityJobResultType): Promise<void> {
+		context.check(ctx);
+		const item = this.#claimed(claim);
+		const snapshot = durable.snapshot(result, 'activity result') as unknown as ActivityJobResultType;
+		this.#release(item);
+		item.state = snapshot.type === 'cancelled' ? 'cancelled' : 'completed';
+		this.#unfinished.delete(item.id);
+		this.#unclaim(item);
+		item.result = snapshot;
+		this.#settle(item);
+	}
+
+	/** Release this attempt and requeue the same logical item, preserving its identity through the delay. */
+	async #retry(ctx: context.Context, claim: ActivityClaimType, options: ActivityRetryOptions = {}): Promise<void> {
+		context.check(ctx);
+		const item = this.#claimed(claim);
+		this.#release(item);
+		item.state = 'queued';
+		this.#unclaim(item);
+		item.availableAt = this.#clock.now().add(nonNegativeDuration(options.delay ?? 'PT0S', 'activity retry delay'));
+		this.#wake(this.#claimWaiters);
+	}
+
+	/** Apply elapsed lease boundaries before counting current queue states. Retained terminal items count separately. */
+	async #stats(): Promise<ActivityDispatchStatsType> {
+		this.#expire();
+		let queued = 0;
+		let claimed = 0;
+		let completed = 0;
+		let cancelled = 0;
+		for (const item of this.#items.values()) {
+			if (item.state === 'queued') queued += 1;
+			else if (item.state === 'claimed') claimed += 1;
+			else if (item.state === 'completed') completed += 1;
+			else cancelled += 1;
+		}
+		return Object.freeze(
+			{
+				queued,
+				claimed,
+				completed,
+				cancelled,
+				executors: this.#executors.size,
+				waitingClaims: this.#claimWaiters.size,
+				waitingResults: [...this.#resultWaiters.values()].reduce((total, waiters) => total + waiters.size, 0),
+			} satisfies ActivityDispatchStatsType,
+		);
+	}
+
+	/** Reject pending waits once. Closing local dispatch does not prove that external work stopped. */
+	async #close(reason?: unknown): Promise<void> {
+		if (this.#closed) return;
+		this.#closed = true;
+		this.#reason = reason;
+		const error = new DispatchClosedError(reason);
+		reject(this.#claimWaiters, error);
+		reject(this.#stateWaiters, error);
+		for (const waiters of this.#resultWaiters.values()) reject(waiters, error);
+		this.#resultWaiters.clear();
+	}
+
+	/** Use the first placement choice with eligible hosts; a required unavailable choice prevents fallback. */
+	#selects(item: ItemState, executor: ExecutorState): boolean {
+		for (const choice of item.value.placement) {
+			const candidates = [...this.#executors.values()].filter((state) => this.#matches(item, state, choice.engine));
+			if (candidates.length > 0) return choice.engine === executor.lease.engineId && candidates.includes(executor);
+			if (choice.mode === 'required') return false;
+		}
+		return false;
+	}
+
+	/**
+	 * Check location and every ancestor's shared capacity before matching the executor.
+	 * Hosts under the same compute boundary spend the same budget, even when their local slots are free.
+	 */
+	#matches(item: ItemState, executor: ExecutorState, engineId: string): boolean {
+		const lineage = executor.lineage;
+		if (!this.#topology.current(lineage) || !placement.matches(item.value.location, lineage)) return false;
+		for (const boundary of lineage) {
+			if (boundary.capacity === undefined) continue;
+			let active = 0;
+			for (const host of this.#executors.values()) {
+				if (
+					host.lineage.some((node) => node.id === boundary.id && node.generation === boundary.generation)
+				) active += host.active;
+			}
+			if (active >= boundary.capacity) return false;
+		}
+		return rejection(
+			{
+				id: item.value.activityId,
+				version: item.value.activityVersion,
+				...(item.value.affinity === undefined ? {} : { affinity: item.value.affinity }),
+			},
+			{ ...executor.lease, active: executor.active, closed: executor.closed, draining: executor.draining },
+			engineId,
+			this.#clock.now().epochNanoseconds,
+		) === undefined;
+	}
+
+	/** Publish a new claim and increment executor occupancy in one synchronous transition. */
+	#take(item: ItemState, executor: ExecutorState, duration: Temporal.Duration): ActivityClaimType {
+		const claimedAt = this.#clock.now();
+		const claim = Object.freeze(
+			{
+				id: uniqueClaim(this.#id, this.#claimIds),
+				itemId: item.id,
+				executorId: executor.lease.id,
+				attempt: item.attempt + 1,
+				value: item.value,
+				claimedAt,
+				expiresAt: claimedAt.add(duration),
+			} satisfies ActivityClaimType,
+		);
+		item.state = 'claimed';
+		item.attempt = claim.attempt;
+		item.claim = claim;
+		this.#claimIds.add(claim.id);
+		this.#bound(claim.expiresAt);
+		executor.active += 1;
+		return claim;
+	}
+
+	/** Expire elapsed permission before accepting a mutation from this exact claim and executor. */
+	#claimed(claim: ActivityClaimType): ItemState {
+		this.#expire();
+		const item = this.#item(claim.itemId);
+		if (item.state !== 'claimed' || item.claim?.id !== claim.id || item.claim.executorId !== claim.executorId) {
+			throw new StaleActivityClaimError(claim.itemId, claim.id);
+		}
+		return item;
+	}
+
+	/** Expire old registrations before accepting a lease; the ID and generation must still name a live owner. */
+	#executor(lease: ExecutorLeaseType): ExecutorState {
+		this.#expire();
+		const state = this.#executors.get(lease.id);
+		if (state === undefined || state.closed || state.lease.generation !== lease.generation) {
+			throw new StaleExecutorError(lease.id);
+		}
+		return state;
+	}
+
+	/** Release executor occupancy while its registration remains addressable, then wake admission and drain waiters. */
+	#release(item: ItemState): void {
+		const executorId = item.claim?.executorId;
+		if (executorId !== undefined) {
+			const executor = this.#executors.get(executorId);
+			if (executor !== undefined) executor.active = Math.max(0, executor.active - 1);
+		}
+		this.#wake(this.#stateWaiters);
+		this.#wake(this.#claimWaiters);
+	}
+
+	/** Fence one registration, requeue its attempts, and release occupancy before removing it from the executor map. */
+	#revoke(executor: ExecutorState): void {
+		if (executor.closed) return;
+		executor.closed = true;
+		executor.draining = true;
+		const key = executorKey(executor.lease.engineId, executor.lease.hostId);
+		if (this.#current.get(key) === executor) this.#current.delete(key);
+		for (const item of this.#items.values()) {
+			if (item.state !== 'claimed' || item.claim?.executorId !== executor.lease.id) continue;
+			this.#release(item);
+			item.state = 'queued';
+			this.#unclaim(item);
+			item.availableAt = this.#clock.now();
+		}
+		// Release claims while their executor is still addressable. Drain retains
+		// this state object and must see its active ownership reach zero on revocation.
+		this.#executors.delete(executor.lease.id);
+		this.#wake(this.#stateWaiters);
+		this.#wake(this.#claimWaiters);
+	}
+
+	/** Apply elapsed executor and item leases lazily at state-observation boundaries. */
+	#expire(): void {
+		const now = this.#clock.now();
+		for (const executor of [...this.#executors.values()]) {
+			if (!this.#topology.current(executor.lineage)) {
+				this.#revoke(executor);
+				continue;
+			}
+			if (executor.lease.expiresAt !== undefined && temporal.Instant.compare(now, executor.lease.expiresAt) >= 0) {
+				this.#revoke(executor);
+			}
+		}
+		if (this.#expiry === undefined || temporal.Instant.compare(now, this.#expiry) < 0) return;
+		this.#expiry = undefined;
+		for (const item of this.#items.values()) {
+			if (item.state !== 'claimed' || item.claim === undefined) continue;
+			if (temporal.Instant.compare(now, item.claim.expiresAt) < 0) {
+				this.#bound(item.claim.expiresAt);
+				continue;
+			}
+			this.#release(item);
+			item.state = 'queued';
+			this.#unclaim(item);
+			item.availableAt = now;
+		}
+	}
+
+	/** Remove terminal-result waiters before resuming them, then allow new claims to observe the freed capacity. */
+	#settle(item: ItemState): void {
+		const waiters = this.#resultWaiters.get(item.id);
+		if (waiters !== undefined) {
+			this.#resultWaiters.delete(item.id);
+			this.#wake(waiters);
+		}
+		this.#wake(this.#claimWaiters);
+	}
+
+	/** Find a future state boundary relative to the eligibility observation, excluding already-ready foreign work. */
+	#soonest(observed: Temporal.Instant): Temporal.Instant | undefined {
+		let next: Temporal.Instant | undefined;
+		for (const item of this.#items.values()) {
+			const candidate = this.#next(item);
+			if (
+				candidate !== undefined && temporal.Instant.compare(candidate, observed) > 0 &&
+				(next === undefined || temporal.Instant.compare(candidate, next) < 0)
+			) {
+				next = candidate;
+			}
+		}
+		for (const executor of this.#executors.values()) {
+			const candidate = executor.lease.expiresAt;
+			if (
+				candidate !== undefined && temporal.Instant.compare(candidate, observed) > 0 &&
+				(next === undefined || temporal.Instant.compare(candidate, next) < 0)
+			) {
+				next = candidate;
+			}
+		}
+		return next;
+	}
+
+	/** Return the next time that can change eligibility; terminal items have no future scheduling boundary. */
+	#next(item: ItemState): Temporal.Instant | undefined {
+		if (item.state === 'queued') return item.availableAt;
+		if (item.state === 'claimed') return item.claim?.expiresAt;
+		return undefined;
+	}
+
+	/** Round future fractions up and slice long boundaries into the clock's supported timer range. */
+	#delay(instant: Temporal.Instant | undefined): number | undefined {
+		if (instant === undefined) return undefined;
+		const remaining = instant.epochNanoseconds - this.#clock.now().epochNanoseconds;
+		if (remaining <= 0n) return 0;
+		const milliseconds = (remaining + 999_999n) / 1_000_000n;
+		return Number(milliseconds > 2_147_483_647n ? 2_147_483_647n : milliseconds);
+	}
+
+	/** Look up retained logical identity. Unknown IDs are errors, not empty queue results. */
+	#item(id: string): ItemState {
+		const item = this.#items.get(id);
+		if (item === undefined) throw new Error(`Unknown activity item ${JSON.stringify(id)}.`);
+		return item;
+	}
+
+	/** Lower the expiry bound to `instant` when it is earlier. */
+	#bound(instant: Temporal.Instant): void {
+		if (this.#expiry === undefined || temporal.Instant.compare(instant, this.#expiry) < 0) this.#expiry = instant;
+	}
+
+	/** End an item's claim, if it has one, and forget its id. */
+	#unclaim(item: ItemState): void {
+		if (item.claim !== undefined) this.#claimIds.delete(item.claim.id);
+		item.claim = undefined;
+	}
+
+	/** Reject new admission and waits after dispatch closure, preserving the owner's close reason. */
+	#open(): void {
+		if (this.#closed) throw new DispatchClosedError(this.#reason);
+	}
+
+	/** Detach each waiter before resolving it, so listener cleanup precedes any resumed caller code. */
+	#wake(waiters: Set<Waiter>): void {
+		for (const waiter of [...waiters]) {
+			waiters.delete(waiter);
+			waiter.unlink();
+			waiter.resolve();
+		}
+	}
+}
+
+/** Return whether one activity item can no longer create another attempt. */
+function terminal(item: ItemState): boolean {
+	return item.state === 'completed' || item.state === 'cancelled';
+}
+
+/** Build a stable host-generation key without constraining compute topology. */
+function executorKey(engineId: string, hostId: string): string {
+	return `${engineId}\u0000${hostId}`;
+}
+
+/** Create one collision-free identifier from a caller-provided source. */
+function unique<Value>(create: () => string, values: ReadonlyMap<string, Value>): string {
+	for (let attempt = 0; attempt < 100; attempt += 1) {
+		const id = create();
+		assert.id(id, 'dispatch');
+		if (!values.has(id)) return id;
+	}
+	throw new Error('Activity dispatch ID source produced too many collisions.');
+}
+
+/** Create one collision-free claim identity across live activity attempts. */
+function uniqueClaim(create: () => string, active: ReadonlySet<string>): string {
+	for (let attempt = 0; attempt < 100; attempt += 1) {
+		const id = create();
+		assert.id(id, 'activity claim');
+		if (!active.has(id)) return id;
+	}
+	throw new Error('Activity dispatch claim ID source produced too many collisions.');
+}
+
+/**
+ * Suspend until a dispatch mutation, cancellation, or lease boundary can change state.
+ *
+ * Each wait owns its timer. Unlink cancels and the returned operation joins that
+ * timer on every settlement without canceling the borrowed caller context. The
+ * outer operation rechecks absolute state after each bounded timer slice.
+ */
+function wait(ctx: context.Context, waiters: Set<Waiter>, clock: context.Clock, delay?: number): Promise<void> {
+	let timerTask: Promise<void> | undefined;
+	const pending = new Promise<void>((resolve, rejectValue) => {
+		const timer = delay === undefined ? undefined : new AbortController();
+		const unlink = () => {
+			ctx.signal.removeEventListener('abort', abort);
+			timer?.abort();
+		};
+		const settle = (action: () => void) => {
+			if (!waiters.delete(waiter)) return;
+			unlink();
+			action();
+		};
+		const abort = () => settle(() => rejectValue(ctx.signal.reason));
+		const waiter: Waiter = { resolve, reject: rejectValue, unlink };
+		if (ctx.signal.aborted) {
+			rejectValue(ctx.signal.reason);
+			return;
+		}
+		waiters.add(waiter);
+		ctx.signal.addEventListener('abort', abort, { once: true });
+		if (timer !== undefined) {
+			try {
+				timerTask = clock.sleep(delay!, timer.signal).then(
+					() => settle(resolve),
+					(reason) => settle(() => rejectValue(reason)),
+				);
+			} catch (reason) {
+				settle(() => rejectValue(reason));
+			}
+		}
+	});
+	return timerTask === undefined ? pending : pending.finally(() => timerTask);
+}
+
+/** Reject every waiter when the dispatch owner can no longer make progress. */
+function reject(waiters: Set<Waiter>, reason: unknown): void {
+	for (const waiter of [...waiters]) {
+		waiters.delete(waiter);
+		waiter.unlink();
+		waiter.reject(reason);
+	}
+}
+
+/** Validate a retry delay that may be zero. */
+function nonNegativeDuration(
+	value: Temporal.Duration | Temporal.DurationLike | string,
+	label: string,
+): Temporal.Duration {
+	const duration = temporal.Duration.from(value);
+	if (duration.sign < 0) throw new TypeError(`${label} must not be negative.`);
+	return duration;
+}

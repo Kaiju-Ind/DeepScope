@@ -1,0 +1,629 @@
+// Vendored from Kaiju-Ind/Utils packages/workflow/scheduler.test.ts @ 47d2c0f.
+// MIT (c) 2026 Okikio, see utils/LICENSE. Local changes: none. Resync: scripts/utils/sync.ts.
+import * as codecs from '@utils/schema/codec';
+import { expect } from '@std/expect';
+import { describe, it } from 'node:test';
+import type { StandardSchemaV1 } from '@standard-schema/spec';
+
+import * as context from '@utils/context';
+import * as failures from '@utils/result/failure';
+import * as history from './history.ts';
+import * as resilience from '@utils/capability/resilience';
+import * as activityDispatch from './dispatch.ts';
+import * as workflow from './mod.ts';
+
+/** Creates a minimal Standard Schema contract for Scheduler integration tests. */
+function schema<Output>(validate: (value: unknown) => Output): StandardSchemaV1<unknown, Output> {
+	return Object.freeze({
+		'~standard': Object.freeze({
+			version: 1,
+			vendor: 'scheduler-test',
+			validate(value: unknown) {
+				try {
+					return { value: validate(value) };
+				} catch (error) {
+					return { issues: [{ message: error instanceof Error ? error.message : String(error) }] };
+				}
+			},
+		}),
+	});
+}
+
+const AnySchema = schema((value) => value);
+const StringSchema = schema((value) => {
+	if (typeof value !== 'string') throw new TypeError('Expected a string.');
+	return value;
+});
+
+/** Builds one exact engine reference used by the workflow-only Scheduler tests. */
+function engine(id: string): workflow.EngineReference {
+	return Object.freeze({ kind: 'activity-engine', id });
+}
+
+/** Builds one placement from ordered engine choices without depending on @utils/activity. */
+function placement(
+	...choices: readonly Readonly<
+		{ readonly engine: workflow.EngineReference; readonly mode: workflow.EngineChoiceModeType }
+	>[]
+): workflow.EnginePlacementReference {
+	return Object.freeze({
+		kind: 'activity-engine-placement',
+		choices: Object.freeze(choices.map((choice) =>
+			Object.freeze({
+				kind: 'activity-engine-choice' as const,
+				engine: choice.engine,
+				mode: choice.mode,
+			})
+		)),
+	});
+}
+
+/** Builds one activity reference with exact placement and optional retry policy. */
+function activity(
+	id: string,
+	placement: workflow.EnginePlacementReference,
+	resiliency: readonly import('@utils/capability/resilience').ResiliencePolicy[] = [],
+): workflow.ActivityReference {
+	return Object.freeze({
+		kind: 'activity',
+		id,
+		version: '1',
+		input: codecs.identity(AnySchema),
+		result: codecs.identity(AnySchema),
+		failures: Object.freeze([]),
+		requirements: Object.freeze([]),
+		placement: placement,
+		resilience: Object.freeze([...resiliency]),
+	});
+}
+
+/** Creates one workflow context and implementation around the supplied generator. */
+async function program<Result>(
+	parent: context.Context,
+	activityDefinition: workflow.ActivityReference,
+	run: (ctx: workflow.WorkflowContext) => workflow.WorkflowProgram<Result>,
+	result: StandardSchemaV1<unknown, Result> = AnySchema as StandardSchemaV1<unknown, Result>,
+) {
+	const definition = workflow.define({
+		id: `scheduler-test.${activityDefinition.id}`,
+		version: '1',
+		input: codecs.identity(AnySchema),
+		result: codecs.identity(result),
+		activities: [activityDefinition],
+	});
+	const implementation = workflow.implement(definition, run as never);
+	const ctx = await workflow.context({ definition, runId: crypto.randomUUID(), input: {}, ctx: parent });
+	return { definition, implementation, ctx };
+}
+
+/** Deferred synchronization point used to observe Scheduler capacity without timing assumptions. */
+function deferred<Value = void>() {
+	let resolve!: (value: Value | PromiseLike<Value>) => void;
+	const promise = new Promise<Value>((done) => resolve = done);
+	return Object.freeze({ promise, resolve });
+}
+
+/**
+ * Wraps the memory queue with structured-clone checks at its persistence seam.
+ *
+ * The wrapper models the minimum constraint a database or remote queue imposes:
+ * Scheduler job input and terminal output must not retain schemas, functions,
+ * failure definitions, or other live objects.
+ */
+function cloneDispatch() {
+	const base = activityDispatch.memory();
+	return Object.freeze(
+		{
+			...base,
+			async add(ctx: context.Context, input: workflow.ActivityJobType, options: workflow.ActivityAddOptions) {
+				return await base.add(ctx, structuredClone(input), options);
+			},
+			async complete(ctx: context.Context, claim: workflow.ActivityClaimType, output: workflow.ActivityJobResultType) {
+				await base.complete(ctx, claim, structuredClone(output));
+			},
+		} satisfies workflow.ActivityDispatch,
+	);
+}
+
+describe('workflow Scheduler activity ownership', () => {
+	it('does not exceed registered engine capacity while parallel workflow branches wait', async () => {
+		const Engine = engine('scheduler-capacity');
+		const Activity = activity('capacity', placement({ engine: Engine, mode: 'required' }));
+		await using parent = context.create({ id: 'scheduler-capacity', clock: new context.TestClock() });
+		const setup = await program(parent, Activity, function* () {
+			return yield* workflow.parallel({
+				first: workflow.activity<string, never>(Activity, 'first'),
+				second: workflow.activity<string, never>(Activity, 'second'),
+			});
+		});
+		await using workflowCtx = setup.ctx;
+		await using scheduler = workflow.scheduler();
+		const firstStarted = deferred();
+		const releaseFirst = deferred();
+		let active = 0;
+		let maximum = 0;
+		const started: string[] = [];
+		await using registration = await scheduler.register({
+			engine: Engine,
+			hostId: 'capacity-host',
+			capacity: 1,
+			provider: {
+				activities: [Activity],
+				async run(_ctx, attempt) {
+					active += 1;
+					maximum = Math.max(maximum, active);
+					started.push(String(attempt.input));
+					// Hold whichever branch enters first. Parallel branches have no required start order.
+					if (started.length === 1) {
+						firstStarted.resolve();
+						await releaseFirst.promise;
+					}
+					active -= 1;
+					return workflow.success(attempt.input);
+				},
+			},
+		});
+		void registration;
+
+		const pending = workflow.run({ ctx: workflowCtx, implementation: setup.implementation, scheduler });
+		try {
+			await firstStarted.promise;
+			await Promise.resolve();
+			expect(started).toHaveLength(1);
+			expect(registration.capacity).toMatchObject({ maximum: 1, active: 1, available: 0 });
+		} finally {
+			// Release and join work even when an assertion fails, before disposing its scheduler.
+			releaseFirst.resolve();
+			await pending;
+		}
+		expect(await pending).toEqual({ first: 'first', second: 'second' });
+		expect(started.toSorted()).toEqual(['first', 'second']);
+		expect(maximum).toBe(1);
+	});
+
+	it('carries authored required placement through the public scheduler into queue admission', async () => {
+		const Engine = engine('scheduler-location');
+		const Activity = activity('location', placement({ engine: Engine, mode: 'required' }));
+		await using parent = context.create({ id: 'scheduler-location' });
+		const setup = await program(parent, Activity, function* () {
+			return yield* workflow.activity<string, never>(Activity, 'value', {
+				location: workflow.placement.within({ id: 'pod', generation: 1 }),
+			});
+		}, StringSchema);
+		await using workflowCtx = setup.ctx;
+		await using scheduler = workflow.scheduler();
+		let rejectedCalls = 0;
+		await using _wrong = await scheduler.register({
+			engine: Engine,
+			hostId: 'wrong',
+			capacity: 1,
+			compute: { id: 'outside' },
+			provider: {
+				activities: [Activity],
+				async run() {
+					rejectedCalls++;
+					return workflow.success('wrong');
+				},
+			},
+		});
+		await using _right = await scheduler.register({
+			engine: Engine,
+			hostId: 'right',
+			capacity: 1,
+			compute: { id: 'thread', parent: 'pod', ancestors: [{ id: 'pod', generation: 1 }] },
+			provider: {
+				activities: [Activity],
+				async run() {
+					return workflow.success('right');
+				},
+			},
+		});
+		expect(await workflow.run({ ctx: workflowCtx, implementation: setup.implementation, scheduler })).toBe('right');
+		expect(rejectedCalls).toBe(0);
+	});
+
+	it('snapshots engine registration policy and provider behavior at registration time', async () => {
+		const Engine = engine('scheduler-registration-snapshot');
+		const Activity = activity('registration-snapshot', placement({ engine: Engine, mode: 'required' }));
+		await using parent = context.create({ id: 'scheduler-registration-snapshot' });
+		const setup = await program(parent, Activity, function* () {
+			return yield* workflow.activity<string, never>(Activity, 'value', { affinity: { region: 'east' } });
+		}, StringSchema);
+		await using workflowCtx = setup.ctx;
+		await using scheduler = workflow.scheduler();
+		const affinity: Record<string, string> = { region: 'east' };
+		const activities: workflow.ActivityReference[] = [Activity];
+		let originalCalls = 0;
+		let replacementCalls = 0;
+		const provider = {
+			activities,
+			async run(_ctx: context.Context, attempt: workflow.ActivityAttemptType) {
+				originalCalls += 1;
+				return workflow.success(attempt.input);
+			},
+		};
+		await using registration = await scheduler.register({
+			engine: Engine,
+			hostId: 'snapshot-host',
+			affinity,
+			provider,
+		});
+		void registration;
+
+		affinity.region = 'west';
+		activities.length = 0;
+		provider.run = async () => {
+			replacementCalls += 1;
+			return workflow.success('replacement');
+		};
+
+		expect(registration.affinity).toEqual({ region: 'east' });
+		expect(registration.activities).toEqual([Activity]);
+		expect(await workflow.run({ ctx: workflowCtx, implementation: setup.implementation, scheduler })).toBe('value');
+		expect(originalCalls).toBe(1);
+		expect(replacementCalls).toBe(0);
+	});
+
+	it('rejects accessor-backed engine registration and provider metadata without invoking getters', async () => {
+		const Engine = engine('scheduler-registration-accessor');
+		const Activity = activity('registration-accessor', placement({ engine: Engine, mode: 'required' }));
+		await using scheduler = workflow.scheduler();
+		let optionReads = 0;
+		const options = Object.create(null) as Record<string, unknown>;
+		Object.defineProperty(options, 'engine', {
+			enumerable: true,
+			get() {
+				optionReads += 1;
+				return Engine;
+			},
+		});
+		await expect(scheduler.register(options as unknown as workflow.EngineRegistrationOptions)).rejects.toThrow(
+			TypeError,
+		);
+		expect(optionReads).toBe(0);
+
+		let providerReads = 0;
+		const provider = Object.create(null) as Record<string, unknown>;
+		Object.defineProperty(provider, 'activities', {
+			enumerable: true,
+			get() {
+				providerReads += 1;
+				return [Activity];
+			},
+		});
+		Object.defineProperty(provider, 'run', { enumerable: true, value: async () => workflow.success('value') });
+		await expect(
+			scheduler.register({
+				engine: Engine,
+				hostId: 'accessor-host',
+				provider: provider as unknown as workflow.EngineProvider,
+			}),
+		).rejects.toThrow(TypeError);
+		expect(providerReads).toBe(0);
+	});
+
+	it('renews the exact queue claim when a provider heartbeat crosses the original lease expiry', async () => {
+		const clock = new context.TestClock();
+		const Engine = engine('scheduler-heartbeat');
+		const Activity = activity('heartbeat', placement({ engine: Engine, mode: 'required' }));
+		await using parent = context.create({ id: 'scheduler-heartbeat', clock });
+		const setup = await program(parent, Activity, function* () {
+			return yield* workflow.activity<string, never>(Activity, 'value');
+		}, StringSchema);
+		await using workflowCtx = setup.ctx;
+		await using scheduler = workflow.scheduler({ clock, claimDuration: { seconds: 5 } });
+		await using registration = await scheduler.register({
+			engine: Engine,
+			hostId: 'heartbeat-host',
+			provider: {
+				activities: [Activity],
+				async run(_ctx, attempt, control) {
+					clock.advance({ seconds: 4 });
+					await control.heartbeat({ phase: 'alive' });
+					clock.advance({ seconds: 2 });
+					return workflow.success(attempt.input);
+				},
+			},
+		});
+		void registration;
+		expect(await workflow.run({ ctx: workflowCtx, implementation: setup.implementation, scheduler })).toBe('value');
+	});
+
+	it('fences a late host generation and retries the logical job on the replacement generation', async () => {
+		const Engine = engine('scheduler-generation');
+		const Activity = activity('generation', placement({ engine: Engine, mode: 'required' }), [
+			resilience.retry({
+				maximumAttempts: 2,
+				initialDelay: { milliseconds: 1 },
+				maximumDelay: { milliseconds: 1 },
+				jitter: false,
+			}),
+		]);
+		await using parent = context.create({ id: 'scheduler-generation' });
+		const setup = await program(parent, Activity, function* () {
+			return yield* workflow.activity<string, never>(Activity, 'value');
+		}, StringSchema);
+		await using workflowCtx = setup.ctx;
+		await using scheduler = workflow.scheduler({ claimDuration: { seconds: 5 } });
+		const firstStarted = deferred();
+		const releaseFirst = deferred();
+		const attempts: Array<Readonly<{ generation: number; attempt: number }>> = [];
+		await using first = await scheduler.register({
+			engine: Engine,
+			hostId: 'same-host',
+			provider: {
+				activities: [Activity],
+				async run(_ctx, attempt) {
+					attempts.push({ generation: attempt.generation, attempt: attempt.attempt });
+					firstStarted.resolve();
+					await releaseFirst.promise;
+					return workflow.success('stale');
+				},
+			},
+		});
+		const pending = workflow.run({ ctx: workflowCtx, implementation: setup.implementation, scheduler });
+		await firstStarted.promise;
+		await using second = await scheduler.register({
+			engine: Engine,
+			hostId: 'same-host',
+			provider: {
+				activities: [Activity],
+				async run(_ctx, attempt) {
+					attempts.push({ generation: attempt.generation, attempt: attempt.attempt });
+					return workflow.success('replacement');
+				},
+			},
+		});
+		expect(second.generation).toBe(first.generation + 1);
+		releaseFirst.resolve();
+		expect(await pending).toBe('replacement');
+		expect(attempts).toEqual([
+			{ generation: first.generation, attempt: 1 },
+			{ generation: second.generation, attempt: 2 },
+		]);
+	});
+
+	for (const completion of ['resolve', 'reject', 'throw-undefined'] as const) {
+		it(
+			`joins a fenced attempt's ${completion} cancellation hook before provider disposal`,
+			{ timeout: 10_000 },
+			async (test) => {
+				const Engine = engine(`scheduler-cancel-hook-${completion}`);
+				const Activity = activity(`cancel-hook-${completion}`, placement({ engine: Engine, mode: 'required' }));
+				await using parent = context.create({ id: `scheduler-cancel-hook-${completion}` });
+				const setup = await program(parent, Activity, function* () {
+					return yield* workflow.activity<string, never>(Activity, 'value');
+				}, StringSchema);
+				await using workflowCtx = setup.ctx;
+				await using scheduler = workflow.scheduler();
+				const entered = Promise.withResolvers<void>();
+				const runGate = Promise.withResolvers<void>();
+				const runFinished = Promise.withResolvers<void>();
+				const cancelEntered = Promise.withResolvers<void>();
+				const cancelGate = Promise.withResolvers<void>();
+				const failure = completion === 'throw-undefined' ? undefined : new Error('cancel hook failed');
+				const order: string[] = [];
+				let cancellations = 0;
+				let runStarted = false;
+				const abort = () => {
+					entered.resolve();
+					cancelEntered.resolve();
+					runGate.resolve();
+					cancelGate.resolve();
+				};
+				test.signal.addEventListener('abort', abort, { once: true });
+				const provider: workflow.EngineProvider & AsyncDisposable = {
+					activities: [Activity],
+					async run() {
+						runStarted = true;
+						entered.resolve();
+						try {
+							await runGate.promise;
+							return workflow.success('stale');
+						} finally {
+							runFinished.resolve();
+						}
+					},
+					cancel() {
+						cancellations += 1;
+						order.push('cancel-start');
+						cancelEntered.resolve();
+						if (completion === 'throw-undefined') throw undefined;
+						return cancelGate.promise.then(() => {
+							order.push('cancel-finish');
+							if (completion === 'reject') throw failure;
+						});
+					},
+					[Symbol.asyncDispose]() {
+						order.push('dispose');
+						return Promise.resolve();
+					},
+				};
+				const first = await scheduler.register({
+					engine: Engine,
+					hostId: 'same-host',
+					disposeProvider: true,
+					provider,
+				});
+				const pending = workflow.run({ ctx: workflowCtx, implementation: setup.implementation, scheduler }).then(
+					(value) => ({ type: 'success' as const, value }),
+					(reason: unknown) => ({ type: 'rejected' as const, reason }),
+				);
+				let closing:
+					| Promise<Readonly<{ type: 'closed' }> | Readonly<{ type: 'rejected'; reason: unknown }>>
+					| undefined;
+				try {
+					await entered.promise;
+					test.signal.throwIfAborted();
+					await using replacement = await scheduler.register({
+						engine: Engine,
+						hostId: 'same-host',
+						provider: {
+							activities: [Activity],
+							async run() {
+								return workflow.success('replacement');
+							},
+						},
+					});
+					void replacement;
+					await cancelEntered.promise;
+					test.signal.throwIfAborted();
+					// The old run remains gated: fencing must free capacity independently
+					// of both that run and the owned cancellation hook.
+					expect(await pending).toEqual({ type: 'success', value: 'replacement' });
+					const shutdown = Promise.resolve(first[Symbol.asyncDispose]()).then(
+						() => ({ type: 'closed' as const }),
+						(reason: unknown) => ({ type: 'rejected' as const, reason }),
+					);
+					closing = shutdown;
+					cancelGate.resolve();
+					const result = await shutdown;
+					if (completion === 'resolve') expect(result).toEqual({ type: 'closed' });
+					else {
+						expect(result.type).toBe('rejected');
+						if (result.type !== 'rejected') throw new Error('Cancellation cleanup failure was lost.');
+						expect(result.reason).toBeInstanceOf(AggregateError);
+						if (!(result.reason instanceof AggregateError)) throw result.reason;
+						expect(result.reason.errors).toEqual([failure]);
+					}
+					expect(cancellations).toBe(1);
+					expect(order).toEqual(
+						completion === 'throw-undefined'
+							? ['cancel-start', 'dispose']
+							: ['cancel-start', 'cancel-finish', 'dispose'],
+					);
+				} finally {
+					test.signal.removeEventListener('abort', abort);
+					cancelGate.resolve();
+					runGate.resolve();
+					if (runStarted) await runFinished.promise;
+					await pending;
+					await closing;
+					await first[Symbol.asyncDispose]();
+				}
+			},
+		);
+	}
+
+	it('uses ordered placement preferences and falls back only to explicitly allowed engines', async () => {
+		const Preferred = engine('scheduler-preferred');
+		const Allowed = engine('scheduler-allowed');
+		const Activity = activity(
+			'placement',
+			placement(
+				{ engine: Preferred, mode: 'preferred' },
+				{ engine: Allowed, mode: 'allowed' },
+			),
+		);
+		await using parent = context.create({ id: 'scheduler-placement', clock: new context.TestClock() });
+		const setup = await program(parent, Activity, function* () {
+			return yield* workflow.activity<string, never>(Activity, 'value');
+		}, StringSchema);
+		await using workflowCtx = setup.ctx;
+		await using scheduler = workflow.scheduler();
+		const used: string[] = [];
+		await using fallback = await scheduler.register({
+			engine: Allowed,
+			hostId: 'allowed-host',
+			provider: {
+				activities: [Activity],
+				async run() {
+					used.push('allowed');
+					return workflow.success('allowed');
+				},
+			},
+		});
+		void fallback;
+		expect(await workflow.run({ ctx: workflowCtx, implementation: setup.implementation, scheduler })).toBe('allowed');
+		expect(used).toEqual(['allowed']);
+	});
+
+	it('persists only serializable activity job state and replays a declared failure without a live engine', async () => {
+		const Engine = engine('scheduler-durable-job');
+		const Blocked = failures.define({
+			id: 'scheduler.blocked',
+			description: 'The activity is blocked.',
+			data: codecs.identity(schema((value) => {
+				if (typeof value !== 'object' || value === null || (value as { code?: unknown }).code !== 'blocked') {
+					throw new TypeError('Expected blocked failure data.');
+				}
+				return { code: 'blocked' as const };
+			})),
+		});
+		const base = activity('durable-job', placement({ engine: Engine, mode: 'required' }));
+		const Activity = Object.freeze(
+			{ ...base, failures: Object.freeze([Blocked]) } satisfies workflow.ActivityReference,
+		);
+		const definition = workflow.define({
+			id: 'scheduler-test.durable-job',
+			version: '1',
+			input: codecs.identity(AnySchema),
+			result: codecs.identity(StringSchema),
+			activities: [Activity],
+		});
+		const implementation = workflow.implement(definition, function* () {
+			try {
+				yield* workflow.activity(Activity, { source: 'durable' });
+				return 'unexpected';
+			} catch (error) {
+				if (failures.isOccurrence(error) && error.definition === Blocked) {
+					return (error.data as { readonly code: 'blocked' }).code;
+				}
+				throw error;
+			}
+		});
+		await using parent = context.create({ id: 'scheduler-durable-job' });
+		const jobs = cloneDispatch();
+		await using records = history.memory({ maximumEntries: 8 });
+		const runId = 'durable-run';
+		let providerCalls = 0;
+
+		await using firstCtx = await workflow.context({ definition, runId, input: {}, ctx: parent });
+		await using first = workflow.scheduler({ activityDispatch: jobs, history: records });
+		await using registration = await first.register({
+			engine: Engine,
+			hostId: 'durable-host',
+			provider: {
+				activities: [Activity],
+				async run() {
+					providerCalls += 1;
+					return workflow.failed(await failures.create(Blocked, { data: { code: 'blocked' } }));
+				},
+			},
+		});
+		void registration;
+		expect(await workflow.run({ ctx: firstCtx, implementation, scheduler: first })).toBe('blocked');
+		expect(providerCalls).toBe(1);
+
+		const snapshot = records.inspect(runId);
+		expect(snapshot.entries).toHaveLength(1);
+		const cloned = structuredClone(snapshot);
+		expect(cloned.entries).toHaveLength(1);
+		expect(snapshot.entries[0]?.completion).toMatchObject({
+			type: 'failure',
+			failure: { kind: 'occurrence', value: { id: Blocked.id, data: { code: 'blocked' } } },
+		});
+
+		// A second Scheduler can replay the terminal job from the queue without a
+		// live engine registration because the persisted value contains only data.
+		await using replayCtx = await workflow.context({ definition, runId, input: {}, ctx: parent });
+		await using replay = workflow.scheduler({ activityDispatch: jobs });
+		expect(await workflow.run({ ctx: replayCtx, implementation, scheduler: replay })).toBe('blocked');
+		expect(providerCalls).toBe(1);
+	});
+
+	it('waits for an unavailable required engine only until the owning workflow context is cancelled', async () => {
+		const Required = engine('scheduler-required-missing');
+		const Activity = activity('missing-placement', placement({ engine: Required, mode: 'required' }));
+		await using parent = context.create({ id: 'scheduler-missing', clock: new context.TestClock() });
+		const setup = await program(parent, Activity, function* () {
+			return yield* workflow.activity<unknown, never>(Activity, 'value');
+		});
+		await using workflowCtx = setup.ctx;
+		await using scheduler = workflow.scheduler();
+		const pending = workflow.run({ ctx: workflowCtx, implementation: setup.implementation, scheduler });
+		await Promise.resolve();
+		context.cancel(parent, 'no engine will arrive');
+		await expect(pending).rejects.toBeInstanceOf(workflow.CancelledError);
+	});
+});

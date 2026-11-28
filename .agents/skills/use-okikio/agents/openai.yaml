@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Okikio Libraries"
+  short_description: "Use Okikio libraries from verified source."
+  default_prompt: "Use $use-okikio to research and apply the relevant Okikio library or project pattern."

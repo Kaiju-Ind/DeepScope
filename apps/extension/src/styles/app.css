@@ -1,0 +1,138 @@
+@import 'tailwindcss' source('../');
+/* Tests are not in the Firefox sources zip, so class-like strings in them must not
+   reach the release CSS or the AMO rebuild would differ. */
+@source not '../tests';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import './fonts.css';
+@import './base.css';
+@import './zaidan-fixes.css';
+@import './zaidan-density.css';
+
+/* fonts.css declares every UI face from local files. The extension never requests a font CDN, at build or run time. */
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+	/* Each family is followed by its metric-adjusted fallback faces from fonts.css. */
+	--font-space-grotesk: 'Space Grotesk', 'Space Grotesk Fallback: Arial', 'Space Grotesk Fallback: Helvetica Neue';
+	--font-space-mono: 'Space Mono', 'Space Mono Fallback: Courier New', 'Space Mono Fallback: Roboto Mono',
+		'Space Mono Fallback: Noto Sans Mono', 'Space Mono Fallback: Liberation Mono';
+	--font-american-kestrel: 'American Kestrel', 'American Kestrel Fallback: Space Grotesk';
+	--breakpoint-xs: 20rem;
+}
+
+@theme inline {
+	/* Keep the website font-token hierarchy so product branding stays consistent. */
+	--font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif,
+		'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+	--font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+	--font-mono: var(--font-space-mono), ui-monospace, monospace;
+	--font-logo: var(--font-american-kestrel), var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+
+	--color-kaiju-cyan: #54def0;
+	--color-kaiju-navy: #07162f;
+	--color-kaiju-navy-deep: #030812;
+
+	--animate-caret-blink: caret-blink 1s ease-out infinite;
+}
+
+@layer base {
+	:root {
+		color-scheme: dark;
+		--chart-1: #54def0;
+		--chart-2: #9ae6b4;
+		--chart-3: #93c5fd;
+		--chart-4: #c4b5fd;
+		--chart-5: #fda4af;
+		--sidebar-border: rgb(255 255 255 / 0.1);
+		--sidebar-accent: rgb(84 222 240 / 0.08);
+		--z-surface: var(--color-kaiju-navy-deep);
+	}
+
+	* {
+		box-sizing: border-box;
+	}
+
+	html {
+		min-width: 18rem;
+		font-family: var(--font-sans);
+		font-weight: var(--font-weight-light);
+		letter-spacing: var(--tracking-normal);
+		background: var(--color-kaiju-navy-deep);
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+
+	body {
+		min-width: 18rem;
+		min-height: 100dvh;
+		margin: 0;
+		background: var(--color-kaiju-navy-deep);
+		color: white;
+	}
+
+	button,
+	input,
+	textarea,
+	select {
+		font: inherit;
+	}
+
+	::selection {
+		background: rgb(84 222 240 / 0.22);
+		color: white;
+	}
+}
+
+@utility no-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+
+@utility details-collapse {
+	interpolate-size: allow-keywords;
+
+	&::details-content {
+		height: 0;
+		overflow: clip;
+		transition:
+			height 300ms cubic-bezier(0.22, 1, 0.36, 1),
+			content-visibility 300ms allow-discrete;
+	}
+
+	&[open]::details-content {
+		height: auto;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		&::details-content {
+			transition: none;
+		}
+	}
+}
+
+@keyframes caret-blink {
+	0%, 70%, 100% { opacity: 1; }
+	20%, 50% { opacity: 0; }
+}
+
+@utility panel-section {
+	@apply rounded-2xl border border-white/10 bg-white/[0.025];
+}
+
+@utility panel-muted {
+	@apply text-white/48;
+}
+
+@utility panel-label {
+	@apply font-mono text-[0.6875rem] font-medium uppercase tracking-[0.058em] text-white/42;
+}
+
+@utility focus-kaiju {
+	@apply outline-hidden focus-visible:ring-2 focus-visible:ring-kaiju-cyan/60;
+}

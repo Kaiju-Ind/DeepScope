@@ -1,0 +1,246 @@
+# Type checks, the discovered Vitest suite, and per-browser builds for every
+# pull request and every push to main. Cache trust, job layout, runner choice
+# and timings are documented in docs/ci.md.
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      safari-xcode:
+        description: Also wrap the Safari build in an Xcode project on macOS
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Automatic runs replace an outdated revision of the same PR or branch. Manual
+# runs are keyed by SHA and never cancel a build that already started.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+jobs:
+  # Installs once and, on trusted refs only, saves the Mise and pnpm download
+  # caches that every later job restores read-only.
+  prepare:
+    name: Prepare dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      # Same-repository, non-fork pushes and PR merge refs may write caches.
+      # Fork PRs read caches but never write them; see docs/ci.md.
+      TRUSTED_CACHE_WRITER: >-
+        ${{ github.event.repository.fork == false && (
+          (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_protected == true)) ||
+          (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') && endsWith(github.ref, '/merge') &&
+           github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.repo.fork == false) ||
+          (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/'))
+        ) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain and dependencies
+        id: setup
+        uses: ./.github/actions/setup
+        with:
+          mise-cache-save: ${{ env.TRUSTED_CACHE_WRITER }}
+      - name: Recheck pnpm download identity
+        id: after
+        if: env.TRUSTED_CACHE_WRITER == 'true' && steps.setup.outputs.pnpm-cache-key != '' && steps.setup.outputs.pnpm-cache-hit != 'true'
+        shell: bash
+        env:
+          CACHE_PLATFORM: ${{ runner.os }}-${{ runner.arch }}
+          CACHE_INPUTS: ${{ hashFiles('mise.toml', 'mise.lock', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', 'apps/*/package.json', 'packages/*/package.json', 'tools/*/package.json', 'utils/*/package.json') }}
+        run: |
+          printf 'key=deepscope-pnpm-v2-%s-%s-%s-%s\n' "$CACHE_PLATFORM" \
+            "$(mise exec -- node --version)" "$(mise exec -- pnpm --version)" "$CACHE_INPUTS" >> "$GITHUB_OUTPUT"
+      # Save only a miss whose inputs did not change while installing.
+      - name: Save pnpm download store
+        if: success() && steps.after.outputs.key != '' && steps.after.outputs.key == steps.setup.outputs.pnpm-cache-key
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/pnpm-store
+          key: ${{ steps.after.outputs.key }}
+
+  check:
+    name: Type checks
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain and dependencies
+        uses: ./.github/actions/setup
+      - name: Check types
+        run: mise run check
+
+  test:
+    name: Tests
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain and dependencies
+        uses: ./.github/actions/setup
+      # Vitest discovers every workspace project test from the root vitest.config.ts.
+      - name: Run tests
+        run: mise run test
+
+  build:
+    name: Build (${{ matrix.browser }})
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chrome, firefox, safari]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain and dependencies
+        uses: ./.github/actions/setup
+      - name: Build and zip
+        run: mise run zip "$BROWSER"
+        env:
+          BROWSER: ${{ matrix.browser }}
+      # Review copies only; release archives are rebuilt from the tag.
+      - name: Upload archives
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: extension-${{ matrix.browser }}
+          path: .output/*.zip
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  lint-firefox:
+    name: Firefox add-on lint
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain
+        uses: ./.github/actions/setup
+        with:
+          install: 'false'
+      - name: Download Firefox archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: extension-firefox
+          path: ${{ runner.temp }}/firefox-zips
+      - name: Unpack the built extension
+        shell: bash
+        run: |
+          shopt -s nullglob
+          zips=("$RUNNER_TEMP"/firefox-zips/*-firefox.zip)
+          [ "${#zips[@]}" -eq 1 ] || { echo "::error::expected one *-firefox.zip, found ${#zips[@]}"; exit 1; }
+          unzip -q "${zips[0]}" -d "$RUNNER_TEMP/firefox"
+      - name: Lint with web-ext
+        run: mise run lint:firefox "$RUNNER_TEMP/firefox"
+
+  # Exercise the exact Chrome archive produced by the build job. A missing
+  # validator or archive fails this gate instead of turning it into a skipped check.
+  smoke-chrome:
+    name: Chrome artifact smoke
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      # Branded Chrome does not accept this unpacked --load-extension target.
+      CHROME_BIN: /usr/bin/chromium
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain and dependencies
+        uses: ./.github/actions/setup
+      - name: Download Chrome archive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: extension-chrome
+          path: ${{ runner.temp }}/chrome-zips
+      - name: Prepare the installed Chromium sandbox
+        run: mise run prepare:chromium
+      - name: Validate the Chrome build
+        shell: bash
+        run: |
+          shopt -s nullglob
+          zips=("$RUNNER_TEMP"/chrome-zips/*-chrome.zip)
+          [ "${#zips[@]}" -eq 1 ] || { echo "::error::expected one *-chrome.zip, found ${#zips[@]}"; exit 1; }
+          rm -rf .output/chrome-mv3
+          mkdir -p .output/chrome-mv3
+          unzip -q "${zips[0]}" -d .output/chrome-mv3
+          "$CHROME_BIN" --version
+          mise exec -- pnpm run validate:chrome-artifact
+
+  workflows:
+    name: Workflow lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Mise
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: "2026.11.5"
+          install: false
+          cache_save: false
+      - name: Run actionlint and zizmor
+        run: mise run lint:workflows
+
+  # This optional packaging check needs Apple's macOS tools. Run it on request
+  # through the `ci:safari` PR label or the manual input.
+  safari-xcode:
+    name: Safari Xcode project
+    needs: build
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.safari-xcode) ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:safari'))
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Mise
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: "2026.11.5"
+          install: false
+          cache_save: false
+      - name: Download Safari archive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: extension-safari
+          path: ${{ runner.temp }}/safari-zips
+      - name: Generate and build the unsigned Xcode project
+        shell: bash
+        run: |
+          unzip -q "$RUNNER_TEMP"/safari-zips/*-safari.zip -d "$RUNNER_TEMP/safari"
+          mise run safari-project --source "$RUNNER_TEMP/safari" --out "$RUNNER_TEMP/safari-xcode"

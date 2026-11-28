@@ -1,0 +1,298 @@
+# Real-browser verification
+
+This private Node workspace package owns generated-output inspection and real-browser drivers. It has no runtime npm dependencies: the owners in `webdriver/` speak W3C WebDriver over native `fetch`. The native `check` task checks TypeScript and JavaScript sources marked with `@ts-check`, then runs Node syntax checks for every JavaScript file. Installed browser and driver executables remain separate prerequisites.
+
+## Chrome
+
+`pnpm validate:chrome-artifact` reads an existing `.output/chrome-mv3` and then loads its generated panel and options pages in Chromium. Set `CHROME_BIN` or pass `--chrome=<executable>` when automatic discovery cannot locate the intended browser. `--static-only` checks packaged files and explicitly skips startup. The validator unwraps the CDP response envelope once before reading `Runtime.evaluate`'s `RemoteObject.value`.
+
+The hosted smoke job selects `/usr/bin/chromium` explicitly and records its
+version. The Ubuntu image's default `CHROME_BIN` selects branded Chrome, whose
+[`--load-extension` flag was removed in Chrome 137](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY).
+For local automation, select Chromium or Chrome for Testing. See
+[CI browser ownership](../../docs/ci.md#runners) for the hosted source and version policy.
+The hosted job calls `mise run prepare:chromium` to grant user-namespace access
+to the image's exact Chromium executable through AppArmor. The task requires a
+root-owned executable and parents that the runner cannot modify. The job runs
+the browser as an unprivileged user and keeps Ubuntu's global restriction enabled.
+This is CI host preparation; the validator keeps Chromium's sandbox checks and
+reports a failed start when the host cannot support them.
+
+`chrome/cdp.mjs` owns the debugging connection. Opening the socket and each command have a 15-second deadline. A transport error, browser closure or explicit disposal rejects outstanding commands and releases their timers and event subscriptions. The `verify` Vitest project tests these failure paths without claiming that a generated extension loaded in a real browser.
+
+`chrome/process.mjs` owns the browser process, temporary profile and DevTools
+HTTP reads. Startup has one 15-second budget, including response bodies. Target
+requests have a separate 15-second deadline and honor caller cancellation.
+Process closure aborts active reads. Cleanup sends SIGTERM, waits two seconds,
+then awaits a SIGKILL fallback before removing the profile. POSIX launches own
+their process group so cleanup also signals the browser's children.
+
+Failed starts retain the exit status, signal and final 16,384 characters of
+stderr in the JSON report. Read that evidence before changing browser flags or
+timeouts. `chrome/pages.mjs` keeps the generated-page checks and appends a
+separate failure if process/profile cleanup fails. Real child-process and local
+HTTP tests cover these owners; they do not prove that Chromium started or that
+the extension's browser journeys passed.
+
+A usable executable and a passing bundle do not prove that the host permits a browser process. Record local socket, sandbox or display failures as blocked runtime checks. Startup alone also does not cover the complete tab, observation, private-window or search journey. See the [verification workflow](../../docs/architecture/verification-workflow.md).
+
+## WebDriver ownership
+
+Firefox and Safari acquire their fixture server, driver and browser session
+inside one cleanup scope. `webdriver/driver.mjs` owns the native process and its
+log descriptor. Readiness requires a valid `value.ready === true` response from
+a live child; it does not guarantee that creating a session will succeed.
+`webdriver/protocol.mjs` owns each complete JSON response, including body reads.
+`webdriver/session.mjs` validates the returned session ID and capabilities and
+retains the accepted remote timeout policy.
+
+| Operation | Default budget |
+| --- | --- |
+| Driver startup, including readiness response bodies | 10 seconds |
+| Create a browser session | 60 seconds |
+| Metadata and browser-specific commands | 30 seconds |
+| Execute a script after either caller sets its policy | 180 seconds remotely, plus 5 seconds for the response |
+| Firefox navigation | 300 seconds remotely, plus 5 seconds for the response |
+| Safari navigation | 30 seconds remotely, plus 5 seconds for the response |
+| Delete a known session or installed Safari extension | 5 seconds per exchange |
+| Stop the owned native driver | SIGTERM and a 2-second join, then SIGKILL and a 2-second join if needed |
+
+These are exchange and process budgets, not one deadline for a scenario that
+performs many commands. A request deadline or caller cancellation also covers
+an unfinished response body. It does not cancel unrelated requests or prove
+that browser-side work stopped. The harness requires finite script and
+navigation policies so a failed exchange can reach cleanup. The
+[WebDriver Working Draft](https://www.w3.org/TR/2026/WD-webdriver2-20261126/)
+defines the protocol values and timeout defaults; the table records this
+package's additional transport policy.
+
+`interrupts.mjs` turns SIGINT or SIGTERM into cancellation of ordinary work.
+The callers retain the live driver long enough to attempt bounded remote
+cleanup independently of that canceled signal. Safari removes its known
+installed extension first; both callers delete a known session, close the
+driver, then close the fixture server. Each cleanup failure becomes a separate
+result, and the final JSON report is written after disposal. If creation never
+returned a session ID, no known remote identity is available for DELETE.
+
+The process owner captures stdout and stderr through one native file
+descriptor. Failed starts include exit status, signal and the final 16,384
+bytes of the log. Work directories and complete logs remain available for
+diagnosis. On POSIX, the driver owns its new process group and can terminate
+children in that group. On Windows, cleanup owns the direct child. Neither
+contract proves that an independently running Safari process was stopped.
+
+`fixtures.mjs` rejects listen failures, cancels delayed responses and joins
+server closure. Native process, HTTP and actual CLI fixtures exercise these
+failure paths through the discovered `verify` test project. They establish
+transport and cleanup behavior; a real browser run is still required for the
+extension's user flows.
+
+## Firefox
+
+```sh
+mise run build firefox
+GECKODRIVER="$(mise exec npm:geckodriver@latest -- which geckodriver)" \
+  mise exec -- node tools/verify/firefox.mjs
+```
+
+The driver starts geckodriver with `--allow-system-access`, installs
+`.output/firefox-mv3` as a temporary add-on with a fixed moz-extension UUID,
+serves local fixture pages (`fixtures.mjs`: a WordPress/jQuery page, a
+Docusaurus SPA page, a page that blocks its main thread 900 ms of every
+second), and opens `options.html` in a second window as a control page.
+WebDriver refuses to navigate to `moz-extension:` URLs, so extension tabs are
+opened from the chrome context. The control page drives tabs with
+`browser.tabs.*` and reads results from:
+
+- `browser.storage.local` session snapshots (`rd:session-index:<tab>` and
+  `rd:session:*`) for detected technology names;
+- `browser.action.getBadgeText({ tabId })`;
+- the diagnostics journal (`diagnostics:record:*`), which mirrors background
+  and content log events, including timing spans and `dom-scan` stats;
+- `ExtensionParent` (chrome context) for the event page state
+  (`running`/`stopped`) and `ChromeUtils.requestProcInfo()` for the extension
+  process's resident memory.
+
+Both drivers open the local WordPress and SPA fixtures before installing the
+extension. The `preinstall` scenario activates the existing SPA tab and requires
+its Docusaurus marker, then switches back to WordPress. Selecting local scenarios
+therefore does not require an external page during setup. Scenarios such as
+`real-sites`, `heavy`, and `restricted` still use the public sites they name.
+
+Options:
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--only a,b` | all | scenarios (`scenarios.mjs`): `preinstall`, `active-load`, `background-tab`, `spa`, `real-sites`, `busy-page`, `navigate-mid-scan`, `close-mid-scan`, `idle-wake`, `panel-page`, `reinstall`, `restricted`, `heavy`, `history`, `nav-loop`, `permission-revoked`; `stress` only when named |
+| `--headed` | off | show the browser window |
+| `--idle-timeout ms` | 30000 | `extensions.background.idle.timeout` |
+| `--stress-rounds n` | 12 | navigations in the `nav-loop` scenario |
+| `--seed n`, `--minutes m`, `--quick`, `--tabs n`, `--windows n`, `--no-real`, `--no-idle` | see below | the `stress` scenario |
+| `--out file` | temp dir | JSON results |
+| `--extension dir` | `.output/firefox-mv3` | build to install |
+
+`HEAVY_URLS=url,url` overrides the `heavy` pages. `VERIFY_VERBOSE=1` adds the
+full event timeline to every result (failures always include it). Scenarios
+marked "informational" always pass and record what happened. The exit code is
+non-zero when any scenario fails. Real-site scenarios need network access.
+
+## Stress
+
+```sh
+mise run verify firefox -- --only stress --seed 42 --minutes 10
+mise run verify firefox -- --only stress --quick --seed 1      # CI-sized, about 3 minutes in all
+mise run verify safari -- --stp --only stress --seed 42 --minutes 5
+```
+
+`stress/index.mjs` uses DeepScope like a careless heavy user. A seeded schedule
+(`--seed`; the run prints it) opens up to `--tabs` tabs (default 24; 10 with
+`--quick`) across `--windows` windows (4; 2), and for `--minutes` (5; 1.5)
+switches tabs in bursts faster than scans finish, focuses windows, moves and
+reorders tabs, closes tabs (preferring ones mid-scan) and windows, reopens
+closed tabs (Firefox session restore), navigates, `location.replace`s, goes
+back and forward, reloads in storms, `pushState`s, rewrites whole documents,
+duplicates and pins tabs, opens `panel.html?tab=` and the Firefox sidebar, and
+uses a private window (Firefox; the add-on is installed with private browsing
+allowed). Halfway through (and at 80% in runs over 8 minutes) it leaves the
+extension alone until the background unloads, then hammers it again.
+`--no-real` keeps it to the local fixtures; `--no-idle` skips the idle wait.
+
+The fixtures each carry one distinct generator (`STRESS_FIXTURES` in
+`fixtures.mjs`), so a result naming another page's generator is a result
+published for the wrong document. Results go to `--out` as `stress <invariant>`
+records plus a `stress summary` with the action log; each failure carries the
+seed, time, tab, the tab's last actions and its journal lines.
+
+| Invariant | Checked |
+| --- | --- |
+| `inv1-current-document-results` | every 5 s, and at the end by visiting each tab: the stored result for the tab's current URL has the fixture's `must` names and no other fixture's marker |
+| `inv2-badge` | every 5 s and in a final sweep: a non-blank badge equals the tab's current-URL result count |
+| `inv3-closed-tab-cleanup`, `inv3-work-after-close` | no `rd:session*` keys, scheduler work or running matcher jobs for closed tabs; no scan events for a tab 8 s after it closed |
+| `inv4-stuck-work`, `inv4-journal-errors` | the IndexedDB `work` store drains within 60 s; no error records; warnings and lost content scripts only right after the harness disturbed that tab |
+| `inv5-memory` | Firefox only: extension process memory 20-50 s after activity stops is below 3x (or +400 MiB over) the start and not still growing |
+| `inv6-private-not-persisted` | no stored key or value refers to a private tab |
+
+A violation seen while running counts only if the next sample still shows it
+and the harness has not touched the tab since. A disruptive action restarts
+confirmation even when the incorrect result stays the same. If the browser
+cannot create a normal window during startup, the scenario records a failed
+`stress startup` result with the action errors and returns control to the driver,
+which owns cleanup. It does not retry window creation indefinitely.
+
+The stress folder separates the parts a maintainer needs to trace when a run
+fails. `index.mjs` composes the run. `schedule.mjs` owns its options and single
+random stream; `pages.mjs` owns URLs and expected markers. `model.mjs` keeps tab
+and window identities, including closed/private tabs needed by later checks.
+`actions.mjs` changes browser state, while `observations.mjs` reads extension
+state. `checks.mjs` owns the final visits and cleanup/memory checks, then
+`report.mjs` emits the invariant records and summary. Browser sessions remain
+owned by the Firefox or Safari driver.
+
+The verify tests exercise seeded choices, model lifetime and the scenario
+dispatcher with controlled adapter responses. They do not replace the browser
+stress command above or establish browser API support.
+
+## Shared scenarios
+
+`scenarios.mjs` holds the parts that work in any browser: the state reader,
+the problem filter, the waits, and the scenario matrix. Each driver installs
+the build, opens a control page, and passes in hooks for what only its
+browser can do: background state, process memory, opening extension tabs,
+reinstalling, and restricted pages. The `idle-wake` scenario also counts
+background starts in the journal (`matcher-executor-selected`). That count is
+how the Safari run sees an unload.
+
+`mise run verify <firefox|safari> [-- options]` runs a driver against an
+existing build. Run `mise run build <browser>` first.
+
+## Safari
+
+```sh
+mise run build safari
+mise run verify safari                  # Safari 26+
+mise run verify safari -- --stp         # Safari Technology Preview's own driver
+mise run verify safari -- --check-only  # no browser: manifest and packager checks
+```
+
+What Safari supports for automated extension tests (checked November 2026):
+
+- On macOS, SafariDriver supports the W3C Web Extensions classic command
+  `POST /session/{id}/webextension` from Safari 26. The release notes say
+  "Added support for web extensions in WebDriver"; the WebKit changes are
+  287737@main, 290244@main and 290723@main.
+  - The body is `{"type":"path"|"archivePath","path":...}` or
+    `{"type":"base64","value":...}`.
+  - The result is the extension id. `DELETE /session/{id}/webextension/{id}`
+    unloads it.
+  - No capability is needed.
+  - The draft spec also names `value` as the key for paths, so the driver
+    tries each body shape and records which one worked.
+- BiDi `webExtension.install` is not implemented
+  (https://bugs.webkit.org/show_bug.cgi?id=288348).
+- The other tools don't help:
+  - Playwright drives its own WebKit build, not Safari, and cannot load
+    extensions.
+  - WebdriverIO's `installExtension` skips Safari.
+  - WXT only builds for Safari (`wxt build -b safari`). It launches only
+    Chrome and Firefox.
+- WebKit unloads an idle non-persistent background after 30 s, which is the
+  default `--idle-timeout`. Safari doesn't report background state to
+  WebDriver, so `idle-wake` waits past the timeout, then checks for a
+  background restart.
+
+**One-time owner settings.** Until these are set, both drivers refuse every
+session, over HTTP and over BiDi. The script exits with code 2 and prints the
+missing step.
+
+1. Safari > Settings > Advanced > "Show features for web developers".
+2. Settings > Developer > "Allow remote automation". Alternatively, run
+   `safaridriver --enable` once; it asks for an admin password. For Safari
+   Technology Preview, turn the setting on in that app, or run
+   `"/Applications/Safari Technology Preview.app/Contents/MacOS/safaridriver" --enable`.
+
+Once the settings are on, the driver:
+
+1. Installs a copy of `.output/safari-mv3` through WebDriver. The copy adds
+   one background script, `verify-probe-bg.js`, that opens
+   `options.html?verify-probe=1` once per session. WebDriver returns Safari's
+   composed identifier, not the UUID in `safari-web-extension://` URLs, and
+   refuses to navigate to those URLs (WebKit bug 252112), so that tab is how
+   the driver finds the UUID and its control page.
+2. Records `safari-worker-fetch`: whether a worker can fetch the packaged
+   registry shards. Safari lowercases the host in `location.origin`, and a
+   fetch under that host fails, so workers must resolve against
+   `location.href`.
+3. Records host access (informational). Safari Technology Preview reports no
+   granted origins for a WebDriver install but still scans. If scans fail, go
+   to Settings > Extensions and set DeepScope to "Always Allow on Every
+   Website".
+
+Options:
+
+| Flag | Meaning |
+| --- | --- |
+| `--stp` | use Safari Technology Preview and its own driver |
+| `--driver path` | use a different safaridriver binary |
+| `--extension dir` | build to install |
+| `--base-url safari-web-extension://<uuid>` | provide a known base URL; the manual control-page flow remains incomplete, as described below |
+| `--diagnose` | write safaridriver logs to `~/Library/Logs/com.apple.WebDriver/` |
+| `--only`, `--idle-timeout`, `--stress-rounds`, `--out` | same as for Firefox |
+
+The `restricted` scenario uses an App Store page and a PDF. Safari reports no
+process memory, so there is no `memory` hook. The current `--base-url` path still
+attempts installation and does not reliably acquire an existing control page.
+It is not a verified fallback. Diagnostic worker disposal and storage-probe
+cleanup also remain open in the [active action list](../../docs/migration/monorepo-plan.md).
+Linux driver fixtures do not establish real Safari execution.
+
+**Manual packaging.** `mise run safari-project` wraps the existing build in a
+macOS app through `safari-web-extension-packager`, then runs `xcodebuild` with
+code signing disabled. It uses the generated `.output/safari-xcode` directory.
+Then load it one of two ways:
+
+- Open the app once and turn on Develop > "Allow Unsigned Extensions". The
+  setting resets whenever Safari quits.
+- Or use Settings > Developer > "Add Temporary Extension..." with
+  `.output/safari-mv3`. Safari removes it after 24 hours or when it quits.
+
+Either way, finish by enabling DeepScope in Settings > Extensions.

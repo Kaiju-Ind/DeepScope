@@ -1,0 +1,8 @@
+{
+  "name": "@deepscope/release-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit -p . && for source in ./*.mjs; do node --check \"$source\" || exit; done"
+  }
+}

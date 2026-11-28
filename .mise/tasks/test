@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Run the discovered Vitest suite once (every workspace project)"
+# Vitest discovers test files from the root vitest.config.ts projects; this task never lists them.
+# Extra arguments are passed to Vitest, e.g. `mise run test --project 'extension (runtime)'`.
+set -euo pipefail
+exec pnpm run test:run "$@"

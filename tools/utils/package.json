@@ -1,0 +1,12 @@
+{
+  "name": "@deepscope/utils-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "@types/node": "^26.6.6"
+  }
+}

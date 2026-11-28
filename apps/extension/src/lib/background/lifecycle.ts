@@ -1,0 +1,117 @@
+import { browser } from 'wxt/browser';
+
+import type { DetectionSnapshotLifecycleStore } from "../persistence/index.ts";
+import type { TabWrites } from "./writes.ts";
+
+/** Reason recorded when a tab lifecycle event updates stored snapshots. */
+type BackgroundTabLifecycleReason = 'tab-navigation' | 'tab-removed';
+
+/** Callback used to clean memory that is safe to lose across service-worker restarts. */
+export type BackgroundTabCleanup = (tabId: number) => void;
+
+/** Diagnostic logger shape used by the background entrypoint without importing LogTape here. */
+export type BackgroundLifecycleLogger = (event: string, details?: Record<string, unknown>) => void;
+
+/** Options for registering lightweight background lifecycle listeners. */
+export interface RegisterBackgroundLifecycleListenersInput {
+	/** Persistence capability used to update durable tab-session lifecycle state. */
+	readonly snapshots: DetectionSnapshotLifecycleStore;
+	/** Invalidate volatile state before the same tab update can schedule an automatic scan. */
+	readonly onTabNavigation?: BackgroundTabCleanup;
+	/** Remove volatile tab-scoped maps when a tab closes or its id is replaced. */
+	readonly onTabRemoved: BackgroundTabCleanup;
+	/** Snapshot writes a closed tab refuses and its cleanup waits for before a second pass. */
+	readonly writes?: Pick<TabWrites, 'close' | 'settled'>;
+	/** Optional summary logger for lifecycle events and cleanup failures. */
+	readonly log?: BackgroundLifecycleLogger;
+}
+
+/**
+ * Register lifecycle listeners that do not need the detector registry.
+ *
+ * Manifest V3 can wake the background service worker for tab events before a
+ * side panel command asks for analysis. The listeners stay lightweight: they mark
+ * stored snapshot revisions stale or stopped and prune disposable maps, but they
+ * do not import registry data, run detection, or inject content scripts.
+ */
+export function registerBackgroundLifecycleListeners(
+	input: RegisterBackgroundLifecycleListenersInput,
+): void {
+	browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
+		if (!isNavigationChange(changeInfo)) {
+			return;
+		}
+
+		input.onTabNavigation?.(tabId);
+		void markTabSnapshots(input.snapshots, tabId, 'stale', 'tab-navigation', input.log)
+			.catch((error: unknown) => logCleanupFailure(input.log, tabId, 'tab-navigation', error));
+	});
+
+	/**
+	 * Release everything a tab id owns: volatile state first, then its stored sessions.
+	 *
+	 * A scan that was saving when the tab closed can land after the first pass
+	 * and recreate the index, so the sessions are removed again once the tab's
+	 * in-flight writes have settled.
+	 */
+	function forgetTab(tabId: number): void {
+		input.writes?.close(tabId);
+		input.onTabRemoved(tabId);
+		void (async () => {
+			await markTabSnapshots(input.snapshots, tabId, 'stopped', 'tab-removed', input.log);
+			await input.snapshots.removeSessionIndex(tabId);
+			if (!input.writes) return;
+			await input.writes.settled(tabId);
+			await input.snapshots.removeSessionIndex(tabId);
+		})().catch((error: unknown) => logCleanupFailure(input.log, tabId, 'tab-removed', error));
+	}
+
+	browser.tabs.onRemoved.addListener((tabId) => forgetTab(tabId));
+	// A prerendered or restored page can replace a tab id. The old id never
+	// receives another event, and its stored sessions describe a document no
+	// tab shows any more, so it is forgotten exactly as if the tab closed.
+	browser.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
+		input.log?.('tab-replaced', { addedTabId, removedTabId });
+		forgetTab(removedTabId);
+	});
+}
+
+/** Treat URL changes and new loading cycles as the old document becoming stale. */
+function isNavigationChange(changeInfo: { readonly status?: string; readonly url?: string }): boolean {
+	return typeof changeInfo.url === 'string' || changeInfo.status === 'loading';
+}
+
+/** Publish a terminal state for stored snapshots after volatile cleanup. */
+async function markTabSnapshots(
+	snapshots: DetectionSnapshotLifecycleStore,
+	tabId: number,
+	status: 'stale' | 'stopped',
+	reason: BackgroundTabLifecycleReason,
+	log?: BackgroundLifecycleLogger,
+): Promise<void> {
+	const marked = await snapshots.markTabSnapshots(tabId, status, reason);
+	if (marked.length === 0) {
+		return;
+	}
+
+	log?.('tab-session-snapshots-marked', {
+		tabId,
+		status,
+		reason,
+		count: marked.length,
+	});
+}
+
+/** Report which lifecycle write failed without exposing URLs from the storage error. */
+function logCleanupFailure(
+	log: BackgroundLifecycleLogger | undefined,
+	tabId: number,
+	reason: BackgroundTabLifecycleReason,
+	error: unknown,
+): void {
+	log?.('tab-session-cleanup-failed', {
+		tabId,
+		reason,
+		errorType: error instanceof Error ? 'Error' : typeof error,
+	});
+}

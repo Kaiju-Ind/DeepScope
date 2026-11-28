@@ -1,0 +1,65 @@
+# Installs the pinned toolchain (mise.toml) and the locked dependencies.
+#
+# Cache ownership:
+# - Mise caches its tool downloads. Only callers that pass `mise-cache-save:
+#   'true'` write that cache; the verify workflow's `prepare` job decides that
+#   from the trusted-ref rules documented in docs/ci.md.
+# - The pnpm download store is restored here (read-only). Writing it is left to
+#   the caller, which must re-derive the key after a successful install.
+# - `cache: 'false'` disables both restores; release builds use it so nothing a
+#   pull request could have written reaches a published artifact.
+name: Set up DeepScope
+description: Install Node and pnpm with Mise, then run a frozen pnpm install.
+inputs:
+  cache:
+    description: Restore the Mise and pnpm download caches ('true' or 'false').
+    default: 'true'
+  mise-cache-save:
+    description: Allow Mise to save its tool cache after the job ('true' or 'false').
+    default: 'false'
+  install:
+    description: Run `pnpm install --frozen-lockfile` ('true' or 'false').
+    default: 'true'
+outputs:
+  pnpm-cache-key:
+    description: Key of the pnpm download store for this lockfile and toolchain.
+    value: ${{ steps.key.outputs.key }}
+  pnpm-cache-hit:
+    description: Whether the pnpm download store was restored from an exact key.
+    value: ${{ steps.restore.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    - name: Install Node and pnpm with Mise
+      uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      with:
+        version: "2026.11.5"
+        cache: ${{ inputs.cache == 'true' }}
+        cache_save: ${{ inputs.mise-cache-save == 'true' }}
+    # Later `pnpm run` steps must see the same store, so this is job-wide. The
+    # value is a runner-owned constant with no event or user input in it.
+    - name: Keep the pnpm store outside the checkout
+      shell: bash
+      run: echo "PNPM_CONFIG_STORE_DIR=$RUNNER_TEMP/pnpm-store" >> "$GITHUB_ENV" # zizmor: ignore[github-env]
+    - name: Identify locked pnpm downloads
+      id: key
+      if: inputs.cache == 'true' && hashFiles('pnpm-lock.yaml') != ''
+      shell: bash
+      env:
+        CACHE_PLATFORM: ${{ runner.os }}-${{ runner.arch }}
+        CACHE_INPUTS: ${{ hashFiles('mise.toml', 'mise.lock', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', 'apps/*/package.json', 'packages/*/package.json', 'tools/*/package.json', 'utils/*/package.json') }}
+      run: |
+        printf 'key=deepscope-pnpm-v2-%s-%s-%s-%s\n' "$CACHE_PLATFORM" \
+          "$(mise exec -- node --version)" "$(mise exec -- pnpm --version)" "$CACHE_INPUTS" >> "$GITHUB_OUTPUT"
+    - name: Restore pnpm download store
+      id: restore
+      if: steps.key.outputs.key != ''
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/pnpm-store
+        key: ${{ steps.key.outputs.key }}
+    - name: Install locked dependencies
+      if: inputs.install == 'true'
+      shell: bash
+      run: mise exec -- pnpm install --frozen-lockfile

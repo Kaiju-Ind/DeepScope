@@ -1,0 +1,347 @@
+# Builds release archives from a version tag and publishes them to GitHub
+# Releases and GitHub Packages (ghcr.io), with SHA256SUMS and build provenance.
+# The full procedure, verification commands and owner actions are in
+# docs/release/README.md.
+#
+# Order: build -> attest -> draft release with every asset -> ghcr push ->
+# publish. A failure before `publish` can leave a draft and a separately
+# published OCI artifact. Preserve each target's bytes and digest before retrying.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Build, test and package only; no attestation, release, package or store upload
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build release archives
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      dry-run: ${{ steps.version.outputs.dry-run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No caches: a release must not consume anything a PR run could write.
+      - name: Install toolchain and dependencies (cold)
+        uses: ./.github/actions/setup
+        with:
+          cache: 'false'
+      - name: Resolve and check the version
+        id: version
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          DRY_RUN_INPUT: ${{ inputs.dry-run }}
+        run: |
+          version=$(jq -r .version apps/extension/package.json)
+          if [ "$EVENT" = push ]; then
+            mise run release:check-version "$GITHUB_REF_NAME"
+            tag="$GITHUB_REF_NAME"; dry_run=false
+          else
+            tag="v$version"; dry_run="$DRY_RUN_INPUT"
+            # A manual non-dry run publishes; it must point at the matching tag.
+            if [ "$dry_run" != true ]; then
+              [ "$GITHUB_REF_TYPE" = tag ] || { echo "::error::a non-dry run must be dispatched from a tag"; exit 1; }
+              mise run release:check-version "$GITHUB_REF_NAME"
+              tag="$GITHUB_REF_NAME"
+            fi
+          fi
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "dry-run=$dry_run"
+          } >> "$GITHUB_OUTPUT"
+      # Reproducible-build input for the AMO source review. The build id in
+      # wxt.config.ts already comes from the commit (GITHUB_SHA); this pins tools
+      # that honour SOURCE_DATE_EPOCH. Registry output has no build timestamp.
+      - name: Pin the build timestamp to the commit
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
+      - name: Check types
+        run: mise run check
+      - name: Run tests
+        run: mise run test
+      - name: Build archives and SHA256SUMS
+        run: mise run release:archives
+      - name: Lint the Firefox build
+        run: mise run lint:firefox
+      - name: Release notes
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          status=0
+          node tools/release/archives.mjs notes "$VERSION" .output/release-notes.md || status=$?
+          if [ "$status" -eq 3 ]; then
+            echo "No CHANGELOG.md section for $VERSION; GitHub will generate notes."
+          elif [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+      - name: Summarize
+        shell: bash
+        run: |
+          {
+            echo "### Release archives"
+            echo '```'
+            cat .output/release/SHA256SUMS
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload release archives
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: |
+            .output/release/
+            .output/release-notes.md
+          if-no-files-found: error
+          retention-days: 30
+
+  # Attestations are public Sigstore records, so dry runs skip them.
+  attest:
+    name: Attest build provenance
+    needs: build
+    if: needs.build.outputs.dry-run != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # Sigstore signing certificate for the attestation
+      attestations: write # store the attestation on this repository
+      artifact-metadata: write # storage record linking the artifact to the attestation
+    steps:
+      - name: Download release archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+      - name: Verify checksums
+        working-directory: ${{ runner.temp }}/release/release
+        run: sha256sum -c SHA256SUMS
+      - name: Attest every archive listed in SHA256SUMS
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: ${{ runner.temp }}/release/release/SHA256SUMS
+
+  github-release:
+    name: Draft GitHub release
+    needs: [build, attest]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the draft release and upload its assets
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.build.outputs.tag }}
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Download release archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+      # Immutable releases lock assets at publish time, so every asset is
+      # uploaded while the release is still a draft.
+      - name: Create draft with all assets
+        shell: bash
+        working-directory: ${{ runner.temp }}/release
+        run: |
+          (cd release && sha256sum -c SHA256SUMS)
+          if [ -s release-notes.md ]; then notes=(--notes-file release-notes.md); else notes=(--generate-notes); fi
+          gh release create "$TAG" --draft --verify-tag --title "DeepScope $VERSION" "${notes[@]}" release/*
+
+  ghcr:
+    name: Push to GitHub Packages
+    needs: [build, github-release]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write # push the OCI artifact and its attestation to ghcr.io
+      id-token: write # Sigstore signing certificate for the attestation
+      attestations: write # store the attestation on this repository
+      artifact-metadata: write # storage record linking the package to the attestation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Mise
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: "2026.11.5"
+          install: false
+          cache: false
+      - name: Download release archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+      - name: Push OCI artifact
+        id: push
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: mise run release:push-oci --version "$VERSION" "$RUNNER_TEMP/release/release"
+      - name: Attest the pushed manifest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ steps.push.outputs.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+  publish:
+    name: Publish GitHub release
+    needs: [build, github-release, ghcr]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # publish the draft release
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.build.outputs.tag }}
+    steps:
+      - name: Publish the draft
+        run: gh release edit "$TAG" --draft=false
+      # This existing advisory does not turn failed verification into evidence.
+      # Inspect the actual diagnostic; settings are only one possible cause.
+      - name: Verify release attestation
+        shell: bash
+        run: |
+          if ! gh release verify "$TAG"; then
+            echo "::warning::release attestation is unverified; inspect the diagnostic above and docs/release/README.md"
+          fi
+
+  # Store uploads. Each is off until the owner sets the repository variable
+  # and stores the secrets in the named environment (add required reviewers to
+  # that environment). See docs/release/README.md for the exact names.
+  chrome-web-store:
+    name: Upload to Chrome Web Store
+    needs: [build, publish]
+    if: vars.CWS_UPLOAD == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: chrome-web-store
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Mise
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: "2026.11.5"
+          cache: false
+      - name: Download release archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+      - name: Upload (not published; submit for review in the dashboard)
+        env:
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: mise run release:store-upload chrome "$RUNNER_TEMP/release/release" "$VERSION"
+
+  firefox-addons:
+    name: Submit to addons.mozilla.org
+    needs: [build, publish]
+    if: vars.AMO_SUBMIT == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: addons-mozilla-org
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Mise
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: "2026.11.5"
+          cache: false
+      - name: Download release archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+      - name: Submit listed version with sources
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.WEB_EXT_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.WEB_EXT_API_SECRET }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: mise run release:store-upload firefox "$RUNNER_TEMP/release/release" "$VERSION"
+
+  # Safari distribution needs Apple signing, which is not automated yet. This
+  # job produces the unsigned Xcode project for the owner to archive, sign and
+  # upload from Xcode; see docs/release/README.md for what full automation needs.
+  app-store-connect:
+    name: Safari Xcode project for App Store Connect
+    needs: [build, publish]
+    if: vars.ASC_PACKAGE == 'true'
+    runs-on: macos-15
+    timeout-minutes: 30
+    environment: app-store-connect
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Mise
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: "2026.11.5"
+          install: false
+          cache: false
+      - name: Download release archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+      - name: Generate the Xcode project
+        env:
+          BUNDLE_ID: ${{ vars.SAFARI_BUNDLE_ID }}
+          VERSION: ${{ needs.build.outputs.version }}
+        shell: bash
+        run: |
+          [ -n "$BUNDLE_ID" ] || { echo "::error::set the SAFARI_BUNDLE_ID repository variable"; exit 1; }
+          unzip -q "$RUNNER_TEMP/release/release/deepscope-$VERSION-safari.zip" -d "$RUNNER_TEMP/safari"
+          mise run safari-project --source "$RUNNER_TEMP/safari" --out "$RUNNER_TEMP/safari-xcode" --bundle-id "$BUNDLE_ID" --no-build
+          (cd "$RUNNER_TEMP" && zip -qr "deepscope-$VERSION-safari-xcode.zip" safari-xcode)
+      - name: Upload the Xcode project
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: safari-xcode
+          path: ${{ runner.temp }}/deepscope-${{ needs.build.outputs.version }}-safari-xcode.zip
+          if-no-files-found: error
+          retention-days: 30

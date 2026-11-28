@@ -1,12 +1,8 @@
 {
-  "extends": "./.wxt/tsconfig.json",
+  "$comment": "Root-level config files only. Each workspace project has its own tsconfig.json; `pnpm compile` checks all of them.",
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "strict": true,
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js",
-    "allowImportingTsExtensions": true,
-    "types": [
-      "unplugin-icons/types/solid"
-    ]
-  }
+    "types": ["node"]
+  },
+  "include": ["*.ts"]
 }

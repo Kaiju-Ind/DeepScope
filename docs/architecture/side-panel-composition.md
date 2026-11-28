@@ -18,7 +18,7 @@ There is no separate Scan page. Live inspection state belongs to Summary, while 
 
 ## Browser ownership
 
-`src/app/tab.ts` resolves the browser window that contains the mounted side-panel document. It then resolves the active tab only inside that window.
+`apps/extension/src/app/browser/tabs.ts` resolves the browser window that contains the mounted side-panel document. It then resolves the active tab only inside that window.
 
 ```text
 side panel mounts
@@ -33,7 +33,7 @@ The background never guesses which tab the side panel means. Analysis commands c
 
 ## Current state owner
 
-`src/app/provider.tsx` still owns state that must survive route changes, including current analysis, observation state, matcher state, settings, and tab identity. Pages use narrow projections from `src/app/context.ts`:
+`apps/extension/src/app/panel/provider.tsx` composes the owners for state that must survive route changes, including current analysis, observation state, matcher state, settings, and tab identity. Pages use narrow projections from `apps/extension/src/app/panel/context.ts`:
 
 ```text
 SummaryPage      -> useSummary()
@@ -43,7 +43,7 @@ HistoryPage      -> useHistory()
 SettingsPage     -> useSettings()
 ```
 
-This is not the final state-ownership refactor. The provider remains larger than the desired capability model. New History and Diagnostics work does not add more replay or diagnostic responsibilities to it: History reads retained replay receipts through storage, and Diagnostics remains independent of detector UI state.
+The provider creates signals and operations synchronously inside the mounted Solid owner. `state.ts`, `analysis.ts`, `targeting.ts`, `snapshots.ts`, `revisions.ts`, `observation.ts` and `settings.ts` each own their part of the flow. Browser implementations are confined to `app/browser/`. History reads retained replay receipts through storage, and Diagnostics remains independent of detector UI state. See [source ownership](source-layout.md) for exact paths.
 
 ### Observation ownership while switching tabs
 
@@ -124,7 +124,7 @@ KAIJU      American Kestrel
 DeepScope  Space Grotesk on the cyan brand surface
 ```
 
-The licensed American Kestrel face is copied into the extension at `public/fonts/american-kestrel/americankestral.ttf`. The regular UI keeps package-contained Space Grotesk, Inter, and Space Mono assets. Fontless runs in the WXT/Vite build so font CSS remains build-owned, with no runtime remote-font requirement.
+`apps/extension/src/styles/fonts.css` declares every UI face by hand: Space Grotesk (variable) and Space Mono from exact-pinned Fontsource npm packages, and the licensed American Kestrel face from `apps/extension/src/assets/fonts/american-kestrel/americankestral.ttf`. Vite emits the files as content-hashed assets, so builds need no network and two builds of one commit produce identical CSS. The metric-adjusted `<Family> Fallback: <font>` faces carry the overrides Fontless used to compute; recompute them if a font package version changes.
 
 ## Review rules
 
@@ -136,5 +136,5 @@ The licensed American Kestrel face is copied into the extension at `public/fonts
 6. Diagnostic filters never mutate persistent records.
 7. Console rate control cannot remove records from the durable diagnostic journal.
 8. Touch navigation must preserve keyboard accessibility and focus behavior.
-9. `src/ui/` primitives are the default building blocks before new UI components are introduced.
-10. The extension remains one package. Do not create a monorepo or top-level package workspace for internal capabilities.
+9. `apps/extension/src/ui/` primitives are the default building blocks before new UI components are introduced.
+10. Browser and reactive state stay in `apps/extension`. The three private portable packages own DOM algorithms, registry data and detection; do not extract browser capabilities just to add packages.

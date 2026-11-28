@@ -1,0 +1,28 @@
+{
+	"name": "@utils/context",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/context @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		".": "./mod.ts",
+		"./types": "./types.ts",
+		"./state": "./state.ts",
+		"./events": "./events.ts",
+		"./testing": "./testing.ts"
+	},
+	"dependencies": {
+		"@utils/collection": "workspace:*",
+		"@utils/dispose": "workspace:*",
+		"@utils/duration": "workspace:*",
+		"@utils/schema": "workspace:*",
+		"@utils/telemetry": "workspace:*",
+		"@okikio/observables": "1.4.0",
+		"@std/async": "npm:@jsr/std__async@1.5.1"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@1.0.20"
+	}
+}

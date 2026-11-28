@@ -1,0 +1,70 @@
+{
+  "name": "@deepscope/registry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./schema/index.ts"
+  ],
+  "exports": {
+    ".": "./index.ts",
+    "./catalog/animation/view-transitions-api": "./catalog/animation/view-transitions-api.ts",
+    "./catalog/bundler/turbopack": "./catalog/bundler/turbopack.ts",
+    "./catalog/bundler/webpack": "./catalog/bundler/webpack.ts",
+    "./catalog/developer-tooling/shiki": "./catalog/developer-tooling/shiki.ts",
+    "./catalog/email-messaging/pusher": "./catalog/email-messaging/pusher.ts",
+    "./catalog/framework/next-js-prerender-cache": "./catalog/framework/next-js-prerender-cache.ts",
+    "./catalog/framework/react-server-components": "./catalog/framework/react-server-components.ts",
+    "./catalog/graphics-visualization/offscreen-canvas": "./catalog/graphics-visualization/offscreen-canvas.ts",
+    "./catalog/graphics-visualization/webgl-api": "./catalog/graphics-visualization/webgl-api.ts",
+    "./catalog/infrastructure-hosting/amazon-s3": "./catalog/infrastructure-hosting/amazon-s3.ts",
+    "./catalog/infrastructure-hosting/amazon-web-services": "./catalog/infrastructure-hosting/amazon-web-services.ts",
+    "./catalog/infrastructure-hosting/cloudinary": "./catalog/infrastructure-hosting/cloudinary.ts",
+    "./catalog/infrastructure-hosting/vercel-blob-storage": "./catalog/infrastructure-hosting/vercel-blob-storage.ts",
+    "./catalog/infrastructure-hosting/vercel-microfrontends": "./catalog/infrastructure-hosting/vercel-microfrontends.ts",
+    "./catalog/marketing-automation/rudderstack": "./catalog/marketing-automation/rudderstack.ts",
+    "./catalog/monitoring-error-tracking/opentelemetry": "./catalog/monitoring-error-tracking/opentelemetry.ts",
+    "./catalog/platform-cms-builder/contentful": "./catalog/platform-cms-builder/contentful.ts",
+    "./catalog/privacy-compliance/fides": "./catalog/privacy-compliance/fides.ts",
+    "./catalog/security/cross-origin-resource-policy": "./catalog/security/cross-origin-resource-policy.ts",
+    "./catalog/security/feature-policy": "./catalog/security/feature-policy.ts",
+    "./catalog/security/kasada": "./catalog/security/kasada.ts",
+    "./catalog/security/referrer-policy-header": "./catalog/security/referrer-policy-header.ts",
+    "./catalog/security/x-content-type-options": "./catalog/security/x-content-type-options.ts",
+    "./catalog/security/x-frame-options": "./catalog/security/x-frame-options.ts",
+    "./catalog/styling-library/google-font-api": "./catalog/styling-library/google-font-api.ts",
+    "./catalog/styling-processor/css-cascade-layers": "./catalog/styling-processor/css-cascade-layers.ts",
+    "./catalog/styling-processor/css-container-query-units": "./catalog/styling-processor/css-container-query-units.ts",
+    "./catalog/styling-processor/css-content-visibility": "./catalog/styling-processor/css-content-visibility.ts",
+    "./catalog/styling-processor/css-has-selector": "./catalog/styling-processor/css-has-selector.ts",
+    "./catalog/styling-processor/css-property-rule": "./catalog/styling-processor/css-property-rule.ts",
+    "./catalog/styling-processor/css-starting-style": "./catalog/styling-processor/css-starting-style.ts",
+    "./catalog/styling-processor/css-subgrid": "./catalog/styling-processor/css-subgrid.ts",
+    "./catalog/ui-library/next-js": "./catalog/ui-library/next-js.ts",
+    "./catalog/widgets-misc/beacon-api": "./catalog/widgets-misc/beacon-api.ts",
+    "./catalog/widgets-misc/client-hints": "./catalog/widgets-misc/client-hints.ts",
+    "./catalog/widgets-misc/critical-client-hints": "./catalog/widgets-misc/critical-client-hints.ts",
+    "./catalog/widgets-misc/html-inert-attribute": "./catalog/widgets-misc/html-inert-attribute.ts",
+    "./catalog/widgets-misc/performance-observer-api": "./catalog/widgets-misc/performance-observer-api.ts",
+    "./catalog/widgets-misc/resize-observer-api": "./catalog/widgets-misc/resize-observer-api.ts",
+    "./catalog/widgets-misc/streams-api": "./catalog/widgets-misc/streams-api.ts",
+    "./categories": "./categories.ts",
+    "./rules": "./rules.ts",
+    "./schema": "./schema/index.ts",
+    "./schema/diagnostics": "./schema/diagnostics.ts",
+    "./schema/version": "./schema/version.ts",
+    "./types": "./types.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vitest": "5.1.0",
+    "@types/node": "^26.6.6"
+  }
+}

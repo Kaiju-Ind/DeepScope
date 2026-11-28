@@ -1,0 +1,22 @@
+# Service references
+
+The primary documentation behind the [service readiness](services/README.md) cards. Read the current page before relying
+on a limit; providers change them. [Writing procedures](procedures/writing/README.md) lists the sources behind the
+procedure format.
+
+| Service question                         | Current primary reference                                                                                                                                                                                                                                       |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bunny runtime SMTP restrictions          | [Magic Containers limits](https://bunny.net/docs/magic-containers/limits)                                                                                                                                                                                       |
+| Resend transport and alternate ports     | [SMTP service](https://resend.com/features/smtp-service)                                                                                                                                                                                                        |
+| Sender readiness                         | [Verified domains](https://resend.com/docs/dashboard/domains/introduction)                                                                                                                                                                                      |
+| Acceptance/delivery event integration    | [Webhooks](https://resend.com/docs/webhooks/introduction)                                                                                                                                                                                                       |
+| B2 endpoint/signature/operation contract | [Calling the S3-compatible API](https://www.backblaze.com/docs/cloud-storage-call-the-s3-compatible-api)                                                                                                                                                        |
+| B2 compatibility limits                  | [S3-compatible API](https://www.backblaze.com/docs/cloud-storage-s3-compatible-api)                                                                                                                                                                             |
+| B2 operation detail                      | [Put Object](https://www.backblaze.com/apidocs/s3-put-object); missing header documentation is not a compatibility verdict                                                                                                                                      |
+| KubeBlocks PITR prerequisites            | [PostgreSQL restore with PITR](https://kubeblocks.io/docs/release-1_0_2/kubeblocks-for-postgresql/05-backup-restore/06-restore-with-pitr); select docs matching the installed version                                                                           |
+| Package permission scope                 | [GitHub package access](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility), [package permissions](https://docs.github.com/en/packages/learn-github-packages/about-permissions-for-github-packages) |
+| AI adapter/model distinction             | [AI SDK provider management](https://ai-sdk.dev/docs/ai-sdk-core/provider-management), [compatible providers](https://ai-sdk.dev/providers/openai-compatible-providers)                                                                                         |
+| Codex instruction discovery              | [Official AGENTS.md guide](https://developers.openai.com/codex/guides/agents-md/)                                                                                                                                                                               |
+
+No prices are frozen into the template. Check current account catalog, tier and published rates before making a cost
+comparison. No outside provider's availability or compatibility is guaranteed by this document.

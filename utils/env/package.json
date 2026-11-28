@@ -1,0 +1,21 @@
+{
+	"name": "@utils/env",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/env @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		".": "./mod.ts",
+		"./standard": "./standard.ts",
+		"./types": "./types.ts"
+	},
+	"dependencies": {
+		"@utils/collection": "workspace:*",
+		"@standard-schema/spec": "1.1.0"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@1.0.20"
+	}
+}

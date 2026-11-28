@@ -1,0 +1,34 @@
+{
+	"name": "@utils/scheduler",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"description": "Vendored from Kaiju-Ind/Utils packages/scheduler @ 47d2c0f. See utils/README.md.",
+	"exports": {
+		"./capacity": "./capacity/mod.ts",
+		"./capacity/standard": "./capacity/standard.ts",
+		"./capacity/types": "./capacity/types.ts",
+		"./queue": "./queue/mod.ts",
+		"./queue/types": "./queue/types.ts",
+		"./queue/fifo": "./queue/fifo.ts",
+		"./queue/policy": "./queue/policy.ts",
+		"./queue/testing": "./queue/testing.ts",
+		"./queue/extensions": "./queue/extensions.ts"
+	},
+	"dependencies": {
+		"@utils/collection": "workspace:*",
+		"@utils/context": "workspace:*",
+		"@utils/duration": "workspace:*",
+		"@utils/result": "workspace:*",
+		"@utils/schema": "workspace:*",
+		"@utils/telemetry": "workspace:*",
+		"@okikio/observables": "1.4.0",
+		"@standard-schema/spec": "1.1.0"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@1.0.20",
+		"zod": "4.6.7"
+	}
+}

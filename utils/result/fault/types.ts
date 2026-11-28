@@ -1,0 +1,25 @@
+// Vendored from Kaiju-Ind/Utils packages/result/fault/types.ts @ 47d2c0f.
+// MIT (c) 2026 Okikio, see utils/LICENSE. Local changes: none. Resync: scripts/utils/sync.ts.
+/** Readonly diagnostic array produced by fault projection. */
+export interface FaultArray extends ReadonlyArray<FaultValue> {}
+
+/** Readonly diagnostic record produced by fault projection. */
+export interface FaultRecord {
+	/** Projected own diagnostic fields, indexed by their source keys; values remain JSON-safe. */
+	readonly [key: string]: FaultValue;
+}
+
+/** JSON-safe diagnostic value produced from an arbitrary runtime fault. */
+export type FaultValue = null | string | number | boolean | FaultArray | FaultRecord;
+
+/** Limits applied while projecting arbitrary runtime faults into diagnostic data. */
+export interface Options {
+	/** Maximum nested object/array depth inspected before a marker is emitted. @default 6 */
+	readonly maximumDepth?: number;
+	/** Maximum own array items or object fields retained at each level. @default 32 */
+	readonly maximumEntries?: number;
+	/** Maximum UTF-16 string length retained for one string field. @default 4096 */
+	readonly maximumStringLength?: number;
+	/** Include an own string `stack` field from Error objects when available. @default true */
+	readonly includeStack?: boolean;
+}
