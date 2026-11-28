@@ -3,10 +3,13 @@
 This plan integrates the `perf/optimize-memory-usage` scheduler work, adds
 Firefox and Safari as supported browsers, and prepares DeepScope for public
 source releases. It is the working record for that effort. Architecture
-documents under `docs/architecture/` remain the description of what exists;
-this file tracks what is being changed and why.
+documents under `docs/architecture/` remain the description of what exists.
+This file preserves the original cross-browser decisions and measurements.
+The [monorepo plan](monorepo-plan.md) owns the current task, source recovery,
+restructure actions and validation record. Historical measurements below do
+not validate the current candidate.
 
-## Active task
+## Original scope and starting point
 
 - **Intent and completion:** Chrome, Firefox and Safari builds that detect
   technologies on a real page, keep the Chromium side panel, use less memory
@@ -22,12 +25,13 @@ this file tracks what is being changed and why.
   [Kaiju project playbook](../kaiju/README.md) (agent execution, engineering
   and CI), routed by [`AGENTS.md`](../../AGENTS.md). Lessons from this plan
   are kept in the [failure catalogue](../kaiju/failures/README.md).
-- **Authorization:** implement on this branch and commit locally. Pushing,
-  opening pull requests, creating releases, and store submissions have not
-  been authorized.
-- **Continuation:** read this file, run `git log --oneline main..HEAD`, run
-  `mise run check` equivalents (`pnpm compile`, `pnpm exec vitest run`), then
-  continue with the first milestone not marked done.
+- **Original authorization:** the initial effort allowed local implementation
+  and commits. The subsequent continuation request authorizes saving the
+  restructure on existing PR #7, `integrate/cross-browser-runtime`. Release
+  creation and store submissions remain separate actions.
+- **Continuation:** reconcile the current branch, recovered candidate and
+  validation evidence in the [monorepo plan](monorepo-plan.md) before choosing
+  the next action. Do not replay this historical milestone ledger.
 
 ## Owner decisions (2026-11-23)
 
@@ -67,6 +71,15 @@ Apple documentation. Items marked *unverified* need a real-browser check.
 | Badge cleared on `pushState` | no | no | no |
 | Badge colours | yes | yes | background colour has no effect; no text colour |
 | A busy `Worker` keeps the background alive | n/a | *unverified* | *unverified* |
+| Automated extension installation | Chromium or Chrome for Testing with CDP | WebDriver through geckodriver | SafariDriver classic WebDriver commands from Safari 26 |
+
+The automation row was rechecked on 2026-11-28 against
+[WebKit's Safari 26 release article](https://webkit.org/blog/17333/webkit-features-in-safari-26-0/)
+and [Chromium's announcement about branded Chrome](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY).
+SafariDriver supports the classic extension commands; that is separate from
+WebDriver BiDi support. Official Chrome-branded builds removed the
+`--load-extension` switch from Chrome 137, so this validator needs Chromium
+or Chrome for Testing. These platform facts do not establish a local browser pass.
 
 Consequences: Safari must declare a background **page** so it can create
 workers. Firefox and Safari can unload the background mid-scan, so a scan
@@ -412,29 +425,35 @@ a registry lint that rejects selectors postcss cannot parse but browsers
 accept (none in the registry today), and the pre-existing exact-case id/class
 check on the mutation path in quirks mode.
 
-**Safari was not verified.** SafariDriver needs Develop > Allow Remote
+**Safari was not verified in that run.** SafariDriver needs Develop > Allow Remote
 Automation (or `safaridriver --enable`, which asks for an admin password),
 and the unsigned app built by `tools/verify/safari-package.sh` needs
 Develop > Allow Unsigned Extensions (resets each launch) plus enabling the
-extension and granting site access. WebDriver cannot install extensions in
-Safari yet (WebKit bug 288348).
+extension and granting site access. The earlier statement that SafariDriver
+cannot install extensions was incorrect: Safari 26 supports the classic
+WebDriver extension commands, as the current driver and
+[verification guide](../../tools/verify/README.md#safari) describe. WebKit bug
+288348 concerns BiDi installation. No current Safari runtime result is claimed.
 
 ## Dependency status
 
-WXT 0.21.5, `@wxt-dev/module-solid` 1.1.4 and `@wxt-dev/browser` 0.3.7 are the
-latest releases. Solid 2.0 (2026-11-17) is held back: Kobalte, Corvu,
+The recorded baseline used WXT 0.21.5, `@wxt-dev/module-solid` 1.1.4 and
+`@wxt-dev/browser` 0.3.7. This historical record does not identify today's
+latest releases. Solid 2.0 (2026-11-17) was held back: Kobalte, Corvu,
 `@wxt-dev/module-solid` and `vite-plugin-solid` 2.x still require Solid 1.x,
 and the trial upgrade produced 1,979 type errors. All non-major updates pass.
 
 ## Owner actions
 
 - Choose a license for DeepScope. The copied utilities are MIT.
-- Confirm redistribution rights for the detection catalog data and the
-  American Kestrel font before the repository is promoted publicly.
-- Decide between GitHub-hosted runners (free for public repositories) and the
-  current Ubicloud runner.
+- Confirm redistribution rights for the detection catalog before public
+  promotion. American Kestrel was removed; the current fonts are recorded in
+  the workspace dependencies.
+- Review repository branch rules against the current GitHub-hosted workflow
+  checks in [CI](../ci.md); the workflow no longer uses Ubicloud.
 - Enable immutable releases; make the ghcr package public after first push.
 - Store credentials when store publishing is wanted: Chrome Web Store, AMO
   (`WEB_EXT_API_KEY`/`SECRET`), App Store Connect API key and an Apple
   Developer Program membership for Safari.
-- Choose the Firefox add-on id.
+- Confirm `deepscope@openarsenal.github.io` before the first signed Firefox
+  submission; it is already configured in `apps/extension/wxt.config.ts`.

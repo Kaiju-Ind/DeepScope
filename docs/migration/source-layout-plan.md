@@ -4,7 +4,9 @@
 
 The continuation starts from PR #7 commit
 `1f439b9c33134cbb9755c231db3ced6024f3074b` on
-`codex/deepscope-structure-20261127`. The native history contains the completed
+`integrate/cross-browser-runtime`. The recovered batch5 working tree is
+`5ec68fe6020da894ec8bed8bcadfaffb2094f30a`, before the current review repairs.
+The native history contains the completed
 Phase A and M1 changes. The separate `fix/stress-green` branch is not part of
 this baseline. This record and the [monorepo plan](monorepo-plan.md) describe
 one migration; the registry extraction follows the source splits below.
@@ -39,16 +41,19 @@ until each implemented step has evidence recorded here.
 
 The six migration steps above are implemented in the working source. See
 [source ownership](../architecture/source-layout.md) for the full current paths,
-state owners and exact package/tool graph. All 14 oversized-module and two
+state owners and exact package/tool graph. The 14 application/package oversized-module and two
 thick-entrypoint exceptions have been removed after their owning code was
 split. The panel provider remains under its 150-line target. The matcher reason
 is typed; browser and persistence implementations are injected into the runtime.
 
-Native source checks and the integrated suite pass. Chrome, Firefox and Safari
-bundles build. Archive/source-rebuild results and the complete final review
-must be retained with the integration record. Real browser interaction is
-blocked in this host by local socket restrictions and denied escalation; it is
-not marked complete. The historical vendor-header refresh still needs exact
+The recovered batch4/batch5 records contain earlier successful source checks,
+tests and browser builds. The current continuation has passing focused checks,
+but its full type/test commands and Chrome build have been killed by the host.
+Those failures and the HTTP 403 browser download are recorded in the
+[monorepo plan](monorepo-plan.md); the old host's socket restriction is not
+assumed to apply here. Current archive rebuilds and browser interaction remain
+open. The 962-line stress harness also still needs a reviewed split, outside
+the application/package size guard. The historical vendor-header refresh needs exact
 upstream objects. The active record in the [monorepo plan](monorepo-plan.md)
 contains decisions, failed probes and the next action. The original dated
 problem statement and target below are preserved as history; use the source

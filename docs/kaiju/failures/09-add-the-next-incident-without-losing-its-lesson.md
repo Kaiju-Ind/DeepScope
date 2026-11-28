@@ -1,6 +1,6 @@
 # Add the next incident without losing its lesson
 
-Under [P08](../procedures/08-p08-validate-and-maintain-a-procedure.md), add an entry with the next `DS-*` number to the
+Under [P08](../procedures/extensions/08-p08-validate-and-maintain-a-procedure.md), add an entry with the next `DS-*` number to the
 file for its class (content scripts and catalog, builds, background runtime, verification and CI; add a file for a new
 class). Give the exact symptom, first failed operation, cause and its confidence, commit, browser and context, repair,
 evidence and earlier prevention, and add a row to the [symptom table](02-start-from-the-symptom.md). Mark unknowns as

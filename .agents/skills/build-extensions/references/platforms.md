@@ -18,7 +18,15 @@ browser-compat-data before relying on it for a new minimum version.
 | Badge cleared on `pushState`        | no              | no                                   | no                                              |
 | Badge colours                       | yes             | yes                                  | no effect                                       |
 | Native Temporal                     | 144             | 139                                  | 27.3 (polyfill for older)                       |
-| Real-browser driver                 | Chromium + CDP  | WebDriver via geckodriver            | SafariDriver; cannot install extensions         |
+| Real-browser driver                 | Chromium or Chrome for Testing + CDP | WebDriver via geckodriver | SafariDriver; classic extension commands from Safari 26 |
+
+The driver row was rechecked on 2026-11-28 against
+[WebKit's Safari 26 announcement](https://webkit.org/blog/17333/webkit-features-in-safari-26-0/)
+and [Chromium's branded-build announcement](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY).
+Safari's classic WebDriver extension support is separate from BiDi. Official
+Chrome-branded builds from 137 do not support the validator's `--load-extension`
+switch. Follow the [browser setup guide](../../../../tools/verify/README.md)
+and record an actual runtime result separately from platform support.
 
 Unverified: whether a busy `Worker` keeps a Firefox or Safari background alive. Design as if it does not.
 

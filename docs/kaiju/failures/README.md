@@ -1,13 +1,14 @@
 # Failure catalogue
 
-Known DeepScope failures, their causes, repairs and prevention. Crawl's deployment entries and its retrospective
-coverage map (ItsAPlan, OpenATS) were not copied; see the [overview](00-overview.md).
+Known DeepScope failures, their causes, repairs and prevention. The shared handbook's deployment examples and
+retrospective coverage remain available below. Use the [overview](00-overview.md) to distinguish those historical
+lessons from incidents reproduced in this extension.
 
 Skills: `review-code`, `release-software`, `verify-behavior`, `build-extensions`.
 
 | Part                                                                                                     | What it covers                                                                     |
 | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| [Overview](00-overview.md)                                                                               | What the catalogue holds and what was left in Crawl.                               |
+| [Overview](00-overview.md)                                                                               | Local incident evidence and the retained shared examples.                         |
 | [Find the first cause before changing the system](01-find-the-first-cause-before-changing-the-system.md) | Evidence to keep, where the code ran, and which procedure to follow.               |
 | [Start from the symptom](02-start-from-the-symptom.md)                                                   | Symptom index with first checks and entries.                                       |
 | [Content scripts and catalog](03-content.md)                                                             | DS-01 busy content script, DS-02 prototype keys, DS-03 regex backtracking.         |

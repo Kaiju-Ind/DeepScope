@@ -57,7 +57,7 @@ Tools are pinned in `mise.toml` (pnpm 12, Node 26). Commands are thin Mise tasks
 | ------------------------------------------------ | -------------------------------------------------------------------------------- |
 | `mise install`, `mise exec -- pnpm install --frozen-lockfile` | Install tools and dependencies                                       |
 | `mise run check`                                 | Check packages, tools, app and utils through their native owners (TypeScript 7 and Node syntax checks)        |
-| `mise run test`                                  | Vitest 5, every project (`extension (runtime)`, `extension (ui)`, `dom`, `registry`, `detection`, `utils`, `guidance`); add `--project <name>` |
+| `mise run test`                                  | Vitest 5, every project (`extension (runtime)`, `extension (ui)`, `dom`, `registry`, `detection`, `utils`, `guidance`, `verify`); add `--project <name>` |
 | `mise run build <chrome\|firefox\|safari>`        | Unpacked Manifest V3 build in `.output/<browser>-mv3`                             |
 | `mise run zip <browser>`                         | Store archive (Firefox also emits a sources zip)                                  |
 | `mise run verify <firefox\|safari>`               | Real-browser scenarios against an existing build (`tools/verify/README.md`)     |
@@ -90,6 +90,9 @@ the root `.output/`. In this file, `src/` paths are under `apps/extension/`. Dec
   evidence and decision in [the Utils ADR](docs/adr/01-public-source-builds.md). `@okikio/*` is only for Okikio libraries.
 - Page-controlled strings never key a plain object; use `@deepscope/detection/observations/dictionary`.
 - Private tabs persist nothing.
+- Keep dependency patches in the frozen install and source archive. The [comctx patch](patches/README.md) owns
+  failed-send listener cleanup; its tests exercise the installed package through both browser adapters. A transport
+  rejection, a caller timeout and remote cancellation are separate outcomes. Preserve other in-flight requests.
 - Find tests and files by discovery. Do not list test or file paths in `package.json`, Mise tasks or workflows.
 - Repository files describe the system as it is. Plans in `docs/migration/` carry task state; other files contain no
   task IDs, commit SHAs or work-session words. Agent probes and reports go in `.tmp/`, which git ignores.

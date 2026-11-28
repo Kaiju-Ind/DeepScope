@@ -59,6 +59,10 @@ a provider or a store from a framework or a user agent.
    failure. Keep content-script work proportional to the page: route DOM
    selectors (`packages/dom/route.ts`) instead of calling `Element.matches` for
    every selector on every element.
+   Trace the listener owner as well as the returned promise: a rejected send
+   must release that request's subscription without removing concurrent ones.
+   [Dependency patch records](../../../patches/README.md) explain the installed
+   comctx repair and the remaining distinction between timeout and cancellation.
 6. **Page-controlled keys.** Header names, cookie names, global names and other
    page strings never index a plain object. Use `packages/detection/observations/dictionary.ts`
    (prototype-free maps); `src/tests/security/page-controlled-keys.test.ts`
