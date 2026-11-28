@@ -65,8 +65,8 @@ const nonnegativeIntegerSchema = z.int().check(z.gte(0));
 /** Optional non-negative integer used by generated rule source maps. */
 const optionalNonnegativeIntegerSchema = z.optional(nonnegativeIntegerSchema);
 
-/** Category ids must match the category table used by the side panel and detector. */
-const categoryIdSchema = z.custom<CategoryId>((value) => typeof value === 'string' && value in categories, {
+/** Category ids must name an own table entry; inherited Object properties are not categories. */
+const categoryIdSchema = z.custom<CategoryId>((value) => typeof value === 'string' && Object.hasOwn(categories, value), {
 	error: 'Unknown category id.',
 });
 

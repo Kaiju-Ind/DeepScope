@@ -77,7 +77,7 @@ describe('registry source schema', () => {
 		]);
 	});
 
-	it('rejects unknown categories before compilation', () => {
+	it.each(['not-real', '__proto__', 'constructor', 'toString', 'valueOf'])('rejects unknown category %s before compilation', (category) => {
 		const result = validateRegistrySource({
 			schemaVersion: REGISTRY_SOURCE_SCHEMA_VERSION,
 			technologies: [
@@ -85,7 +85,7 @@ describe('registry source schema', () => {
 					id: 'unknown-category-tech',
 					name: 'Unknown Category Tech',
 					website: 'https://unknown-category.test',
-					categories: ['not-real'],
+					categories: [category],
 					rules: [],
 				},
 			],
