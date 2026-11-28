@@ -10,8 +10,10 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
 
 import { startFixtureServer } from './fixtures.mjs';
+import { watchInterrupts } from './interrupts.mjs';
 import { asyncScript, createHarness, runScenarios } from './scenarios.mjs';
-import { Session, startDriver } from './webdriver.mjs';
+import { startDriver } from './webdriver/driver.mjs';
+import { Session } from './webdriver/session.mjs';
 
 const { values: options } = parseArgs({
 	options: {
@@ -43,30 +45,11 @@ const extensionDir = resolve(options.extension);
 if (!existsSync(join(extensionDir, 'manifest.json'))) throw new Error(`No build at ${extensionDir}; run wxt build -b firefox`);
 execFileSync('zip', ['-qr', xpi, '.'], { cwd: extensionDir });
 
-const { server, origin } = await startFixtureServer();
-const { child: driver, base } = await startDriver(options.geckodriver, ['--port', options.port, '--allow-system-access', '--log', 'info'], {
-	port: Number(options.port),
-	logPath: join(workDir, 'geckodriver.log'),
-});
-console.log(`work dir: ${workDir}\nfixtures: ${origin}`);
-
-const session = await Session.create(base, {
-	alwaysMatch: {
-		browserName: 'firefox',
-		'moz:firefoxOptions': {
-			binary: options.firefox,
-			args: options.headed ? [] : ['-headless'],
-			prefs: {
-				'extensions.webextensions.uuids': JSON.stringify({ [ADDON_ID]: UUID }),
-				'extensions.background.idle.timeout': Number(options['idle-timeout']),
-				'devtools.console.stdout.content': true,
-				'browser.dom.window.dump.enabled': true,
-			},
-		},
-	},
-});
-await session.setTimeouts({ script: 180_000 });
-
+// Retain each acquired owner immediately so a later setup failure reaches cleanup.
+let fixtures;
+let driver;
+let session;
+let origin;
 let controlHandle;
 let mainHandle;
 
@@ -175,8 +158,33 @@ const stressOptions = {
 	real: !options['no-real'],
 	...(options['no-idle'] ? { idle: false } : {}),
 };
+const interruption = watchInterrupts();
 
 try {
+	fixtures = await startFixtureServer();
+	origin = fixtures.origin;
+	driver = await startDriver(options.geckodriver, ['--port', options.port, '--allow-system-access', '--log', 'info'], {
+		port: Number(options.port),
+		logPath: join(workDir, 'geckodriver.log'),
+		signal: interruption.signal,
+	});
+	console.log(`work dir: ${workDir}\nfixtures: ${origin}`);
+	session = await Session.create(driver, {
+		alwaysMatch: {
+			browserName: 'firefox',
+			'moz:firefoxOptions': {
+				binary: options.firefox,
+				args: options.headed ? [] : ['-headless'],
+				prefs: {
+					'extensions.webextensions.uuids': JSON.stringify({ [ADDON_ID]: UUID }),
+					'extensions.background.idle.timeout': Number(options['idle-timeout']),
+					'devtools.console.stdout.content': true,
+					'browser.dom.window.dump.enabled': true,
+				},
+			},
+		},
+	}, { signal: interruption.signal });
+	await session.setTimeouts({ script: 180_000 });
 	mainHandle = await session.handle();
 
 	// Tabs open before the add-on is installed. The content script is runtime
@@ -236,17 +244,25 @@ try {
 		},
 	});
 } catch (error) {
-	record('driver', false, { error: String(error.stack ?? error) });
+	record('driver', false, { error: String(error.stack ?? error), ...(error.diagnostics ? { diagnostics: error.diagnostics } : {}) });
 } finally {
-	if (process.env.VERIFY_VERBOSE) {
+	if (session && controlHandle && process.env.VERIFY_VERBOSE) {
 		const errors = await harness.errorRecords().catch((error) => [String(error)]);
 		console.log('journal errors and warnings (newest first):', JSON.stringify(errors, null, 1).slice(0, 12_000));
 	}
+	// A failed DELETE or diagnostic must not prevent later native owners from closing.
+	for (const [name, dispose] of [
+		['session', session && (() => session.quit())],
+		['driver', driver && (() => driver.close())],
+		['fixtures', fixtures && (() => fixtures.close())],
+	]) {
+		if (!dispose) continue;
+		try { await dispose(); }
+		catch (error) { record(`${name}-cleanup`, false, { error: String(error.stack ?? error) }); }
+	}
+	interruption.close();
+	process.exitCode = interruption.exitCode ?? (results.some((r) => !r.pass) ? 1 : 0);
 	const out = options.out ?? join(workDir, 'results.json');
 	writeFileSync(out, JSON.stringify(results, null, 2));
 	console.log(`results: ${out}\ngeckodriver/firefox log: ${join(workDir, 'geckodriver.log')}`);
-	await session.quit();
-	driver.kill();
-	server.close();
-	process.exitCode = results.some((r) => !r.pass) ? 1 : 0;
 }

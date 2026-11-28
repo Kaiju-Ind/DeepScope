@@ -142,6 +142,15 @@ caller cancellation, and removes the profile only after process closure. The
 page owner retains earlier checks when cleanup fails. Browser stderr and exit
 status remain part of failed-start evidence.
 
+Firefox and Safari use the native owners in `tools/verify/webdriver/`:
+`driver.mjs` owns the process, readiness and log; `protocol.mjs` owns a complete
+bounded HTTP exchange; `session.mjs` owns the validated remote identity and
+accepted timeout policy. Both CLI callers protect partial acquisition and
+attempt remote teardown before stopping the driver. `interrupts.mjs` cancels
+ordinary work without canceling that teardown. `fixtures.mjs` owns delayed
+responses and joined server closure. Final reporting follows cleanup, so a
+failed report path cannot skip disposal.
+
 Type checking and unit tests cannot prove the generated extension lifecycle.
 Build and inspect Chrome, Firefox and Safari output, rebuild the Firefox source
 archive in a clean directory, then run the affected browser scenarios in the

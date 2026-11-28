@@ -6,11 +6,35 @@ connects the shared guidance to the current project owners. The original handboo
 remains authoritative; the [DeepScope profile](../docs/kaiju/profiles/deepscope.md)
 selects the extension's actual runtime and public-source-build contract.
 
-The release preparation batch starts from `dfd1e73e3e45cb89575317fcdbafa9685f3e8d5c`
+The WebDriver ownership batch starts from `6fa311d76e3285e54eee895504fc3567275cc7ec`
 on `integrate/cross-browser-runtime`, existing [PR #7](https://github.com/Kaiju-Ind/DeepScope/pull/7).
 Check the actual head, index, worktree and hosted run before continuing. The
 separate `fix/stress-green` branch remains unmerged. A source review, a saved
 commit, a build and an accepted browser journey are separate results.
+
+## Browser verification owners
+
+Use [verify-behavior](skills/verify-behavior/SKILL.md) and
+[build-extensions](skills/build-extensions/SKILL.md) for the real browser flow,
+[build-devtools](skills/build-devtools/SKILL.md) for process and task ownership,
+then [review-code](skills/review-code/SKILL.md) and
+[test-code](skills/test-code/SKILL.md) for the failure evidence. The
+[verification guide](../tools/verify/README.md) records actual commands and budgets.
+
+| Owner | Contract |
+| --- | --- |
+| `tools/verify/webdriver/driver.mjs` | Acquire one native driver and log, validate readiness, retain final diagnostics and join disposal of the owned process group. |
+| `tools/verify/webdriver/protocol.mjs` | Bound complete HTTP responses, combine cancellation and deadlines, and validate protocol envelopes without rejecting legal application values. |
+| `tools/verify/webdriver/session.mjs` | Validate identity and capabilities, retain accepted script/navigation budgets, and delete known sessions independently of canceled ordinary work. |
+| `tools/verify/interrupts.mjs` and `fixtures.mjs` | Own signal handlers, fixture listen errors, delayed responses and joined server closure. |
+| `tools/verify/firefox.mjs` and `safari.mjs` | Protect partial acquisition; attempt remote cleanup before native disposal; retain primary and cleanup failures; write the final report after cleanup. |
+| Native tests beside these owners | Exercise real child processes, loopback HTTP and actual CLI failure paths; inert Safari adapters do not establish Safari runtime acceptance. |
+
+Review caught a cancellation-order defect before publication: stopping the
+driver immediately prevented a known session's DELETE. The retained red trace
+has no DELETE; the corrected native trace and both CLI regressions observe it
+before process termination. A browser outside the owned process group still
+requires its own remote or user-controlled lifetime.
 
 ## Release preparation owners
 
@@ -44,7 +68,7 @@ promise a deadline for a hung external store client.
 
 ## What has been reviewed and what remains open
 
-The current reconciliation records 89 explicit full reads among 9,940 source,
+The current reconciliation records 104 explicit full reads among 9,948 source,
 test, asset and guidance paths. That count includes original guidance reads and
 files with open findings; it is not a completed semantic audit. Earlier reads
 without a reconciled file record are not converted into completion claims.
@@ -57,18 +81,27 @@ project adaptations. These comparisons do not validate every fingerprint,
 browser behavior or implementation against every guide. The release implementation,
 all release fixtures and actual callers received independent source review.
 
-The 512 MiB local aggregate passed 252 of 253 files and 1,805 cases, with four
+The release batch's 512 MiB local aggregate passed 252 of 253 files and 1,805 cases, with four
 skips. Its 17-case DOM matcher worker reached the explicit V8 heap limit. The
 same isolated owner fails at that budget on both the authentic published commit
 and this candidate. A candidate attempt with a process-only 1,536 MiB budget was
 killed after one case; the cause of that SIGKILL is unconfirmed. No project limit
-or assertion changed. Keep the aggregate failed until an actual candidate suite
-passes. The earlier published commit's hosted 17-case pass is baseline evidence,
-not acceptance of a later head.
+or assertion changed. That local aggregate remains failed. The published release
+head subsequently passed its actual hosted suite: 253 files, 1,822 cases and
+four skips, including all 17 DOM matcher cases. Its types, three browser builds,
+lint and Chrome artifact smoke also passed. The active action list binds those
+results to the exact merge tree; later source still needs its own acceptance.
 
-Continue with WebDriver request/process and partial-acquisition ownership,
-Firefox/Safari setup and probe cleanup, the 2,043-line background API test and its
-obsolete mocks, large application owners, and the exact historical Utils closure.
+The WebDriver source passes its native type/syntax check and all 78 verification
+cases in 12 files. A real Firefox run against a cleanly extracted ZIP passed four
+asserted behavior records and one informational observation. The native process,
+session and caller source received independent review; these results do not
+establish real Safari behavior or the complete extension journeys.
+
+Continue with Safari diagnostic-worker and storage-probe cleanup, its manual
+base-URL/control-page flow and packaging output ownership, the 2,043-line
+background API test and its obsolete mocks, large application owners, and the
+exact historical Utils closure.
 Full browser journeys, stress and Safari on macOS remain acceptance work.
 The [layout action list](../docs/migration/source-layout-plan.md) identifies the
 next cuts; the complete prior [migration](../docs/migration/history/monorepo.md)

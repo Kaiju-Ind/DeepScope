@@ -4,6 +4,6 @@
     "types": ["node"],
     "allowJs": true
   },
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "**/*.mjs"],
   "exclude": ["node_modules"]
 }

@@ -1,5 +1,6 @@
 // Local pages with known technology markers, served over plain HTTP.
 import { createServer } from 'node:http';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const pages = {
 	/** Serve stable WordPress and jQuery markers for the basic page-detection scenario. */
@@ -94,12 +95,55 @@ export const STRESS_MARKERS = [...new Set(Object.values(STRESS_FIXTURES).flatMap
 // The first fixtures send a PHP header; the stress fixtures send none.
 const LEGACY_PHP = new Set(['/wp.html', '/spa.html', '/busy.html', '/plain.html']);
 
-/** Serve local detection fixtures and synthetic assets on loopback; the caller owns closing the returned server. */
-export function startFixtureServer(port = 0) {
-	const server = createServer(async (request, response) => {
+/**
+ * Serve controlled pages on loopback and own every delayed response.
+ *
+ * The caller must await `close()`. It stops new connections, cancels fixture
+ * delays and closes active HTTP connections before joining request handlers.
+ * Listen failures reject acquisition instead of escaping as an unhandled event.
+ */
+export async function startFixtureServer(port = 0) {
+	/** Closing the server also cancels timers owned by its delayed responses. */
+	const lifetime = new AbortController();
+	/** Join each request's final listener/timer cleanup before disposal completes. */
+	const active = new Set();
+	/** Repeated callers share the same disposal result. */
+	let closing;
+	/** Retain a server error until acquisition or disposal can report it. */
+	let serverError;
+	const server = createServer((request, response) => {
+		const task = serve(request, response);
+		active.add(task);
+		// The request owner handles its response error; this continuation only
+		// removes completed work from the server's disposal set.
+		void task.finally(() => active.delete(task));
+	});
+
+	/** Complete one response or cancel its delay when the client or fixture closes. */
+	async function serve(request, response) {
+		const abandoned = new AbortController();
+		const disconnected = () => abandoned.abort();
+		response.once('close', disconnected);
+		try {
+			await respond(request, response, AbortSignal.any([lifetime.signal, abandoned.signal]));
+		} catch (error) {
+			if (!response.destroyed) response.destroy(error instanceof Error ? error : new Error(String(error)));
+		} finally {
+			response.off('close', disconnected);
+		}
+	}
+
+	/** Render a fixture after its optional delay; cancellation must not write a late response. */
+	async function respond(request, response, signal) {
 		const url = new URL(request.url, 'http://localhost');
 		const delayMs = Number(url.searchParams.get('delay') ?? 0);
-		if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
+		if (!Number.isInteger(delayMs) || delayMs < 0 || delayMs > 2_147_483_647) {
+			response.writeHead(400);
+			response.end('Fixture delay must be finite nonnegative milliseconds.');
+			return;
+		}
+		if (delayMs) await delay(delayMs, undefined, { signal });
+		signal.throwIfAborted();
 		const page = pages[url.pathname];
 		if (page) {
 			response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...(LEGACY_PHP.has(url.pathname) ? { 'x-powered-by': 'PHP/8.2.0' } : {}) });
@@ -118,6 +162,25 @@ export function startFixtureServer(port = 0) {
 		}
 		response.writeHead(404);
 		response.end();
+	}
+
+	await new Promise((resolve, reject) => {
+		server.on('error', (error) => { serverError = error; reject(error); });
+		server.listen(port, '127.0.0.1', resolve);
 	});
-	return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve({ server, origin: `http://127.0.0.1:${server.address().port}` })));
+	const origin = `http://127.0.0.1:${server.address().port}`;
+	return {
+		origin,
+		/** Repeated disposal joins the same server and delayed-response cleanup. */
+		close() {
+			closing ??= (async () => {
+				lifetime.abort(new Error('Fixture server is closing.'));
+				const closed = new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+				server.closeAllConnections();
+				await Promise.all([closed, ...active]);
+				if (serverError) throw serverError;
+			})();
+			return closing;
+		},
+	};
 }

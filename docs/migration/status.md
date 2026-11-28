@@ -35,9 +35,12 @@ Use these checks when reviewing new patches:
 ## Remaining work
 
 The [active action list](monorepo-plan.md) records current publication and exact
-validation evidence. Remaining work includes WebDriver setup/disposal, the large
-background API test harness, large detection/storage/observation/UI owners, exact
-Utils provenance and the full browser journeys. Keep those changes behind exact
+validation evidence. The shared WebDriver process, response, session and caller
+cleanup paths now have explicit owners and native regression evidence. Remaining
+work includes Safari diagnostic workers, storage-probe cleanup and the manual
+base-URL flow, its packaging output guard, the large background API test harness,
+large detection/storage/observation/UI owners, exact Utils provenance and the full
+browser journeys. Keep those changes behind exact
 session snapshots, session-keyed matcher jobs and explicit visible-tab commands.
 Do not revive targetless command paths or call the semantic review complete
 because a source/build/startup gate passes.

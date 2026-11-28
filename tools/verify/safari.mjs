@@ -10,8 +10,10 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
 
 import { startFixtureServer } from './fixtures.mjs';
+import { watchInterrupts } from './interrupts.mjs';
 import { asyncScript, createHarness, runScenarios } from './scenarios.mjs';
-import { Session, startDriver } from './webdriver.mjs';
+import { startDriver } from './webdriver/driver.mjs';
+import { Session } from './webdriver/session.mjs';
 
 const STP_DRIVER = '/Applications/Safari Technology Preview.app/Contents/MacOS/safaridriver';
 
@@ -86,40 +88,13 @@ if (options['check-only']) {
 
 const driverPath = options.driver ?? (options.stp ? STP_DRIVER : '/usr/bin/safaridriver');
 const browserName = options.stp ? 'Safari Technology Preview' : 'safari';
-const { server, origin } = await startFixtureServer();
-const { child: driver, base } = await startDriver(driverPath, ['--port', options.port, ...(options.diagnose ? ['--diagnose'] : [])], {
-	port: Number(options.port),
-	logPath: join(workDir, 'safaridriver.log'),
-});
-console.log(`work dir: ${workDir}\nfixtures: ${origin}\ndriver: ${driverPath}`);
-
-/** Stop the harness-owned driver process and local fixture server after verification. */
-function cleanup() {
-	driver.kill();
-	server.close();
-}
-
+// Acquire inside the scenario owner and retain each resource before the next step.
+let fixtures;
+let driver;
 let session;
-try {
-	session = await Session.create(base, { alwaysMatch: { browserName } });
-} catch (error) {
-	const message = String(error.webdriver?.message ?? error.message);
-	const automationOff = /allow remote automation/i.test(message);
-	recordStatic('session', false, {
-		error: message,
-		...(automationOff ? {
-			ownerAction: options.stp
-				? 'Safari Technology Preview > Settings > Advanced: "Show features for web developers"; then Settings > Developer: "Allow remote automation" (or run once: "/Applications/Safari Technology Preview.app/Contents/MacOS/safaridriver" --enable, which asks for an admin password)'
-				: 'Safari > Settings > Advanced: "Show features for web developers"; then Settings > Developer: "Allow remote automation" (or run once: safaridriver --enable, which asks for an admin password)',
-		} : {}),
-	});
-	cleanup();
-	// 2: blocked by a browser setting only the owner can change.
-	finish(automationOff ? 2 : 1);
-	process.exit();
-}
-await session.setTimeouts({ script: 180_000, pageLoad: 30_000 });
-
+let origin;
+let failureStage = 'driver';
+let ownerExitCode;
 let extensionId;
 let extensionBase = options['base-url']?.replace(/\/$/, '');
 let controlHandle;
@@ -131,8 +106,10 @@ let mainHandle;
 // session it opens options.html?verify-probe=1 in a new window. That page is
 // the control page, and its URL carries the UUID. Nothing else changes.
 const installDir = join(workDir, 'safari-mv3-probe');
-cpSync(extensionDir, installDir, { recursive: true });
-{
+const zip = join(workDir, 'deepscope.zip');
+/** Prepare the diagnostic copy inside acquisition ownership so copy or ZIP failure still closes the session. */
+function prepareInstall() {
+	cpSync(extensionDir, installDir, { recursive: true });
 	const probeManifest = JSON.parse(readFileSync(join(installDir, 'manifest.json'), 'utf8'));
 	probeManifest.background.scripts = [...probeManifest.background.scripts, 'verify-probe-bg.js'];
 	writeFileSync(join(installDir, 'manifest.json'), JSON.stringify(probeManifest, null, 2));
@@ -162,9 +139,8 @@ cpSync(extensionDir, installDir, { recursive: true });
 	await api.tabs.create({ url, active: true });
 })();
 `);
+	execFileSync('zip', ['-qr', zip, '.'], { cwd: installDir });
 }
-const zip = join(workDir, 'deepscope.zip');
-execFileSync('zip', ['-qr', zip, '.'], { cwd: installDir });
 
 /**
  * Install the build with the W3C "Web Extensions" classic command
@@ -280,11 +256,24 @@ const stressOptions = {
 	real: !options['no-real'],
 	...(options['no-idle'] ? { idle: false } : {}),
 };
+const interruption = watchInterrupts();
 
 try {
+	fixtures = await startFixtureServer();
+	origin = fixtures.origin;
+	driver = await startDriver(driverPath, ['--port', options.port, ...(options.diagnose ? ['--diagnose'] : [])], {
+		port: Number(options.port),
+		logPath: join(workDir, 'safaridriver.log'),
+		signal: interruption.signal,
+	});
+	console.log(`work dir: ${workDir}\nfixtures: ${origin}\ndriver: ${driverPath}`);
+	failureStage = 'session';
+	session = await Session.create(driver, { alwaysMatch: { browserName } }, { signal: interruption.signal });
+	failureStage = 'driver';
+	await session.setTimeouts({ script: 180_000, pageLoad: 30_000 });
+	prepareInstall();
 	mainHandle = await session.handle();
-	const capabilities = await fetch(`${base}/session/${session.id}`).then((r) => r.json()).catch(() => undefined);
-	console.log('session', session.id, capabilities?.value ? JSON.stringify(capabilities.value).slice(0, 300) : '');
+	console.log('session', session.id, JSON.stringify(session.capabilities).slice(0, 300));
 
 	// Tabs open before the extension is installed. The content script is
 	// runtime injected, so nothing is in those pages until the background injects it.
@@ -382,15 +371,40 @@ try {
 		},
 	});
 } catch (error) {
-	record('driver', false, { error: String(error.stack ?? error) });
+	if (failureStage === 'session') {
+		const message = String(error.webdriver?.message ?? error.message);
+		const automationOff = /allow remote automation/i.test(message);
+		recordStatic('session', false, {
+			error: message,
+			...(automationOff ? {
+				ownerAction: options.stp
+					? 'Safari Technology Preview > Settings > Advanced: "Show features for web developers"; then Settings > Developer: "Allow remote automation" (or run once: "/Applications/Safari Technology Preview.app/Contents/MacOS/safaridriver" --enable, which asks for an admin password)'
+					: 'Safari > Settings > Advanced: "Show features for web developers"; then Settings > Developer: "Allow remote automation" (or run once: safaridriver --enable, which asks for an admin password)',
+			} : {}),
+		});
+		// 2 remains a browser setting that only the owner can change.
+		ownerExitCode = automationOff ? 2 : 1;
+	} else {
+		record('driver', false, { error: String(error.stack ?? error), ...(error.diagnostics ? { diagnostics: error.diagnostics } : {}) });
+	}
 } finally {
-	if (process.env.VERIFY_VERBOSE) {
+	if (session && controlHandle && process.env.VERIFY_VERBOSE) {
 		const errors = await harness.errorRecords().catch((error) => [String(error)]);
 		console.log('journal errors and warnings (newest first):', JSON.stringify(errors, null, 1).slice(0, 12_000));
 	}
-	if (extensionId) await session.cmd('DELETE', `/webextension/${encodeURIComponent(extensionId)}`).catch(() => undefined);
-	await session.quit();
-	cleanup();
+	for (const [name, dispose] of [
+		// Removal is cleanup of a known remote resource, so it uses the live
+		// driver rather than the canceled ordinary-work signal in Session.cmd.
+		['extension', extensionId && (() => driver.request('DELETE', `/session/${encodeURIComponent(session.id)}/webextension/${encodeURIComponent(extensionId)}`, undefined, { timeoutMs: 5_000 }))],
+		['session', session && (() => session.quit())],
+		['driver', driver && (() => driver.close())],
+		['fixtures', fixtures && (() => fixtures.close())],
+	]) {
+		if (!dispose) continue;
+		try { await dispose(); }
+		catch (error) { record(`${name}-cleanup`, false, { error: String(error.stack ?? error) }); }
+	}
+	interruption.close();
 	console.log(`safaridriver log: ${join(workDir, 'safaridriver.log')}${options.diagnose ? ' (diagnostics: ~/Library/Logs/com.apple.WebDriver/)' : ''}`);
-	finish();
+	finish(interruption.exitCode ?? ownerExitCode);
 }

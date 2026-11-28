@@ -90,6 +90,16 @@ the image's exact Chromium executable. Check its ownership and every parent befo
 Keep Chromium's sandbox and Ubuntu's global restriction enabled; the [CI guide](docs/ci.md#runners)
 records the scope of the host configuration and the required runtime check.
 
+Firefox and Safari share `tools/verify/webdriver/`: `driver.mjs` owns the native
+process and log, `protocol.mjs` owns complete HTTP responses, and `session.mjs`
+owns the validated remote identity and command budgets. Cancel ordinary work
+without stopping the driver before bounded extension/session cleanup is attempted.
+Then join native process and fixture-server disposal and write the final report.
+Keep script and navigation budgets distinct; preserve primary and cleanup failures.
+Native fixture tests do not establish real Safari behavior or stop a browser that
+lives outside the owned process group. The [verify guide](tools/verify/README.md)
+records those contracts and the remaining browser acceptance.
+
 Local extension modules use explicit imports. WXT excludes local files from automatic export discovery, so
 module-qualified operations such as `fence.create` and `generation.create` cannot compete for one generated
 global name. Framework and browser auto-import presets remain available; keep their ownership separate from

@@ -27,6 +27,7 @@ adapters and UI; native tools use package discovery and pnpm selectors.
 | `utils/` | The recorded Kaiju Utils source closure and its native tests. |
 | `tools/verify/stress/` | Model, schedule, pages, actions, observations, final checks, report and orchestration. |
 | `tools/verify/chrome/` | Browser process/profile/HTTP, CDP request lifetime and generated-page reporting. |
+| `tools/verify/webdriver/` | Native driver/log lifetime, complete HTTP exchanges, validated browser sessions and command budgets. Firefox/Safari callers retain remote cleanup before native disposal. |
 | `tools/release/` | Native version/notes commands, archive collection and preparation regressions. |
 
 The original 14 oversized application/package exceptions and two thick-entrypoint
@@ -35,31 +36,27 @@ Those ratchets do not establish that all remaining modules, tests or tools are
 small or understood. In particular, the background API test remains 2,043 lines
 and still needs an ownership split.
 
-The published baseline's hosted types, 250 test files, Chrome/Firefox/Safari
+The published baseline's hosted types, 253 test files, Chrome/Firefox/Safari
 builds, Firefox lint, workflow lint and Chrome artifact startup pass. The exact
 source, counts and limits are in the active task record. Real Safari execution
 and complete stress/manual journeys are not covered by those passes.
 
 ## Next cuts and acceptance
 
-1. Finish release preparation ownership. Protect resolved source and input
-   paths; stage replacement outputs; preserve previous candidate bytes through
-   ordinary failure; retain a recoverable directory when restoration fails.
-   Match complete changelog versions and release Firefox temporary extraction.
-   Keep the native CLI, discovery and task owners.
-2. Give WebDriver process, request and driver setup a complete disposal path.
-   Trace both callers before choosing deadlines. Register cleanup after each
-   acquisition, preserve result-writing failures and release workers on every
-   probe terminal path. Actual Firefox/Safari acceptance stays explicit.
-3. Split background API tests into a shared harness and behavior owners only
+1. Finish the remaining Safari owners after the shared WebDriver repair.
+   Release diagnostic workers and storage-probe keys on every terminal path;
+   repair the manual base-URL/control-page flow and protect packaging output
+   before deletion. Preserve setup, primary and cleanup failures separately.
+   Actual Safari acceptance requires a suitable macOS host.
+2. Split background API tests into a shared harness and behavior owners only
    after tracing module mocks, captured state, deferred replies and cleanup.
    Remove obsolete registry `SOURCE_LIMITS` mocks from both test harnesses and
    the unused URL predicate after migrating their complete consumer closure.
-4. Review large source owners by behavior rather than line count. Detection,
+3. Review large source owners by behavior rather than line count. Detection,
    snapshot storage, page signals, matcher and UI files need their state,
    cancellation, persistence and error contracts understood before extraction.
    Keep shared identity objects and mutation order intact.
-5. Complete the exact historical Utils closure comparison, current docs and
+4. Complete the exact historical Utils closure comparison, current docs and
    per-file semantic ledger. Compare divergent work explicitly from its common
    ancestor; do not select a newer archive or branch by timestamp.
 

@@ -5,8 +5,8 @@
 The user authorized the complete repository review, guidance adoption and
 refactors, with changes saved to `integrate/cross-browser-runtime` in
 [PR #7](https://github.com/Kaiju-Ind/DeepScope/pull/7). The published starting
-point for this action list is `dfd1e73e3e45cb89575317fcdbafa9685f3e8d5c`, tree
-`eebff4c62f40358acbb2cf74a58054947945a593`. `main` remains
+point for this action list is `6fa311d76e3285e54eee895504fc3567275cc7ec`, tree
+`e4adadd949d486ab31ce98209fe14823855555e5`. `main` remains
 `b3f4467ac13542dfba447499a92089a77a05c2bc`. The separate `fix/stress-green`
 branch at `a5d97fba98566b7fd7e38dad8658c3be4b4b69e1` is unmerged; this record
 does not declare either line canonical or authorize a merge, tag or store release.
@@ -26,12 +26,12 @@ rule. Use the original skills and guides, the public-source-build
 [Utils decision](../adr/01-public-source-builds.md), and the repository's own
 contracts together. Read-only package access does not by itself decide a
 published-package migration. The [.agents project record](../../.agents/project.md)
-routes the current release owners and review coverage without replacing those
+routes the current browser/release owners and review coverage without replacing those
 original sources.
 
 ## Published work and its evidence
 
-Fifteen coherent commits follow the original PR head `1f439b9c`. The recovered
+Seventeen coherent commits follow the original PR head `1f439b9c`. The recovered
 workspace migration and each focused repair were saved as native binary patches
 and exact bundles. The connected writer produced separate commit identities
 with matching trees; its exact objects and patches were also preserved and read
@@ -49,17 +49,18 @@ earlier plan, original native identities, failed probes and recovered batch5 wor
 | Chrome verification | Process/profile/HTTP, CDP requests and page reporting have separate owners. Startup errors retain stderr and process status; cancellation and cleanup have real-process regressions. |
 | Hosted browser setup | The clean extraction directory is explicit. Chromium uses an executable-specific AppArmor user-namespace profile after protected-path checks, with its own sandbox and the host's global restriction retained. |
 | Build imports and local fixtures | Explicit local imports replace automatic local export discovery while WXT presets remain. Pre-install tabs use the existing local fixture; real-site scenarios remain separate. |
+| Release preparation | Collection protects resolved source/input owners, checks existing output ownership and stages replacements. Notes match complete literal versions; Firefox temporary extraction survives until the command settles, then is removed. |
 
-[Hosted run 46136715183](https://github.com/Kaiju-Ind/DeepScope/actions/runs/46136715183)
-checked out merge `14d38a83fd88c9572081ba87077dad7b498ef38e`, whose tree exactly
-matches the published `dfd1e73e` tree above. Nine executed jobs passed: dependency
+[Hosted run 46142000497](https://github.com/Kaiju-Ind/DeepScope/actions/runs/46142000497)
+checked out merge `ed596ee4b028a5c090c0cef7b50b878a8df2de7a`, whose tree exactly
+matches the published `6fa311d7` tree above. Nine executed jobs passed: dependency
 setup, workflow lint, types, tests, all three browser builds, Firefox add-on lint
-and Chrome artifact smoke. Tests passed in 250 files with 1,786 cases and four
+and Chrome artifact smoke. Tests passed in 253 files with 1,822 cases and four
 skips. Optional Safari Xcode generation was skipped.
 
-Those nine jobs totalled 441 seconds of execution time. The interval from the
-first job's start to the last job's completion was 166 seconds (10:46:06 to
-10:48:52 UTC). These are actual job timestamps, not queue-inclusive wall time,
+Those nine jobs totalled 406 seconds of execution time. The interval from the
+first job's start to the last job's completion was 157 seconds (11:53:38 to
+11:56:15 UTC). These are actual job timestamps, not queue-inclusive wall time,
 billing-rounded minutes or a measured improvement over another source state.
 
 Chromium 158.0.8127.0 loaded the scoped profile, started DevTools and passed all
@@ -86,9 +87,9 @@ bytes for every later commit or a network-isolated build. Five selected local
 Firefox scenarios also passed with Firefox 161.0 and geckodriver 0.37.1. Full
 stress and Safari runtime acceptance remain open.
 
-## Release preparation action list
+## Published release preparation action list
 
-The next reproduced defects affect a maintainer preparing a release. Native
+The release defects affected a maintainer preparing a release. Native
 disposable fixtures showed that `collect --out .` deleted source before failing,
 and `--out .output` deleted its archive inputs. Notes for `0.1.0+build.1` were
 missing, while a request for `0.1.0` incorrectly selected that suffixed section.
@@ -104,6 +105,9 @@ use and `.output/release` default remain supported. Parent aliases are resolved
 before checking containment. Failed restoration retains both named candidates.
 One command owns a destination at a time; two directory renames are not a
 crash-atomic transaction.
+
+The following six actions are complete for the published release batch. Their
+local failures and subsequent exact-head hosted result remain distinct below.
 
 1. Keep the existing CLI and Mise tasks; give collection ownership to
    `tools/release/collection.mjs`. Preserve public archive names and exact
@@ -137,9 +141,9 @@ candidate. The extension, portable packages, Utils, lockfile and root test/runti
 configuration have identical Git objects in those two sources. A candidate run
 with a process-only 1,536 MiB budget was separately killed after one case passed.
 That SIGKILL has no established cause. The project limits and assertions remain
-unchanged, and the local aggregate remains failed. The published baseline's
-hosted DOM owner passed all 17 cases in 10,766 ms; the exact new head still needs
-its own hosted suite. The workflow lint check passes on the frozen release source.
+unchanged, and the local aggregate remains failed. The later exact-head hosted
+release suite passed all 17 DOM matcher cases in 10,915 ms and every other
+discovered owner. The workflow lint check also passes on that source.
 
 Final scoped checks also passed: the release package's strict JavaScript/types
 and syntax checks, ShellCheck 0.11.0 on all three changed release tasks, and all
@@ -150,24 +154,83 @@ manifest versions passed, and all input bytes remained unchanged. The Firefox
 extension ZIP still has SHA-256
 `2f122a8c23327d9416165546b362a374a5cf76ef89df6cdd5e0030fb6b072800`.
 These results validate preparation and packaged bytes; no release or store
-submission occurred. The scoped source reviews found no blocking issue, while
-the full audit and exact new-head hosted acceptance remain open.
+submission occurred. The scoped source reviews found no blocking issue. The
+published release head now has the hosted acceptance recorded above; the full
+repository audit remains open.
+
+## WebDriver ownership action list
+
+The next native probes reproduced false readiness, invalid session/response
+acceptance, a stalled response body, unhandled startup errors, lost late stderr,
+and fixture or CLI setup/report failures that retained their native driver.
+Safari also had an unbounded request outside the shared client. All probes used
+disposable processes and loopback fixtures. The suspected inherited fixture
+route was disproved with HTTP 404 and is closed, not a defect.
+
+The selected repair keeps plain Node and the existing narrow WebDriver protocol
+contract. Selenium's maintained driver-service and HTTP APIs were considered;
+adopting them would also require migrating browser-specific commands and caller
+lifetimes. It would not itself put fixture acquisition or report writing under
+cleanup ownership. No runtime dependency or browser scenario marker changes.
+
+1. Replace `tools/verify/webdriver.mjs` with `webdriver/driver.mjs`,
+   `protocol.mjs` and `session.mjs`. The native driver owns startup, process
+   events, its log descriptor and joined termination. The protocol owner bounds
+   complete response bodies and validates envelopes; the session owns a valid
+   identity, accepted timeout policy and bounded DELETE.
+2. Preserve both 180-second script budgets, Firefox's 300-second navigation
+   policy and Safari's 30-second policy, with five seconds for their responses.
+   Startup, creation, metadata and cleanup have their own finite budgets. A
+   canceled exchange does not prove that browser-side work stopped.
+3. Protect every acquisition in the Firefox/Safari callers. Keep diagnostics,
+   primary errors and cleanup errors, then write the report after disposal.
+   Listen failures reject normally; fixture closure cancels delayed responses
+   and joins handlers. Keep complete logs for diagnosis.
+4. Cancel ordinary work independently of remote cleanup. Review caught an
+   initial defect where immediate driver termination prevented known-session
+   DELETE. A retained native red trace proves the omission; the corrected
+   session and both actual CLI regressions observe DELETE before termination.
+   Safari's known extension is also removed through the still-live driver.
+5. Verify the native owners and actual callers. The type/syntax check and all
+   78 verification cases in 12 files pass. Twenty-two unchanged helper/data
+   ASTs, Firefox capabilities and both generated Safari probe scripts retain
+   parity. The 16 baseline observations and the earlier test-fixture failure
+   remain in recovery, alongside independent source reviews with no blocker.
+6. Build and inspect the Firefox archive, then use a clean extraction for the
+   real browser run. Firefox 161.0 and geckodriver 0.37.1 produced four passing
+   asserted records and one informational pre-install observation in 19.979
+   seconds. The extension ZIP retains the SHA-256 recorded above. The driver
+   log and final result JSON are retained; this selection does not cover all
+   scenarios, stress or Safari on macOS.
+7. Reconcile the guidance and source archive, preserve native and writer
+   recovery with full read-back, then guard the existing PR update against
+   `6fa311d7`. Verify the actual new-head hosted suite, types and builds. These
+   publication/acceptance actions remain pending in this source record.
+
+The Safari diagnostic worker, storage-probe keys and manual base-URL/control-page
+flow remain open. A source read also found unrestricted removal of caller-selected
+output in `.mise/tasks/safari-project`; reproduce that separately in disposable
+input before repairing its output ownership. A native driver fixture does not
+prove that a real Safari browser or extension outside its process group was
+removed. Keep those next owners and macOS acceptance separate from this repair.
 
 ## Remaining semantic review and continuation
 
-The published-baseline ledger inventoried all 9,930 paths and reconciled 61
-explicit full reads. The current release reconciliation covers 9,940 paths and
-89 explicit full reads, including the project routing record, release owners,
-fixtures and retained history. It records catalog parity, 380 application
+The earlier published ledger inventoried all 9,930 paths and reconciled 61
+explicit full reads. The release reconciliation covered 9,940 paths and 89 full
+reads. The current WebDriver reconciliation covers 9,948 paths and 104 explicit
+full reads, including native process/protocol/session owners, all new fixtures,
+both migrated callers and the original verification guidance. It records catalog parity, 380 application
 syntax/local-binding checks and handbook hashes separately. Unreconciled reads are neither
 credited as completed nor silently described as never read. Each new owner
 needs a source/caller/error/lifetime/test/doc disposition before completion.
 
-After the release batch, continue in this order:
+After publishing the WebDriver batch, continue in this order:
 
-1. Trace WebDriver spawn errors, request/body deadlines, process disposal and
-   partial setup in both Firefox and Safari drivers. Respect actual script and
-   navigation timeout contracts. Repair cleanup without masking failed results.
+1. Finish Safari diagnostic-worker and storage-probe cleanup, the manual
+   base-URL/control-page flow and the packaging task's output ownership. Preserve
+   actual remote budgets, known extension/session cleanup and primary errors.
+   Run the affected native regressions and a real Safari selection on macOS.
 2. Remove obsolete registry-limit mocks and the dead URL helper, then split the
    2,043-line background API test by harness and behavior owners. Retain every
    assertion, deferred lifetime and module-mock boundary through AST and tests.

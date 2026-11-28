@@ -1,6 +1,6 @@
 # Real-browser verification
 
-This private Node workspace package owns generated-output inspection and real-browser drivers. It has no runtime npm dependencies: `webdriver.mjs` speaks W3C WebDriver over `fetch`. The native `check` task checks its TypeScript configuration and tests, then runs Node syntax checks for its JavaScript files. Installed browser and driver executables remain separate prerequisites.
+This private Node workspace package owns generated-output inspection and real-browser drivers. It has no runtime npm dependencies: the owners in `webdriver/` speak W3C WebDriver over native `fetch`. The native `check` task checks TypeScript and JavaScript sources marked with `@ts-check`, then runs Node syntax checks for every JavaScript file. Installed browser and driver executables remain separate prerequisites.
 
 ## Chrome
 
@@ -35,6 +35,57 @@ HTTP tests cover these owners; they do not prove that Chromium started or that
 the extension's browser journeys passed.
 
 A usable executable and a passing bundle do not prove that the host permits a browser process. Record local socket, sandbox or display failures as blocked runtime checks. Startup alone also does not cover the complete tab, observation, private-window or search journey. See the [verification workflow](../../docs/architecture/verification-workflow.md).
+
+## WebDriver ownership
+
+Firefox and Safari acquire their fixture server, driver and browser session
+inside one cleanup scope. `webdriver/driver.mjs` owns the native process and its
+log descriptor. Readiness requires a valid `value.ready === true` response from
+a live child; it does not guarantee that creating a session will succeed.
+`webdriver/protocol.mjs` owns each complete JSON response, including body reads.
+`webdriver/session.mjs` validates the returned session ID and capabilities and
+retains the accepted remote timeout policy.
+
+| Operation | Default budget |
+| --- | --- |
+| Driver startup, including readiness response bodies | 10 seconds |
+| Create a browser session | 60 seconds |
+| Metadata and browser-specific commands | 30 seconds |
+| Execute a script after either caller sets its policy | 180 seconds remotely, plus 5 seconds for the response |
+| Firefox navigation | 300 seconds remotely, plus 5 seconds for the response |
+| Safari navigation | 30 seconds remotely, plus 5 seconds for the response |
+| Delete a known session or installed Safari extension | 5 seconds per exchange |
+| Stop the owned native driver | SIGTERM and a 2-second join, then SIGKILL and a 2-second join if needed |
+
+These are exchange and process budgets, not one deadline for a scenario that
+performs many commands. A request deadline or caller cancellation also covers
+an unfinished response body. It does not cancel unrelated requests or prove
+that browser-side work stopped. The harness requires finite script and
+navigation policies so a failed exchange can reach cleanup. The
+[WebDriver Working Draft](https://www.w3.org/TR/2026/WD-webdriver2-20261126/)
+defines the protocol values and timeout defaults; the table records this
+package's additional transport policy.
+
+`interrupts.mjs` turns SIGINT or SIGTERM into cancellation of ordinary work.
+The callers retain the live driver long enough to attempt bounded remote
+cleanup independently of that canceled signal. Safari removes its known
+installed extension first; both callers delete a known session, close the
+driver, then close the fixture server. Each cleanup failure becomes a separate
+result, and the final JSON report is written after disposal. If creation never
+returned a session ID, no known remote identity is available for DELETE.
+
+The process owner captures stdout and stderr through one native file
+descriptor. Failed starts include exit status, signal and the final 16,384
+bytes of the log. Work directories and complete logs remain available for
+diagnosis. On POSIX, the driver owns its new process group and can terminate
+children in that group. On Windows, cleanup owns the direct child. Neither
+contract proves that an independently running Safari process was stopped.
+
+`fixtures.mjs` rejects listen failures, cancels delayed responses and joins
+server closure. Native process, HTTP and actual CLI fixtures exercise these
+failure paths through the discovered `verify` test project. They establish
+transport and cleanup behavior; a real browser run is still required for the
+extension's user flows.
 
 ## Firefox
 
@@ -223,16 +274,21 @@ Options:
 | `--stp` | use Safari Technology Preview and its own driver |
 | `--driver path` | use a different safaridriver binary |
 | `--extension dir` | build to install |
-| `--base-url safari-web-extension://<uuid>` | use a copy that is already installed instead of installing one |
+| `--base-url safari-web-extension://<uuid>` | provide a known base URL; the manual control-page flow remains incomplete, as described below |
 | `--diagnose` | write safaridriver logs to `~/Library/Logs/com.apple.WebDriver/` |
 | `--only`, `--idle-timeout`, `--stress-rounds`, `--out` | same as for Firefox |
 
 The `restricted` scenario uses an App Store page and a PDF. Safari reports no
-process memory, so there is no `memory` hook.
+process memory, so there is no `memory` hook. The current `--base-url` path still
+attempts installation and does not reliably acquire an existing control page.
+It is not a verified fallback. Diagnostic worker disposal and storage-probe
+cleanup also remain open in the [active action list](../../docs/migration/monorepo-plan.md).
+Linux driver fixtures do not establish real Safari execution.
 
-**Fallback without WebDriver installs.** `safari-package.sh [out-dir]` wraps
-the build in a macOS app (`safari-web-extension-packager`) and builds it with
-ad-hoc signing. Then load it one of two ways:
+**Manual packaging.** `mise run safari-project` wraps the existing build in a
+macOS app through `safari-web-extension-packager`, then runs `xcodebuild` with
+code signing disabled. It uses the generated `.output/safari-xcode` directory.
+Then load it one of two ways:
 
 - Open the app once and turn on Develop > "Allow Unsigned Extensions". The
   setting resets whenever Safari quits.
