@@ -1,0 +1,577 @@
+diff --git a/.github/workflows/verify.yml b/.github/workflows/verify.yml
+index ce8c9e0e..afd801a4 100644
+--- a/.github/workflows/verify.yml
++++ b/.github/workflows/verify.yml
+@@ -10,7 +10,7 @@ on:
+   workflow_dispatch:
+     inputs:
+       safari-xcode:
+-        description: Also wrap the Safari build in an Xcode project on macOS (10x runner cost)
++        description: Also wrap the Safari build in an Xcode project on macOS
+         type: boolean
+         default: false
+ 
+@@ -159,9 +159,8 @@ jobs:
+       - name: Lint with web-ext
+         run: mise run lint:firefox "$RUNNER_TEMP/firefox"
+ 
+-  # validate:chrome-artifact is not on this branch yet. When package.json gains
+-  # it, this job runs it against the CI-built Chrome output; until then the job
+-  # reports a notice and does not claim a pass.
++  # Exercise the exact Chrome archive produced by the build job. A missing
++  # validator or archive fails this gate instead of turning it into a skipped check.
+   smoke-chrome:
+     name: Chrome artifact smoke
+     needs: build
+@@ -172,31 +171,21 @@ jobs:
+         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         with:
+           persist-credentials: false
+-      - name: Find the validation script
+-        id: script
+-        shell: bash
+-        run: |
+-          if jq -e '.scripts["validate:chrome-artifact"]' package.json > /dev/null; then
+-            echo "present=true" >> "$GITHUB_OUTPUT"
+-          else
+-            echo "present=false" >> "$GITHUB_OUTPUT"
+-            echo "::notice title=Chrome smoke not run::package.json has no validate:chrome-artifact script on this revision"
+-          fi
+       - name: Install toolchain and dependencies
+-        if: steps.script.outputs.present == 'true'
+         uses: ./.github/actions/setup
+       - name: Download Chrome archive
+-        if: steps.script.outputs.present == 'true'
+         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+         with:
+           name: extension-chrome
+           path: ${{ runner.temp }}/chrome-zips
+       - name: Validate the Chrome build
+-        if: steps.script.outputs.present == 'true'
+         shell: bash
+         run: |
++          shopt -s nullglob
++          zips=("$RUNNER_TEMP"/chrome-zips/*-chrome.zip)
++          [ "${#zips[@]}" -eq 1 ] || { echo "::error::expected one *-chrome.zip, found ${#zips[@]}"; exit 1; }
+           rm -rf .output/chrome-mv3
+-          unzip -q "$RUNNER_TEMP"/chrome-zips/*-chrome.zip -d .output/chrome-mv3
++          unzip -q "${zips[0]}" -d .output/chrome-mv3
+           mise exec -- pnpm run validate:chrome-artifact
+ 
+   workflows:
+@@ -217,8 +206,8 @@ jobs:
+       - name: Run actionlint and zizmor
+         run: mise run lint:workflows
+ 
+-  # macOS minutes cost ten times Linux minutes, so this runs only on request:
+-  # the `ci:safari` PR label or the manual input.
++  # This optional packaging check needs Apple's macOS tools. Run it on request
++  # through the `ci:safari` PR label or the manual input.
+   safari-xcode:
+     name: Safari Xcode project
+     needs: build
+diff --git a/docs/ci.md b/docs/ci.md
+index 04e52c57..e2d63261 100644
+--- a/docs/ci.md
++++ b/docs/ci.md
+@@ -4,7 +4,7 @@ Two workflows live in `.github/workflows/`:
+ 
+ | Workflow | Trigger | Purpose |
+ | --- | --- | --- |
+-| `verify.yml` (**Verify**) | every pull request, pushes to `main`, manual | type checks, the full Vitest suite, Chrome/Firefox/Safari builds, Firefox add-on lint, workflow lint |
++| `verify.yml` (**Verify**) | every pull request, pushes to `main`, manual | type checks, the full Vitest suite, Chrome/Firefox/Safari builds, Chrome artifact smoke, Firefox add-on lint, workflow lint |
+ | `release.yml` (**Release**) | `v*` tags, manual dry run | release archives, `SHA256SUMS`, provenance, GitHub Release, ghcr.io; see [release/README.md](release/README.md) |
+ 
+ Both call the same Mise tasks a developer runs locally, so a CI failure can be
+@@ -29,6 +29,7 @@ the app owns the command.
+ | `mise run release:archives [browsers]` | zips each browser, then writes release-named archives and `SHA256SUMS` to `.output/release` |
+ | `mise run release:check-version <tag>` | fails unless the tag equals the `apps/extension/package.json` version |
+ | `mise run safari-project` | macOS only: wraps the Safari build in an Xcode project and builds it unsigned |
++| `pnpm run validate:chrome-artifact` | reads the built Chrome files and opens the generated panel and options pages in Chromium or Chrome for Testing |
+ 
+ `--mv3` is passed explicitly because WXT 0.21 builds Firefox and Safari as MV2
+ unless `wxt.config.ts` sets `manifestVersion: 3`. It is harmless once it does.
+@@ -38,14 +39,17 @@ No task lists individual test, source or benchmark files. A new test under
+ 
+ ## Verify workflow
+ 
++```mermaid
++flowchart TD
++  prepare["Prepare dependencies"] --> check["Type checks"]
++  prepare --> test["Tests"]
++  prepare --> build["Build Chrome, Firefox and Safari"]
++  build --> firefox["Firefox add-on lint"]
++  build --> chrome["Chrome artifact smoke"]
++  build --> safari["Safari Xcode project, when requested"]
+ ```
+-prepare ──┬── check (Type checks)
+-          ├── test (Tests)
+-          └── build [chrome, firefox, safari] ──┬── lint-firefox
+-                                                ├── smoke-chrome
+-                                                └── safari-xcode (opt-in, macOS)
+-workflows (Workflow lint, independent)
+-```
++
++Workflow lint runs independently of these jobs.
+ 
+ - **prepare** runs `pnpm install --frozen-lockfile` once and, on trusted refs
+   only, saves the download caches. Every other job restores them read-only and
+@@ -55,14 +59,16 @@ workflows (Workflow lint, independent)
+   the release workflow rebuilds from the tag.
+ - **lint-firefox** unpacks the Firefox build and runs `web-ext lint`. It fails
+   on lint *errors* (for example a missing `browser_specific_settings.gecko.id`),
+-  which is what addons.mozilla.org rejects. Until the Firefox manifest work
+-  (milestone 3 of the cross-browser plan) adds the add-on id, this job fails.
++  which is what addons.mozilla.org rejects. The current WXT manifest includes
++  the add-on id; the lint result still depends on the generated archive.
+ - **smoke-chrome** runs `pnpm run validate:chrome-artifact` against the CI
+-  Chrome build **only if that script exists in `package.json`**. The script is
+-  not on this branch yet; until it is, the job prints a notice and succeeds
+-  without claiming a smoke test ran. Treat that state as *not checked*.
+-- **safari-xcode** costs macOS minutes (10x Linux), so it runs only when a PR
+-  carries the `ci:safari` label or a manual run sets the `safari-xcode` input.
++  Chrome build. It requires exactly one downloaded Chrome archive and fails if
++  the script or a compatible browser is unavailable. Set `CHROME_BIN` when the
++  runner needs an explicit Chromium or Chrome for Testing executable. A static
++  artifact check does not replace this browser startup check.
++- **safari-xcode** is an optional packaging check that needs Apple's macOS
++  tools. It runs when a PR carries the `ci:safari` label or a manual run sets
++  the `safari-xcode` input.
+ - **workflows** lints the workflow files. `.github/zizmor.yml` disables only the
+   `self-repository` audit: zizmor prefers `uses: $/...`, which actionlint
+   1.7.12 still rejects.
+@@ -73,9 +79,10 @@ workflow token is `contents: read` throughout.
+ 
+ ### Runners
+ 
+-Jobs use GitHub-hosted `ubuntu-24.04`, which is free for public repositories,
+-matches the Firefox reviewers' Ubuntu 24.04 build environment, and is a
+-GitHub-hosted runner for attestation purposes. The previous workflow used
++Most jobs use GitHub-hosted `ubuntu-24.04`; the optional Xcode job uses
++`macos-15`. [Standard GitHub-hosted runners are free for public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
++The old fixed macOS billing multiplier does not describe this public
++repository's standard runners. The previous workflow used
+ Ubicloud's `ubicloud-standard-2`; to return to it, change `runs-on` in
+ `verify.yml` (release jobs should stay GitHub-hosted so provenance does not
+ name a third-party runner).
+@@ -110,8 +117,9 @@ cold from the lockfile so nothing a PR run produced can reach a published
+ archive.
+ 
+ A cache hit is not evidence that a test or build ran; each job executes its
+-command every time. WXT output is not cached because `wxt.config.ts` embeds a
+-build timestamp and fetches fonts during the build.
++command every time. Each build produces fresh WXT output from its checkout.
++`wxt.config.ts` derives the diagnostic build identity from the package version
++and source commit, and fonts come from pinned workspace dependencies.
+ 
+ ### Native task-cache experiment (November 2026)
+ 
+@@ -124,10 +132,11 @@ closure gives a stable key and a measured saving.
+ ## Required checks and branch settings
+ 
+ The checks a branch rule should require are **Type checks**, **Tests**,
+-**Build (chrome)**, **Build (firefox)**, **Build (safari)** and **Workflow
+-lint**. Add **Firefox add-on lint** once the Firefox manifest has its add-on
+-id. Do not require **Chrome artifact smoke** until `validate:chrome-artifact`
+-exists, because until then its success means "not run". The previous single
++**Build (chrome)**, **Build (firefox)**, **Build (safari)**, **Firefox add-on lint**,
++**Chrome artifact smoke** and **Workflow lint**. The Chrome job executes its
++validator on every run; it no longer has a successful "script absent" path.
++Verify that the runner provides a compatible browser before requiring the
++new check in a ruleset. The previous single
+ check names (`Type checks` / `Tests and Chrome build (manual)`) are replaced;
+ an owner must update any ruleset that names the old ones.
+ 
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -458,7 +458,17 @@ importers:
+         specifier: 7.0.2
+         version: 7.0.2
+ 
+-  tools/verify: {}
++  tools/verify:
++    devDependencies:
++      '@types/node':
++        specifier: ^26.6.6
++        version: 26.6.6
++      typescript:
++        specifier: 7.0.2
++        version: 7.0.2
++      vitest:
++        specifier: 5.1.0
++        version: 5.1.0(@types/node@26.6.6)(jsdom@31.0.1)(vite@8.3.7(@types/node@26.6.6)(jiti@2.7.0))
+ 
+   utils/activity:
+     dependencies:
+diff --git a/tools/verify/README.md b/tools/verify/README.md
+index eca04a1b..4e71881a 100644
+--- a/tools/verify/README.md
++++ b/tools/verify/README.md
+@@ -1,11 +1,13 @@
+ # Real-browser verification
+ 
+-This private Node workspace package owns generated-output inspection and real-browser drivers. It has no npm dependencies: `webdriver.mjs` speaks W3C WebDriver over `fetch`. The native `check` task runs Node syntax checks for its JavaScript files; installed browser and driver executables remain separate prerequisites.
++This private Node workspace package owns generated-output inspection and real-browser drivers. It has no runtime npm dependencies: `webdriver.mjs` speaks W3C WebDriver over `fetch`. The native `check` task checks its TypeScript configuration and tests, then runs Node syntax checks for its JavaScript files. Installed browser and driver executables remain separate prerequisites.
+ 
+ ## Chrome
+ 
+ `pnpm validate:chrome-artifact` reads an existing `.output/chrome-mv3` and then loads its generated panel and options pages in Chromium. Set `CHROME_BIN` or pass `--chrome=<executable>` when automatic discovery cannot locate the intended browser. `--static-only` checks packaged files and explicitly skips startup. The validator unwraps the CDP response envelope once before reading `Runtime.evaluate`'s `RemoteObject.value`.
+ 
++`chrome/cdp.mjs` owns the debugging connection. Opening the socket and each command have a 15-second deadline. A transport error, browser closure or explicit disposal rejects outstanding commands and releases their timers and event subscriptions. The `verify` Vitest project tests these failure paths without claiming that a generated extension loaded in a real browser.
++
+ A usable executable and a passing bundle do not prove that the host permits a browser process. Record local socket, sandbox or display failures as blocked runtime checks. Startup alone also does not cover the complete tab, observation, private-window or search journey. See the [verification workflow](../../docs/architecture/verification-workflow.md).
+ 
+ ## Firefox
+diff --git a/tools/verify/chrome.mjs b/tools/verify/chrome.mjs
+index a89afaa1..e9f18669 100644
+--- a/tools/verify/chrome.mjs
++++ b/tools/verify/chrome.mjs
+@@ -5,6 +5,7 @@ import { createServer } from 'node:net';
+ import { tmpdir } from 'node:os';
+ import { basename, join, relative, resolve, sep } from 'node:path';
+ import { spawn } from 'node:child_process';
++import { connect as connectCdp } from './chrome/cdp.mjs';
+ 
+ const DEFAULT_ARTIFACT_DIRECTORY = '.output/chrome-mv3';
+ const REGISTRY_DIRECTORY = 'kaiju-deepscope-registry';
+@@ -375,48 +376,6 @@ async function fetchJson(url, init) {
+ 	return await response.json();
+ }
+ 
+-/** Correlate DevTools requests by ID and deliver method events through one WebSocket; resolved requests contain message.result directly. */
+-function connectCdp(url) {
+-	return new Promise((resolveClient, reject) => {
+-		const socket = new WebSocket(url);
+-		const pending = new Map();
+-		const listeners = new Map();
+-		let sequence = 0;
+-
+-		socket.addEventListener('open', () => resolveClient({
+-			/** Allocate a request ID and retain its promise until the matching DevTools response arrives. */
+-			send(method, params = {}) {
+-				const id = ++sequence;
+-				return new Promise((resolve, rejectRequest) => {
+-					pending.set(id, { resolve, reject: rejectRequest });
+-					socket.send(JSON.stringify({ id, method, params }));
+-				});
+-			},
+-			/** Retain an event listener for the lifetime of this verification connection. */
+-			on(method, listener) {
+-				const current = listeners.get(method) ?? [];
+-				current.push(listener);
+-				listeners.set(method, current);
+-			},
+-			/** Close the DevTools socket after the caller has finished its browser checks. */
+-			close() { socket.close(); },
+-		}));
+-		socket.addEventListener('error', () => reject(new Error(`Could not connect to Chrome target: ${url}`)));
+-		socket.addEventListener('message', (event) => {
+-			const message = JSON.parse(String(event.data));
+-			if (message.id) {
+-				const request = pending.get(message.id);
+-				if (!request) return;
+-				pending.delete(message.id);
+-				if (message.error) request.reject(new Error(message.error.message ?? 'Chrome DevTools request failed.'));
+-				else request.resolve(message.result);
+-				return;
+-			}
+-			for (const listener of listeners.get(message.method) ?? []) listener(message.params ?? {});
+-		});
+-	});
+-}
+-
+ /** Wait for the launched browser to stop within the cleanup deadline, accepting an already exited process. */
+ function waitForExit(child, timeoutMs) {
+ 	return new Promise((resolveExit, reject) => {
+diff --git a/tools/verify/chrome/cdp.mjs b/tools/verify/chrome/cdp.mjs
+new file mode 100644
+index 00000000..c6eb27cf
+--- /dev/null
++++ b/tools/verify/chrome/cdp.mjs
+@@ -0,0 +1,103 @@
++/** Maximum time to open a debugging connection or receive one command response. */
++const DEFAULT_TIMEOUT_MS = 15_000;
++
++/**
++ * @typedef {Object} Client
++ * @property {(method: string, params?: object) => Promise<unknown>} send Send one command and await its protocol result.
++ * @property {(method: string, listener: (params: unknown) => void) => void} on Subscribe until this connection closes.
++ * @property {() => void} close Cancel remaining commands and release the socket.
++ */
++
++/**
++ * Connect to one Chrome target and own its command subscriptions.
++ *
++ * A closed socket rejects every outstanding command. Each command also has a
++ * deadline, so a browser that remains connected but stops replying cannot leave
++ * artifact validation waiting forever. Responses contain `message.result`.
++ *
++ * @param {string} url Target WebSocket URL returned by Chrome's debugging endpoint.
++ * @param {{ timeoutMs?: number }} [options] Deadline shared by connection startup and individual commands.
++ * @returns {Promise<Client>} The caller owns connection disposal.
++ */
++export function connect(url, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
++	return new Promise((resolveClient, rejectConnection) => {
++		const socket = new WebSocket(url);
++		/** Commands retain their resolver and deadline until response or disposal. */
++		const pending = new Map();
++		/** Event listeners belong to this connection and are released on closure. */
++		const listeners = new Map();
++		let sequence = 0;
++		let terminalError;
++		const opening = setTimeout(() => close(new Error(`Chrome target did not connect within ${timeoutMs}ms: ${url}`)), timeoutMs);
++
++		/** Settle the connection once, release command timers and stop browser delivery. */
++		function close(error) {
++			if (terminalError) return;
++			terminalError = error;
++			clearTimeout(opening);
++			rejectConnection(error);
++			for (const request of pending.values()) {
++				clearTimeout(request.timeout);
++				request.reject(error);
++			}
++			pending.clear();
++			listeners.clear();
++			if (socket.readyState !== WebSocket.CLOSED) socket.close();
++		}
++
++		socket.addEventListener('open', () => {
++			if (terminalError) return;
++			clearTimeout(opening);
++			resolveClient({
++				/** Correlate one command and release its pending entry on any terminal outcome. */
++				send(method, params = {}) {
++					if (terminalError) return Promise.reject(terminalError);
++					const id = ++sequence;
++					return new Promise((resolve, reject) => {
++						const timeout = setTimeout(() => {
++							pending.delete(id);
++							reject(new Error(`Chrome DevTools command ${method} did not respond within ${timeoutMs}ms.`));
++						}, timeoutMs);
++						pending.set(id, { resolve, reject, timeout });
++						try {
++							socket.send(JSON.stringify({ id, method, params }));
++						} catch (error) {
++							pending.delete(id);
++							clearTimeout(timeout);
++							reject(error);
++						}
++					});
++				},
++				/** Subscribe to a protocol event until the caller closes this connection. */
++				on(method, listener) {
++					if (terminalError) throw terminalError;
++					const current = listeners.get(method) ?? [];
++					current.push(listener);
++					listeners.set(method, current);
++				},
++				/** Cancel any remaining commands and release this target's connection. */
++				close() { close(new Error('Chrome target connection closed by the validator.')); },
++			});
++		});
++		socket.addEventListener('error', () => close(new Error(`Chrome target connection failed: ${url}`)));
++		socket.addEventListener('close', () => close(new Error(`Chrome target connection closed: ${url}`)));
++		socket.addEventListener('message', (event) => {
++			if (terminalError) return;
++			try {
++				const message = JSON.parse(String(event.data));
++				if (typeof message.id === 'number') {
++					const request = pending.get(message.id);
++					if (!request) return;
++					pending.delete(message.id);
++					clearTimeout(request.timeout);
++					if (message.error) request.reject(new Error(message.error.message ?? 'Chrome DevTools request failed.'));
++					else request.resolve(message.result);
++					return;
++				}
++				for (const listener of listeners.get(message.method) ?? []) listener(message.params ?? {});
++			} catch (error) {
++				close(error instanceof Error ? error : new Error(String(error)));
++			}
++		});
++	});
++}
+diff --git a/tools/verify/chrome/cdp.test.ts b/tools/verify/chrome/cdp.test.ts
+new file mode 100644
+index 00000000..fc6b842b
+--- /dev/null
++++ b/tools/verify/chrome/cdp.test.ts
+@@ -0,0 +1,131 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++
++import { connect } from './cdp.mjs';
++
++/** Controllable transport for connection loss and deadlines without a browser process. */
++class Socket extends EventTarget {
++	static CLOSED = 3;
++	static current: Socket;
++	readyState = 0;
++	send = vi.fn();
++	close = vi.fn(() => {
++		this.readyState = Socket.CLOSED;
++		this.dispatchEvent(new Event('close'));
++	});
++
++	constructor() {
++		super();
++		Socket.current = this;
++	}
++
++	/** Finish the initial connection when the test permits browser delivery. */
++	open(): void {
++		this.readyState = 1;
++		this.dispatchEvent(new Event('open'));
++	}
++
++	/** Deliver a protocol envelope through the same event interface as native WebSocket. */
++	message(value: unknown): void {
++		this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(value) }));
++	}
++}
++
++/** Open one short-lived client so timeout assertions do not depend on wall-clock scheduling. */
++async function opened() {
++	const pending = connect('ws://127.0.0.1:9222/target', { timeoutMs: 100 });
++	Socket.current.open();
++	return pending;
++}
++
++beforeEach(() => {
++	vi.useFakeTimers();
++	vi.stubGlobal('WebSocket', Socket);
++});
++
++afterEach(() => {
++	Socket.current.close();
++	vi.useRealTimers();
++	vi.unstubAllGlobals();
++});
++
++describe('Chrome target connection lifetime', () => {
++	it('unwraps command results once and releases their deadlines', async () => {
++		const client = await opened();
++		const first = client.send('Runtime.enable');
++		const second = client.send('Runtime.evaluate', { expression: '1' });
++		Socket.current.message({ id: 2, result: { result: { value: 1 } } });
++		Socket.current.message({ id: 1, result: {} });
++		await expect(second).resolves.toEqual({ result: { value: 1 } });
++		await expect(first).resolves.toEqual({});
++		expect(vi.getTimerCount()).toBe(0);
++	});
++
++	it.each(['close', 'error'])('rejects all pending commands after transport %s', async (event) => {
++		const client = await opened();
++		const first = expect(client.send('Runtime.enable')).rejects.toThrow(/Chrome target connection/u);
++		const second = expect(client.send('Log.enable')).rejects.toThrow(/Chrome target connection/u);
++		Socket.current.dispatchEvent(new Event(event));
++		await Promise.all([first, second]);
++		expect(vi.getTimerCount()).toBe(0);
++		await expect(client.send('Page.enable')).rejects.toThrow(/Chrome target connection/u);
++		expect(Socket.current.send).toHaveBeenCalledTimes(2);
++	});
++
++	it('rejects a connection that never opens and closes its socket', async () => {
++		const result = expect(connect('ws://127.0.0.1:9222/target', { timeoutMs: 100 })).rejects.toThrow('did not connect within 100ms');
++		await vi.advanceTimersByTimeAsync(100);
++		await result;
++		expect(Socket.current.close).toHaveBeenCalledTimes(1);
++		expect(vi.getTimerCount()).toBe(0);
++	});
++
++	it('bounds a silent command without dropping a different reply', async () => {
++		const client = await opened();
++		const stalled = expect(client.send('Runtime.enable')).rejects.toThrow('Runtime.enable did not respond within 100ms');
++		const completed = client.send('Log.enable');
++		Socket.current.message({ id: 2, result: {} });
++		await expect(completed).resolves.toEqual({});
++		await vi.advanceTimersByTimeAsync(100);
++		await stalled;
++		expect(vi.getTimerCount()).toBe(0);
++	});
++
++	it('rejects a provider error without retaining the command timer', async () => {
++		const client = await opened();
++		const result = expect(client.send('Runtime.enable')).rejects.toThrow('Unknown method.');
++		Socket.current.message({ id: 1, error: { message: 'Unknown method.' } });
++		await result;
++		expect(vi.getTimerCount()).toBe(0);
++	});
++
++	it('preserves a synchronous send error and releases the command deadline', async () => {
++		const client = await opened();
++		const error = new Error('Socket became unavailable.');
++		Socket.current.send.mockImplementationOnce(() => { throw error; });
++		await expect(client.send('Runtime.enable')).rejects.toBe(error);
++		expect(vi.getTimerCount()).toBe(0);
++	});
++
++	it('releases event subscriptions and pending commands when the caller closes', async () => {
++		const client = await opened();
++		const event = vi.fn();
++		client.on('Runtime.exceptionThrown', event);
++		Socket.current.message({ method: 'Runtime.exceptionThrown', params: { text: 'before' } });
++		const pending = expect(client.send('Runtime.enable')).rejects.toThrow('closed by the validator');
++		client.close();
++		client.close();
++		Socket.current.message({ method: 'Runtime.exceptionThrown', params: { text: 'after' } });
++		await pending;
++		expect(event).toHaveBeenCalledOnce();
++		expect(Socket.current.close).toHaveBeenCalledTimes(1);
++		expect(vi.getTimerCount()).toBe(0);
++	});
++
++	it('rejects outstanding work when Chrome returns malformed JSON', async () => {
++		const client = await opened();
++		const pending = expect(client.send('Runtime.enable')).rejects.toBeInstanceOf(SyntaxError);
++		Socket.current.dispatchEvent(new MessageEvent('message', { data: '{broken' }));
++		await pending;
++		expect(vi.getTimerCount()).toBe(0);
++	});
++});
+diff --git a/tools/verify/package.json b/tools/verify/package.json
+index 342906d3..bdf9a36a 100644
+--- a/tools/verify/package.json
++++ b/tools/verify/package.json
+@@ -3,6 +3,12 @@
+   "private": true,
+   "type": "module",
+   "scripts": {
+-    "check": "for source in ./*.mjs; do node --check \"$source\" || exit; done"
++    "check": "tsc --noEmit && for source in ./*.mjs ./*/*.mjs; do node --check \"$source\" || exit; done",
++    "test": "vitest run"
++  },
++  "devDependencies": {
++    "@types/node": "^26.6.6",
++    "typescript": "7.0.2",
++    "vitest": "5.1.0"
+   }
+ }
+diff --git a/tools/verify/tsconfig.json b/tools/verify/tsconfig.json
+new file mode 100644
+index 00000000..fc25f195
+--- /dev/null
++++ b/tools/verify/tsconfig.json
+@@ -0,0 +1,9 @@
++{
++  "extends": "../../tsconfig.base.json",
++  "compilerOptions": {
++    "types": ["node"],
++    "allowJs": true
++  },
++  "include": ["**/*.ts"],
++  "exclude": ["node_modules"]
++}
+diff --git a/tools/verify/vitest.config.ts b/tools/verify/vitest.config.ts
+new file mode 100644
+index 00000000..7b38ecb1
+--- /dev/null
++++ b/tools/verify/vitest.config.ts
+@@ -0,0 +1,6 @@
++import { defineConfig } from 'vitest/config';
++
++/** Keep artifact tool lifetime checks in the tool's own workspace project. */
++export default defineConfig({
++	test: { name: 'verify', environment: 'node', include: ['**/*.test.ts'] },
++});

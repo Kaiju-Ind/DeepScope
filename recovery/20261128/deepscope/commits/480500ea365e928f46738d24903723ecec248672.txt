@@ -1,0 +1,21 @@
+tree 9bd1c68bc90250cbb2cccbde1083cbb7cd9e4a74
+parent ad84805e2150260eb7057b0a692d6f4689bfd9f9
+author Codex <codex@openai.com> 1795848094 -0500
+committer Codex <codex@openai.com> 1795848094 -0500
+
+docs(agents): reconcile extension guidance and current migration evidence
+
+Keep the complete handbook while identifying DeepScope's extension-specific
+procedures and local incidents. Correct stale statements about retained
+shared chapters, Safari extension automation, Firefox identity, fonts and
+the workflow source. Route RPC lifecycle review to the dependency owner and
+include the verification workspace in repository instructions.
+
+Make the monorepo record the active continuation plan. Separate recovered
+validation from the current candidate, record the exact source ancestry and
+focused regressions, and retain failed full type/test/build gates. Keep the
+stress harness split, archive rebuilds and real-browser journeys open.
+
+The guidance validator passes all 15 cases. Documentation links and project
+routes are covered by that validator; those checks do not prove browser
+behavior or complete the outstanding source audit.

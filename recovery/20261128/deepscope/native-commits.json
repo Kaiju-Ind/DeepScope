@@ -1,0 +1,57 @@
+[
+  {
+    "sha": "b28d7cf3ce2b84572fa64b061d9e6c9b318bb377",
+    "tree": "5ec68fe6020da894ec8bed8bcadfaffb2094f30a",
+    "parent": "1f439b9c33134cbb9755c231db3ced6024f3074b",
+    "message": "refactor(workspace): separate extension packages and native tools\n\nPlace the WXT application under apps/extension and give DOM, detection,\nand registry code their own source packages. Keep the vendored Utils\nclosure public, and give verification, release, registry, sync and lint\ntasks native workspace owners. Retain the complete handbook installation\nwith the extension's existing adaptations and migration records.\n\nRecord the exact recovered batch5 tree before applying new review fixes:\n5ec68fe6020da894ec8bed8bcadfaffb2094f30a. All 9,906 recovered files match\nthe saved source bytes and modes; the original native ancestry is kept.\n\nValidation: the recovered tree passed its native type-check command in\nthis continuation. The full test runner was killed with exit 137. Current\nbrowser builds, source archives and runtime journeys remain unverified;\nthe migration plan records those limits and the remaining work.\n",
+    "identity": {
+      "stamp": 1795847975,
+      "zone": "-0500",
+      "raw": "tree 5ec68fe6020da894ec8bed8bcadfaffb2094f30a\nparent 1f439b9c33134cbb9755c231db3ced6024f3074b\nauthor Codex <codex@openai.com> 1795847975 -0500\ncommitter Codex <codex@openai.com> 1795847975 -0500\n\nrefactor(workspace): separate extension packages and native tools\n\nPlace the WXT application under apps/extension and give DOM, detection,\nand registry code their own source packages. Keep the vendored Utils\nclosure public, and give verification, release, registry, sync and lint\ntasks native workspace owners. Retain the complete handbook installation\nwith the extension's existing adaptations and migration records.\n\nRecord the exact recovered batch5 tree before applying new review fixes:\n5ec68fe6020da894ec8bed8bcadfaffb2094f30a. All 9,906 recovered files match\nthe saved source bytes and modes; the original native ancestry is kept.\n\nValidation: the recovered tree passed its native type-check command in\nthis continuation. The full test runner was killed with exit 137. Current\nbrowser builds, source archives and runtime journeys remain unverified;\nthe migration plan records those limits and the remaining work.\n"
+    }
+  },
+  {
+    "sha": "cbca1870b399ba8ad5cb9d882f42efbbba156337",
+    "tree": "7da3e2c7ba383c1231586472a05e57e74debe32b",
+    "parent": "b28d7cf3ce2b84572fa64b061d9e6c9b318bb377",
+    "message": "fix(messaging): release reply listeners after failed delivery\n\nA rejected browser send left comctx's request listener registered. Retries\nto a missing content script or invalidated context accumulated listeners.\nPatch the pinned injector at the request owner so it releases only the\nfailed request, preserves the original error, and leaves concurrent calls\nsubscribed. Keep source and published runtime changes in pnpm's frozen\npatch contract and document the source-archive requirement.\n\nExercise the installed dependency through both production adapters. The\nunpatched package fails four delivery/concurrency cases; all eight cases\npass with the patch. The strict test/import-closure type check also passes.\nCaller timeouts and remote cancellation remain separate review work; the\nfull repository gates remain blocked by recorded process kills.\n",
+    "identity": {
+      "stamp": 1795848033,
+      "zone": "-0500",
+      "raw": "tree 7da3e2c7ba383c1231586472a05e57e74debe32b\nparent b28d7cf3ce2b84572fa64b061d9e6c9b318bb377\nauthor Codex <codex@openai.com> 1795848033 -0500\ncommitter Codex <codex@openai.com> 1795848033 -0500\n\nfix(messaging): release reply listeners after failed delivery\n\nA rejected browser send left comctx's request listener registered. Retries\nto a missing content script or invalidated context accumulated listeners.\nPatch the pinned injector at the request owner so it releases only the\nfailed request, preserves the original error, and leaves concurrent calls\nsubscribed. Keep source and published runtime changes in pnpm's frozen\npatch contract and document the source-archive requirement.\n\nExercise the installed dependency through both production adapters. The\nunpatched package fails four delivery/concurrency cases; all eight cases\npass with the patch. The strict test/import-closure type check also passes.\nCaller timeouts and remote cancellation remain separate review work; the\nfull repository gates remain blocked by recorded process kills.\n"
+    }
+  },
+  {
+    "sha": "1e4db848f51f312db538b02d291e42a9f32c1c94",
+    "tree": "02a4dfeb331c783646015ecce948d6991fcd948a",
+    "parent": "cbca1870b399ba8ad5cb9d882f42efbbba156337",
+    "message": "fix(registry): reject inherited category names\n\nThe category validator accepted Object prototype properties because it\nused the in operator against a plain category table. Require an own table\nentry before compilation so constructor, toString, valueOf and __proto__\ncannot become category identifiers.\n\nAll nine schema cases pass after the repair; the four inherited-name\ncases fail against the recovered implementation. The strict changed-test\nand import-closure type check passes. The complete catalog compiler still\nhits the separately recorded host process kill.\n",
+    "identity": {
+      "stamp": 1795848043,
+      "zone": "-0500",
+      "raw": "tree 02a4dfeb331c783646015ecce948d6991fcd948a\nparent cbca1870b399ba8ad5cb9d882f42efbbba156337\nauthor Codex <codex@openai.com> 1795848043 -0500\ncommitter Codex <codex@openai.com> 1795848043 -0500\n\nfix(registry): reject inherited category names\n\nThe category validator accepted Object prototype properties because it\nused the in operator against a plain category table. Require an own table\nentry before compilation so constructor, toString, valueOf and __proto__\ncannot become category identifiers.\n\nAll nine schema cases pass after the repair; the four inherited-name\ncases fail against the recovered implementation. The strict changed-test\nand import-closure type check passes. The complete catalog compiler still\nhits the separately recorded host process kill.\n"
+    }
+  },
+  {
+    "sha": "ad84805e2150260eb7057b0a692d6f4689bfd9f9",
+    "tree": "e59085f5a06bd72ea223ba9ef224af7b67cf6a13",
+    "parent": "1e4db848f51f312db538b02d291e42a9f32c1c94",
+    "message": "fix(verify): bound Chrome debugger requests and require artifact smoke\n\nChrome debugger commands could remain pending after their socket closed.\nGive the connection an explicit owner that bounds startup and responses,\nrejects pending work on transport failure, and releases request timers and\nevent subscriptions during disposal. Keep protocol result unwrapping in\none place and give the verification workspace its own tests and type check.\n\nRun the existing Chrome artifact validator unconditionally in CI and\nrequire exactly one downloaded archive. Update the workflow guide to\nmatch the current jobs, local build inputs and public runner behavior.\n\nNine debugger lifetime cases pass. A direct probe keeps the recovered\nclient pending on socket close and rejects with the repaired client. The\nverification package type/syntax check and native workflow lint pass.\nNo current browser startup or bundle pass is claimed: the local browser\ndownload returned HTTP 403 and the native Chrome build was killed.\n",
+    "identity": {
+      "stamp": 1795848059,
+      "zone": "-0500",
+      "raw": "tree e59085f5a06bd72ea223ba9ef224af7b67cf6a13\nparent 1e4db848f51f312db538b02d291e42a9f32c1c94\nauthor Codex <codex@openai.com> 1795848059 -0500\ncommitter Codex <codex@openai.com> 1795848059 -0500\n\nfix(verify): bound Chrome debugger requests and require artifact smoke\n\nChrome debugger commands could remain pending after their socket closed.\nGive the connection an explicit owner that bounds startup and responses,\nrejects pending work on transport failure, and releases request timers and\nevent subscriptions during disposal. Keep protocol result unwrapping in\none place and give the verification workspace its own tests and type check.\n\nRun the existing Chrome artifact validator unconditionally in CI and\nrequire exactly one downloaded archive. Update the workflow guide to\nmatch the current jobs, local build inputs and public runner behavior.\n\nNine debugger lifetime cases pass. A direct probe keeps the recovered\nclient pending on socket close and rejects with the repaired client. The\nverification package type/syntax check and native workflow lint pass.\nNo current browser startup or bundle pass is claimed: the local browser\ndownload returned HTTP 403 and the native Chrome build was killed.\n"
+    }
+  },
+  {
+    "sha": "480500ea365e928f46738d24903723ecec248672",
+    "tree": "9bd1c68bc90250cbb2cccbde1083cbb7cd9e4a74",
+    "parent": "ad84805e2150260eb7057b0a692d6f4689bfd9f9",
+    "message": "docs(agents): reconcile extension guidance and current migration evidence\n\nKeep the complete handbook while identifying DeepScope's extension-specific\nprocedures and local incidents. Correct stale statements about retained\nshared chapters, Safari extension automation, Firefox identity, fonts and\nthe workflow source. Route RPC lifecycle review to the dependency owner and\ninclude the verification workspace in repository instructions.\n\nMake the monorepo record the active continuation plan. Separate recovered\nvalidation from the current candidate, record the exact source ancestry and\nfocused regressions, and retain failed full type/test/build gates. Keep the\nstress harness split, archive rebuilds and real-browser journeys open.\n\nThe guidance validator passes all 15 cases. Documentation links and project\nroutes are covered by that validator; those checks do not prove browser\nbehavior or complete the outstanding source audit.\n",
+    "identity": {
+      "stamp": 1795848094,
+      "zone": "-0500",
+      "raw": "tree 9bd1c68bc90250cbb2cccbde1083cbb7cd9e4a74\nparent ad84805e2150260eb7057b0a692d6f4689bfd9f9\nauthor Codex <codex@openai.com> 1795848094 -0500\ncommitter Codex <codex@openai.com> 1795848094 -0500\n\ndocs(agents): reconcile extension guidance and current migration evidence\n\nKeep the complete handbook while identifying DeepScope's extension-specific\nprocedures and local incidents. Correct stale statements about retained\nshared chapters, Safari extension automation, Firefox identity, fonts and\nthe workflow source. Route RPC lifecycle review to the dependency owner and\ninclude the verification workspace in repository instructions.\n\nMake the monorepo record the active continuation plan. Separate recovered\nvalidation from the current candidate, record the exact source ancestry and\nfocused regressions, and retain failed full type/test/build gates. Keep the\nstress harness split, archive rebuilds and real-browser journeys open.\n\nThe guidance validator passes all 15 cases. Documentation links and project\nroutes are covered by that validator; those checks do not prove browser\nbehavior or complete the outstanding source audit.\n"
+    }
+  }
+]

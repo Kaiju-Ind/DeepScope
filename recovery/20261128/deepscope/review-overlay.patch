@@ -1,0 +1,1261 @@
+diff --git a/.agents/skills/build-extensions/SKILL.md b/.agents/skills/build-extensions/SKILL.md
+index 2a212f81..5036c63a 100644
+--- a/.agents/skills/build-extensions/SKILL.md
++++ b/.agents/skills/build-extensions/SKILL.md
+@@ -59,6 +59,10 @@ a provider or a store from a framework or a user agent.
+    failure. Keep content-script work proportional to the page: route DOM
+    selectors (`packages/dom/route.ts`) instead of calling `Element.matches` for
+    every selector on every element.
++   Trace the listener owner as well as the returned promise: a rejected send
++   must release that request's subscription without removing concurrent ones.
++   [Dependency patch records](../../../patches/README.md) explain the installed
++   comctx repair and the remaining distinction between timeout and cancellation.
+ 6. **Page-controlled keys.** Header names, cookie names, global names and other
+    page strings never index a plain object. Use `packages/detection/observations/dictionary.ts`
+    (prototype-free maps); `src/tests/security/page-controlled-keys.test.ts`
+diff --git a/.agents/skills/build-extensions/references/platforms.md b/.agents/skills/build-extensions/references/platforms.md
+index 366f6221..d54d8b2b 100644
+--- a/.agents/skills/build-extensions/references/platforms.md
++++ b/.agents/skills/build-extensions/references/platforms.md
+@@ -18,7 +18,15 @@ browser-compat-data before relying on it for a new minimum version.
+ | Badge cleared on `pushState`        | no              | no                                   | no                                              |
+ | Badge colours                       | yes             | yes                                  | no effect                                       |
+ | Native Temporal                     | 144             | 139                                  | 27.3 (polyfill for older)                       |
+-| Real-browser driver                 | Chromium + CDP  | WebDriver via geckodriver            | SafariDriver; cannot install extensions         |
++| Real-browser driver                 | Chromium or Chrome for Testing + CDP | WebDriver via geckodriver | SafariDriver; classic extension commands from Safari 26 |
++
++The driver row was rechecked on 2026-11-28 against
++[WebKit's Safari 26 announcement](https://webkit.org/blog/17333/webkit-features-in-safari-26-0/)
++and [Chromium's branded-build announcement](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY).
++Safari's classic WebDriver extension support is separate from BiDi. Official
++Chrome-branded builds from 137 do not support the validator's `--load-extension`
++switch. Follow the [browser setup guide](../../../../tools/verify/README.md)
++and record an actual runtime result separately from platform support.
+ 
+ Unverified: whether a busy `Worker` keeps a Firefox or Safari background alive. Design as if it does not.
+ 
+diff --git a/.github/workflows/verify.yml b/.github/workflows/verify.yml
+index ce8c9e0e..afd801a4 100644
+--- a/.github/workflows/verify.yml
++++ b/.github/workflows/verify.yml
+@@ -10,7 +10,7 @@ on:
+   workflow_dispatch:
+     inputs:
+       safari-xcode:
+-        description: Also wrap the Safari build in an Xcode project on macOS (10x runner cost)
++        description: Also wrap the Safari build in an Xcode project on macOS
+         type: boolean
+         default: false
+ 
+@@ -159,9 +159,8 @@ jobs:
+       - name: Lint with web-ext
+         run: mise run lint:firefox "$RUNNER_TEMP/firefox"
+ 
+-  # validate:chrome-artifact is not on this branch yet. When package.json gains
+-  # it, this job runs it against the CI-built Chrome output; until then the job
+-  # reports a notice and does not claim a pass.
++  # Exercise the exact Chrome archive produced by the build job. A missing
++  # validator or archive fails this gate instead of turning it into a skipped check.
+   smoke-chrome:
+     name: Chrome artifact smoke
+     needs: build
+@@ -172,31 +171,21 @@ jobs:
+         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         with:
+           persist-credentials: false
+-      - name: Find the validation script
+-        id: script
+-        shell: bash
+-        run: |
+-          if jq -e '.scripts["validate:chrome-artifact"]' package.json > /dev/null; then
+-            echo "present=true" >> "$GITHUB_OUTPUT"
+-          else
+-            echo "present=false" >> "$GITHUB_OUTPUT"
+-            echo "::notice title=Chrome smoke not run::package.json has no validate:chrome-artifact script on this revision"
+-          fi
+       - name: Install toolchain and dependencies
+-        if: steps.script.outputs.present == 'true'
+         uses: ./.github/actions/setup
+       - name: Download Chrome archive
+-        if: steps.script.outputs.present == 'true'
+         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+         with:
+           name: extension-chrome
+           path: ${{ runner.temp }}/chrome-zips
+       - name: Validate the Chrome build
+-        if: steps.script.outputs.present == 'true'
+         shell: bash
+         run: |
++          shopt -s nullglob
++          zips=("$RUNNER_TEMP"/chrome-zips/*-chrome.zip)
++          [ "${#zips[@]}" -eq 1 ] || { echo "::error::expected one *-chrome.zip, found ${#zips[@]}"; exit 1; }
+           rm -rf .output/chrome-mv3
+-          unzip -q "$RUNNER_TEMP"/chrome-zips/*-chrome.zip -d .output/chrome-mv3
++          unzip -q "${zips[0]}" -d .output/chrome-mv3
+           mise exec -- pnpm run validate:chrome-artifact
+ 
+   workflows:
+@@ -217,8 +206,8 @@ jobs:
+       - name: Run actionlint and zizmor
+         run: mise run lint:workflows
+ 
+-  # macOS minutes cost ten times Linux minutes, so this runs only on request:
+-  # the `ci:safari` PR label or the manual input.
++  # This optional packaging check needs Apple's macOS tools. Run it on request
++  # through the `ci:safari` PR label or the manual input.
+   safari-xcode:
+     name: Safari Xcode project
+     needs: build
+diff --git a/AGENTS.md b/AGENTS.md
+index 501a2c01..32eeeb08 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -57,7 +57,7 @@ Tools are pinned in `mise.toml` (pnpm 12, Node 26). Commands are thin Mise tasks
+ | ------------------------------------------------ | -------------------------------------------------------------------------------- |
+ | `mise install`, `mise exec -- pnpm install --frozen-lockfile` | Install tools and dependencies                                       |
+ | `mise run check`                                 | Check packages, tools, app and utils through their native owners (TypeScript 7 and Node syntax checks)        |
+-| `mise run test`                                  | Vitest 5, every project (`extension (runtime)`, `extension (ui)`, `dom`, `registry`, `detection`, `utils`, `guidance`); add `--project <name>` |
++| `mise run test`                                  | Vitest 5, every project (`extension (runtime)`, `extension (ui)`, `dom`, `registry`, `detection`, `utils`, `guidance`, `verify`); add `--project <name>` |
+ | `mise run build <chrome\|firefox\|safari>`        | Unpacked Manifest V3 build in `.output/<browser>-mv3`                             |
+ | `mise run zip <browser>`                         | Store archive (Firefox also emits a sources zip)                                  |
+ | `mise run verify <firefox\|safari>`               | Real-browser scenarios against an existing build (`tools/verify/README.md`)     |
+@@ -90,6 +90,9 @@ the root `.output/`. In this file, `src/` paths are under `apps/extension/`. Dec
+   evidence and decision in [the Utils ADR](docs/adr/01-public-source-builds.md). `@okikio/*` is only for Okikio libraries.
+ - Page-controlled strings never key a plain object; use `@deepscope/detection/observations/dictionary`.
+ - Private tabs persist nothing.
++- Keep dependency patches in the frozen install and source archive. The [comctx patch](patches/README.md) owns
++  failed-send listener cleanup; its tests exercise the installed package through both browser adapters. A transport
++  rejection, a caller timeout and remote cancellation are separate outcomes. Preserve other in-flight requests.
+ - Find tests and files by discovery. Do not list test or file paths in `package.json`, Mise tasks or workflows.
+ - Repository files describe the system as it is. Plans in `docs/migration/` carry task state; other files contain no
+   task IDs, commit SHAs or work-session words. Agent probes and reports go in `.tmp/`, which git ignores.
+diff --git a/apps/extension/src/tests/messaging/client-lifetime.test.ts b/apps/extension/src/tests/messaging/client-lifetime.test.ts
+new file mode 100644
+index 00000000..7117529a
+--- /dev/null
++++ b/apps/extension/src/tests/messaging/client-lifetime.test.ts
+@@ -0,0 +1,103 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { defineProxy, type Adapter, type Message, type MessageMeta } from 'comctx';
++import type { Browser } from 'wxt/browser';
++
++import { BACKGROUND_RPC_NAMESPACE, createBackgroundClientAdapter } from '../../lib/messaging/adapters/background.ts';
++import { CONTENT_RPC_NAMESPACE, createContentClientAdapter } from '../../lib/messaging/adapters/content.ts';
++
++/** Browser reply subscriptions retained by the real messaging adapters. */
++type Listener = (message: unknown, sender: Browser.runtime.MessageSender) => void;
++
++/** Replace only browser delivery so the installed RPC implementation owns each request. */
++const transport = vi.hoisted(() => ({
++	listeners: new Set<Listener>(),
++	runtime: vi.fn(),
++	tab: vi.fn(),
++}));
++
++vi.mock('wxt/browser', () => ({
++	browser: {
++		runtime: {
++			sendMessage: transport.runtime,
++			onMessage: {
++				addListener: (listener: Listener) => transport.listeners.add(listener),
++				removeListener: (listener: Listener) => transport.listeners.delete(listener),
++			},
++		},
++		tabs: { sendMessage: transport.tab },
++	},
++}));
++
++/** Two independent requests let a failed delivery overlap a live reply subscription. */
++interface Api {
++	query(): Promise<string>;
++	hold(): Promise<string>;
++}
++
++/** Use the same heartbeat and transfer options as both production client factories. */
++function client<Meta extends MessageMeta>(adapter: Adapter<Meta>, namespace: string): Api {
++	const [, inject] = defineProxy(() => ({}) as Api, { namespace, heartbeatCheck: false, transfer: false });
++	return inject(adapter);
++}
++
++/** Return a provider response through the browser listener, including the pinned content document. */
++function reply(request: Message, result: { data?: string; error?: string }): void {
++	const sender = { tab: { id: 7 }, frameId: 0, documentId: 'document-7' } as Browser.runtime.MessageSender;
++	for (const listener of transport.listeners) {
++		listener({ ...request, sender: { type: 'provider' }, ...result }, sender);
++	}
++}
++
++/** Route both browser APIs through one test delivery owner without replacing either adapter. */
++function deliver(send: (message: Message) => Promise<void>): void {
++	transport.runtime.mockImplementation(send);
++	transport.tab.mockImplementation((_tabId: number, message: Message) => send(message));
++}
++
++afterEach(() => {
++	transport.listeners.clear();
++	vi.resetAllMocks();
++});
++
++describe.each([
++	{ name: 'background', create: () => client(createBackgroundClientAdapter('sidepanel'), BACKGROUND_RPC_NAMESPACE) },
++	{ name: 'content', create: () => client(createContentClientAdapter(7, 0, 'document-7'), CONTENT_RPC_NAMESPACE) },
++])('$name RPC request subscriptions', ({ create }) => {
++	it('releases every failed request and preserves the original transport error', async () => {
++		const error = new Error('Receiving end does not exist.');
++		deliver(async () => { throw error; });
++		const api = create();
++		for (let attempt = 0; attempt < 3; attempt += 1) {
++			await expect(api.query()).rejects.toBe(error);
++			expect(transport.listeners.size).toBe(0);
++		}
++	});
++
++	it('keeps a concurrent request subscribed when another delivery fails', async () => {
++		const held = Promise.withResolvers<Message>();
++		const error = new Error('Extension context invalidated.');
++		deliver(async (message) => {
++			if (message.path[0] === 'hold') held.resolve(message);
++			else throw error;
++		});
++		const api = create();
++		const pending = api.hold();
++		const request = await held.promise;
++		await expect(api.query()).rejects.toBe(error);
++		expect(transport.listeners.size).toBe(1);
++		reply(request, { data: 'still listening' });
++		await expect(pending).resolves.toBe('still listening');
++		expect(transport.listeners.size).toBe(0);
++	});
++
++	it.each([
++		{ result: { data: 'received' }, error: false },
++		{ result: { error: 'Provider rejected the request.' }, error: true },
++	])('releases a provider response with error=$error', async ({ result, error }) => {
++		deliver(async (message) => { reply(message, result); });
++		const operation = create().query();
++		if (error) await expect(operation).rejects.toThrow('Provider rejected the request.');
++		else await expect(operation).resolves.toBe('received');
++		expect(transport.listeners.size).toBe(0);
++	});
++});
+diff --git a/docs/architecture/source-layout.md b/docs/architecture/source-layout.md
+index e4b53c66..331e2b12 100644
+--- a/docs/architecture/source-layout.md
++++ b/docs/architecture/source-layout.md
+@@ -18,7 +18,8 @@ Moving an owner does not change a storage key, registry identifier or RPC name.
+ | `tools/utils/` | Generate the recorded vendored closure from exact upstream revisions | Node built-ins and Git; TypeScript for checks |
+ | `tools/registry/` | Catalog audits and Intelligence import/diff tools | `rolldown` and Node built-ins |
+ | `tools/release/` | Verify versions and collect built archives and checksums | Node built-ins |
+-| `tools/verify/` | Inspect built output and drive installed browsers | Node built-ins; browser and driver executables are external prerequisites |
++| `tools/verify/` | Inspect built output and drive installed browsers; `chrome/cdp.mjs` owns debugger requests and disposal | Node built-ins; TypeScript and Vitest for checks; browser and driver executables are external prerequisites |
++| `patches/` | Frozen dependency repairs with their rationale and regression coverage | pnpm applies the recorded patch hashes during installation |
+ 
+ Each tools directory is a private workspace package with its own `check`
+ script. It is not a container for unowned scripts. JavaScript-only tools run
+@@ -127,8 +128,10 @@ integration, not a claim that a published registry endpoint was installed.
+ `pnpm compile` uses native pnpm path selectors for all package and tool checks,
+ then checks the extension, vendored Utils and root configuration. Vitest uses
+ project discovery for package tests. The extension keeps browser integration
+-tests. Oxc checks dependency direction, exported targets and module size; the
+-oversize exception lists are empty after these splits.
++tests. Oxc checks dependency direction, exported targets and application/package
++module size; those oversize exception lists are empty after the source splits.
++They do not measure every tools file. The stress harness's remaining split is
++tracked in the [active migration record](../migration/monorepo-plan.md).
+ 
+ Type checking and unit tests cannot prove the generated extension lifecycle.
+ Build and inspect Chrome, Firefox and Safari output, rebuild the Firefox source
+diff --git a/docs/ci.md b/docs/ci.md
+index 04e52c57..e2d63261 100644
+--- a/docs/ci.md
++++ b/docs/ci.md
+@@ -4,7 +4,7 @@ Two workflows live in `.github/workflows/`:
+ 
+ | Workflow | Trigger | Purpose |
+ | --- | --- | --- |
+-| `verify.yml` (**Verify**) | every pull request, pushes to `main`, manual | type checks, the full Vitest suite, Chrome/Firefox/Safari builds, Firefox add-on lint, workflow lint |
++| `verify.yml` (**Verify**) | every pull request, pushes to `main`, manual | type checks, the full Vitest suite, Chrome/Firefox/Safari builds, Chrome artifact smoke, Firefox add-on lint, workflow lint |
+ | `release.yml` (**Release**) | `v*` tags, manual dry run | release archives, `SHA256SUMS`, provenance, GitHub Release, ghcr.io; see [release/README.md](release/README.md) |
+ 
+ Both call the same Mise tasks a developer runs locally, so a CI failure can be
+@@ -29,6 +29,7 @@ the app owns the command.
+ | `mise run release:archives [browsers]` | zips each browser, then writes release-named archives and `SHA256SUMS` to `.output/release` |
+ | `mise run release:check-version <tag>` | fails unless the tag equals the `apps/extension/package.json` version |
+ | `mise run safari-project` | macOS only: wraps the Safari build in an Xcode project and builds it unsigned |
++| `pnpm run validate:chrome-artifact` | reads the built Chrome files and opens the generated panel and options pages in Chromium or Chrome for Testing |
+ 
+ `--mv3` is passed explicitly because WXT 0.21 builds Firefox and Safari as MV2
+ unless `wxt.config.ts` sets `manifestVersion: 3`. It is harmless once it does.
+@@ -38,14 +39,17 @@ No task lists individual test, source or benchmark files. A new test under
+ 
+ ## Verify workflow
+ 
++```mermaid
++flowchart TD
++  prepare["Prepare dependencies"] --> check["Type checks"]
++  prepare --> test["Tests"]
++  prepare --> build["Build Chrome, Firefox and Safari"]
++  build --> firefox["Firefox add-on lint"]
++  build --> chrome["Chrome artifact smoke"]
++  build --> safari["Safari Xcode project, when requested"]
+ ```
+-prepare ──┬── check (Type checks)
+-          ├── test (Tests)
+-          └── build [chrome, firefox, safari] ──┬── lint-firefox
+-                                                ├── smoke-chrome
+-                                                └── safari-xcode (opt-in, macOS)
+-workflows (Workflow lint, independent)
+-```
++
++Workflow lint runs independently of these jobs.
+ 
+ - **prepare** runs `pnpm install --frozen-lockfile` once and, on trusted refs
+   only, saves the download caches. Every other job restores them read-only and
+@@ -55,14 +59,16 @@ workflows (Workflow lint, independent)
+   the release workflow rebuilds from the tag.
+ - **lint-firefox** unpacks the Firefox build and runs `web-ext lint`. It fails
+   on lint *errors* (for example a missing `browser_specific_settings.gecko.id`),
+-  which is what addons.mozilla.org rejects. Until the Firefox manifest work
+-  (milestone 3 of the cross-browser plan) adds the add-on id, this job fails.
++  which is what addons.mozilla.org rejects. The current WXT manifest includes
++  the add-on id; the lint result still depends on the generated archive.
+ - **smoke-chrome** runs `pnpm run validate:chrome-artifact` against the CI
+-  Chrome build **only if that script exists in `package.json`**. The script is
+-  not on this branch yet; until it is, the job prints a notice and succeeds
+-  without claiming a smoke test ran. Treat that state as *not checked*.
+-- **safari-xcode** costs macOS minutes (10x Linux), so it runs only when a PR
+-  carries the `ci:safari` label or a manual run sets the `safari-xcode` input.
++  Chrome build. It requires exactly one downloaded Chrome archive and fails if
++  the script or a compatible browser is unavailable. Set `CHROME_BIN` when the
++  runner needs an explicit Chromium or Chrome for Testing executable. A static
++  artifact check does not replace this browser startup check.
++- **safari-xcode** is an optional packaging check that needs Apple's macOS
++  tools. It runs when a PR carries the `ci:safari` label or a manual run sets
++  the `safari-xcode` input.
+ - **workflows** lints the workflow files. `.github/zizmor.yml` disables only the
+   `self-repository` audit: zizmor prefers `uses: $/...`, which actionlint
+   1.7.12 still rejects.
+@@ -73,9 +79,10 @@ workflow token is `contents: read` throughout.
+ 
+ ### Runners
+ 
+-Jobs use GitHub-hosted `ubuntu-24.04`, which is free for public repositories,
+-matches the Firefox reviewers' Ubuntu 24.04 build environment, and is a
+-GitHub-hosted runner for attestation purposes. The previous workflow used
++Most jobs use GitHub-hosted `ubuntu-24.04`; the optional Xcode job uses
++`macos-15`. [Standard GitHub-hosted runners are free for public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
++The old fixed macOS billing multiplier does not describe this public
++repository's standard runners. The previous workflow used
+ Ubicloud's `ubicloud-standard-2`; to return to it, change `runs-on` in
+ `verify.yml` (release jobs should stay GitHub-hosted so provenance does not
+ name a third-party runner).
+@@ -110,8 +117,9 @@ cold from the lockfile so nothing a PR run produced can reach a published
+ archive.
+ 
+ A cache hit is not evidence that a test or build ran; each job executes its
+-command every time. WXT output is not cached because `wxt.config.ts` embeds a
+-build timestamp and fetches fonts during the build.
++command every time. Each build produces fresh WXT output from its checkout.
++`wxt.config.ts` derives the diagnostic build identity from the package version
++and source commit, and fonts come from pinned workspace dependencies.
+ 
+ ### Native task-cache experiment (November 2026)
+ 
+@@ -124,10 +132,11 @@ closure gives a stable key and a measured saving.
+ ## Required checks and branch settings
+ 
+ The checks a branch rule should require are **Type checks**, **Tests**,
+-**Build (chrome)**, **Build (firefox)**, **Build (safari)** and **Workflow
+-lint**. Add **Firefox add-on lint** once the Firefox manifest has its add-on
+-id. Do not require **Chrome artifact smoke** until `validate:chrome-artifact`
+-exists, because until then its success means "not run". The previous single
++**Build (chrome)**, **Build (firefox)**, **Build (safari)**, **Firefox add-on lint**,
++**Chrome artifact smoke** and **Workflow lint**. The Chrome job executes its
++validator on every run; it no longer has a successful "script absent" path.
++Verify that the runner provides a compatible browser before requiring the
++new check in a ruleset. The previous single
+ check names (`Type checks` / `Tests and Chrome build (manual)`) are replaced;
+ an owner must update any ruleset that names the old ones.
+ 
+diff --git a/docs/kaiju/failures/00-overview.md b/docs/kaiju/failures/00-overview.md
+index 9e168b88..50edfae2 100644
+--- a/docs/kaiju/failures/00-overview.md
++++ b/docs/kaiju/failures/00-overview.md
+@@ -5,8 +5,9 @@ come from DeepScope's own history (`DS-*` identifiers). They include observed fa
+ limits and recorded design risks. Each entry records the confidence in its cause separately from its repair status. A
+ merged fix, a passing test, a green workflow and a completed journey in a real browser are different evidence.
+ 
+-Crawl's catalogue held 46 deployment entries from ItsAPlan and OpenATS (Kubernetes, Bunny, Tailscale, email, object
+-storage) and a retrospective coverage map. None of them concern a browser extension, so they were not copied; they
+-remain in Kaiju-Ind/Crawl `docs/kaiju/failures/` at `a00f0036d`. The method files (finding the first cause, starting
+-from the symptom, adding the next incident) were kept. Use [AE01–AE08](../agents/README.md) for the recurring
+-execution controls.
++The complete shared handbook retains deployment examples from ItsAPlan and OpenATS, including Kubernetes, Bunny,
++Tailscale, email and object storage, plus a retrospective coverage map. The [catalogue index](README.md#shared-incident-lessons)
++links to those chapters. They explain failure patterns across projects; their presence does not establish a DeepScope
++deployment or browser incident. Record local findings under `DS-*` with current source and runtime evidence. Use the
++[extension procedures](../procedures/extensions/README.md) for this repository and [AE01–AE08](../agents/README.md)
++for the recurring execution controls.
+diff --git a/docs/kaiju/failures/01-find-the-first-cause-before-changing-the-system.md b/docs/kaiju/failures/01-find-the-first-cause-before-changing-the-system.md
+index 412c9a82..63defa2d 100644
+--- a/docs/kaiju/failures/01-find-the-first-cause-before-changing-the-system.md
++++ b/docs/kaiju/failures/01-find-the-first-cause-before-changing-the-system.md
+@@ -9,14 +9,14 @@
+    candidate.
+ 4. Check where the code actually ran. Chrome's service worker, Firefox's event page and Safari's background page differ;
+    a content script in a busy page is not the same as a missing one; a private window is not a normal one.
+-5. Follow the repository's recovery contract for releases ([P05](../procedures/05-p05-recover-a-failed-deployment.md)).
++5. Follow the repository's recovery contract for releases ([P05](../procedures/extensions/05-p05-recover-a-failed-deployment.md)).
+ 6. Convert the cause into an earlier check: a test, a source guard, a task flag or a capability check. Record it in the
+    entry with its owner. A warning paragraph alone does not close a preventable defect.
+ 
+-Use [P01: intake](../procedures/01-p01-open-the-project-and-report-prerequisites.md) for missing owner actions,
+-[P02: platform checks](../procedures/02-p02-verify-required-service-contracts.md) for browser and store prerequisites,
+-[P03: usable preview](../procedures/03-p03-deliver-a-usable-preview.md) for the journey,
+-[P05: recovery](../procedures/05-p05-recover-a-failed-deployment.md) for a failed release, and
+-[P07: updates](../procedures/07-p07-update-upstream-artifacts-and-dependencies.md) and
+-[P08: procedure maintenance](../procedures/08-p08-validate-and-maintain-a-procedure.md) to improve the procedure.
++Use [P01: intake](../procedures/extensions/01-p01-open-the-project-and-report-prerequisites.md) for missing owner actions,
++[P02: platform checks](../procedures/extensions/02-p02-verify-required-service-contracts.md) for browser and store prerequisites,
++[P03: usable preview](../procedures/extensions/03-p03-deliver-a-usable-preview.md) for the journey,
++[P05: recovery](../procedures/extensions/05-p05-recover-a-failed-deployment.md) for a failed release, and
++[P07: updates](../procedures/extensions/07-p07-update-upstream-artifacts-and-dependencies.md) and
++[P08: procedure maintenance](../procedures/extensions/08-p08-validate-and-maintain-a-procedure.md) to improve the procedure.
+ Platform checks belong in the [platform cards](../platforms/README.md).
+diff --git a/docs/kaiju/failures/09-add-the-next-incident-without-losing-its-lesson.md b/docs/kaiju/failures/09-add-the-next-incident-without-losing-its-lesson.md
+index 222bc3a2..0a2ff328 100644
+--- a/docs/kaiju/failures/09-add-the-next-incident-without-losing-its-lesson.md
++++ b/docs/kaiju/failures/09-add-the-next-incident-without-losing-its-lesson.md
+@@ -1,6 +1,6 @@
+ # Add the next incident without losing its lesson
+ 
+-Under [P08](../procedures/08-p08-validate-and-maintain-a-procedure.md), add an entry with the next `DS-*` number to the
++Under [P08](../procedures/extensions/08-p08-validate-and-maintain-a-procedure.md), add an entry with the next `DS-*` number to the
+ file for its class (content scripts and catalog, builds, background runtime, verification and CI; add a file for a new
+ class). Give the exact symptom, first failed operation, cause and its confidence, commit, browser and context, repair,
+ evidence and earlier prevention, and add a row to the [symptom table](02-start-from-the-symptom.md). Mark unknowns as
+diff --git a/docs/kaiju/failures/README.md b/docs/kaiju/failures/README.md
+index a7c57888..c1657c26 100644
+--- a/docs/kaiju/failures/README.md
++++ b/docs/kaiju/failures/README.md
+@@ -1,13 +1,14 @@
+ # Failure catalogue
+ 
+-Known DeepScope failures, their causes, repairs and prevention. Crawl's deployment entries and its retrospective
+-coverage map (ItsAPlan, OpenATS) were not copied; see the [overview](00-overview.md).
++Known DeepScope failures, their causes, repairs and prevention. The shared handbook's deployment examples and
++retrospective coverage remain available below. Use the [overview](00-overview.md) to distinguish those historical
++lessons from incidents reproduced in this extension.
+ 
+ Skills: `review-code`, `release-software`, `verify-behavior`, `build-extensions`.
+ 
+ | Part                                                                                                     | What it covers                                                                     |
+ | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+-| [Overview](00-overview.md)                                                                               | What the catalogue holds and what was left in Crawl.                               |
++| [Overview](00-overview.md)                                                                               | Local incident evidence and the retained shared examples.                         |
+ | [Find the first cause before changing the system](01-find-the-first-cause-before-changing-the-system.md) | Evidence to keep, where the code ran, and which procedure to follow.               |
+ | [Start from the symptom](02-start-from-the-symptom.md)                                                   | Symptom index with first checks and entries.                                       |
+ | [Content scripts and catalog](03-content.md)                                                             | DS-01 busy content script, DS-02 prototype keys, DS-03 regex backtracking.         |
+diff --git a/docs/migration/cross-browser-runtime-plan.md b/docs/migration/cross-browser-runtime-plan.md
+index df6fe24a..70199905 100644
+--- a/docs/migration/cross-browser-runtime-plan.md
++++ b/docs/migration/cross-browser-runtime-plan.md
+@@ -3,10 +3,13 @@
+ This plan integrates the `perf/optimize-memory-usage` scheduler work, adds
+ Firefox and Safari as supported browsers, and prepares DeepScope for public
+ source releases. It is the working record for that effort. Architecture
+-documents under `docs/architecture/` remain the description of what exists;
+-this file tracks what is being changed and why.
++documents under `docs/architecture/` remain the description of what exists.
++This file preserves the original cross-browser decisions and measurements.
++The [monorepo plan](monorepo-plan.md) owns the current task, source recovery,
++restructure actions and validation record. Historical measurements below do
++not validate the current candidate.
+ 
+-## Active task
++## Original scope and starting point
+ 
+ - **Intent and completion:** Chrome, Firefox and Safari builds that detect
+   technologies on a real page, keep the Chromium side panel, use less memory
+@@ -22,12 +25,13 @@ this file tracks what is being changed and why.
+   [Kaiju project playbook](../kaiju/README.md) (agent execution, engineering
+   and CI), routed by [`AGENTS.md`](../../AGENTS.md). Lessons from this plan
+   are kept in the [failure catalogue](../kaiju/failures/README.md).
+-- **Authorization:** implement on this branch and commit locally. Pushing,
+-  opening pull requests, creating releases, and store submissions have not
+-  been authorized.
+-- **Continuation:** read this file, run `git log --oneline main..HEAD`, run
+-  `mise run check` equivalents (`pnpm compile`, `pnpm exec vitest run`), then
+-  continue with the first milestone not marked done.
++- **Original authorization:** the initial effort allowed local implementation
++  and commits. The subsequent continuation request authorizes saving the
++  restructure on existing PR #7, `integrate/cross-browser-runtime`. Release
++  creation and store submissions remain separate actions.
++- **Continuation:** reconcile the current branch, recovered candidate and
++  validation evidence in the [monorepo plan](monorepo-plan.md) before choosing
++  the next action. Do not replay this historical milestone ledger.
+ 
+ ## Owner decisions (2026-11-23)
+ 
+@@ -67,6 +71,15 @@ Apple documentation. Items marked *unverified* need a real-browser check.
+ | Badge cleared on `pushState` | no | no | no |
+ | Badge colours | yes | yes | background colour has no effect; no text colour |
+ | A busy `Worker` keeps the background alive | n/a | *unverified* | *unverified* |
++| Automated extension installation | Chromium or Chrome for Testing with CDP | WebDriver through geckodriver | SafariDriver classic WebDriver commands from Safari 26 |
++
++The automation row was rechecked on 2026-11-28 against
++[WebKit's Safari 26 release article](https://webkit.org/blog/17333/webkit-features-in-safari-26-0/)
++and [Chromium's announcement about branded Chrome](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY).
++SafariDriver supports the classic extension commands; that is separate from
++WebDriver BiDi support. Official Chrome-branded builds removed the
++`--load-extension` switch from Chrome 137, so this validator needs Chromium
++or Chrome for Testing. These platform facts do not establish a local browser pass.
+ 
+ Consequences: Safari must declare a background **page** so it can create
+ workers. Firefox and Safari can unload the background mid-scan, so a scan
+@@ -412,29 +425,35 @@ a registry lint that rejects selectors postcss cannot parse but browsers
+ accept (none in the registry today), and the pre-existing exact-case id/class
+ check on the mutation path in quirks mode.
+ 
+-**Safari was not verified.** SafariDriver needs Develop > Allow Remote
++**Safari was not verified in that run.** SafariDriver needs Develop > Allow Remote
+ Automation (or `safaridriver --enable`, which asks for an admin password),
+ and the unsigned app built by `tools/verify/safari-package.sh` needs
+ Develop > Allow Unsigned Extensions (resets each launch) plus enabling the
+-extension and granting site access. WebDriver cannot install extensions in
+-Safari yet (WebKit bug 288348).
++extension and granting site access. The earlier statement that SafariDriver
++cannot install extensions was incorrect: Safari 26 supports the classic
++WebDriver extension commands, as the current driver and
++[verification guide](../../tools/verify/README.md#safari) describe. WebKit bug
++288348 concerns BiDi installation. No current Safari runtime result is claimed.
+ 
+ ## Dependency status
+ 
+-WXT 0.21.5, `@wxt-dev/module-solid` 1.1.4 and `@wxt-dev/browser` 0.3.7 are the
+-latest releases. Solid 2.0 (2026-11-17) is held back: Kobalte, Corvu,
++The recorded baseline used WXT 0.21.5, `@wxt-dev/module-solid` 1.1.4 and
++`@wxt-dev/browser` 0.3.7. This historical record does not identify today's
++latest releases. Solid 2.0 (2026-11-17) was held back: Kobalte, Corvu,
+ `@wxt-dev/module-solid` and `vite-plugin-solid` 2.x still require Solid 1.x,
+ and the trial upgrade produced 1,979 type errors. All non-major updates pass.
+ 
+ ## Owner actions
+ 
+ - Choose a license for DeepScope. The copied utilities are MIT.
+-- Confirm redistribution rights for the detection catalog data and the
+-  American Kestrel font before the repository is promoted publicly.
+-- Decide between GitHub-hosted runners (free for public repositories) and the
+-  current Ubicloud runner.
++- Confirm redistribution rights for the detection catalog before public
++  promotion. American Kestrel was removed; the current fonts are recorded in
++  the workspace dependencies.
++- Review repository branch rules against the current GitHub-hosted workflow
++  checks in [CI](../ci.md); the workflow no longer uses Ubicloud.
+ - Enable immutable releases; make the ghcr package public after first push.
+ - Store credentials when store publishing is wanted: Chrome Web Store, AMO
+   (`WEB_EXT_API_KEY`/`SECRET`), App Store Connect API key and an Apple
+   Developer Program membership for Safari.
+-- Choose the Firefox add-on id.
++- Confirm `deepscope@openarsenal.github.io` before the first signed Firefox
++  submission; it is already configured in `apps/extension/wxt.config.ts`.
+diff --git a/docs/migration/monorepo-plan.md b/docs/migration/monorepo-plan.md
+index 119c24d2..8940513a 100644
+--- a/docs/migration/monorepo-plan.md
++++ b/docs/migration/monorepo-plan.md
+@@ -1,11 +1,98 @@
+ # Monorepo layout plan
+ 
+-## Active task: complete the existing PR 7 migration
++## Active task: review and save the existing PR 7 migration
++
++The 2026-11-28 continuation uses `integrate/cross-browser-runtime`, the existing
++PR #7 head, at `1f439b9c33134cbb9755c231db3ced6024f3074b`. The recovered batch5
++source has tree `5ec68fe6020da894ec8bed8bcadfaffb2094f30a`; its source ZIP has
++SHA-256 `40c6f7222a9769f0e7e13db013d8468da39d4db57eeb47d99e044e92595f20d0`.
++All 9,906 recovered files matched their saved bytes and modes before editing.
++The separate stress branch remains unmerged. The user authorized continuation
++and updates to this existing PR; release creation and store submission are
++separate actions.
++
++The supplied handbook attachment resolves to distribution 1.5.0 at
++`7b299bb14a97fe33b6254c8206cdf491b3d7528d`. All 663 installation paths are
++retained alongside the extension's project-specific guidance. The review
++corrects references that claimed the restored shared incident chapters were
++absent, routes local incidents to the extension procedures, and distinguishes
++Safari's classic WebDriver extension commands from BiDi support.
++
++### Current implementation and validation
++
++Three reproduced defects have focused repairs. The installed comctx package
++kept a reply listener after browser delivery rejected; the pinned dependency
++patch releases that request before preserving its transport error. Registry
++validation accepted inherited Object names as categories; it now requires an
++own category entry. Chrome artifact validation could wait forever after a
++debugger socket closed; `tools/verify/chrome/cdp.mjs` owns bounded commands and
++releases their promises, timers and event subscriptions on closure.
++
++The CI Chrome job requires its existing validator and exactly one downloaded
++archive. Its success can no longer mean that the validation script was absent.
++The workflow and CI guide also stop applying an old fixed macOS billing
++multiplier to the public repository's standard GitHub-hosted runners.
++
++| Check on this continuation | Result and limit |
++| --- | --- |
++| Frozen baseline install, Node 26.13.0 / pnpm 12.19.0 | Passed before the new changes. |
++| Native baseline `mise run check` | Passed for recovered tree `5ec68fe6`. This is not a pass for later edits. |
++| RPC adapter regression | Unpatched comctx fails 4 of 8 cases. The patched package passes all 8, including concurrent calls and original error identity. |
++| Registry category regression | Four inherited-name cases fail before the repair. All 9 schema cases pass after it. |
++| Filtered Vitest projects | 116 cases in 13 files pass across `registry`, `dom`, `extension (ui)`, `guidance` and `verify`. The separate 8 RPC cases bring the reviewed selection to 124 cases in 14 files. |
++| Native workflow lint | actionlint 1.7.12 and offline zizmor 1.32.0 pass; the existing single ignored audit remains. |
++| Current native root type check | Failed when the registry compiler was killed with exit 137. Serial execution also failed. The new verify package's TypeScript and syntax checks passed before that failure. |
++| Timed registry type check | Killed after 7.65 seconds; maximum recorded child RSS was 433,856 KiB. A 256 MiB Go target and one CPU did not resolve the host kill. No compiler diagnostic was produced. |
++| Registry file discovery | Native `--listFilesOnly` succeeds: 8,591 files, including 8,173 catalog paths and 8,182 repository TypeScript files. No incremental/composite option or `.tsbuildinfo` was found. |
++| Whole Vitest suite | Three bounded attempts were killed with exit 137 before reporting a test file. The focused passing selection does not replace the whole suite. |
++| Current native Chrome build | Killed by SIGKILL during WXT startup. No current bundle, archive or source rebuild is claimed. |
++| Restored frozen install | Relinked 491 packages from cache; WXT prepare then exited 137. Scoped dependency-patch installation with lifecycle scripts disabled passed, which does not replace the failed prepare step. |
++| Real browsers | Chrome for Testing download returned HTTP 403 on this host. Chrome and Firefox journeys have not run on the current candidate. Safari needs a macOS host. |
++
++The process kills are observed failures; their exact host cause remains
++unconfirmed. The earlier successful source check does not justify weakening
++current discovery, assertions or schemas. The old batch4/batch5 archive and
++runtime receipts below retain their original source identities.
++
++### Action list and stopping point
++
++1. Preserve the recovered batch5 tree as a coherent source migration, then
++   commit the RPC repair, category validation, artifact verification and
++   guidance corrections by intent. Keep binary-capable patches and native
++   history before publishing, and verify the exact resulting PR #7 head.
++2. Run the complete native type and test gates on a host with sufficient
++   resources. Keep the current failed receipts. Rebuild all three browser
++   archives and inspect their output; the Firefox sources archive must include
++   `patches/` and rebuild without private package credentials.
++3. Run the affected generated panel, observation, navigation, private-window,
++   cleanup and search/focus journeys in the actual browsers. A CDP connection
++   unit test or static archive inspection does not complete those journeys.
++4. Finish the tools structure review. The full 962-line `tools/verify/stress.mjs`
++   mixes scenario planning, browser actions, observations and reporting. Its
++   split is still open; the application/package size guard does not cover it.
++   Preserve seeded action order and the persisted-state oracle when separating
++   those responsibilities, and rerun the browser stress scenarios.
++5. Review cancellation separately from transport failure. The comctx patch
++   fixes rejected sends. A caller timeout does not by itself cancel the remote
++   operation or settle its RPC promise; preserve late-response cleanup when a
++   panel closes. Chrome's HTTP startup polling and process teardown also need
++   their own failure-path review beyond the repaired WebSocket owner.
++6. Reproduce the vendor header refresh only from its exact recorded upstream
++   objects. Do not replace the pinned closure with a newer Utils branch or
++   replay the already incorporated follow-up/artifact patches.
++
++Resume from this record, the actual branch/index/worktree and the saved
++validation logs. The prior batch5 follow-up is a delta into the recovered
++candidate, not another patch to apply. Read the source map and the review
++tests before changing ownership. This restructure is not marked complete while
++the current full gates, tool split and real-browser acceptance remain open.
++
++## Recovered batch5 implementation and evidence
+ 
+ **Outcome.** Keep the extension's existing lifecycle and persisted contracts
+ while making each source, dependency and tool owner explicit. The native
+ starting commit is `1f439b9c33134cbb9755c231db3ced6024f3074b`; the local branch is
+-`codex/deepscope-structure-20261127`. Earlier Phase A and M1 work is retained.
++`codex/deepscope-structure-20261127` in that saved batch. Earlier Phase A and M1 work is retained.
+ The independent stress branch remains separate. Source changes are prepared
+ for review; no merge or publication is implied by this record.
+ 
+diff --git a/docs/migration/source-layout-plan.md b/docs/migration/source-layout-plan.md
+index 0faaf7b8..38b10ef8 100644
+--- a/docs/migration/source-layout-plan.md
++++ b/docs/migration/source-layout-plan.md
+@@ -4,7 +4,9 @@
+ 
+ The continuation starts from PR #7 commit
+ `1f439b9c33134cbb9755c231db3ced6024f3074b` on
+-`codex/deepscope-structure-20261127`. The native history contains the completed
++`integrate/cross-browser-runtime`. The recovered batch5 working tree is
++`5ec68fe6020da894ec8bed8bcadfaffb2094f30a`, before the current review repairs.
++The native history contains the completed
+ Phase A and M1 changes. The separate `fix/stress-green` branch is not part of
+ this baseline. This record and the [monorepo plan](monorepo-plan.md) describe
+ one migration; the registry extraction follows the source splits below.
+@@ -39,16 +41,19 @@ until each implemented step has evidence recorded here.
+ 
+ The six migration steps above are implemented in the working source. See
+ [source ownership](../architecture/source-layout.md) for the full current paths,
+-state owners and exact package/tool graph. All 14 oversized-module and two
++state owners and exact package/tool graph. The 14 application/package oversized-module and two
+ thick-entrypoint exceptions have been removed after their owning code was
+ split. The panel provider remains under its 150-line target. The matcher reason
+ is typed; browser and persistence implementations are injected into the runtime.
+ 
+-Native source checks and the integrated suite pass. Chrome, Firefox and Safari
+-bundles build. Archive/source-rebuild results and the complete final review
+-must be retained with the integration record. Real browser interaction is
+-blocked in this host by local socket restrictions and denied escalation; it is
+-not marked complete. The historical vendor-header refresh still needs exact
++The recovered batch4/batch5 records contain earlier successful source checks,
++tests and browser builds. The current continuation has passing focused checks,
++but its full type/test commands and Chrome build have been killed by the host.
++Those failures and the HTTP 403 browser download are recorded in the
++[monorepo plan](monorepo-plan.md); the old host's socket restriction is not
++assumed to apply here. Current archive rebuilds and browser interaction remain
++open. The 962-line stress harness also still needs a reviewed split, outside
++the application/package size guard. The historical vendor-header refresh needs exact
+ upstream objects. The active record in the [monorepo plan](monorepo-plan.md)
+ contains decisions, failed probes and the next action. The original dated
+ problem statement and target below are preserved as history; use the source
+diff --git a/packages/registry/schema/index.ts b/packages/registry/schema/index.ts
+index db1bef37..6aade614 100644
+--- a/packages/registry/schema/index.ts
++++ b/packages/registry/schema/index.ts
+@@ -65,8 +65,8 @@ const nonnegativeIntegerSchema = z.int().check(z.gte(0));
+ /** Optional non-negative integer used by generated rule source maps. */
+ const optionalNonnegativeIntegerSchema = z.optional(nonnegativeIntegerSchema);
+ 
+-/** Category ids must match the category table used by the side panel and detector. */
+-const categoryIdSchema = z.custom<CategoryId>((value) => typeof value === 'string' && value in categories, {
++/** Category ids must name an own table entry; inherited Object properties are not categories. */
++const categoryIdSchema = z.custom<CategoryId>((value) => typeof value === 'string' && Object.hasOwn(categories, value), {
+ 	error: 'Unknown category id.',
+ });
+ 
+diff --git a/packages/registry/schema/source-schema.test.ts b/packages/registry/schema/source-schema.test.ts
+index f936cb83..40d4e71a 100644
+--- a/packages/registry/schema/source-schema.test.ts
++++ b/packages/registry/schema/source-schema.test.ts
+@@ -77,7 +77,7 @@ describe('registry source schema', () => {
+ 		]);
+ 	});
+ 
+-	it('rejects unknown categories before compilation', () => {
++	it.each(['not-real', '__proto__', 'constructor', 'toString', 'valueOf'])('rejects unknown category %s before compilation', (category) => {
+ 		const result = validateRegistrySource({
+ 			schemaVersion: REGISTRY_SOURCE_SCHEMA_VERSION,
+ 			technologies: [
+@@ -85,7 +85,7 @@ describe('registry source schema', () => {
+ 					id: 'unknown-category-tech',
+ 					name: 'Unknown Category Tech',
+ 					website: 'https://unknown-category.test',
+-					categories: ['not-real'],
++					categories: [category],
+ 					rules: [],
+ 				},
+ 			],
+diff --git a/patches/README.md b/patches/README.md
+new file mode 100644
+index 00000000..feb5ee8c
+--- /dev/null
++++ b/patches/README.md
+@@ -0,0 +1,29 @@
++# Dependency patches
++
++The frozen pnpm install applies the patches declared in `pnpm-workspace.yaml`.
++Their hashes are recorded in `pnpm-lock.yaml`, and the Firefox source archive
++must include this directory so reviewers can rebuild the same dependencies.
++
++## comctx 1.7.7 request cleanup
++
++When browser delivery rejects, comctx 1.7.7 rejects the RPC promise but keeps its
++reply listener registered. Repeated requests to a missing content script or an
++invalidated extension context retain those listeners. The patch releases the
++failed request's listener before rejecting with the original transport error.
++Other requests keep their subscriptions.
++
++The patch changes the readable injector in `core/src/comctx.ts` and the published
++runtime in `core/dist/index.js`. It preserves the message format and both client
++APIs. DeepScope's RPC methods accept data, so this repair does not change comctx's
++separate callback-argument subscription behavior. A caller timing out while the
++transport remains open also remains distinct from a rejected send.
++
++`apps/extension/src/tests/messaging/client-lifetime.test.ts` runs the installed
++package through both real browser adapters. It checks failed delivery, concurrent
++requests, successful replies and provider errors. The unpatched package fails
++the delivery and concurrency cases. When upgrading comctx, remove this patch
++only after the replacement passes these tests without it.
++
++Published package: <https://registry.npmjs.org/comctx/1.7.7>.
++Upstream repository: <https://github.com/molvqingtai/comctx>.
++The package is distributed under its existing MIT license.
+diff --git a/patches/comctx@1.7.7.patch b/patches/comctx@1.7.7.patch
+new file mode 100644
+index 00000000..4d736744
+--- /dev/null
++++ b/patches/comctx@1.7.7.patch
+@@ -0,0 +1,43 @@
++diff --git a/core/dist/index.js b/core/dist/index.js
++index e443de8f300abbc18daf78ef97d1a5ae047411e4..6272b5365c8b24febe449bd9d07dcb22c75cfd36 100644
++--- a/core/dist/index.js
+++++ b/core/dist/index.js
++@@ -1,2 +1,2 @@
++ /* @ts-self-types="./index.d.ts" */
++-const e={APPLY:`apply`,CALLBACK:`callback`,PING:`ping`,PONG:`pong`},t={PROVIDER:`provider`,INJECTOR:`injector`},n=n=>{let r=!!n?.type&&Object.values(e).includes(n.type),i=!!n?.id&&typeof n.id==`string`,a=!!n?.path&&Array.isArray(n.path)&&n.path.every(e=>typeof e==`string`),o=!!n?.sender&&typeof n.sender==`object`&&!!n.sender.type&&Object.values(t).includes(n.sender.type)&&(n.sender.name===void 0||typeof n.sender.name==`string`),s=n?.callbackIds===void 0||Array.isArray(n.callbackIds)&&n.callbackIds.every(e=>typeof e==`string`),c=n?.args===void 0||Array.isArray(n.args),l=n?.error===void 0||typeof n.error==`string`,u=!!n?.meta&&n.meta!==null&&typeof n.meta==`object`,d=!!n?.namespace&&typeof n.namespace==`string`,f=!!n?.timeStamp&&typeof n.timeStamp==`number`;return r&&i&&a&&o&&s&&c&&l&&u&&d&&f},r=()=>[...[,,,,]].map(()=>Math.floor(Math.random()*(2**53-1)).toString(16)).join(`-`),i=(e,t,...n)=>{let r=setTimeout(()=>{clearTimeout(r),e(...n),r=setInterval(e,t,...n)},0);return()=>clearInterval(r)},a=(e,t)=>!!t?.prototype&&e instanceof t,o=e=>{let t=/* @__PURE__ */ new WeakSet,n=e=>!e||typeof e!=`object`||t.has(e)?[]:(t.add(e),a(e,globalThis.ArrayBuffer)||a(e,globalThis.MessagePort)||a(e,globalThis.ImageBitmap)||a(e,globalThis.OffscreenCanvas)||a(e,globalThis.AudioData)||a(e,globalThis.VideoFrame)||a(e,globalThis.RTCDataChannel)||a(e,globalThis.MediaSourceHandle)||a(e,globalThis.MIDIAccess)||a(e,globalThis.MediaStreamTrack)||a(e,globalThis.ReadableStream)||a(e,globalThis.WritableStream)||a(e,globalThis.TransformStream)?[e]:Array.isArray(e)?e.flatMap(n):Object.values(e).flatMap(n));return n(e)},s=Symbol(`PROXY_MARKER`),c=e=>e!==null&&(typeof e==`object`||typeof e==`function`)&&e[s]===!0,l=async(n,a)=>{let{promise:o,resolve:s,reject:c}=Promise.withResolvers(),l=/* @__PURE__ */ new Set,u=i(async()=>{try{let i=r(),o=await n.onMessage(r=>{let o=r;o.namespace===a.namespace&&o.sender.type===t.PROVIDER&&o.type===e.PONG&&o.id===i&&(n.debugLog?.({level:`event`,method:`onMessage`,message:o,actor:t.INJECTOR}),s())});o&&l.add(o);let c={type:e.PING,sender:{type:t.INJECTOR,name:n.name},id:i,path:[],meta:{},namespace:a.namespace,timeStamp:Date.now()};n.debugLog?.({level:`event`,method:`sendMessage`,message:c}),n.sendMessage(c,[])}catch(e){c(e)}},a.heartbeatInterval),d=setTimeout(()=>c(/* @__PURE__ */ Error(`Provider unavailable: heartbeat check timeout ${a.heartbeatTimeout}ms.`)),a.heartbeatTimeout);await o.finally(()=>{u(),clearTimeout(d),l.forEach(e=>e()),l.clear()})},u=e=>({name:e.name,sendMessage:(t,n)=>e.sendMessage(t,n),onMessage:t=>e.onMessage(e=>{if(n(e))return t(e)})}),d=(e,t)=>({name:e.name,sendMessage:(n,r)=>e.sendMessage(n,t.transfer?o(n):r),onMessage:t=>e.onMessage(t)}),f=(n,r)=>{let i={message:`color: #fff; background: #0ea5e9; border-radius: 3px; padding: 1px 4px;`,event:`color: #fff; background: #0ea5e9; border-radius: 3px; padding: 1px 4px;`,[t.PROVIDER]:`color: #fff; background: #8b5cf6; border-radius: 3px; padding: 1px 4px;`,[t.INJECTOR]:`color: #fff; background: #0891b2; border-radius: 3px; padding: 1px 4px;`,sendMessage:`color: #fff; background: #f97316; border-radius: 3px; padding: 1px 4px;`,onMessage:`color: #fff; background: #22c55e; border-radius: 3px; padding: 1px 4px;`},a={message:`color: #0ea5e9`,event:`color: #0ea5e9`,[t.PROVIDER]:`color: #8b5cf6`,[t.INJECTOR]:`color: #0891b2`,sendMessage:`color: #f97316`,onMessage:`color: #22c55e`},o={[e.APPLY]:`color: #2563eb`,[e.CALLBACK]:`color: #a855f7`,[e.PING]:`color: #eab308`,[e.PONG]:`color: #14b8a6`},s={[e.APPLY]:`color: #2563eb`,[e.CALLBACK]:`color: #a855f7`,[e.PING]:`color: #eab308`,[e.PONG]:`color: #14b8a6`},c=({level:e,method:t,message:n,actor:c=n.sender.type})=>{let l=e===`message`?a:i,u=e===`message`?s:o;(r.debug===!0||e===r.debug)&&console.debug(`%ccomctx:${e}%c %c${c}%c %c${t}%c %c${n.type}%c`,l[e],``,l[c],``,l[t],``,u[n.type],``,n)};return{name:n.name,sendMessage:(e,t)=>(c({level:`message`,method:`sendMessage`,message:e}),n.sendMessage(e,t)),onMessage:e=>n.onMessage(t=>(c({level:`message`,method:`onMessage`,message:t,actor:r.actor}),e(t))),debugLog:c}},p=(n,r)=>({name:n.name,sendMessage:async(i,a)=>(r.heartbeatCheck&&i.sender.type===t.INJECTOR&&i.type===e.APPLY&&await l(n,r),n.debugLog?.({level:`event`,method:`sendMessage`,message:i}),n.sendMessage(i,a)),onMessage:e=>n.onMessage(e),debugLog:n.debugLog}),m=(e,t)=>p(f(d(u(e),t),t),t),h=(n,r,i)=>(r.onMessage(async a=>{let o=a;if(o.namespace===i.namespace&&o.sender.type===t.INJECTOR)switch(o.type){case e.PING:{r.debugLog?.({level:`event`,method:`onMessage`,message:o,actor:t.PROVIDER});let n={type:e.PONG,sender:{type:t.PROVIDER,name:r.name},id:o.id,path:o.path,meta:o.meta,namespace:i.namespace,timeStamp:Date.now()};r.sendMessage(n,[]);break}case e.APPLY:{r.debugLog?.({level:`event`,method:`onMessage`,message:o,actor:t.PROVIDER});try{let a=o.args?.map(n=>o.callbackIds?.includes(n)?(...a)=>{let s={type:e.CALLBACK,sender:{type:t.PROVIDER,name:r.name},id:n,path:o.path,meta:o.meta,data:a,namespace:i.namespace,timeStamp:Date.now()};r.sendMessage(s,[])}:n);o.data=await o.path.reduce((e,t,n,r)=>n===r.length-1?e[t](...a??[]):e[t],n)}catch(e){o.error=e.message}let a={type:e.APPLY,sender:{type:t.PROVIDER,name:r.name},id:o.id,path:o.path,data:o.data,error:o.error,meta:o.meta,namespace:i.namespace,timeStamp:Date.now()};r.sendMessage(a,[]);break}}}),n),g=(n,i,a)=>{let o=(n,c)=>new Proxy(n,{get(e,t,n){return t===s?!0:typeof e==`function`&&(t===`apply`||t===`call`||t===`bind`||t===`length`||t===`name`)?Reflect.get(e,t,n):o((()=>{}),[...c,t])},apply(n,o,s){return new Promise(async(n,o)=>{try{let l=[],u=s.map(n=>{if(typeof n==`function`){let o=r();return l.push(o),i.onMessage(r=>{let s=r;s.namespace===a.namespace&&s.sender.type===t.PROVIDER&&s.type===e.CALLBACK&&s.id===o&&(i.debugLog?.({level:`event`,method:`onMessage`,message:s,actor:t.INJECTOR}),n(...s.data))}),o}return n}),d=r(),f=await i.onMessage(r=>{let s=r;s.namespace===a.namespace&&s.sender.type===t.PROVIDER&&s.type===e.APPLY&&s.id===d&&(i.debugLog?.({level:`event`,method:`onMessage`,message:s,actor:t.INJECTOR}),s.error?o(Error(s.error)):n(s.data),f?.())}),p={type:e.APPLY,sender:{type:t.INJECTOR,name:i.name},id:d,path:c,args:u,meta:{},callbackIds:l,timeStamp:Date.now(),namespace:a.namespace};await i.sendMessage(p,[])}catch(e){o(e)}})}});return o(n,[])},_=(e,n)=>(r,...i)=>h(e(...i),m(r,{...n,actor:t.PROVIDER}),n),v=(e,n)=>e=>g({},m(e,{...n,actor:t.INJECTOR}),n),y=(e,t)=>{let n={namespace:t?.namespace??`__comctx__`,heartbeatCheck:t?.heartbeatCheck??!0,heartbeatInterval:t?.heartbeatInterval??300,heartbeatTimeout:t?.heartbeatTimeout??1e3,transfer:t?.transfer??!1,debug:t?.debug??!1};if(n.heartbeatTimeout<=n.heartbeatInterval)throw Error(`Invalid heartbeat config: timeout (${n.heartbeatTimeout}ms) must exceed interval (${n.heartbeatInterval}ms).`);return[_(e,n),v(e,n)]};export{t as MESSAGE_SENDER_TYPE,e as MESSAGE_TYPE,n as checkMessage,y as defineProxy,c as isProxy};
++\ No newline at end of file
+++const e={APPLY:`apply`,CALLBACK:`callback`,PING:`ping`,PONG:`pong`},t={PROVIDER:`provider`,INJECTOR:`injector`},n=n=>{let r=!!n?.type&&Object.values(e).includes(n.type),i=!!n?.id&&typeof n.id==`string`,a=!!n?.path&&Array.isArray(n.path)&&n.path.every(e=>typeof e==`string`),o=!!n?.sender&&typeof n.sender==`object`&&!!n.sender.type&&Object.values(t).includes(n.sender.type)&&(n.sender.name===void 0||typeof n.sender.name==`string`),s=n?.callbackIds===void 0||Array.isArray(n.callbackIds)&&n.callbackIds.every(e=>typeof e==`string`),c=n?.args===void 0||Array.isArray(n.args),l=n?.error===void 0||typeof n.error==`string`,u=!!n?.meta&&n.meta!==null&&typeof n.meta==`object`,d=!!n?.namespace&&typeof n.namespace==`string`,f=!!n?.timeStamp&&typeof n.timeStamp==`number`;return r&&i&&a&&o&&s&&c&&l&&u&&d&&f},r=()=>[...[,,,,]].map(()=>Math.floor(Math.random()*(2**53-1)).toString(16)).join(`-`),i=(e,t,...n)=>{let r=setTimeout(()=>{clearTimeout(r),e(...n),r=setInterval(e,t,...n)},0);return()=>clearInterval(r)},a=(e,t)=>!!t?.prototype&&e instanceof t,o=e=>{let t=/* @__PURE__ */ new WeakSet,n=e=>!e||typeof e!=`object`||t.has(e)?[]:(t.add(e),a(e,globalThis.ArrayBuffer)||a(e,globalThis.MessagePort)||a(e,globalThis.ImageBitmap)||a(e,globalThis.OffscreenCanvas)||a(e,globalThis.AudioData)||a(e,globalThis.VideoFrame)||a(e,globalThis.RTCDataChannel)||a(e,globalThis.MediaSourceHandle)||a(e,globalThis.MIDIAccess)||a(e,globalThis.MediaStreamTrack)||a(e,globalThis.ReadableStream)||a(e,globalThis.WritableStream)||a(e,globalThis.TransformStream)?[e]:Array.isArray(e)?e.flatMap(n):Object.values(e).flatMap(n));return n(e)},s=Symbol(`PROXY_MARKER`),c=e=>e!==null&&(typeof e==`object`||typeof e==`function`)&&e[s]===!0,l=async(n,a)=>{let{promise:o,resolve:s,reject:c}=Promise.withResolvers(),l=/* @__PURE__ */ new Set,u=i(async()=>{try{let i=r(),o=await n.onMessage(r=>{let o=r;o.namespace===a.namespace&&o.sender.type===t.PROVIDER&&o.type===e.PONG&&o.id===i&&(n.debugLog?.({level:`event`,method:`onMessage`,message:o,actor:t.INJECTOR}),s())});o&&l.add(o);let c={type:e.PING,sender:{type:t.INJECTOR,name:n.name},id:i,path:[],meta:{},namespace:a.namespace,timeStamp:Date.now()};n.debugLog?.({level:`event`,method:`sendMessage`,message:c}),n.sendMessage(c,[])}catch(e){c(e)}},a.heartbeatInterval),d=setTimeout(()=>c(/* @__PURE__ */ Error(`Provider unavailable: heartbeat check timeout ${a.heartbeatTimeout}ms.`)),a.heartbeatTimeout);await o.finally(()=>{u(),clearTimeout(d),l.forEach(e=>e()),l.clear()})},u=e=>({name:e.name,sendMessage:(t,n)=>e.sendMessage(t,n),onMessage:t=>e.onMessage(e=>{if(n(e))return t(e)})}),d=(e,t)=>({name:e.name,sendMessage:(n,r)=>e.sendMessage(n,t.transfer?o(n):r),onMessage:t=>e.onMessage(t)}),f=(n,r)=>{let i={message:`color: #fff; background: #0ea5e9; border-radius: 3px; padding: 1px 4px;`,event:`color: #fff; background: #0ea5e9; border-radius: 3px; padding: 1px 4px;`,[t.PROVIDER]:`color: #fff; background: #8b5cf6; border-radius: 3px; padding: 1px 4px;`,[t.INJECTOR]:`color: #fff; background: #0891b2; border-radius: 3px; padding: 1px 4px;`,sendMessage:`color: #fff; background: #f97316; border-radius: 3px; padding: 1px 4px;`,onMessage:`color: #fff; background: #22c55e; border-radius: 3px; padding: 1px 4px;`},a={message:`color: #0ea5e9`,event:`color: #0ea5e9`,[t.PROVIDER]:`color: #8b5cf6`,[t.INJECTOR]:`color: #0891b2`,sendMessage:`color: #f97316`,onMessage:`color: #22c55e`},o={[e.APPLY]:`color: #2563eb`,[e.CALLBACK]:`color: #a855f7`,[e.PING]:`color: #eab308`,[e.PONG]:`color: #14b8a6`},s={[e.APPLY]:`color: #2563eb`,[e.CALLBACK]:`color: #a855f7`,[e.PING]:`color: #eab308`,[e.PONG]:`color: #14b8a6`},c=({level:e,method:t,message:n,actor:c=n.sender.type})=>{let l=e===`message`?a:i,u=e===`message`?s:o;(r.debug===!0||e===r.debug)&&console.debug(`%ccomctx:${e}%c %c${c}%c %c${t}%c %c${n.type}%c`,l[e],``,l[c],``,l[t],``,u[n.type],``,n)};return{name:n.name,sendMessage:(e,t)=>(c({level:`message`,method:`sendMessage`,message:e}),n.sendMessage(e,t)),onMessage:e=>n.onMessage(t=>(c({level:`message`,method:`onMessage`,message:t,actor:r.actor}),e(t))),debugLog:c}},p=(n,r)=>({name:n.name,sendMessage:async(i,a)=>(r.heartbeatCheck&&i.sender.type===t.INJECTOR&&i.type===e.APPLY&&await l(n,r),n.debugLog?.({level:`event`,method:`sendMessage`,message:i}),n.sendMessage(i,a)),onMessage:e=>n.onMessage(e),debugLog:n.debugLog}),m=(e,t)=>p(f(d(u(e),t),t),t),h=(n,r,i)=>(r.onMessage(async a=>{let o=a;if(o.namespace===i.namespace&&o.sender.type===t.INJECTOR)switch(o.type){case e.PING:{r.debugLog?.({level:`event`,method:`onMessage`,message:o,actor:t.PROVIDER});let n={type:e.PONG,sender:{type:t.PROVIDER,name:r.name},id:o.id,path:o.path,meta:o.meta,namespace:i.namespace,timeStamp:Date.now()};r.sendMessage(n,[]);break}case e.APPLY:{r.debugLog?.({level:`event`,method:`onMessage`,message:o,actor:t.PROVIDER});try{let a=o.args?.map(n=>o.callbackIds?.includes(n)?(...a)=>{let s={type:e.CALLBACK,sender:{type:t.PROVIDER,name:r.name},id:n,path:o.path,meta:o.meta,data:a,namespace:i.namespace,timeStamp:Date.now()};r.sendMessage(s,[])}:n);o.data=await o.path.reduce((e,t,n,r)=>n===r.length-1?e[t](...a??[]):e[t],n)}catch(e){o.error=e.message}let a={type:e.APPLY,sender:{type:t.PROVIDER,name:r.name},id:o.id,path:o.path,data:o.data,error:o.error,meta:o.meta,namespace:i.namespace,timeStamp:Date.now()};r.sendMessage(a,[]);break}}}),n),g=(n,i,a)=>{let o=(n,c)=>new Proxy(n,{get(e,t,n){return t===s?!0:typeof e==`function`&&(t===`apply`||t===`call`||t===`bind`||t===`length`||t===`name`)?Reflect.get(e,t,n):o((()=>{}),[...c,t])},apply(n,o,s){return new Promise(async(n,o)=>{let f;try{let l=[],u=s.map(n=>{if(typeof n==`function`){let o=r();return l.push(o),i.onMessage(r=>{let s=r;s.namespace===a.namespace&&s.sender.type===t.PROVIDER&&s.type===e.CALLBACK&&s.id===o&&(i.debugLog?.({level:`event`,method:`onMessage`,message:s,actor:t.INJECTOR}),n(...s.data))}),o}return n}),d=r();f=await i.onMessage(r=>{let s=r;s.namespace===a.namespace&&s.sender.type===t.PROVIDER&&s.type===e.APPLY&&s.id===d&&(i.debugLog?.({level:`event`,method:`onMessage`,message:s,actor:t.INJECTOR}),s.error?o(Error(s.error)):n(s.data),f?.())});let p={type:e.APPLY,sender:{type:t.INJECTOR,name:i.name},id:d,path:c,args:u,meta:{},callbackIds:l,timeStamp:Date.now(),namespace:a.namespace};await i.sendMessage(p,[])}catch(e){try{await f?.()}catch{}o(e)}})}});return o(n,[])},_=(e,n)=>(r,...i)=>h(e(...i),m(r,{...n,actor:t.PROVIDER}),n),v=(e,n)=>e=>g({},m(e,{...n,actor:t.INJECTOR}),n),y=(e,t)=>{let n={namespace:t?.namespace??`__comctx__`,heartbeatCheck:t?.heartbeatCheck??!0,heartbeatInterval:t?.heartbeatInterval??300,heartbeatTimeout:t?.heartbeatTimeout??1e3,transfer:t?.transfer??!1,debug:t?.debug??!1};if(n.heartbeatTimeout<=n.heartbeatInterval)throw Error(`Invalid heartbeat config: timeout (${n.heartbeatTimeout}ms) must exceed interval (${n.heartbeatInterval}ms).`);return[_(e,n),v(e,n)]};export{t as MESSAGE_SENDER_TYPE,e as MESSAGE_TYPE,n as checkMessage,y as defineProxy,c as isProxy};
++\ No newline at end of file
++diff --git a/core/src/comctx.ts b/core/src/comctx.ts
++index 2c87df78a189f22434d5d04058e80485b129c187..8f5c7ee42c4ad5434e6642d89d5c1befff0a4847 100644
++--- a/core/src/comctx.ts
+++++ b/core/src/comctx.ts
++@@ -340,6 +340,7 @@ const createInject = <T extends Record<string, any>>(source: T, adapter: DebugAd
++       },
++       apply(_target, _this, args) {
++         return new Promise<Message>(async (resolve, reject) => {
+++          let offMessage: OffMessage | void
++           try {
++             const callbackIds: string[] = []
++             const mapArgs = args.map((arg) => {
++@@ -367,7 +368,7 @@ const createInject = <T extends Record<string, any>>(source: T, adapter: DebugAd
++             })
++ 
++             const messageId = uuid()
++-            const offMessage = await adapter.onMessage((message) => {
+++            offMessage = await adapter.onMessage((message) => {
++               const _message = message as Message
++               if (_message.namespace !== options.namespace) return
++               if (_message.sender.type !== MESSAGE_SENDER_TYPE.PROVIDER) return
++@@ -396,6 +397,11 @@ const createInject = <T extends Record<string, any>>(source: T, adapter: DebugAd
++             }
++             await adapter.sendMessage(applyMessage, [])
++           } catch (error) {
+++            try {
+++              await offMessage?.()
+++            } catch {
+++              // Cleanup must not replace the transport error that rejected this request.
+++            }
++             reject(error)
++           }
++         })
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index d539d5b6..8589eefd 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -174,6 +174,9 @@ settings:
+ overrides:
+   '@ts-morph/common>minimatch': ^11.0.1
+ 
++patchedDependencies:
++  comctx@1.7.7: 5b40d55499fbc1826c9228e14bbe7c8244241d70211aa8eec51336e4264f5427
++
+ importers:
+ 
+   .:
+@@ -273,7 +276,7 @@ importers:
+         version: 0.2.0
+       comctx:
+         specifier: 1.7.7
+-        version: 1.7.7
++        version: 1.7.7(patch_hash=5b40d55499fbc1826c9228e14bbe7c8244241d70211aa8eec51336e4264f5427)
+       date-fns:
+         specifier: ^4.4.0
+         version: 4.4.0
+@@ -455,7 +458,17 @@ importers:
+         specifier: 7.0.2
+         version: 7.0.2
+ 
+-  tools/verify: {}
++  tools/verify:
++    devDependencies:
++      '@types/node':
++        specifier: ^26.6.6
++        version: 26.6.6
++      typescript:
++        specifier: 7.0.2
++        version: 7.0.2
++      vitest:
++        specifier: 5.1.0
++        version: 5.1.0(@types/node@26.6.6)(jsdom@31.0.1)(vite@8.3.7(@types/node@26.6.6)(jiti@2.7.0))
+ 
+   utils/activity:
+     dependencies:
+@@ -4489,7 +4502,7 @@ snapshots:
+ 
+   color-name@1.1.4: {}
+ 
+-  comctx@1.7.7: {}
++  comctx@1.7.7(patch_hash=5b40d55499fbc1826c9228e14bbe7c8244241d70211aa8eec51336e4264f5427): {}
+ 
+   commander@11.1.0: {}
+ 
+diff --git a/pnpm-workspace.yaml b/pnpm-workspace.yaml
+index 64b82673..325aa57e 100644
+--- a/pnpm-workspace.yaml
++++ b/pnpm-workspace.yaml
+@@ -15,3 +15,6 @@ overrides:
+   # shadcn's CLI (shadcn > ts-morph > @ts-morph/common), a build-time tool;
+   # @ts-morph/common calls only `minimatch(path, pattern)`, unchanged in 11.
+   '@ts-morph/common>minimatch': ^11.0.1
++
++patchedDependencies:
++  comctx@1.7.7: patches/comctx@1.7.7.patch
+diff --git a/tools/verify/README.md b/tools/verify/README.md
+index eca04a1b..4e71881a 100644
+--- a/tools/verify/README.md
++++ b/tools/verify/README.md
+@@ -1,11 +1,13 @@
+ # Real-browser verification
+ 
+-This private Node workspace package owns generated-output inspection and real-browser drivers. It has no npm dependencies: `webdriver.mjs` speaks W3C WebDriver over `fetch`. The native `check` task runs Node syntax checks for its JavaScript files; installed browser and driver executables remain separate prerequisites.
++This private Node workspace package owns generated-output inspection and real-browser drivers. It has no runtime npm dependencies: `webdriver.mjs` speaks W3C WebDriver over `fetch`. The native `check` task checks its TypeScript configuration and tests, then runs Node syntax checks for its JavaScript files. Installed browser and driver executables remain separate prerequisites.
+ 
+ ## Chrome
+ 
+ `pnpm validate:chrome-artifact` reads an existing `.output/chrome-mv3` and then loads its generated panel and options pages in Chromium. Set `CHROME_BIN` or pass `--chrome=<executable>` when automatic discovery cannot locate the intended browser. `--static-only` checks packaged files and explicitly skips startup. The validator unwraps the CDP response envelope once before reading `Runtime.evaluate`'s `RemoteObject.value`.
+ 
++`chrome/cdp.mjs` owns the debugging connection. Opening the socket and each command have a 15-second deadline. A transport error, browser closure or explicit disposal rejects outstanding commands and releases their timers and event subscriptions. The `verify` Vitest project tests these failure paths without claiming that a generated extension loaded in a real browser.
++
+ A usable executable and a passing bundle do not prove that the host permits a browser process. Record local socket, sandbox or display failures as blocked runtime checks. Startup alone also does not cover the complete tab, observation, private-window or search journey. See the [verification workflow](../../docs/architecture/verification-workflow.md).
+ 
+ ## Firefox
+diff --git a/tools/verify/chrome.mjs b/tools/verify/chrome.mjs
+index a89afaa1..e9f18669 100644
+--- a/tools/verify/chrome.mjs
++++ b/tools/verify/chrome.mjs
+@@ -5,6 +5,7 @@ import { createServer } from 'node:net';
+ import { tmpdir } from 'node:os';
+ import { basename, join, relative, resolve, sep } from 'node:path';
+ import { spawn } from 'node:child_process';
++import { connect as connectCdp } from './chrome/cdp.mjs';
+ 
+ const DEFAULT_ARTIFACT_DIRECTORY = '.output/chrome-mv3';
+ const REGISTRY_DIRECTORY = 'kaiju-deepscope-registry';
+@@ -375,48 +376,6 @@ async function fetchJson(url, init) {
+ 	return await response.json();
+ }
+ 
+-/** Correlate DevTools requests by ID and deliver method events through one WebSocket; resolved requests contain message.result directly. */
+-function connectCdp(url) {
+-	return new Promise((resolveClient, reject) => {
+-		const socket = new WebSocket(url);
+-		const pending = new Map();
+-		const listeners = new Map();
+-		let sequence = 0;
+-
+-		socket.addEventListener('open', () => resolveClient({
+-			/** Allocate a request ID and retain its promise until the matching DevTools response arrives. */
+-			send(method, params = {}) {
+-				const id = ++sequence;
+-				return new Promise((resolve, rejectRequest) => {
+-					pending.set(id, { resolve, reject: rejectRequest });
+-					socket.send(JSON.stringify({ id, method, params }));
+-				});
+-			},
+-			/** Retain an event listener for the lifetime of this verification connection. */
+-			on(method, listener) {
+-				const current = listeners.get(method) ?? [];
+-				current.push(listener);
+-				listeners.set(method, current);
+-			},
+-			/** Close the DevTools socket after the caller has finished its browser checks. */
+-			close() { socket.close(); },
+-		}));
+-		socket.addEventListener('error', () => reject(new Error(`Could not connect to Chrome target: ${url}`)));
+-		socket.addEventListener('message', (event) => {
+-			const message = JSON.parse(String(event.data));
+-			if (message.id) {
+-				const request = pending.get(message.id);
+-				if (!request) return;
+-				pending.delete(message.id);
+-				if (message.error) request.reject(new Error(message.error.message ?? 'Chrome DevTools request failed.'));
+-				else request.resolve(message.result);
+-				return;
+-			}
+-			for (const listener of listeners.get(message.method) ?? []) listener(message.params ?? {});
+-		});
+-	});
+-}
+-
+ /** Wait for the launched browser to stop within the cleanup deadline, accepting an already exited process. */
+ function waitForExit(child, timeoutMs) {
+ 	return new Promise((resolveExit, reject) => {
+diff --git a/tools/verify/chrome/cdp.mjs b/tools/verify/chrome/cdp.mjs
+new file mode 100644
+index 00000000..c6eb27cf
+--- /dev/null
++++ b/tools/verify/chrome/cdp.mjs
+@@ -0,0 +1,103 @@
++/** Maximum time to open a debugging connection or receive one command response. */
++const DEFAULT_TIMEOUT_MS = 15_000;
++
++/**
++ * @typedef {Object} Client
++ * @property {(method: string, params?: object) => Promise<unknown>} send Send one command and await its protocol result.
++ * @property {(method: string, listener: (params: unknown) => void) => void} on Subscribe until this connection closes.
++ * @property {() => void} close Cancel remaining commands and release the socket.
++ */
++
++/**
++ * Connect to one Chrome target and own its command subscriptions.
++ *
++ * A closed socket rejects every outstanding command. Each command also has a
++ * deadline, so a browser that remains connected but stops replying cannot leave
++ * artifact validation waiting forever. Responses contain `message.result`.
++ *
++ * @param {string} url Target WebSocket URL returned by Chrome's debugging endpoint.
++ * @param {{ timeoutMs?: number }} [options] Deadline shared by connection startup and individual commands.
++ * @returns {Promise<Client>} The caller owns connection disposal.
++ */
++export function connect(url, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
++	return new Promise((resolveClient, rejectConnection) => {
++		const socket = new WebSocket(url);
++		/** Commands retain their resolver and deadline until response or disposal. */
++		const pending = new Map();
++		/** Event listeners belong to this connection and are released on closure. */
++		const listeners = new Map();
++		let sequence = 0;
++		let terminalError;
++		const opening = setTimeout(() => close(new Error(`Chrome target did not connect within ${timeoutMs}ms: ${url}`)), timeoutMs);
++
++		/** Settle the connection once, release command timers and stop browser delivery. */
++		function close(error) {
++			if (terminalError) return;
++			terminalError = error;
++			clearTimeout(opening);
++			rejectConnection(error);
++			for (const request of pending.values()) {
++				clearTimeout(request.timeout);
++				request.reject(error);
++			}
++			pending.clear();
++			listeners.clear();
++			if (socket.readyState !== WebSocket.CLOSED) socket.close();
++		}
++
++		socket.addEventListener('open', () => {
++			if (terminalError) return;
++			clearTimeout(opening);
++			resolveClient({
++				/** Correlate one command and release its pending entry on any terminal outcome. */
++				send(method, params = {}) {
++					if (terminalError) return Promise.reject(terminalError);
++					const id = ++sequence;
++					return new Promise((resolve, reject) => {
++						const timeout = setTimeout(() => {
++							pending.delete(id);
++							reject(new Error(`Chrome DevTools command ${method} did not respond within ${timeoutMs}ms.`));
++						}, timeoutMs);
++						pending.set(id, { resolve, reject, timeout });
++						try {
++							socket.send(JSON.stringify({ id, method, params }));
++						} catch (error) {
++							pending.delete(id);
++							clearTimeout(timeout);
++							reject(error);
++						}
++					});
++				},
++				/** Subscribe to a protocol event until the caller closes this connection. */
++				on(method, listener) {
++					if (terminalError) throw terminalError;
++					const current = listeners.get(method) ?? [];
++					current.push(listener);
++					listeners.set(method, current);
++				},
++				/** Cancel any remaining commands and release this target's connection. */
++				close() { close(new Error('Chrome target connection closed by the validator.')); },
++			});
++		});
++		socket.addEventListener('error', () => close(new Error(`Chrome target connection failed: ${url}`)));
++		socket.addEventListener('close', () => close(new Error(`Chrome target connection closed: ${url}`)));
++		socket.addEventListener('message', (event) => {
++			if (terminalError) return;
++			try {
++				const message = JSON.parse(String(event.data));
++				if (typeof message.id === 'number') {
++					const request = pending.get(message.id);
++					if (!request) return;
++					pending.delete(message.id);
++					clearTimeout(request.timeout);
++					if (message.error) request.reject(new Error(message.error.message ?? 'Chrome DevTools request failed.'));
++					else request.resolve(message.result);
++					return;
++				}
++				for (const listener of listeners.get(message.method) ?? []) listener(message.params ?? {});
++			} catch (error) {
++				close(error instanceof Error ? error : new Error(String(error)));
++			}
++		});
++	});
++}
+diff --git a/tools/verify/chrome/cdp.test.ts b/tools/verify/chrome/cdp.test.ts
+new file mode 100644
+index 00000000..fc6b842b
+--- /dev/null
++++ b/tools/verify/chrome/cdp.test.ts
+@@ -0,0 +1,131 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++
++import { connect } from './cdp.mjs';
++
++/** Controllable transport for connection loss and deadlines without a browser process. */
++class Socket extends EventTarget {
++	static CLOSED = 3;
++	static current: Socket;
++	readyState = 0;
++	send = vi.fn();
++	close = vi.fn(() => {
++		this.readyState = Socket.CLOSED;
++		this.dispatchEvent(new Event('close'));
++	});
++
++	constructor() {
++		super();
++		Socket.current = this;
++	}
++
++	/** Finish the initial connection when the test permits browser delivery. */
++	open(): void {
++		this.readyState = 1;
++		this.dispatchEvent(new Event('open'));
++	}
++
++	/** Deliver a protocol envelope through the same event interface as native WebSocket. */
++	message(value: unknown): void {
++		this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(value) }));
++	}
++}
++
++/** Open one short-lived client so timeout assertions do not depend on wall-clock scheduling. */
++async function opened() {
++	const pending = connect('ws://127.0.0.1:9222/target', { timeoutMs: 100 });
++	Socket.current.open();
++	return pending;
++}
++
++beforeEach(() => {
++	vi.useFakeTimers();
++	vi.stubGlobal('WebSocket', Socket);
++});
++
++afterEach(() => {
++	Socket.current.close();
++	vi.useRealTimers();
++	vi.unstubAllGlobals();
++});
++
++describe('Chrome target connection lifetime', () => {
++	it('unwraps command results once and releases their deadlines', async () => {
++		const client = await opened();
++		const first = client.send('Runtime.enable');
++		const second = client.send('Runtime.evaluate', { expression: '1' });
++		Socket.current.message({ id: 2, result: { result: { value: 1 } } });
++		Socket.current.message({ id: 1, result: {} });
++		await expect(second).resolves.toEqual({ result: { value: 1 } });
++		await expect(first).resolves.toEqual({});
++		expect(vi.getTimerCount()).toBe(0);
++	});
++
++	it.each(['close', 'error'])('rejects all pending commands after transport %s', async (event) => {
++		const client = await opened();
++		const first = expect(client.send('Runtime.enable')).rejects.toThrow(/Chrome target connection/u);
++		const second = expect(client.send('Log.enable')).rejects.toThrow(/Chrome target connection/u);
++		Socket.current.dispatchEvent(new Event(event));
++		await Promise.all([first, second]);
++		expect(vi.getTimerCount()).toBe(0);
++		await expect(client.send('Page.enable')).rejects.toThrow(/Chrome target connection/u);
++		expect(Socket.current.send).toHaveBeenCalledTimes(2);
++	});
++
++	it('rejects a connection that never opens and closes its socket', async () => {
++		const result = expect(connect('ws://127.0.0.1:9222/target', { timeoutMs: 100 })).rejects.toThrow('did not connect within 100ms');
++		await vi.advanceTimersByTimeAsync(100);
++		await result;
++		expect(Socket.current.close).toHaveBeenCalledTimes(1);
++		expect(vi.getTimerCount()).toBe(0);
++	});
++
++	it('bounds a silent command without dropping a different reply', async () => {
++		const client = await opened();
++		const stalled = expect(client.send('Runtime.enable')).rejects.toThrow('Runtime.enable did not respond within 100ms');
++		const completed = client.send('Log.enable');
++		Socket.current.message({ id: 2, result: {} });
++		await expect(completed).resolves.toEqual({});
++		await vi.advanceTimersByTimeAsync(100);
++		await stalled;
++		expect(vi.getTimerCount()).toBe(0);
++	});
++
++	it('rejects a provider error without retaining the command timer', async () => {
++		const client = await opened();
++		const result = expect(client.send('Runtime.enable')).rejects.toThrow('Unknown method.');
++		Socket.current.message({ id: 1, error: { message: 'Unknown method.' } });
++		await result;
++		expect(vi.getTimerCount()).toBe(0);
++	});
++
++	it('preserves a synchronous send error and releases the command deadline', async () => {
++		const client = await opened();
++		const error = new Error('Socket became unavailable.');
++		Socket.current.send.mockImplementationOnce(() => { throw error; });
++		await expect(client.send('Runtime.enable')).rejects.toBe(error);
++		expect(vi.getTimerCount()).toBe(0);
++	});
++
++	it('releases event subscriptions and pending commands when the caller closes', async () => {
++		const client = await opened();
++		const event = vi.fn();
++		client.on('Runtime.exceptionThrown', event);
++		Socket.current.message({ method: 'Runtime.exceptionThrown', params: { text: 'before' } });
++		const pending = expect(client.send('Runtime.enable')).rejects.toThrow('closed by the validator');
++		client.close();
++		client.close();
++		Socket.current.message({ method: 'Runtime.exceptionThrown', params: { text: 'after' } });
++		await pending;
++		expect(event).toHaveBeenCalledOnce();
++		expect(Socket.current.close).toHaveBeenCalledTimes(1);
++		expect(vi.getTimerCount()).toBe(0);
++	});
++
++	it('rejects outstanding work when Chrome returns malformed JSON', async () => {
++		const client = await opened();
++		const pending = expect(client.send('Runtime.enable')).rejects.toBeInstanceOf(SyntaxError);
++		Socket.current.dispatchEvent(new MessageEvent('message', { data: '{broken' }));
++		await pending;
++		expect(vi.getTimerCount()).toBe(0);
++	});
++});
+diff --git a/tools/verify/package.json b/tools/verify/package.json
+index 342906d3..bdf9a36a 100644
+--- a/tools/verify/package.json
++++ b/tools/verify/package.json
+@@ -3,6 +3,12 @@
+   "private": true,
+   "type": "module",
+   "scripts": {
+-    "check": "for source in ./*.mjs; do node --check \"$source\" || exit; done"
++    "check": "tsc --noEmit && for source in ./*.mjs ./*/*.mjs; do node --check \"$source\" || exit; done",
++    "test": "vitest run"
++  },
++  "devDependencies": {
++    "@types/node": "^26.6.6",
++    "typescript": "7.0.2",
++    "vitest": "5.1.0"
+   }
+ }
+diff --git a/tools/verify/tsconfig.json b/tools/verify/tsconfig.json
+new file mode 100644
+index 00000000..fc25f195
+--- /dev/null
++++ b/tools/verify/tsconfig.json
+@@ -0,0 +1,9 @@
++{
++  "extends": "../../tsconfig.base.json",
++  "compilerOptions": {
++    "types": ["node"],
++    "allowJs": true
++  },
++  "include": ["**/*.ts"],
++  "exclude": ["node_modules"]
++}
+diff --git a/tools/verify/vitest.config.ts b/tools/verify/vitest.config.ts
+new file mode 100644
+index 00000000..7b38ecb1
+--- /dev/null
++++ b/tools/verify/vitest.config.ts
+@@ -0,0 +1,6 @@
++import { defineConfig } from 'vitest/config';
++
++/** Keep artifact tool lifetime checks in the tool's own workspace project. */
++export default defineConfig({
++	test: { name: 'verify', environment: 'node', include: ['**/*.test.ts'] },
++});

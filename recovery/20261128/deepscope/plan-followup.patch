@@ -1,0 +1,35 @@
+diff --git a/docs/migration/monorepo-plan.md b/docs/migration/monorepo-plan.md
+--- a/docs/migration/monorepo-plan.md
++++ b/docs/migration/monorepo-plan.md
+@@ -40,6 +40,7 @@
+ | RPC adapter regression | Unpatched comctx fails 4 of 8 cases. The patched package passes all 8, including concurrent calls and original error identity. |
+ | Registry category regression | Four inherited-name cases fail before the repair. All 9 schema cases pass after it. |
+ | Filtered Vitest projects | 116 cases in 13 files pass across `registry`, `dom`, `extension (ui)`, `guidance` and `verify`. The separate 8 RPC cases bring the reviewed selection to 124 cases in 14 files. |
++| Changed-test type check | The strict native TypeScript check for the RPC and registry-schema tests and their imported source closure passes. It does not load the full registry catalog or replace the root gate. |
+ | Native workflow lint | actionlint 1.7.12 and offline zizmor 1.32.0 pass; the existing single ignored audit remains. |
+ | Current native root type check | Failed when the registry compiler was killed with exit 137. Serial execution also failed. The new verify package's TypeScript and syntax checks passed before that failure. |
+ | Timed registry type check | Killed after 7.65 seconds; maximum recorded child RSS was 433,856 KiB. A 256 MiB Go target and one CPU did not resolve the host kill. No compiler diagnostic was produced. |
+@@ -54,12 +55,19 @@
+ current discovery, assertions or schemas. The old batch4/batch5 archive and
+ runtime receipts below retain their original source identities.
+ 
++The recovered source is now committed as
++`b28d7cf3ce2b84572fa64b061d9e6c9b318bb377`, with the exact saved tree.
++The reviewed fixes follow it as `cbca1870` (RPC listener cleanup), `1e4db848`
++(category validation) and `ad84805e` (Chrome artifact verification). These
++commits preserve the native PR ancestry. Local commits do not establish that
++the remote PR was updated or its current checks passed.
++
+ ### Action list and stopping point
+ 
+-1. Preserve the recovered batch5 tree as a coherent source migration, then
+-   commit the RPC repair, category validation, artifact verification and
+-   guidance corrections by intent. Keep binary-capable patches and native
+-   history before publishing, and verify the exact resulting PR #7 head.
++1. Verify independent read-back of the binary-capable patches, native history
++   and current checkpoint records, then publish the coherent commit batch to
++   existing PR #7 and verify its full remote head. Preserve the completed
++   migration and each focused repair as separate reviewable commits.
+ 2. Run the complete native type and test gates on a host with sufficient
+    resources. Keep the current failed receipts. Rebuild all three browser
+    archives and inspect their output; the Firefox sources archive must include

@@ -1,0 +1,235 @@
+diff --git a/apps/extension/src/tests/messaging/client-lifetime.test.ts b/apps/extension/src/tests/messaging/client-lifetime.test.ts
+new file mode 100644
+index 00000000..7117529a
+--- /dev/null
++++ b/apps/extension/src/tests/messaging/client-lifetime.test.ts
+@@ -0,0 +1,103 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { defineProxy, type Adapter, type Message, type MessageMeta } from 'comctx';
++import type { Browser } from 'wxt/browser';
++
++import { BACKGROUND_RPC_NAMESPACE, createBackgroundClientAdapter } from '../../lib/messaging/adapters/background.ts';
++import { CONTENT_RPC_NAMESPACE, createContentClientAdapter } from '../../lib/messaging/adapters/content.ts';
++
++/** Browser reply subscriptions retained by the real messaging adapters. */
++type Listener = (message: unknown, sender: Browser.runtime.MessageSender) => void;
++
++/** Replace only browser delivery so the installed RPC implementation owns each request. */
++const transport = vi.hoisted(() => ({
++	listeners: new Set<Listener>(),
++	runtime: vi.fn(),
++	tab: vi.fn(),
++}));
++
++vi.mock('wxt/browser', () => ({
++	browser: {
++		runtime: {
++			sendMessage: transport.runtime,
++			onMessage: {
++				addListener: (listener: Listener) => transport.listeners.add(listener),
++				removeListener: (listener: Listener) => transport.listeners.delete(listener),
++			},
++		},
++		tabs: { sendMessage: transport.tab },
++	},
++}));
++
++/** Two independent requests let a failed delivery overlap a live reply subscription. */
++interface Api {
++	query(): Promise<string>;
++	hold(): Promise<string>;
++}
++
++/** Use the same heartbeat and transfer options as both production client factories. */
++function client<Meta extends MessageMeta>(adapter: Adapter<Meta>, namespace: string): Api {
++	const [, inject] = defineProxy(() => ({}) as Api, { namespace, heartbeatCheck: false, transfer: false });
++	return inject(adapter);
++}
++
++/** Return a provider response through the browser listener, including the pinned content document. */
++function reply(request: Message, result: { data?: string; error?: string }): void {
++	const sender = { tab: { id: 7 }, frameId: 0, documentId: 'document-7' } as Browser.runtime.MessageSender;
++	for (const listener of transport.listeners) {
++		listener({ ...request, sender: { type: 'provider' }, ...result }, sender);
++	}
++}
++
++/** Route both browser APIs through one test delivery owner without replacing either adapter. */
++function deliver(send: (message: Message) => Promise<void>): void {
++	transport.runtime.mockImplementation(send);
++	transport.tab.mockImplementation((_tabId: number, message: Message) => send(message));
++}
++
++afterEach(() => {
++	transport.listeners.clear();
++	vi.resetAllMocks();
++});
++
++describe.each([
++	{ name: 'background', create: () => client(createBackgroundClientAdapter('sidepanel'), BACKGROUND_RPC_NAMESPACE) },
++	{ name: 'content', create: () => client(createContentClientAdapter(7, 0, 'document-7'), CONTENT_RPC_NAMESPACE) },
++])('$name RPC request subscriptions', ({ create }) => {
++	it('releases every failed request and preserves the original transport error', async () => {
++		const error = new Error('Receiving end does not exist.');
++		deliver(async () => { throw error; });
++		const api = create();
++		for (let attempt = 0; attempt < 3; attempt += 1) {
++			await expect(api.query()).rejects.toBe(error);
++			expect(transport.listeners.size).toBe(0);
++		}
++	});
++
++	it('keeps a concurrent request subscribed when another delivery fails', async () => {
++		const held = Promise.withResolvers<Message>();
++		const error = new Error('Extension context invalidated.');
++		deliver(async (message) => {
++			if (message.path[0] === 'hold') held.resolve(message);
++			else throw error;
++		});
++		const api = create();
++		const pending = api.hold();
++		const request = await held.promise;
++		await expect(api.query()).rejects.toBe(error);
++		expect(transport.listeners.size).toBe(1);
++		reply(request, { data: 'still listening' });
++		await expect(pending).resolves.toBe('still listening');
++		expect(transport.listeners.size).toBe(0);
++	});
++
++	it.each([
++		{ result: { data: 'received' }, error: false },
++		{ result: { error: 'Provider rejected the request.' }, error: true },
++	])('releases a provider response with error=$error', async ({ result, error }) => {
++		deliver(async (message) => { reply(message, result); });
++		const operation = create().query();
++		if (error) await expect(operation).rejects.toThrow('Provider rejected the request.');
++		else await expect(operation).resolves.toBe('received');
++		expect(transport.listeners.size).toBe(0);
++	});
++});
+diff --git a/patches/README.md b/patches/README.md
+new file mode 100644
+index 00000000..feb5ee8c
+--- /dev/null
++++ b/patches/README.md
+@@ -0,0 +1,29 @@
++# Dependency patches
++
++The frozen pnpm install applies the patches declared in `pnpm-workspace.yaml`.
++Their hashes are recorded in `pnpm-lock.yaml`, and the Firefox source archive
++must include this directory so reviewers can rebuild the same dependencies.
++
++## comctx 1.7.7 request cleanup
++
++When browser delivery rejects, comctx 1.7.7 rejects the RPC promise but keeps its
++reply listener registered. Repeated requests to a missing content script or an
++invalidated extension context retain those listeners. The patch releases the
++failed request's listener before rejecting with the original transport error.
++Other requests keep their subscriptions.
++
++The patch changes the readable injector in `core/src/comctx.ts` and the published
++runtime in `core/dist/index.js`. It preserves the message format and both client
++APIs. DeepScope's RPC methods accept data, so this repair does not change comctx's
++separate callback-argument subscription behavior. A caller timing out while the
++transport remains open also remains distinct from a rejected send.
++
++`apps/extension/src/tests/messaging/client-lifetime.test.ts` runs the installed
++package through both real browser adapters. It checks failed delivery, concurrent
++requests, successful replies and provider errors. The unpatched package fails
++the delivery and concurrency cases. When upgrading comctx, remove this patch
++only after the replacement passes these tests without it.
++
++Published package: <https://registry.npmjs.org/comctx/1.7.7>.
++Upstream repository: <https://github.com/molvqingtai/comctx>.
++The package is distributed under its existing MIT license.
+diff --git a/patches/comctx@1.7.7.patch b/patches/comctx@1.7.7.patch
+new file mode 100644
+index 00000000..4d736744
+--- /dev/null
++++ b/patches/comctx@1.7.7.patch
+@@ -0,0 +1,43 @@
++diff --git a/core/dist/index.js b/core/dist/index.js
++index e443de8f300abbc18daf78ef97d1a5ae047411e4..6272b5365c8b24febe449bd9d07dcb22c75cfd36 100644
++--- a/core/dist/index.js
+++++ b/core/dist/index.js
++@@ -1,2 +1,2 @@
++ /* @ts-self-types="./index.d.ts" */
++-const e={APPLY:`apply`,CALLBACK:`callback`,PING:`ping`,PONG:`pong`},t={PROVIDER:`provider`,INJECTOR:`injector`},n=n=>{let r=!!n?.type&&Object.values(e).includes(n.type),i=!!n?.id&&typeof n.id==`string`,a=!!n?.path&&Array.isArray(n.path)&&n.path.every(e=>typeof e==`string`),o=!!n?.sender&&typeof n.sender==`object`&&!!n.sender.type&&Object.values(t).includes(n.sender.type)&&(n.sender.name===void 0||typeof n.sender.name==`string`),s=n?.callbackIds===void 0||Array.isArray(n.callbackIds)&&n.callbackIds.every(e=>typeof e==`string`),c=n?.args===void 0||Array.isArray(n.args),l=n?.error===void 0||typeof n.error==`string`,u=!!n?.meta&&n.meta!==null&&typeof n.meta==`object`,d=!!n?.namespace&&typeof n.namespace==`string`,f=!!n?.timeStamp&&typeof n.timeStamp==`number`;return r&&i&&a&&o&&s&&c&&l&&u&&d&&f},r=()=>[...[,,,,]].map(()=>Math.floor(Math.random()*(2**53-1)).toString(16)).join(`-`),i=(e,t,...n)=>{let r=setTimeout(()=>{clearTimeout(r),e(...n),r=setInterval(e,t,...n)},0);return()=>clearInterval(r)},a=(e,t)=>!!t?.prototype&&e instanceof t,o=e=>{let t=/* @__PURE__ */ new WeakSet,n=e=>!e||typeof e!=`object`||t.has(e)?[]:(t.add(e),a(e,globalThis.ArrayBuffer)||a(e,globalThis.MessagePort)||a(e,globalThis.ImageBitmap)||a(e,globalThis.OffscreenCanvas)||a(e,globalThis.AudioData)||a(e,globalThis.VideoFrame)||a(e,globalThis.RTCDataChannel)||a(e,globalThis.MediaSourceHandle)||a(e,globalThis.MIDIAccess)||a(e,globalThis.MediaStreamTrack)||a(e,globalThis.ReadableStream)||a(e,globalThis.WritableStream)||a(e,globalThis.TransformStream)?[e]:Array.isArray(e)?e.flatMap(n):Object.values(e).flatMap(n));return n(e)},s=Symbol(`PROXY_MARKER`),c=e=>e!==null&&(typeof e==`object`||typeof e==`function`)&&e[s]===!0,l=async(n,a)=>{let{promise:o,resolve:s,reject:c}=Promise.withResolvers(),l=/* @__PURE__ */ new Set,u=i(async()=>{try{let i=r(),o=await n.onMessage(r=>{let o=r;o.namespace===a.namespace&&o.sender.type===t.PROVIDER&&o.type===e.PONG&&o.id===i&&(n.debugLog?.({level:`event`,method:`onMessage`,message:o,actor:t.INJECTOR}),s())});o&&l.add(o);let c={type:e.PING,sender:{type:t.INJECTOR,name:n.name},id:i,path:[],meta:{},namespace:a.namespace,timeStamp:Date.now()};n.debugLog?.({level:`event`,method:`sendMessage`,message:c}),n.sendMessage(c,[])}catch(e){c(e)}},a.heartbeatInterval),d=setTimeout(()=>c(/* @__PURE__ */ Error(`Provider unavailable: heartbeat check timeout ${a.heartbeatTimeout}ms.`)),a.heartbeatTimeout);await o.finally(()=>{u(),clearTimeout(d),l.forEach(e=>e()),l.clear()})},u=e=>({name:e.name,sendMessage:(t,n)=>e.sendMessage(t,n),onMessage:t=>e.onMessage(e=>{if(n(e))return t(e)})}),d=(e,t)=>({name:e.name,sendMessage:(n,r)=>e.sendMessage(n,t.transfer?o(n):r),onMessage:t=>e.onMessage(t)}),f=(n,r)=>{let i={message:`color: #fff; background: #0ea5e9; border-radius: 3px; padding: 1px 4px;`,event:`color: #fff; background: #0ea5e9; border-radius: 3px; padding: 1px 4px;`,[t.PROVIDER]:`color: #fff; background: #8b5cf6; border-radius: 3px; padding: 1px 4px;`,[t.INJECTOR]:`color: #fff; background: #0891b2; border-radius: 3px; padding: 1px 4px;`,sendMessage:`color: #fff; background: #f97316; border-radius: 3px; padding: 1px 4px;`,onMessage:`color: #fff; background: #22c55e; border-radius: 3px; padding: 1px 4px;`},a={message:`color: #0ea5e9`,event:`color: #0ea5e9`,[t.PROVIDER]:`color: #8b5cf6`,[t.INJECTOR]:`color: #0891b2`,sendMessage:`color: #f97316`,onMessage:`color: #22c55e`},o={[e.APPLY]:`color: #2563eb`,[e.CALLBACK]:`color: #a855f7`,[e.PING]:`color: #eab308`,[e.PONG]:`color: #14b8a6`},s={[e.APPLY]:`color: #2563eb`,[e.CALLBACK]:`color: #a855f7`,[e.PING]:`color: #eab308`,[e.PONG]:`color: #14b8a6`},c=({level:e,method:t,message:n,actor:c=n.sender.type})=>{let l=e===`message`?a:i,u=e===`message`?s:o;(r.debug===!0||e===r.debug)&&console.debug(`%ccomctx:${e}%c %c${c}%c %c${t}%c %c${n.type}%c`,l[e],``,l[c],``,l[t],``,u[n.type],``,n)};return{name:n.name,sendMessage:(e,t)=>(c({level:`message`,method:`sendMessage`,message:e}),n.sendMessage(e,t)),onMessage:e=>n.onMessage(t=>(c({level:`message`,method:`onMessage`,message:t,actor:r.actor}),e(t))),debugLog:c}},p=(n,r)=>({name:n.name,sendMessage:async(i,a)=>(r.heartbeatCheck&&i.sender.type===t.INJECTOR&&i.type===e.APPLY&&await l(n,r),n.debugLog?.({level:`event`,method:`sendMessage`,message:i}),n.sendMessage(i,a)),onMessage:e=>n.onMessage(e),debugLog:n.debugLog}),m=(e,t)=>p(f(d(u(e),t),t),t),h=(n,r,i)=>(r.onMessage(async a=>{let o=a;if(o.namespace===i.namespace&&o.sender.type===t.INJECTOR)switch(o.type){case e.PING:{r.debugLog?.({level:`event`,method:`onMessage`,message:o,actor:t.PROVIDER});let n={type:e.PONG,sender:{type:t.PROVIDER,name:r.name},id:o.id,path:o.path,meta:o.meta,namespace:i.namespace,timeStamp:Date.now()};r.sendMessage(n,[]);break}case e.APPLY:{r.debugLog?.({level:`event`,method:`onMessage`,message:o,actor:t.PROVIDER});try{let a=o.args?.map(n=>o.callbackIds?.includes(n)?(...a)=>{let s={type:e.CALLBACK,sender:{type:t.PROVIDER,name:r.name},id:n,path:o.path,meta:o.meta,data:a,namespace:i.namespace,timeStamp:Date.now()};r.sendMessage(s,[])}:n);o.data=await o.path.reduce((e,t,n,r)=>n===r.length-1?e[t](...a??[]):e[t],n)}catch(e){o.error=e.message}let a={type:e.APPLY,sender:{type:t.PROVIDER,name:r.name},id:o.id,path:o.path,data:o.data,error:o.error,meta:o.meta,namespace:i.namespace,timeStamp:Date.now()};r.sendMessage(a,[]);break}}}),n),g=(n,i,a)=>{let o=(n,c)=>new Proxy(n,{get(e,t,n){return t===s?!0:typeof e==`function`&&(t===`apply`||t===`call`||t===`bind`||t===`length`||t===`name`)?Reflect.get(e,t,n):o((()=>{}),[...c,t])},apply(n,o,s){return new Promise(async(n,o)=>{try{let l=[],u=s.map(n=>{if(typeof n==`function`){let o=r();return l.push(o),i.onMessage(r=>{let s=r;s.namespace===a.namespace&&s.sender.type===t.PROVIDER&&s.type===e.CALLBACK&&s.id===o&&(i.debugLog?.({level:`event`,method:`onMessage`,message:s,actor:t.INJECTOR}),n(...s.data))}),o}return n}),d=r(),f=await i.onMessage(r=>{let s=r;s.namespace===a.namespace&&s.sender.type===t.PROVIDER&&s.type===e.APPLY&&s.id===d&&(i.debugLog?.({level:`event`,method:`onMessage`,message:s,actor:t.INJECTOR}),s.error?o(Error(s.error)):n(s.data),f?.())}),p={type:e.APPLY,sender:{type:t.INJECTOR,name:i.name},id:d,path:c,args:u,meta:{},callbackIds:l,timeStamp:Date.now(),namespace:a.namespace};await i.sendMessage(p,[])}catch(e){o(e)}})}});return o(n,[])},_=(e,n)=>(r,...i)=>h(e(...i),m(r,{...n,actor:t.PROVIDER}),n),v=(e,n)=>e=>g({},m(e,{...n,actor:t.INJECTOR}),n),y=(e,t)=>{let n={namespace:t?.namespace??`__comctx__`,heartbeatCheck:t?.heartbeatCheck??!0,heartbeatInterval:t?.heartbeatInterval??300,heartbeatTimeout:t?.heartbeatTimeout??1e3,transfer:t?.transfer??!1,debug:t?.debug??!1};if(n.heartbeatTimeout<=n.heartbeatInterval)throw Error(`Invalid heartbeat config: timeout (${n.heartbeatTimeout}ms) must exceed interval (${n.heartbeatInterval}ms).`);return[_(e,n),v(e,n)]};export{t as MESSAGE_SENDER_TYPE,e as MESSAGE_TYPE,n as checkMessage,y as defineProxy,c as isProxy};
++\ No newline at end of file
+++const e={APPLY:`apply`,CALLBACK:`callback`,PING:`ping`,PONG:`pong`},t={PROVIDER:`provider`,INJECTOR:`injector`},n=n=>{let r=!!n?.type&&Object.values(e).includes(n.type),i=!!n?.id&&typeof n.id==`string`,a=!!n?.path&&Array.isArray(n.path)&&n.path.every(e=>typeof e==`string`),o=!!n?.sender&&typeof n.sender==`object`&&!!n.sender.type&&Object.values(t).includes(n.sender.type)&&(n.sender.name===void 0||typeof n.sender.name==`string`),s=n?.callbackIds===void 0||Array.isArray(n.callbackIds)&&n.callbackIds.every(e=>typeof e==`string`),c=n?.args===void 0||Array.isArray(n.args),l=n?.error===void 0||typeof n.error==`string`,u=!!n?.meta&&n.meta!==null&&typeof n.meta==`object`,d=!!n?.namespace&&typeof n.namespace==`string`,f=!!n?.timeStamp&&typeof n.timeStamp==`number`;return r&&i&&a&&o&&s&&c&&l&&u&&d&&f},r=()=>[...[,,,,]].map(()=>Math.floor(Math.random()*(2**53-1)).toString(16)).join(`-`),i=(e,t,...n)=>{let r=setTimeout(()=>{clearTimeout(r),e(...n),r=setInterval(e,t,...n)},0);return()=>clearInterval(r)},a=(e,t)=>!!t?.prototype&&e instanceof t,o=e=>{let t=/* @__PURE__ */ new WeakSet,n=e=>!e||typeof e!=`object`||t.has(e)?[]:(t.add(e),a(e,globalThis.ArrayBuffer)||a(e,globalThis.MessagePort)||a(e,globalThis.ImageBitmap)||a(e,globalThis.OffscreenCanvas)||a(e,globalThis.AudioData)||a(e,globalThis.VideoFrame)||a(e,globalThis.RTCDataChannel)||a(e,globalThis.MediaSourceHandle)||a(e,globalThis.MIDIAccess)||a(e,globalThis.MediaStreamTrack)||a(e,globalThis.ReadableStream)||a(e,globalThis.WritableStream)||a(e,globalThis.TransformStream)?[e]:Array.isArray(e)?e.flatMap(n):Object.values(e).flatMap(n));return n(e)},s=Symbol(`PROXY_MARKER`),c=e=>e!==null&&(typeof e==`object`||typeof e==`function`)&&e[s]===!0,l=async(n,a)=>{let{promise:o,resolve:s,reject:c}=Promise.withResolvers(),l=/* @__PURE__ */ new Set,u=i(async()=>{try{let i=r(),o=await n.onMessage(r=>{let o=r;o.namespace===a.namespace&&o.sender.type===t.PROVIDER&&o.type===e.PONG&&o.id===i&&(n.debugLog?.({level:`event`,method:`onMessage`,message:o,actor:t.INJECTOR}),s())});o&&l.add(o);let c={type:e.PING,sender:{type:t.INJECTOR,name:n.name},id:i,path:[],meta:{},namespace:a.namespace,timeStamp:Date.now()};n.debugLog?.({level:`event`,method:`sendMessage`,message:c}),n.sendMessage(c,[])}catch(e){c(e)}},a.heartbeatInterval),d=setTimeout(()=>c(/* @__PURE__ */ Error(`Provider unavailable: heartbeat check timeout ${a.heartbeatTimeout}ms.`)),a.heartbeatTimeout);await o.finally(()=>{u(),clearTimeout(d),l.forEach(e=>e()),l.clear()})},u=e=>({name:e.name,sendMessage:(t,n)=>e.sendMessage(t,n),onMessage:t=>e.onMessage(e=>{if(n(e))return t(e)})}),d=(e,t)=>({name:e.name,sendMessage:(n,r)=>e.sendMessage(n,t.transfer?o(n):r),onMessage:t=>e.onMessage(t)}),f=(n,r)=>{let i={message:`color: #fff; background: #0ea5e9; border-radius: 3px; padding: 1px 4px;`,event:`color: #fff; background: #0ea5e9; border-radius: 3px; padding: 1px 4px;`,[t.PROVIDER]:`color: #fff; background: #8b5cf6; border-radius: 3px; padding: 1px 4px;`,[t.INJECTOR]:`color: #fff; background: #0891b2; border-radius: 3px; padding: 1px 4px;`,sendMessage:`color: #fff; background: #f97316; border-radius: 3px; padding: 1px 4px;`,onMessage:`color: #fff; background: #22c55e; border-radius: 3px; padding: 1px 4px;`},a={message:`color: #0ea5e9`,event:`color: #0ea5e9`,[t.PROVIDER]:`color: #8b5cf6`,[t.INJECTOR]:`color: #0891b2`,sendMessage:`color: #f97316`,onMessage:`color: #22c55e`},o={[e.APPLY]:`color: #2563eb`,[e.CALLBACK]:`color: #a855f7`,[e.PING]:`color: #eab308`,[e.PONG]:`color: #14b8a6`},s={[e.APPLY]:`color: #2563eb`,[e.CALLBACK]:`color: #a855f7`,[e.PING]:`color: #eab308`,[e.PONG]:`color: #14b8a6`},c=({level:e,method:t,message:n,actor:c=n.sender.type})=>{let l=e===`message`?a:i,u=e===`message`?s:o;(r.debug===!0||e===r.debug)&&console.debug(`%ccomctx:${e}%c %c${c}%c %c${t}%c %c${n.type}%c`,l[e],``,l[c],``,l[t],``,u[n.type],``,n)};return{name:n.name,sendMessage:(e,t)=>(c({level:`message`,method:`sendMessage`,message:e}),n.sendMessage(e,t)),onMessage:e=>n.onMessage(t=>(c({level:`message`,method:`onMessage`,message:t,actor:r.actor}),e(t))),debugLog:c}},p=(n,r)=>({name:n.name,sendMessage:async(i,a)=>(r.heartbeatCheck&&i.sender.type===t.INJECTOR&&i.type===e.APPLY&&await l(n,r),n.debugLog?.({level:`event`,method:`sendMessage`,message:i}),n.sendMessage(i,a)),onMessage:e=>n.onMessage(e),debugLog:n.debugLog}),m=(e,t)=>p(f(d(u(e),t),t),t),h=(n,r,i)=>(r.onMessage(async a=>{let o=a;if(o.namespace===i.namespace&&o.sender.type===t.INJECTOR)switch(o.type){case e.PING:{r.debugLog?.({level:`event`,method:`onMessage`,message:o,actor:t.PROVIDER});let n={type:e.PONG,sender:{type:t.PROVIDER,name:r.name},id:o.id,path:o.path,meta:o.meta,namespace:i.namespace,timeStamp:Date.now()};r.sendMessage(n,[]);break}case e.APPLY:{r.debugLog?.({level:`event`,method:`onMessage`,message:o,actor:t.PROVIDER});try{let a=o.args?.map(n=>o.callbackIds?.includes(n)?(...a)=>{let s={type:e.CALLBACK,sender:{type:t.PROVIDER,name:r.name},id:n,path:o.path,meta:o.meta,data:a,namespace:i.namespace,timeStamp:Date.now()};r.sendMessage(s,[])}:n);o.data=await o.path.reduce((e,t,n,r)=>n===r.length-1?e[t](...a??[]):e[t],n)}catch(e){o.error=e.message}let a={type:e.APPLY,sender:{type:t.PROVIDER,name:r.name},id:o.id,path:o.path,data:o.data,error:o.error,meta:o.meta,namespace:i.namespace,timeStamp:Date.now()};r.sendMessage(a,[]);break}}}),n),g=(n,i,a)=>{let o=(n,c)=>new Proxy(n,{get(e,t,n){return t===s?!0:typeof e==`function`&&(t===`apply`||t===`call`||t===`bind`||t===`length`||t===`name`)?Reflect.get(e,t,n):o((()=>{}),[...c,t])},apply(n,o,s){return new Promise(async(n,o)=>{let f;try{let l=[],u=s.map(n=>{if(typeof n==`function`){let o=r();return l.push(o),i.onMessage(r=>{let s=r;s.namespace===a.namespace&&s.sender.type===t.PROVIDER&&s.type===e.CALLBACK&&s.id===o&&(i.debugLog?.({level:`event`,method:`onMessage`,message:s,actor:t.INJECTOR}),n(...s.data))}),o}return n}),d=r();f=await i.onMessage(r=>{let s=r;s.namespace===a.namespace&&s.sender.type===t.PROVIDER&&s.type===e.APPLY&&s.id===d&&(i.debugLog?.({level:`event`,method:`onMessage`,message:s,actor:t.INJECTOR}),s.error?o(Error(s.error)):n(s.data),f?.())});let p={type:e.APPLY,sender:{type:t.INJECTOR,name:i.name},id:d,path:c,args:u,meta:{},callbackIds:l,timeStamp:Date.now(),namespace:a.namespace};await i.sendMessage(p,[])}catch(e){try{await f?.()}catch{}o(e)}})}});return o(n,[])},_=(e,n)=>(r,...i)=>h(e(...i),m(r,{...n,actor:t.PROVIDER}),n),v=(e,n)=>e=>g({},m(e,{...n,actor:t.INJECTOR}),n),y=(e,t)=>{let n={namespace:t?.namespace??`__comctx__`,heartbeatCheck:t?.heartbeatCheck??!0,heartbeatInterval:t?.heartbeatInterval??300,heartbeatTimeout:t?.heartbeatTimeout??1e3,transfer:t?.transfer??!1,debug:t?.debug??!1};if(n.heartbeatTimeout<=n.heartbeatInterval)throw Error(`Invalid heartbeat config: timeout (${n.heartbeatTimeout}ms) must exceed interval (${n.heartbeatInterval}ms).`);return[_(e,n),v(e,n)]};export{t as MESSAGE_SENDER_TYPE,e as MESSAGE_TYPE,n as checkMessage,y as defineProxy,c as isProxy};
++\ No newline at end of file
++diff --git a/core/src/comctx.ts b/core/src/comctx.ts
++index 2c87df78a189f22434d5d04058e80485b129c187..8f5c7ee42c4ad5434e6642d89d5c1befff0a4847 100644
++--- a/core/src/comctx.ts
+++++ b/core/src/comctx.ts
++@@ -340,6 +340,7 @@ const createInject = <T extends Record<string, any>>(source: T, adapter: DebugAd
++       },
++       apply(_target, _this, args) {
++         return new Promise<Message>(async (resolve, reject) => {
+++          let offMessage: OffMessage | void
++           try {
++             const callbackIds: string[] = []
++             const mapArgs = args.map((arg) => {
++@@ -367,7 +368,7 @@ const createInject = <T extends Record<string, any>>(source: T, adapter: DebugAd
++             })
++ 
++             const messageId = uuid()
++-            const offMessage = await adapter.onMessage((message) => {
+++            offMessage = await adapter.onMessage((message) => {
++               const _message = message as Message
++               if (_message.namespace !== options.namespace) return
++               if (_message.sender.type !== MESSAGE_SENDER_TYPE.PROVIDER) return
++@@ -396,6 +397,11 @@ const createInject = <T extends Record<string, any>>(source: T, adapter: DebugAd
++             }
++             await adapter.sendMessage(applyMessage, [])
++           } catch (error) {
+++            try {
+++              await offMessage?.()
+++            } catch {
+++              // Cleanup must not replace the transport error that rejected this request.
+++            }
++             reject(error)
++           }
++         })
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -174,6 +174,9 @@ settings:
+ overrides:
+   '@ts-morph/common>minimatch': ^11.0.1
+ 
++patchedDependencies:
++  comctx@1.7.7: 5b40d55499fbc1826c9228e14bbe7c8244241d70211aa8eec51336e4264f5427
++
+ importers:
+ 
+   .:
+@@ -273,7 +276,7 @@ importers:
+         version: 0.2.0
+       comctx:
+         specifier: 1.7.7
+-        version: 1.7.7
++        version: 1.7.7(patch_hash=5b40d55499fbc1826c9228e14bbe7c8244241d70211aa8eec51336e4264f5427)
+       date-fns:
+         specifier: ^4.4.0
+         version: 4.4.0
+@@ -4489,7 +4492,7 @@ snapshots:
+ 
+   color-name@1.1.4: {}
+ 
+-  comctx@1.7.7: {}
++  comctx@1.7.7(patch_hash=5b40d55499fbc1826c9228e14bbe7c8244241d70211aa8eec51336e4264f5427): {}
+ 
+   commander@11.1.0: {}
+ 
+diff --git a/pnpm-workspace.yaml b/pnpm-workspace.yaml
+index 64b82673..325aa57e 100644
+--- a/pnpm-workspace.yaml
++++ b/pnpm-workspace.yaml
+@@ -15,3 +15,6 @@ overrides:
+   # shadcn's CLI (shadcn > ts-morph > @ts-morph/common), a build-time tool;
+   # @ts-morph/common calls only `minimatch(path, pattern)`, unchanged in 11.
+   '@ts-morph/common>minimatch': ^11.0.1
++
++patchedDependencies:
++  comctx@1.7.7: patches/comctx@1.7.7.patch

@@ -1,0 +1,37 @@
+diff --git a/packages/registry/schema/index.ts b/packages/registry/schema/index.ts
+index db1bef37..6aade614 100644
+--- a/packages/registry/schema/index.ts
++++ b/packages/registry/schema/index.ts
+@@ -65,8 +65,8 @@ const nonnegativeIntegerSchema = z.int().check(z.gte(0));
+ /** Optional non-negative integer used by generated rule source maps. */
+ const optionalNonnegativeIntegerSchema = z.optional(nonnegativeIntegerSchema);
+ 
+-/** Category ids must match the category table used by the side panel and detector. */
+-const categoryIdSchema = z.custom<CategoryId>((value) => typeof value === 'string' && value in categories, {
++/** Category ids must name an own table entry; inherited Object properties are not categories. */
++const categoryIdSchema = z.custom<CategoryId>((value) => typeof value === 'string' && Object.hasOwn(categories, value), {
+ 	error: 'Unknown category id.',
+ });
+ 
+diff --git a/packages/registry/schema/source-schema.test.ts b/packages/registry/schema/source-schema.test.ts
+index f936cb83..40d4e71a 100644
+--- a/packages/registry/schema/source-schema.test.ts
++++ b/packages/registry/schema/source-schema.test.ts
+@@ -77,7 +77,7 @@ describe('registry source schema', () => {
+ 		]);
+ 	});
+ 
+-	it('rejects unknown categories before compilation', () => {
++	it.each(['not-real', '__proto__', 'constructor', 'toString', 'valueOf'])('rejects unknown category %s before compilation', (category) => {
+ 		const result = validateRegistrySource({
+ 			schemaVersion: REGISTRY_SOURCE_SCHEMA_VERSION,
+ 			technologies: [
+@@ -85,7 +85,7 @@ describe('registry source schema', () => {
+ 					id: 'unknown-category-tech',
+ 					name: 'Unknown Category Tech',
+ 					website: 'https://unknown-category.test',
+-					categories: ['not-real'],
++					categories: [category],
+ 					rules: [],
+ 				},
+ 			],

@@ -1,0 +1,19 @@
+tree 7da3e2c7ba383c1231586472a05e57e74debe32b
+parent b28d7cf3ce2b84572fa64b061d9e6c9b318bb377
+author Codex <codex@openai.com> 1795848033 -0500
+committer Codex <codex@openai.com> 1795848033 -0500
+
+fix(messaging): release reply listeners after failed delivery
+
+A rejected browser send left comctx's request listener registered. Retries
+to a missing content script or invalidated context accumulated listeners.
+Patch the pinned injector at the request owner so it releases only the
+failed request, preserves the original error, and leaves concurrent calls
+subscribed. Keep source and published runtime changes in pnpm's frozen
+patch contract and document the source-archive requirement.
+
+Exercise the installed dependency through both production adapters. The
+unpatched package fails four delivery/concurrency cases; all eight cases
+pass with the patch. The strict test/import-closure type check also passes.
+Caller timeouts and remote cancellation remain separate review work; the
+full repository gates remain blocked by recorded process kills.

@@ -1,0 +1,357 @@
+{
+  "kind": "DeepScope exact source recovery evidence",
+  "created_at_utc": "2026-11-28 07:11:43 UTC",
+  "repository": "Kaiju-Ind/DeepScope",
+  "pull_request": 7,
+  "pull_request_url": "https://github.com/Kaiju-Ind/DeepScope/pull/7",
+  "live_head_verified_at_utc": "2026-11-28 07:11:43 UTC",
+  "live_head": "1f439b9c33134cbb9755c231db3ced6024f3074b",
+  "base_tree": "9d9057d23ccd09a9063dd86916bd14eac0b5fb6b",
+  "stopped_native_head": "480500ea365e928f46738d24903723ecec248672",
+  "stopped_native_tree": "9bd1c68bc90250cbb2cccbde1083cbb7cd9e4a74",
+  "stopped_worktree_clean": true,
+  "intended_destination_branch": "integrate/cross-browser-runtime",
+  "recovery_tree_is_application_tree": false,
+  "branch_updated": false,
+  "pr_updated": false,
+  "baseline": {
+    "commit": "b28d7cf3ce2b84572fa64b061d9e6c9b318bb377",
+    "tree": "5ec68fe6020da894ec8bed8bcadfaffb2094f30a",
+    "independent_patch_library_file_id": "libfile_fde3_f-9a33bee43728819191cb013787beefbc_2a999c65827881919d40239cf9ff24e7",
+    "patch_bytes": 14529959,
+    "patch_sha256": "8ba5ff2754709b73c4179e00c1aa9920adf8f78fa725fda8c926dd2ff7288871",
+    "saved_and_read_back_before_outage": true,
+    "readable_in_current_executor": false
+  },
+  "original_complete_checkpoint": {
+    "path": "recovery/deepscope-20261128-review.zip",
+    "bytes": 35194126,
+    "sha256": "6537dabd25b0cbad0a44188df0383cececa500babfd0ac267aae04dc11b6d70d",
+    "manifest_sha256": "cc048ac39cf27453f9c673dbc35f9fdb2660624fbf6a3496801c04c9bc7d1d11",
+    "independent_upload_succeeded": false,
+    "local_validation_before_outage": {
+      "source_blobs_and_modes": 9913,
+      "binary_patch_replays": 5,
+      "strict_native_fsck": true
+    }
+  },
+  "original_format_patch_files": [
+    {
+      "name": "0002-messaging-listener-lifetime.patch",
+      "bytes": 25449,
+      "sha256": "4591ee5782cb8917153022445a140a3118f83fb30359c4d399e6091c0226e569"
+    },
+    {
+      "name": "0003-registry-own-categories.patch",
+      "bytes": 2835,
+      "sha256": "d205f8b195be50de1481f690b0ada0a31c1e3655af4b838603dcd5bc7c68f37c"
+    },
+    {
+      "name": "0004-chrome-artifact-lifetime.patch",
+      "bytes": 28917,
+      "sha256": "5c913e450a9b8aacc4916136d09d9b34c55487a57850a0fb3353f3712bec238a"
+    },
+    {
+      "name": "0005-guidance-and-current-plan.patch",
+      "bytes": 34767,
+      "sha256": "9cfeb6ae23ab4c3dac4b0ca4339764c014ded4d14e75a960f946fdd6f4e409bc"
+    }
+  ],
+  "original_format_patch_file_bytes_recovered": false,
+  "commits": [
+    {
+      "sha": "b28d7cf3ce2b84572fa64b061d9e6c9b318bb377",
+      "tree": "5ec68fe6020da894ec8bed8bcadfaffb2094f30a",
+      "parent": "1f439b9c33134cbb9755c231db3ced6024f3074b",
+      "epoch_seconds": 1795847975,
+      "timezone": "-0500",
+      "raw_path": "commits/b28d7cf3ce2b84572fa64b061d9e6c9b318bb377.txt",
+      "raw_object_hash_verified": true
+    },
+    {
+      "sha": "cbca1870b399ba8ad5cb9d882f42efbbba156337",
+      "tree": "7da3e2c7ba383c1231586472a05e57e74debe32b",
+      "parent": "b28d7cf3ce2b84572fa64b061d9e6c9b318bb377",
+      "epoch_seconds": 1795848033,
+      "timezone": "-0500",
+      "raw_path": "commits/cbca1870b399ba8ad5cb9d882f42efbbba156337.txt",
+      "raw_object_hash_verified": true
+    },
+    {
+      "sha": "1e4db848f51f312db538b02d291e42a9f32c1c94",
+      "tree": "02a4dfeb331c783646015ecce948d6991fcd948a",
+      "parent": "cbca1870b399ba8ad5cb9d882f42efbbba156337",
+      "epoch_seconds": 1795848043,
+      "timezone": "-0500",
+      "raw_path": "commits/1e4db848f51f312db538b02d291e42a9f32c1c94.txt",
+      "raw_object_hash_verified": true
+    },
+    {
+      "sha": "ad84805e2150260eb7057b0a692d6f4689bfd9f9",
+      "tree": "e59085f5a06bd72ea223ba9ef224af7b67cf6a13",
+      "parent": "1e4db848f51f312db538b02d291e42a9f32c1c94",
+      "epoch_seconds": 1795848059,
+      "timezone": "-0500",
+      "raw_path": "commits/ad84805e2150260eb7057b0a692d6f4689bfd9f9.txt",
+      "raw_object_hash_verified": true
+    },
+    {
+      "sha": "480500ea365e928f46738d24903723ecec248672",
+      "tree": "9bd1c68bc90250cbb2cccbde1083cbb7cd9e4a74",
+      "parent": "ad84805e2150260eb7057b0a692d6f4689bfd9f9",
+      "epoch_seconds": 1795848094,
+      "timezone": "-0500",
+      "raw_path": "commits/480500ea365e928f46738d24903723ecec248672.txt",
+      "raw_object_hash_verified": true
+    }
+  ],
+  "source_recovery": {
+    "aggregate_paths": 27,
+    "initial_insertions": 680,
+    "initial_deletions": 144,
+    "existing_file_hunks": 40,
+    "initial_expected_tree": "a10de960d83e2018e717ae6b2e543ce87ac6386d",
+    "final_plan_followup": "plan-followup.patch",
+    "final_expected_tree": "9bd1c68bc90250cbb2cccbde1083cbb7cd9e4a74",
+    "complete_source_files": 14,
+    "remaining_existing_files_preserved_as_exact_recorded_hunks": [
+      ".agents/skills/build-extensions/SKILL.md",
+      ".github/workflows/verify.yml",
+      "AGENTS.md",
+      "docs/architecture/source-layout.md",
+      "docs/kaiju/failures/README.md",
+      "docs/migration/monorepo-plan.md",
+      "docs/migration/source-layout-plan.md",
+      "packages/registry/schema/index.ts",
+      "packages/registry/schema/source-schema.test.ts",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "tools/verify/README.md",
+      "tools/verify/chrome.mjs"
+    ],
+    "full_native_tree_replay_after_outage": false,
+    "reason": "The complete b28 migration baseline is unavailable to the current executor. Require every native tree comparison before application publication."
+  },
+  "observed_validation": {
+    "focused_unique_tests_passed": 124,
+    "focused_test_files": 14,
+    "full_current_type_check": "exit 137",
+    "full_current_test_suite": "three bounded attempts killed before a file result",
+    "native_chrome_build": "SIGKILL during WXT startup",
+    "browser_download": "HTTP 403",
+    "actual_current_browser_journeys": "unrun",
+    "stress_harness_split": "not started; 962-line source unchanged"
+  },
+  "artifacts": [
+    {
+      "path": "changes/0002.patch",
+      "sha": "14d19dcc0615f3d5a64f30dc5b0cfa3ec77718e2",
+      "bytes": 23556,
+      "kind": "recovery",
+      "read_back": true
+    },
+    {
+      "path": "changes/0003.patch",
+      "sha": "12d53f8d0712c39e072c96247c2248763a6445b8",
+      "bytes": 1802,
+      "kind": "recovery",
+      "read_back": true
+    },
+    {
+      "path": "changes/0004.patch",
+      "sha": "e456b3a0fa3b5eac1381fd85e78f1f3abfb40372",
+      "bytes": 26314,
+      "kind": "recovery",
+      "read_back": true
+    },
+    {
+      "path": "changes/0005.patch",
+      "sha": "1714e127b2f022c37c980e80b1c58b5bfeaaa922",
+      "bytes": 31641,
+      "kind": "recovery",
+      "read_back": true
+    },
+    {
+      "path": "commits/1e4db848f51f312db538b02d291e42a9f32c1c94.txt",
+      "sha": "b8ccb02c264361a3532bc4a1c1478b30252b2af6",
+      "bytes": 763,
+      "kind": "recovery",
+      "read_back": true
+    },
+    {
+      "path": "commits/480500ea365e928f46738d24903723ecec248672.txt",
+      "sha": "5e8d1defd5ff61a00bd6c65142bdfe98139ca243",
+      "bytes": 1130,
+      "kind": "recovery",
+      "read_back": true
+    },
+    {
+      "path": "commits/ad84805e2150260eb7057b0a692d6f4689bfd9f9.txt",
+      "sha": "46c8ccd09b1485cc160d7278326d21eee99966c1",
+      "bytes": 1200,
+      "kind": "recovery",
+      "read_back": true
+    },
+    {
+      "path": "commits/b28d7cf3ce2b84572fa64b061d9e6c9b318bb377.txt",
+      "sha": "dea4f144578b63eef6250623afef45d446254f9f",
+      "bytes": 1116,
+      "kind": "recovery",
+      "read_back": true
+    },
+    {
+      "path": "commits/cbca1870b399ba8ad5cb9d882f42efbbba156337.txt",
+      "sha": "a05c0526d15c74720ca66470d9a552b32f9441d1",
+      "bytes": 1043,
+      "kind": "recovery",
+      "read_back": true
+    },
+    {
+      "path": "native-commits.json",
+      "sha": "45c52b421d825fb841a8b5149d699a7edb527231",
+      "bytes": 11135,
+      "kind": "recovery",
+      "read_back": true
+    },
+    {
+      "path": "plan-followup.patch",
+      "sha": "df11ffdb351cab1d8bef6f63b359246219229860",
+      "bytes": 2846,
+      "kind": "recovery",
+      "read_back": true
+    },
+    {
+      "path": "README.md",
+      "sha": "dc3adb134aea641a9bbda3106af33a8fe6a8cdd2",
+      "bytes": 6407,
+      "kind": "recovery",
+      "read_back": true
+    },
+    {
+      "path": "review-overlay.patch",
+      "sha": "19e638940616e890fe29c62dec70f34938138a57",
+      "bytes": 83258,
+      "kind": "recovery",
+      "read_back": true
+    },
+    {
+      "path": "source/.agents/skills/build-extensions/references/platforms.md",
+      "sha": "d54d8b2b25d85a1a1c2f5df4f1e5f975c1631b70",
+      "bytes": 4222,
+      "kind": "source",
+      "original_blob_prefix": "d54d8b2b",
+      "read_back": true
+    },
+    {
+      "path": "source/apps/extension/src/tests/messaging/client-lifetime.test.ts",
+      "sha": "7117529a68fc0ab795e6050dc88102cd00987963",
+      "bytes": 4232,
+      "kind": "source",
+      "original_blob_prefix": "7117529a",
+      "read_back": true
+    },
+    {
+      "path": "source/docs/ci.md",
+      "sha": "e2d632610febfd1d52e675d7bf3800e73c84dee3",
+      "bytes": 9055,
+      "kind": "source",
+      "original_blob_prefix": "e2d63261",
+      "read_back": true
+    },
+    {
+      "path": "source/docs/kaiju/failures/00-overview.md",
+      "sha": "50edfae2343e2c8951fd35f9fab4c213d710a25e",
+      "bytes": 1110,
+      "kind": "source",
+      "original_blob_prefix": "50edfae2",
+      "read_back": true
+    },
+    {
+      "path": "source/docs/kaiju/failures/01-find-the-first-cause-before-changing-the-system.md",
+      "sha": "63defa2d9031295f895698153c179f1b52da9da4",
+      "bytes": 2023,
+      "kind": "source",
+      "original_blob_prefix": "63defa2d",
+      "read_back": true
+    },
+    {
+      "path": "source/docs/kaiju/failures/09-add-the-next-incident-without-losing-its-lesson.md",
+      "sha": "0a2ff3289335249dd71ce73c5440a745f3fc17d3",
+      "bytes": 863,
+      "kind": "source",
+      "original_blob_prefix": "0a2ff328",
+      "read_back": true
+    },
+    {
+      "path": "source/docs/migration/cross-browser-runtime-plan.md",
+      "sha": "701999053843afa49974d437b9a2b4be96a4ef53",
+      "bytes": 27327,
+      "kind": "source",
+      "original_blob_prefix": "70199905",
+      "read_back": true
+    },
+    {
+      "path": "source/patches/comctx@1.7.7.patch",
+      "sha": "4d736744a546b85961d154fb5f7e7579759dc1e7",
+      "bytes": 15717,
+      "kind": "source",
+      "original_blob_prefix": "4d736744",
+      "read_back": true
+    },
+    {
+      "path": "source/patches/README.md",
+      "sha": "feb5ee8c08696af14f4d66bb0e97eb69a3ae04bf",
+      "bytes": 1600,
+      "kind": "source",
+      "original_blob_prefix": "feb5ee8c",
+      "read_back": true
+    },
+    {
+      "path": "source/tools/verify/chrome/cdp.mjs",
+      "sha": "c6eb27cf759c0881f71b2036569d70f285b1ba42",
+      "bytes": 4244,
+      "kind": "source",
+      "original_blob_prefix": "c6eb27cf",
+      "read_back": true
+    },
+    {
+      "path": "source/tools/verify/chrome/cdp.test.ts",
+      "sha": "fc6b842bf5caff6dab7f99d7860e574ba7db613a",
+      "bytes": 5025,
+      "kind": "source",
+      "original_blob_prefix": "fc6b842b",
+      "read_back": true
+    },
+    {
+      "path": "source/tools/verify/package.json",
+      "sha": "bdf9a36a3150247d6ce5089d947e3ea758fdd174",
+      "bytes": 338,
+      "kind": "source",
+      "original_blob_prefix": "bdf9a36a",
+      "read_back": true
+    },
+    {
+      "path": "source/tools/verify/tsconfig.json",
+      "sha": "fc25f1951d6c26d1d34882df0aac6ae00a0eed47",
+      "bytes": 172,
+      "kind": "source",
+      "original_blob_prefix": "fc25f195",
+      "read_back": true
+    },
+    {
+      "path": "source/tools/verify/vitest.config.ts",
+      "sha": "7b38ecb11bcc2342ddb236ebdffd9a4b06dc0b64",
+      "bytes": 235,
+      "kind": "source",
+      "original_blob_prefix": "7b38ecb1",
+      "read_back": true
+    },
+    {
+      "path": "VALIDATION.md",
+      "sha": "c07e980589bd381bdd2925df9ccde71bdc1fdfee",
+      "bytes": 3476,
+      "kind": "recovery",
+      "read_back": true
+    }
+  ]
+}

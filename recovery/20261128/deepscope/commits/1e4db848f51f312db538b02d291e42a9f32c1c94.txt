@@ -1,0 +1,16 @@
+tree 02a4dfeb331c783646015ecce948d6991fcd948a
+parent cbca1870b399ba8ad5cb9d882f42efbbba156337
+author Codex <codex@openai.com> 1795848043 -0500
+committer Codex <codex@openai.com> 1795848043 -0500
+
+fix(registry): reject inherited category names
+
+The category validator accepted Object prototype properties because it
+used the in operator against a plain category table. Require an own table
+entry before compilation so constructor, toString, valueOf and __proto__
+cannot become category identifiers.
+
+All nine schema cases pass after the repair; the four inherited-name
+cases fail against the recovered implementation. The strict changed-test
+and import-closure type check passes. The complete catalog compiler still
+hits the separately recorded host process kill.

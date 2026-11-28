@@ -1,0 +1,21 @@
+tree 5ec68fe6020da894ec8bed8bcadfaffb2094f30a
+parent 1f439b9c33134cbb9755c231db3ced6024f3074b
+author Codex <codex@openai.com> 1795847975 -0500
+committer Codex <codex@openai.com> 1795847975 -0500
+
+refactor(workspace): separate extension packages and native tools
+
+Place the WXT application under apps/extension and give DOM, detection,
+and registry code their own source packages. Keep the vendored Utils
+closure public, and give verification, release, registry, sync and lint
+tasks native workspace owners. Retain the complete handbook installation
+with the extension's existing adaptations and migration records.
+
+Record the exact recovered batch5 tree before applying new review fixes:
+5ec68fe6020da894ec8bed8bcadfaffb2094f30a. All 9,906 recovered files match
+the saved source bytes and modes; the original native ancestry is kept.
+
+Validation: the recovered tree passed its native type-check command in
+this continuation. The full test runner was killed with exit 137. Current
+browser builds, source archives and runtime journeys remain unverified;
+the migration plan records those limits and the remaining work.

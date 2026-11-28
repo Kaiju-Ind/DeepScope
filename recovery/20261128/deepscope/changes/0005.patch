@@ -1,0 +1,414 @@
+diff --git a/.agents/skills/build-extensions/SKILL.md b/.agents/skills/build-extensions/SKILL.md
+index 2a212f81..5036c63a 100644
+--- a/.agents/skills/build-extensions/SKILL.md
++++ b/.agents/skills/build-extensions/SKILL.md
+@@ -59,6 +59,10 @@ a provider or a store from a framework or a user agent.
+    failure. Keep content-script work proportional to the page: route DOM
+    selectors (`packages/dom/route.ts`) instead of calling `Element.matches` for
+    every selector on every element.
++   Trace the listener owner as well as the returned promise: a rejected send
++   must release that request's subscription without removing concurrent ones.
++   [Dependency patch records](../../../patches/README.md) explain the installed
++   comctx repair and the remaining distinction between timeout and cancellation.
+ 6. **Page-controlled keys.** Header names, cookie names, global names and other
+    page strings never index a plain object. Use `packages/detection/observations/dictionary.ts`
+    (prototype-free maps); `src/tests/security/page-controlled-keys.test.ts`
+diff --git a/.agents/skills/build-extensions/references/platforms.md b/.agents/skills/build-extensions/references/platforms.md
+index 366f6221..d54d8b2b 100644
+--- a/.agents/skills/build-extensions/references/platforms.md
++++ b/.agents/skills/build-extensions/references/platforms.md
+@@ -18,7 +18,15 @@ browser-compat-data before relying on it for a new minimum version.
+ | Badge cleared on `pushState`        | no              | no                                   | no                                              |
+ | Badge colours                       | yes             | yes                                  | no effect                                       |
+ | Native Temporal                     | 144             | 139                                  | 27.3 (polyfill for older)                       |
+-| Real-browser driver                 | Chromium + CDP  | WebDriver via geckodriver            | SafariDriver; cannot install extensions         |
++| Real-browser driver                 | Chromium or Chrome for Testing + CDP | WebDriver via geckodriver | SafariDriver; classic extension commands from Safari 26 |
++
++The driver row was rechecked on 2026-11-28 against
++[WebKit's Safari 26 announcement](https://webkit.org/blog/17333/webkit-features-in-safari-26-0/)
++and [Chromium's branded-build announcement](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY).
++Safari's classic WebDriver extension support is separate from BiDi. Official
++Chrome-branded builds from 137 do not support the validator's `--load-extension`
++switch. Follow the [browser setup guide](../../../../tools/verify/README.md)
++and record an actual runtime result separately from platform support.
+ 
+ Unverified: whether a busy `Worker` keeps a Firefox or Safari background alive. Design as if it does not.
+ 
+diff --git a/AGENTS.md b/AGENTS.md
+index 501a2c01..32eeeb08 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -57,7 +57,7 @@ Tools are pinned in `mise.toml` (pnpm 12, Node 26). Commands are thin Mise tasks
+ | ------------------------------------------------ | -------------------------------------------------------------------------------- |
+ | `mise install`, `mise exec -- pnpm install --frozen-lockfile` | Install tools and dependencies                                       |
+ | `mise run check`                                 | Check packages, tools, app and utils through their native owners (TypeScript 7 and Node syntax checks)        |
+-| `mise run test`                                  | Vitest 5, every project (`extension (runtime)`, `extension (ui)`, `dom`, `registry`, `detection`, `utils`, `guidance`); add `--project <name>` |
++| `mise run test`                                  | Vitest 5, every project (`extension (runtime)`, `extension (ui)`, `dom`, `registry`, `detection`, `utils`, `guidance`, `verify`); add `--project <name>` |
+ | `mise run build <chrome\|firefox\|safari>`        | Unpacked Manifest V3 build in `.output/<browser>-mv3`                             |
+ | `mise run zip <browser>`                         | Store archive (Firefox also emits a sources zip)                                  |
+ | `mise run verify <firefox\|safari>`               | Real-browser scenarios against an existing build (`tools/verify/README.md`)     |
+@@ -90,6 +90,9 @@ the root `.output/`. In this file, `src/` paths are under `apps/extension/`. Dec
+   evidence and decision in [the Utils ADR](docs/adr/01-public-source-builds.md). `@okikio/*` is only for Okikio libraries.
+ - Page-controlled strings never key a plain object; use `@deepscope/detection/observations/dictionary`.
+ - Private tabs persist nothing.
++- Keep dependency patches in the frozen install and source archive. The [comctx patch](patches/README.md) owns
++  failed-send listener cleanup; its tests exercise the installed package through both browser adapters. A transport
++  rejection, a caller timeout and remote cancellation are separate outcomes. Preserve other in-flight requests.
+ - Find tests and files by discovery. Do not list test or file paths in `package.json`, Mise tasks or workflows.
+ - Repository files describe the system as it is. Plans in `docs/migration/` carry task state; other files contain no
+   task IDs, commit SHAs or work-session words. Agent probes and reports go in `.tmp/`, which git ignores.
+diff --git a/docs/architecture/source-layout.md b/docs/architecture/source-layout.md
+index e4b53c66..331e2b12 100644
+--- a/docs/architecture/source-layout.md
++++ b/docs/architecture/source-layout.md
+@@ -18,7 +18,8 @@ Moving an owner does not change a storage key, registry identifier or RPC name.
+ | `tools/utils/` | Generate the recorded vendored closure from exact upstream revisions | Node built-ins and Git; TypeScript for checks |
+ | `tools/registry/` | Catalog audits and Intelligence import/diff tools | `rolldown` and Node built-ins |
+ | `tools/release/` | Verify versions and collect built archives and checksums | Node built-ins |
+-| `tools/verify/` | Inspect built output and drive installed browsers | Node built-ins; browser and driver executables are external prerequisites |
++| `tools/verify/` | Inspect built output and drive installed browsers; `chrome/cdp.mjs` owns debugger requests and disposal | Node built-ins; TypeScript and Vitest for checks; browser and driver executables are external prerequisites |
++| `patches/` | Frozen dependency repairs with their rationale and regression coverage | pnpm applies the recorded patch hashes during installation |
+ 
+ Each tools directory is a private workspace package with its own `check`
+ script. It is not a container for unowned scripts. JavaScript-only tools run
+@@ -127,8 +128,10 @@ integration, not a claim that a published registry endpoint was installed.
+ `pnpm compile` uses native pnpm path selectors for all package and tool checks,
+ then checks the extension, vendored Utils and root configuration. Vitest uses
+ project discovery for package tests. The extension keeps browser integration
+-tests. Oxc checks dependency direction, exported targets and module size; the
+-oversize exception lists are empty after these splits.
++tests. Oxc checks dependency direction, exported targets and application/package
++module size; those oversize exception lists are empty after the source splits.
++They do not measure every tools file. The stress harness's remaining split is
++tracked in the [active migration record](../migration/monorepo-plan.md).
+ 
+ Type checking and unit tests cannot prove the generated extension lifecycle.
+ Build and inspect Chrome, Firefox and Safari output, rebuild the Firefox source
+diff --git a/docs/kaiju/failures/00-overview.md b/docs/kaiju/failures/00-overview.md
+index 9e168b88..50edfae2 100644
+--- a/docs/kaiju/failures/00-overview.md
++++ b/docs/kaiju/failures/00-overview.md
+@@ -5,8 +5,9 @@ come from DeepScope's own history (`DS-*` identifiers). They include observed fa
+ limits and recorded design risks. Each entry records the confidence in its cause separately from its repair status. A
+ merged fix, a passing test, a green workflow and a completed journey in a real browser are different evidence.
+ 
+-Crawl's catalogue held 46 deployment entries from ItsAPlan and OpenATS (Kubernetes, Bunny, Tailscale, email, object
+-storage) and a retrospective coverage map. None of them concern a browser extension, so they were not copied; they
+-remain in Kaiju-Ind/Crawl `docs/kaiju/failures/` at `a00f0036d`. The method files (finding the first cause, starting
+-from the symptom, adding the next incident) were kept. Use [AE01–AE08](../agents/README.md) for the recurring
+-execution controls.
++The complete shared handbook retains deployment examples from ItsAPlan and OpenATS, including Kubernetes, Bunny,
++Tailscale, email and object storage, plus a retrospective coverage map. The [catalogue index](README.md#shared-incident-lessons)
++links to those chapters. They explain failure patterns across projects; their presence does not establish a DeepScope
++deployment or browser incident. Record local findings under `DS-*` with current source and runtime evidence. Use the
++[extension procedures](../procedures/extensions/README.md) for this repository and [AE01–AE08](../agents/README.md)
++for the recurring execution controls.
+diff --git a/docs/kaiju/failures/01-find-the-first-cause-before-changing-the-system.md b/docs/kaiju/failures/01-find-the-first-cause-before-changing-the-system.md
+index 412c9a82..63defa2d 100644
+--- a/docs/kaiju/failures/01-find-the-first-cause-before-changing-the-system.md
++++ b/docs/kaiju/failures/01-find-the-first-cause-before-changing-the-system.md
+@@ -9,14 +9,14 @@
+    candidate.
+ 4. Check where the code actually ran. Chrome's service worker, Firefox's event page and Safari's background page differ;
+    a content script in a busy page is not the same as a missing one; a private window is not a normal one.
+-5. Follow the repository's recovery contract for releases ([P05](../procedures/05-p05-recover-a-failed-deployment.md)).
++5. Follow the repository's recovery contract for releases ([P05](../procedures/extensions/05-p05-recover-a-failed-deployment.md)).
+ 6. Convert the cause into an earlier check: a test, a source guard, a task flag or a capability check. Record it in the
+    entry with its owner. A warning paragraph alone does not close a preventable defect.
+ 
+-Use [P01: intake](../procedures/01-p01-open-the-project-and-report-prerequisites.md) for missing owner actions,
+-[P02: platform checks](../procedures/02-p02-verify-required-service-contracts.md) for browser and store prerequisites,
+-[P03: usable preview](../procedures/03-p03-deliver-a-usable-preview.md) for the journey,
+-[P05: recovery](../procedures/05-p05-recover-a-failed-deployment.md) for a failed release, and
+-[P07: updates](../procedures/07-p07-update-upstream-artifacts-and-dependencies.md) and
+-[P08: procedure maintenance](../procedures/08-p08-validate-and-maintain-a-procedure.md) to improve the procedure.
++Use [P01: intake](../procedures/extensions/01-p01-open-the-project-and-report-prerequisites.md) for missing owner actions,
++[P02: platform checks](../procedures/extensions/02-p02-verify-required-service-contracts.md) for browser and store prerequisites,
++[P03: usable preview](../procedures/extensions/03-p03-deliver-a-usable-preview.md) for the journey,
++[P05: recovery](../procedures/extensions/05-p05-recover-a-failed-deployment.md) for a failed release, and
++[P07: updates](../procedures/extensions/07-p07-update-upstream-artifacts-and-dependencies.md) and
++[P08: procedure maintenance](../procedures/extensions/08-p08-validate-and-maintain-a-procedure.md) to improve the procedure.
+ Platform checks belong in the [platform cards](../platforms/README.md).
+diff --git a/docs/kaiju/failures/09-add-the-next-incident-without-losing-its-lesson.md b/docs/kaiju/failures/09-add-the-next-incident-without-losing-its-lesson.md
+index 222bc3a2..0a2ff328 100644
+--- a/docs/kaiju/failures/09-add-the-next-incident-without-losing-its-lesson.md
++++ b/docs/kaiju/failures/09-add-the-next-incident-without-losing-its-lesson.md
+@@ -1,6 +1,6 @@
+ # Add the next incident without losing its lesson
+ 
+-Under [P08](../procedures/08-p08-validate-and-maintain-a-procedure.md), add an entry with the next `DS-*` number to the
++Under [P08](../procedures/extensions/08-p08-validate-and-maintain-a-procedure.md), add an entry with the next `DS-*` number to the
+ file for its class (content scripts and catalog, builds, background runtime, verification and CI; add a file for a new
+ class). Give the exact symptom, first failed operation, cause and its confidence, commit, browser and context, repair,
+ evidence and earlier prevention, and add a row to the [symptom table](02-start-from-the-symptom.md). Mark unknowns as
+diff --git a/docs/kaiju/failures/README.md b/docs/kaiju/failures/README.md
+index a7c57888..c1657c26 100644
+--- a/docs/kaiju/failures/README.md
++++ b/docs/kaiju/failures/README.md
+@@ -1,13 +1,14 @@
+ # Failure catalogue
+ 
+-Known DeepScope failures, their causes, repairs and prevention. Crawl's deployment entries and its retrospective
+-coverage map (ItsAPlan, OpenATS) were not copied; see the [overview](00-overview.md).
++Known DeepScope failures, their causes, repairs and prevention. The shared handbook's deployment examples and
++retrospective coverage remain available below. Use the [overview](00-overview.md) to distinguish those historical
++lessons from incidents reproduced in this extension.
+ 
+ Skills: `review-code`, `release-software`, `verify-behavior`, `build-extensions`.
+ 
+ | Part                                                                                                     | What it covers                                                                     |
+ | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+-| [Overview](00-overview.md)                                                                               | What the catalogue holds and what was left in Crawl.                               |
++| [Overview](00-overview.md)                                                                               | Local incident evidence and the retained shared examples.                         |
+ | [Find the first cause before changing the system](01-find-the-first-cause-before-changing-the-system.md) | Evidence to keep, where the code ran, and which procedure to follow.               |
+ | [Start from the symptom](02-start-from-the-symptom.md)                                                   | Symptom index with first checks and entries.                                       |
+ | [Content scripts and catalog](03-content.md)                                                             | DS-01 busy content script, DS-02 prototype keys, DS-03 regex backtracking.         |
+diff --git a/docs/migration/cross-browser-runtime-plan.md b/docs/migration/cross-browser-runtime-plan.md
+index df6fe24a..70199905 100644
+--- a/docs/migration/cross-browser-runtime-plan.md
++++ b/docs/migration/cross-browser-runtime-plan.md
+@@ -3,10 +3,13 @@
+ This plan integrates the `perf/optimize-memory-usage` scheduler work, adds
+ Firefox and Safari as supported browsers, and prepares DeepScope for public
+ source releases. It is the working record for that effort. Architecture
+-documents under `docs/architecture/` remain the description of what exists;
+-this file tracks what is being changed and why.
++documents under `docs/architecture/` remain the description of what exists.
++This file preserves the original cross-browser decisions and measurements.
++The [monorepo plan](monorepo-plan.md) owns the current task, source recovery,
++restructure actions and validation record. Historical measurements below do
++not validate the current candidate.
+ 
+-## Active task
++## Original scope and starting point
+ 
+ - **Intent and completion:** Chrome, Firefox and Safari builds that detect
+   technologies on a real page, keep the Chromium side panel, use less memory
+@@ -22,12 +25,13 @@ this file tracks what is being changed and why.
+   [Kaiju project playbook](../kaiju/README.md) (agent execution, engineering
+   and CI), routed by [`AGENTS.md`](../../AGENTS.md). Lessons from this plan
+   are kept in the [failure catalogue](../kaiju/failures/README.md).
+-- **Authorization:** implement on this branch and commit locally. Pushing,
+-  opening pull requests, creating releases, and store submissions have not
+-  been authorized.
+-- **Continuation:** read this file, run `git log --oneline main..HEAD`, run
+-  `mise run check` equivalents (`pnpm compile`, `pnpm exec vitest run`), then
+-  continue with the first milestone not marked done.
++- **Original authorization:** the initial effort allowed local implementation
++  and commits. The subsequent continuation request authorizes saving the
++  restructure on existing PR #7, `integrate/cross-browser-runtime`. Release
++  creation and store submissions remain separate actions.
++- **Continuation:** reconcile the current branch, recovered candidate and
++  validation evidence in the [monorepo plan](monorepo-plan.md) before choosing
++  the next action. Do not replay this historical milestone ledger.
+ 
+ ## Owner decisions (2026-11-23)
+ 
+@@ -67,6 +71,15 @@ Apple documentation. Items marked *unverified* need a real-browser check.
+ | Badge cleared on `pushState` | no | no | no |
+ | Badge colours | yes | yes | background colour has no effect; no text colour |
+ | A busy `Worker` keeps the background alive | n/a | *unverified* | *unverified* |
++| Automated extension installation | Chromium or Chrome for Testing with CDP | WebDriver through geckodriver | SafariDriver classic WebDriver commands from Safari 26 |
++
++The automation row was rechecked on 2026-11-28 against
++[WebKit's Safari 26 release article](https://webkit.org/blog/17333/webkit-features-in-safari-26-0/)
++and [Chromium's announcement about branded Chrome](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY).
++SafariDriver supports the classic extension commands; that is separate from
++WebDriver BiDi support. Official Chrome-branded builds removed the
++`--load-extension` switch from Chrome 137, so this validator needs Chromium
++or Chrome for Testing. These platform facts do not establish a local browser pass.
+ 
+ Consequences: Safari must declare a background **page** so it can create
+ workers. Firefox and Safari can unload the background mid-scan, so a scan
+@@ -412,29 +425,35 @@ a registry lint that rejects selectors postcss cannot parse but browsers
+ accept (none in the registry today), and the pre-existing exact-case id/class
+ check on the mutation path in quirks mode.
+ 
+-**Safari was not verified.** SafariDriver needs Develop > Allow Remote
++**Safari was not verified in that run.** SafariDriver needs Develop > Allow Remote
+ Automation (or `safaridriver --enable`, which asks for an admin password),
+ and the unsigned app built by `tools/verify/safari-package.sh` needs
+ Develop > Allow Unsigned Extensions (resets each launch) plus enabling the
+-extension and granting site access. WebDriver cannot install extensions in
+-Safari yet (WebKit bug 288348).
++extension and granting site access. The earlier statement that SafariDriver
++cannot install extensions was incorrect: Safari 26 supports the classic
++WebDriver extension commands, as the current driver and
++[verification guide](../../tools/verify/README.md#safari) describe. WebKit bug
++288348 concerns BiDi installation. No current Safari runtime result is claimed.
+ 
+ ## Dependency status
+ 
+-WXT 0.21.5, `@wxt-dev/module-solid` 1.1.4 and `@wxt-dev/browser` 0.3.7 are the
+-latest releases. Solid 2.0 (2026-11-17) is held back: Kobalte, Corvu,
++The recorded baseline used WXT 0.21.5, `@wxt-dev/module-solid` 1.1.4 and
++`@wxt-dev/browser` 0.3.7. This historical record does not identify today's
++latest releases. Solid 2.0 (2026-11-17) was held back: Kobalte, Corvu,
+ `@wxt-dev/module-solid` and `vite-plugin-solid` 2.x still require Solid 1.x,
+ and the trial upgrade produced 1,979 type errors. All non-major updates pass.
+ 
+ ## Owner actions
+ 
+ - Choose a license for DeepScope. The copied utilities are MIT.
+-- Confirm redistribution rights for the detection catalog data and the
+-  American Kestrel font before the repository is promoted publicly.
+-- Decide between GitHub-hosted runners (free for public repositories) and the
+-  current Ubicloud runner.
++- Confirm redistribution rights for the detection catalog before public
++  promotion. American Kestrel was removed; the current fonts are recorded in
++  the workspace dependencies.
++- Review repository branch rules against the current GitHub-hosted workflow
++  checks in [CI](../ci.md); the workflow no longer uses Ubicloud.
+ - Enable immutable releases; make the ghcr package public after first push.
+ - Store credentials when store publishing is wanted: Chrome Web Store, AMO
+   (`WEB_EXT_API_KEY`/`SECRET`), App Store Connect API key and an Apple
+   Developer Program membership for Safari.
+-- Choose the Firefox add-on id.
++- Confirm `deepscope@openarsenal.github.io` before the first signed Firefox
++  submission; it is already configured in `apps/extension/wxt.config.ts`.
+diff --git a/docs/migration/monorepo-plan.md b/docs/migration/monorepo-plan.md
+index 119c24d2..8940513a 100644
+--- a/docs/migration/monorepo-plan.md
++++ b/docs/migration/monorepo-plan.md
+@@ -1,11 +1,98 @@
+ # Monorepo layout plan
+ 
+-## Active task: complete the existing PR 7 migration
++## Active task: review and save the existing PR 7 migration
++
++The 2026-11-28 continuation uses `integrate/cross-browser-runtime`, the existing
++PR #7 head, at `1f439b9c33134cbb9755c231db3ced6024f3074b`. The recovered batch5
++source has tree `5ec68fe6020da894ec8bed8bcadfaffb2094f30a`; its source ZIP has
++SHA-256 `40c6f7222a9769f0e7e13db013d8468da39d4db57eeb47d99e044e92595f20d0`.
++All 9,906 recovered files matched their saved bytes and modes before editing.
++The separate stress branch remains unmerged. The user authorized continuation
++and updates to this existing PR; release creation and store submission are
++separate actions.
++
++The supplied handbook attachment resolves to distribution 1.5.0 at
++`7b299bb14a97fe33b6254c8206cdf491b3d7528d`. All 663 installation paths are
++retained alongside the extension's project-specific guidance. The review
++corrects references that claimed the restored shared incident chapters were
++absent, routes local incidents to the extension procedures, and distinguishes
++Safari's classic WebDriver extension commands from BiDi support.
++
++### Current implementation and validation
++
++Three reproduced defects have focused repairs. The installed comctx package
++kept a reply listener after browser delivery rejected; the pinned dependency
++patch releases that request before preserving its transport error. Registry
++validation accepted inherited Object names as categories; it now requires an
++own category entry. Chrome artifact validation could wait forever after a
++debugger socket closed; `tools/verify/chrome/cdp.mjs` owns bounded commands and
++releases their promises, timers and event subscriptions on closure.
++
++The CI Chrome job requires its existing validator and exactly one downloaded
++archive. Its success can no longer mean that the validation script was absent.
++The workflow and CI guide also stop applying an old fixed macOS billing
++multiplier to the public repository's standard GitHub-hosted runners.
++
++| Check on this continuation | Result and limit |
++| --- | --- |
++| Frozen baseline install, Node 26.13.0 / pnpm 12.19.0 | Passed before the new changes. |
++| Native baseline `mise run check` | Passed for recovered tree `5ec68fe6`. This is not a pass for later edits. |
++| RPC adapter regression | Unpatched comctx fails 4 of 8 cases. The patched package passes all 8, including concurrent calls and original error identity. |
++| Registry category regression | Four inherited-name cases fail before the repair. All 9 schema cases pass after it. |
++| Filtered Vitest projects | 116 cases in 13 files pass across `registry`, `dom`, `extension (ui)`, `guidance` and `verify`. The separate 8 RPC cases bring the reviewed selection to 124 cases in 14 files. |
++| Native workflow lint | actionlint 1.7.12 and offline zizmor 1.32.0 pass; the existing single ignored audit remains. |
++| Current native root type check | Failed when the registry compiler was killed with exit 137. Serial execution also failed. The new verify package's TypeScript and syntax checks passed before that failure. |
++| Timed registry type check | Killed after 7.65 seconds; maximum recorded child RSS was 433,856 KiB. A 256 MiB Go target and one CPU did not resolve the host kill. No compiler diagnostic was produced. |
++| Registry file discovery | Native `--listFilesOnly` succeeds: 8,591 files, including 8,173 catalog paths and 8,182 repository TypeScript files. No incremental/composite option or `.tsbuildinfo` was found. |
++| Whole Vitest suite | Three bounded attempts were killed with exit 137 before reporting a test file. The focused passing selection does not replace the whole suite. |
++| Current native Chrome build | Killed by SIGKILL during WXT startup. No current bundle, archive or source rebuild is claimed. |
++| Restored frozen install | Relinked 491 packages from cache; WXT prepare then exited 137. Scoped dependency-patch installation with lifecycle scripts disabled passed, which does not replace the failed prepare step. |
++| Real browsers | Chrome for Testing download returned HTTP 403 on this host. Chrome and Firefox journeys have not run on the current candidate. Safari needs a macOS host. |
++
++The process kills are observed failures; their exact host cause remains
++unconfirmed. The earlier successful source check does not justify weakening
++current discovery, assertions or schemas. The old batch4/batch5 archive and
++runtime receipts below retain their original source identities.
++
++### Action list and stopping point
++
++1. Preserve the recovered batch5 tree as a coherent source migration, then
++   commit the RPC repair, category validation, artifact verification and
++   guidance corrections by intent. Keep binary-capable patches and native
++   history before publishing, and verify the exact resulting PR #7 head.
++2. Run the complete native type and test gates on a host with sufficient
++   resources. Keep the current failed receipts. Rebuild all three browser
++   archives and inspect their output; the Firefox sources archive must include
++   `patches/` and rebuild without private package credentials.
++3. Run the affected generated panel, observation, navigation, private-window,
++   cleanup and search/focus journeys in the actual browsers. A CDP connection
++   unit test or static archive inspection does not complete those journeys.
++4. Finish the tools structure review. The full 962-line `tools/verify/stress.mjs`
++   mixes scenario planning, browser actions, observations and reporting. Its
++   split is still open; the application/package size guard does not cover it.
++   Preserve seeded action order and the persisted-state oracle when separating
++   those responsibilities, and rerun the browser stress scenarios.
++5. Review cancellation separately from transport failure. The comctx patch
++   fixes rejected sends. A caller timeout does not by itself cancel the remote
++   operation or settle its RPC promise; preserve late-response cleanup when a
++   panel closes. Chrome's HTTP startup polling and process teardown also need
++   their own failure-path review beyond the repaired WebSocket owner.
++6. Reproduce the vendor header refresh only from its exact recorded upstream
++   objects. Do not replace the pinned closure with a newer Utils branch or
++   replay the already incorporated follow-up/artifact patches.
++
++Resume from this record, the actual branch/index/worktree and the saved
++validation logs. The prior batch5 follow-up is a delta into the recovered
++candidate, not another patch to apply. Read the source map and the review
++tests before changing ownership. This restructure is not marked complete while
++the current full gates, tool split and real-browser acceptance remain open.
++
++## Recovered batch5 implementation and evidence
+ 
+ **Outcome.** Keep the extension's existing lifecycle and persisted contracts
+ while making each source, dependency and tool owner explicit. The native
+ starting commit is `1f439b9c33134cbb9755c231db3ced6024f3074b`; the local branch is
+-`codex/deepscope-structure-20261127`. Earlier Phase A and M1 work is retained.
++`codex/deepscope-structure-20261127` in that saved batch. Earlier Phase A and M1 work is retained.
+ The independent stress branch remains separate. Source changes are prepared
+ for review; no merge or publication is implied by this record.
+ 
+diff --git a/docs/migration/source-layout-plan.md b/docs/migration/source-layout-plan.md
+index 0faaf7b8..38b10ef8 100644
+--- a/docs/migration/source-layout-plan.md
++++ b/docs/migration/source-layout-plan.md
+@@ -4,7 +4,9 @@
+ 
+ The continuation starts from PR #7 commit
+ `1f439b9c33134cbb9755c231db3ced6024f3074b` on
+-`codex/deepscope-structure-20261127`. The native history contains the completed
++`integrate/cross-browser-runtime`. The recovered batch5 working tree is
++`5ec68fe6020da894ec8bed8bcadfaffb2094f30a`, before the current review repairs.
++The native history contains the completed
+ Phase A and M1 changes. The separate `fix/stress-green` branch is not part of
+ this baseline. This record and the [monorepo plan](monorepo-plan.md) describe
+ one migration; the registry extraction follows the source splits below.
+@@ -39,16 +41,19 @@ until each implemented step has evidence recorded here.
+ 
+ The six migration steps above are implemented in the working source. See
+ [source ownership](../architecture/source-layout.md) for the full current paths,
+-state owners and exact package/tool graph. All 14 oversized-module and two
++state owners and exact package/tool graph. The 14 application/package oversized-module and two
+ thick-entrypoint exceptions have been removed after their owning code was
+ split. The panel provider remains under its 150-line target. The matcher reason
+ is typed; browser and persistence implementations are injected into the runtime.
+ 
+-Native source checks and the integrated suite pass. Chrome, Firefox and Safari
+-bundles build. Archive/source-rebuild results and the complete final review
+-must be retained with the integration record. Real browser interaction is
+-blocked in this host by local socket restrictions and denied escalation; it is
+-not marked complete. The historical vendor-header refresh still needs exact
++The recovered batch4/batch5 records contain earlier successful source checks,
++tests and browser builds. The current continuation has passing focused checks,
++but its full type/test commands and Chrome build have been killed by the host.
++Those failures and the HTTP 403 browser download are recorded in the
++[monorepo plan](monorepo-plan.md); the old host's socket restriction is not
++assumed to apply here. Current archive rebuilds and browser interaction remain
++open. The 962-line stress harness also still needs a reviewed split, outside
++the application/package size guard. The historical vendor-header refresh needs exact
+ upstream objects. The active record in the [monorepo plan](monorepo-plan.md)
+ contains decisions, failed probes and the next action. The original dated
+ problem statement and target below are preserved as history; use the source

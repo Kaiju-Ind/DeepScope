@@ -1,0 +1,22 @@
+tree e59085f5a06bd72ea223ba9ef224af7b67cf6a13
+parent 1e4db848f51f312db538b02d291e42a9f32c1c94
+author Codex <codex@openai.com> 1795848059 -0500
+committer Codex <codex@openai.com> 1795848059 -0500
+
+fix(verify): bound Chrome debugger requests and require artifact smoke
+
+Chrome debugger commands could remain pending after their socket closed.
+Give the connection an explicit owner that bounds startup and responses,
+rejects pending work on transport failure, and releases request timers and
+event subscriptions during disposal. Keep protocol result unwrapping in
+one place and give the verification workspace its own tests and type check.
+
+Run the existing Chrome artifact validator unconditionally in CI and
+require exactly one downloaded archive. Update the workflow guide to
+match the current jobs, local build inputs and public runner behavior.
+
+Nine debugger lifetime cases pass. A direct probe keeps the recovered
+client pending on socket close and rejects with the repaired client. The
+verification package type/syntax check and native workflow lint pass.
+No current browser startup or bundle pass is claimed: the local browser
+download returned HTTP 403 and the native Chrome build was killed.
