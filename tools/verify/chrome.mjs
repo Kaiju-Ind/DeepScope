@@ -1,11 +1,7 @@
-import { createHash } from 'node:crypto';
-import { access, mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { access, readFile, readdir, stat } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
-import { createServer } from 'node:net';
-import { tmpdir } from 'node:os';
 import { basename, join, relative, resolve, sep } from 'node:path';
-import { spawn } from 'node:child_process';
-import { connect as connectCdp } from './chrome/cdp.mjs';
+import * as pages from './chrome/pages.mjs';
 
 const DEFAULT_ARTIFACT_DIRECTORY = '.output/chrome-mv3';
 const REGISTRY_DIRECTORY = 'kaiju-deepscope-registry';
@@ -13,8 +9,6 @@ const RUNTIME_REGISTRY = 'registry.runtime.json';
 const KIND_PREFIX = 'registry.kind.';
 const APP_VALIDATION_KEY = '__kaijuDeepScopeAppArtifactValidationV1';
 const CONTENT_VALIDATION_KEY = '__kaijuDeepScopeContentArtifactValidationV1';
-const STARTUP_TIMEOUT_MS = 15_000;
-const PAGE_SETTLE_MS = 750;
 
 const options = parseArgs(process.argv.slice(2));
 if (options.help) {
@@ -59,7 +53,7 @@ async function validateArtifact(input) {
 			const chrome = await findChrome(input.chrome);
 			assertion(assertions, 'Chrome or Chromium executable is available', Boolean(chrome), { chrome });
 			if (chrome) {
-				const runtime = await validateExtensionPages({ artifactDirectory: input.artifactDirectory, chrome, manifest });
+				const runtime = await pages.validate({ artifactDirectory: input.artifactDirectory, chrome, manifest });
 				for (const result of runtime) assertions.push(result);
 			}
 		}
@@ -131,8 +125,8 @@ async function validateHtml(assertions, artifactDirectory, files, manifest) {
 	}
 	assertion(assertions, 'generated HTML excludes preload and modulepreload links', preload.length === 0, { preload });
 
-	for (const page of extensionPages(manifest)) {
-		const path = normalizeArtifactPath(page.path);
+	for (const page of pages.entries(manifest)) {
+		const path = pages.normalizeArtifactPath(page.path);
 		const exists = files.includes(path);
 		assertion(assertions, `${page.name} page exists`, exists, { path });
 		if (!exists) continue;
@@ -153,106 +147,6 @@ async function validateProbeEmission(assertions, artifactDirectory, files) {
 	}
 	assertion(assertions, 'generated app runtime retains its artifact-validation probe', appProbeFiles > 0, { matchingFiles: appProbeFiles });
 	assertion(assertions, 'generated content runtime retains its artifact-validation probe', contentProbeFiles > 0, { matchingFiles: contentProbeFiles });
-}
-
-/**
- * Load generated extension pages in Chrome and reject startup/runtime errors.
- *
- * The browser process owns the temporary profile. The validator always stops it
- * and removes the profile, including when a generated page fails to start.
- */
-async function validateExtensionPages(input) {
-	const userDataDirectory = await mkdtemp(join(tmpdir(), 'kaiju-deepscope-chrome-'));
-	const port = await availablePort();
-	const child = launchChrome({ ...input, port, userDataDirectory });
-	try {
-		const version = await waitForJson(`http://127.0.0.1:${port}/json/version`, STARTUP_TIMEOUT_MS);
-		const extensionId = extensionIdForPath(input.artifactDirectory);
-		const results = [];
-		for (const page of extensionPages(input.manifest)) {
-			const url = `chrome-extension://${extensionId}/${normalizeArtifactPath(page.path)}`;
-			results.push(await validatePage({ port, page: page.name, url }));
-		}
-		return [
-			{ name: 'Chrome DevTools endpoint started', pass: Boolean(version.webSocketDebuggerUrl), evidence: { chrome: input.chrome } },
-			...results,
-		];
-	} catch (error) {
-		return [{
-			name: 'generated extension pages start in Chrome',
-			pass: false,
-			evidence: { error: error instanceof Error ? error.message : String(error), chrome: input.chrome, hint: 'Use Chromium or Chrome for Testing when a Chrome-branded build refuses unpacked --load-extension.' },
-		}];
-	} finally {
-		child.kill('SIGTERM');
-		await waitForExit(child, 2_000).catch(() => child.kill('SIGKILL'));
-		await rm(userDataDirectory, { recursive: true, force: true });
-	}
-}
-
-/** Validate one generated extension page through Chrome DevTools Protocol. */
-async function validatePage({ port, page, url }) {
-	const target = await fetchJson(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' });
-	if (!target.webSocketDebuggerUrl) {
-		return { name: `${page} generated startup`, pass: false, evidence: { url, error: 'Chrome did not expose a page debugger target.' } };
-	}
-
-	const client = await connectCdp(target.webSocketDebuggerUrl);
-	const exceptions = [];
-	try {
-		client.on('Runtime.exceptionThrown', (params) => exceptions.push(params.exceptionDetails?.text ?? 'Runtime exception'));
-		client.on('Log.entryAdded', (params) => {
-			if (params.entry?.level === 'error') exceptions.push(params.entry.text ?? 'Chrome log error');
-		});
-		await client.send('Runtime.enable');
-		await client.send('Log.enable');
-		await client.send('Page.enable');
-		await delay(PAGE_SETTLE_MS);
-		const root = await client.send('Runtime.evaluate', {
-			expression: `({ hasDocument: typeof document === 'object', hasGetElementById: typeof document?.getElementById === 'function', hasRoot: Boolean(document?.getElementById?.('root')), href: location.href })`,
-			returnByValue: true,
-		});
-		// connectCdp already unwraps the protocol envelope; evaluate returns one RemoteObject.
-		const value = root.result?.value ?? {};
-		const pageLoaded = value.href === url && value.hasDocument && value.hasGetElementById && value.hasRoot;
-		const generatedCollision = exceptions.some((message) => message.includes('getElementById is not a function'));
-		return {
-			name: `${page} generated startup`,
-			pass: pageLoaded && exceptions.length === 0 && !generatedCollision,
-			evidence: { url, root: value, exceptions },
-		};
-	} finally {
-		client.close();
-	}
-}
-
-/** Select manifest-declared side-panel and options pages for direct artifact UI checks. */
-function extensionPages(manifest) {
-	const pages = [];
-	if (manifest.side_panel?.default_path) pages.push({ name: 'side panel', path: manifest.side_panel.default_path });
-	const options = manifest.options_ui?.page ?? manifest.options_page;
-	if (options) pages.push({ name: 'options', path: options });
-	return pages;
-}
-
-/** Launch the supplied unpacked artifact in an isolated debugging profile; the caller owns process and profile cleanup. */
-function launchChrome({ artifactDirectory, chrome, port, userDataDirectory }) {
-	const args = [
-		`--remote-debugging-port=${port}`,
-		`--user-data-dir=${userDataDirectory}`,
-		`--disable-extensions-except=${artifactDirectory}`,
-		`--load-extension=${artifactDirectory}`,
-		'--no-first-run',
-		'--no-default-browser-check',
-		'--disable-background-networking',
-		'--disable-component-update',
-		'--disable-sync',
-		'--disable-gpu',
-		'--headless=new',
-		'about:blank',
-	];
-	if (typeof process.getuid === 'function' && process.getuid() === 0) args.unshift('--no-sandbox');
-	return spawn(chrome, args, { stdio: 'ignore' });
 }
 
 /** Prefer an explicit executable or CHROME_BIN, then probe known platform paths without downloading a browser. */
@@ -283,17 +177,6 @@ async function findChrome(explicit) {
 	return undefined;
 }
 
-/** Derive Chromium's unpacked-extension ID from the normalized artifact path, preserving Windows path encoding rules. */
-function extensionIdForPath(path) {
-	let normalized = resolve(path);
-	if (process.platform === 'win32' && /^[a-z]:/u.test(normalized)) normalized = `${normalized[0].toUpperCase()}${normalized.slice(1)}`;
-	const pathBytes = Buffer.from(normalized, process.platform === 'win32' ? 'utf16le' : 'utf8');
-	const bytes = createHash('sha256').update(pathBytes).digest().subarray(0, 16);
-	let id = '';
-	for (const byte of bytes) id += String.fromCharCode(97 + (byte >> 4), 97 + (byte & 15));
-	return id;
-}
-
 /** List artifact files as sorted portable relative paths so output checks do not depend on traversal order. */
 async function listFiles(root) {
 	const files = [];
@@ -315,11 +198,6 @@ async function assertDirectory(path) {
 	if (!info.isDirectory()) throw new TypeError(`Chrome artifact is not a directory: ${path}`);
 }
 
-/** Convert a manifest resource's root-relative spelling to a path inside the artifact directory. */
-function normalizeArtifactPath(path) {
-	return path.replace(/^\/+/, '');
-}
-
 /** Retain a named boolean result with its evidence for the final machine-readable report. */
 function assertion(assertions, name, pass, evidence) {
 	assertions.push({ name, pass: Boolean(pass), evidence });
@@ -336,59 +214,4 @@ function parseArgs(args) {
 		else throw new TypeError(`Unknown argument: ${arg}`);
 	}
 	return output;
-}
-
-/** Ask the loopback listener for a free debugging port and release it for Chrome; allocation is not held across launch. */
-async function availablePort() {
-	return await new Promise((resolvePort, reject) => {
-		const server = createServer();
-		server.once('error', reject);
-		server.listen(0, '127.0.0.1', () => {
-			const address = server.address();
-			if (!address || typeof address === 'string') {
-				server.close(() => reject(new Error('Could not reserve a Chrome debugging port.')));
-				return;
-			}
-			server.close((error) => error ? reject(error) : resolvePort(address.port));
-		});
-	});
-}
-
-/** Poll the DevTools endpoint until the startup deadline and report the last connection failure if it never opens. */
-async function waitForJson(url, timeoutMs) {
-	const started = Date.now();
-	let lastError;
-	while (Date.now() - started < timeoutMs) {
-		try {
-			return await fetchJson(url);
-		} catch (error) {
-			lastError = error;
-			await delay(100);
-		}
-	}
-	throw new Error(`Chrome did not expose DevTools within ${timeoutMs}ms: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
-}
-
-/** Require a successful HTTP response before interpreting a DevTools endpoint's JSON payload. */
-async function fetchJson(url, init) {
-	const response = await fetch(url, init);
-	if (!response.ok) throw new Error(`${response.status} ${response.statusText} for ${url}`);
-	return await response.json();
-}
-
-/** Wait for the launched browser to stop within the cleanup deadline, accepting an already exited process. */
-function waitForExit(child, timeoutMs) {
-	return new Promise((resolveExit, reject) => {
-		if (child.exitCode !== null) return resolveExit(child.exitCode);
-		const timeout = setTimeout(() => reject(new Error('Chrome did not stop within the cleanup deadline.')), timeoutMs);
-		child.once('exit', (code) => {
-			clearTimeout(timeout);
-			resolveExit(code);
-		});
-	});
-}
-
-/** Provide the polling interval without blocking the JavaScript event loop. */
-function delay(ms) {
-	return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
 }

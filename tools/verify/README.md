@@ -14,6 +14,20 @@ For local automation, select Chromium or Chrome for Testing. See
 
 `chrome/cdp.mjs` owns the debugging connection. Opening the socket and each command have a 15-second deadline. A transport error, browser closure or explicit disposal rejects outstanding commands and releases their timers and event subscriptions. The `verify` Vitest project tests these failure paths without claiming that a generated extension loaded in a real browser.
 
+`chrome/process.mjs` owns the browser process, temporary profile and DevTools
+HTTP reads. Startup has one 15-second budget, including response bodies. Target
+requests have a separate 15-second deadline and honor caller cancellation.
+Process closure aborts active reads. Cleanup sends SIGTERM, waits two seconds,
+then awaits a SIGKILL fallback before removing the profile. POSIX launches own
+their process group so cleanup also signals the browser's children.
+
+Failed starts retain the exit status, signal and final 16,384 characters of
+stderr in the JSON report. Read that evidence before changing browser flags or
+timeouts. `chrome/pages.mjs` keeps the generated-page checks and appends a
+separate failure if process/profile cleanup fails. Real child-process and local
+HTTP tests cover these owners; they do not prove that Chromium started or that
+the extension's browser journeys passed.
+
 A usable executable and a passing bundle do not prove that the host permits a browser process. Record local socket, sandbox or display failures as blocked runtime checks. Startup alone also does not cover the complete tab, observation, private-window or search journey. See the [verification workflow](../../docs/architecture/verification-workflow.md).
 
 ## Firefox

@@ -67,7 +67,9 @@ Workflow lint runs independently of these jobs.
   `CHROME_BIN=/usr/bin/chromium` and prints that executable's version before
   validation. The hosted image owns Chromium installation; no second browser
   download is needed. A static artifact check does not replace this browser
-  startup check.
+  startup check. The job creates the extraction directory before unpacking the
+  downloaded archive. A failed launch reports its process status and bounded
+  stderr; cleanup failure remains a separate failed assertion.
 - **safari-xcode** is an optional packaging check that needs Apple's macOS
   tools. It runs when a PR carries the `ci:safari` label or a manual run sets
   the `safari-xcode` input.
