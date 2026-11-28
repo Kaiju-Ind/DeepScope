@@ -21,8 +21,11 @@ case "${usage_store:?}" in
   firefox)
     : "${WEB_EXT_API_KEY:?}" "${WEB_EXT_API_SECRET:?}"
     unpacked="$(mktemp -d)"
+    # This shell retains the extraction owner until unzip or submission settles.
+    # EXIT preserves the command's status while removing partial or complete files.
+    trap 'rm -rf -- "$unpacked"' EXIT
     unzip -q "$dir/deepscope-$version-firefox.zip" -d "$unpacked"
-    exec web-ext sign --channel listed --source-dir "$unpacked" \
+    web-ext sign --channel listed --source-dir "$unpacked" \
       --upload-source-code "$dir/deepscope-$version-firefox-sources.zip" \
       --approval-timeout 0 --no-input
     ;;

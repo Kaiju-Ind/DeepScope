@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Zip each browser and write release-named archives plus SHA256SUMS"
-#USAGE flag "--out <dir>" default=".output/release" help="Output directory (replaced; keep it under .output so WXT never packs it into the sources zip)"
+#USAGE flag "--out <dir>" default=".output/release" help="Candidate directory under .output or outside the checkout; absent, empty or an intact previous collection"
 #USAGE arg "[browser]..." help="Browsers to package (default: all)" {
 #USAGE   choices "chrome" "firefox" "safari"
 #USAGE }

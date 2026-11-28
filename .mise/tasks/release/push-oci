@@ -12,7 +12,7 @@ version="${usage_version:?}"
 repository="${usage_repository:-}"
 if [ -z "$repository" ]; then
   owner="${GITHUB_REPOSITORY_OWNER:?set GITHUB_REPOSITORY_OWNER or pass --repository}"
-  # OCI repository names must be lowercase (OpenArsenal -> openarsenal).
+  # OCI repository names use the lowercase GitHub owner (Kaiju-Ind -> kaiju-ind).
   repository="ghcr.io/$(tr '[:upper:]' '[:lower:]' <<< "$owner")/deepscope"
 fi
 source_url="${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-}"

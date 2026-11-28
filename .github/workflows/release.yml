@@ -4,8 +4,8 @@
 # docs/release/README.md.
 #
 # Order: build -> attest -> draft release with every asset -> ghcr push ->
-# publish. A failure before `publish` leaves only a draft (and possibly a ghcr
-# tag), which can be deleted and rebuilt; nothing public is overwritten.
+# publish. A failure before `publish` can leave a draft and a separately
+# published OCI artifact. Preserve each target's bytes and digest before retrying.
 name: Release
 
 on:
@@ -72,8 +72,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
       # Reproducible-build input for the AMO source review. The build id in
       # wxt.config.ts already comes from the commit (GITHUB_SHA); this pins tools
-      # that honour SOURCE_DATE_EPOCH. Registry files still embed generatedAt
-      # until the registry milestone removes it.
+      # that honour SOURCE_DATE_EPOCH. Registry output has no build timestamp.
       - name: Pin the build timestamp to the commit
         run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
       - name: Check types
@@ -224,13 +223,13 @@ jobs:
     steps:
       - name: Publish the draft
         run: gh release edit "$TAG" --draft=false
-      # `gh release verify` succeeds only once immutable releases are enabled
-      # (an owner setting); until then it reports a warning instead of failing.
+      # This existing advisory does not turn failed verification into evidence.
+      # Inspect the actual diagnostic; settings are only one possible cause.
       - name: Verify release attestation
         shell: bash
         run: |
           if ! gh release verify "$TAG"; then
-            echo "::warning::gh release verify failed; enable immutable releases (docs/release/README.md)"
+            echo "::warning::release attestation is unverified; inspect the diagnostic above and docs/release/README.md"
           fi
 
   # Store uploads. Each is off until the owner sets the repository variable

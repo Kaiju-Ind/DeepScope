@@ -57,7 +57,7 @@ Tools are pinned in `mise.toml` (pnpm 12, Node 26). Commands are thin Mise tasks
 | ------------------------------------------------ | -------------------------------------------------------------------------------- |
 | `mise install`, `mise exec -- pnpm install --frozen-lockfile` | Install tools and dependencies                                       |
 | `mise run check`                                 | Check packages, tools, app and utils through their native owners (TypeScript 7 and Node syntax checks)        |
-| `mise run test`                                  | Vitest 5, every project (`extension (runtime)`, `extension (ui)`, `dom`, `registry`, `detection`, `utils`, `guidance`, `verify`); add `--project <name>` |
+| `mise run test`                                  | Vitest 5, every project (`extension (runtime)`, `extension (ui)`, `dom`, `registry`, `detection`, `utils`, `guidance`, `verify`, `release`); add `--project <name>` |
 | `mise run build <chrome\|firefox\|safari>`        | Unpacked Manifest V3 build in `.output/<browser>-mv3`                             |
 | `mise run zip <browser>`                         | Store archive (Firefox also emits a sources zip)                                  |
 | `mise run verify <firefox\|safari>`               | Real-browser scenarios against an existing build (`tools/verify/README.md`)     |
@@ -94,6 +94,15 @@ Local extension modules use explicit imports. WXT excludes local files from auto
 module-qualified operations such as `fence.create` and `generation.create` cannot compete for one generated
 global name. Framework and browser auto-import presets remain available; keep their ownership separate from
 repository source exports.
+
+Release collection belongs to `tools/release/collection.mjs`. Protect source and
+WXT input paths after resolving parent aliases. Replace only an empty destination
+or an intact checksum-described collection, and stage every new archive before
+moving the prior candidate. Keep failed restoration paths recoverable. The
+[release tool guide](tools/release/README.md) defines output ownership, single-writer
+use and the limits of the directory-renaming protocol. Store tasks own temporary
+extractions until their external command settles; testing those tasks must use
+inert adapters unless store submission has been authorized.
 
 ## Repository rules
 
