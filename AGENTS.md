@@ -76,6 +76,11 @@ the root `.output/`. In this file, `src/` paths are under `apps/extension/`. Dec
 ([monorepo plan](docs/migration/monorepo-plan.md)). New code should fit that direction; see
 [the source layout plan](docs/migration/source-layout-plan.md).
 
+The browser stress scenario is composed in `tools/verify/stress/index.mjs`. Its model, seeded schedule,
+page expectations, browser actions, observations, final checks and report have separate owners in that folder.
+Preserve the shared random stream, URL counter and persisted-state oracles when changing them; the
+[verify guide](tools/verify/README.md) explains the real-browser command and the limits of controlled tests.
+
 ## Repository rules
 
 - Names are short. A dash in a file or folder name usually means a missing subfolder (`detection-snapshots.ts` becomes

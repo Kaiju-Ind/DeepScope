@@ -28,7 +28,7 @@ afterEach(() => {
 });
 
 describe('analysis canceled while its claim is being removed', { concurrent: false }, () => {
-	// Found by the Firefox stress run (tools/verify/stress.mjs): a tab that
+	// Found by the Firefox stress run (tools/verify/stress/index.mjs): a tab that
 	// navigated exactly as its scan finished never scanned again, because the
 	// automatic-scan controller waits on this completion before it starts the
 	// next scan for the tab.

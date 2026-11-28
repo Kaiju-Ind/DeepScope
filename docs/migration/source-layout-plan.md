@@ -47,13 +47,15 @@ split. The panel provider remains under its 150-line target. The matcher reason
 is typed; browser and persistence implementations are injected into the runtime.
 
 The recovered batch4/batch5 records contain earlier successful source checks,
-tests and browser builds. The current continuation has passing focused checks,
-but its full type/test commands and Chrome build have been killed by the host.
-Those failures and the HTTP 403 browser download are recorded in the
-[monorepo plan](monorepo-plan.md); the old host's socket restriction is not
-assumed to apply here. Current archive rebuilds and browser interaction remain
-open. The 962-line stress harness also still needs a reviewed split, outside
-the application/package size guard. The historical vendor-header refresh needs exact
+tests and browser builds. After the executor reset, the exact five-commit
+candidate has a fresh successful frozen install, native type check and Chrome
+build. Its full test run passed 242 files before one DOM worker exceeded the
+explicit 512 MiB heap cap; that file's 17 cases pass with a 1,536 MiB heap.
+These results and the retained earlier failures are recorded in the
+[monorepo plan](monorepo-plan.md). The new stress ownership split has passing
+focused checks; a full rerun on the final tree is still required. Current archive
+rebuilds and browser interaction remain open, and the exact Chrome for Testing
+download still returns HTTP 403. The historical vendor-header refresh needs exact
 upstream objects. The active record in the [monorepo plan](monorepo-plan.md)
 contains decisions, failed probes and the next action. The original dated
 problem statement and target below are preserved as history; use the source

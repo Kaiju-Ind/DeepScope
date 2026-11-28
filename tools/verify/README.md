@@ -61,7 +61,7 @@ mise run verify firefox -- --only stress --quick --seed 1      # CI-sized, about
 mise run verify safari -- --stp --only stress --seed 42 --minutes 5
 ```
 
-`stress.mjs` uses DeepScope like a careless heavy user. A seeded schedule
+`stress/index.mjs` uses DeepScope like a careless heavy user. A seeded schedule
 (`--seed`; the run prints it) opens up to `--tabs` tabs (default 24; 10 with
 `--quick`) across `--windows` windows (4; 2), and for `--minutes` (5; 1.5)
 switches tabs in bursts faster than scans finish, focuses windows, moves and
@@ -91,6 +91,19 @@ seed, time, tab, the tab's last actions and its journal lines.
 
 A violation seen while running counts only if the next sample still shows it
 and the harness has not touched the tab since.
+
+The stress folder separates the parts a maintainer needs to trace when a run
+fails. `index.mjs` composes the run. `schedule.mjs` owns its options and single
+random stream; `pages.mjs` owns URLs and expected markers. `model.mjs` keeps tab
+and window identities, including closed/private tabs needed by later checks.
+`actions.mjs` changes browser state, while `observations.mjs` reads extension
+state. `checks.mjs` owns the final visits and cleanup/memory checks, then
+`report.mjs` emits the invariant records and summary. Browser sessions remain
+owned by the Firefox or Safari driver.
+
+The verify tests exercise seeded choices, model lifetime and the scenario
+dispatcher with controlled adapter responses. They do not replace the browser
+stress command above or establish browser API support.
 
 ## Shared scenarios
 

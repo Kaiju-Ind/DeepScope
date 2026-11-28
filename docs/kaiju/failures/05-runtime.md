@@ -22,7 +22,7 @@ complete pipeline run and cleared on every load or URL change, and asynchronous 
 cross-document navigation, recomputes on same-document navigation and restores badges after a background restart.
 *Prevention:* badge tests keyed by revision; the `spa` and `idle-wake` real-browser scenarios.
 
-**DS-14 A tab stayed blank while it remained active.** *Symptom:* in the Firefox stress run (`tools/verify/stress.mjs`)
+**DS-14 A tab stayed blank while it remained active.** *Symptom:* in the Firefox stress run (`tools/verify/stress/index.mjs`)
 a tab logged `auto-scan-start` with no `analysis-requested` after it, then `auto-scan-already-in-flight` for every later
 request. *Cause (confirmed by a failing unit test, not caught in a browser trace):* the analysis lane lost a wake-up.
 Work committed while the running lane read an empty store joined that lane, which then stopped; re-activating an

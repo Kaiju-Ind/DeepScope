@@ -4,7 +4,7 @@
 // page, and passes the browser-specific operations in as hooks.
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { runStress } from './stress.mjs';
+import * as stress from './stress/index.mjs';
 
 const BAD_EVENT = /unavailable|failed|timeout|error|mismatch/i;
 // Work for a document the tab already left is canceled by design; so is an
@@ -397,8 +397,8 @@ export async function runScenarios(session, harness, context) {
 	}
 
 	if (want('stress')) {
-		// Heavy random use; see stress.mjs. Runs only when named in --only.
-		await runStress(session, harness, context);
+		// Heavy random use; runs only when named in --only.
+		await stress.verify(harness, context);
 	}
 
 	if (want('permission-revoked')) {

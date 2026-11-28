@@ -115,6 +115,11 @@ has been run in the real browser (`mise run verify firefox`, Chrome by hand or
 `tools/verify/README.md`). Report each browser as passed, failed, blocked or
 not checked; a passing Chrome check says nothing about Firefox or Safari.
 
+For the stress scenario, trace `tools/verify/stress/index.mjs` through its
+action, observation and settled-check owners. Keep the seed's draw order and
+the real storage keys intact. Controlled harness tests cover scheduling and
+model lifetime; run the stress scenario in the browser for extension behavior.
+
 ## Kaiju projects
 
 In a Kaiju project, the playbook says which procedure this work belongs to and what evidence it needs: [Handbook](../../../docs/kaiju/handbook/README.md), [Procedures](../../../docs/kaiju/procedures/README.md), [Platform readiness](../../../docs/kaiju/platforms/README.md), [Failure catalogue](../../../docs/kaiju/failures/README.md).

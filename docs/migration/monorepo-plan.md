@@ -33,7 +33,7 @@ archive. Its success can no longer mean that the validation script was absent.
 The workflow and CI guide also stop applying an old fixed macOS billing
 multiplier to the public repository's standard GitHub-hosted runners.
 
-| Check on this continuation | Result and limit |
+| Check before the executor reset | Recorded result and limit |
 | --- | --- |
 | Frozen baseline install, Node 26.13.0 / pnpm 12.19.0 | Passed before the new changes. |
 | Native baseline `mise run check` | Passed for recovered tree `5ec68fe6`. This is not a pass for later edits. |
@@ -64,6 +64,60 @@ the remote PR was updated or its current checks passed.
 
 ### Action list and stopping point
 
+#### Restored source and stress ownership action list
+
+The five saved commits through `480500ea365e928f46738d24903723ecec248672`
+have been restored from the native bundle. Independent recovery patches
+reproduce all five exact trees, and the complete checkpoint and patches have
+passed independent read-back. On the restored host, a fresh frozen install
+including WXT prepare and the complete native `mise run check` pass for tree
+`9bd1c68bc90250cbb2cccbde1083cbb7cd9e4a74`. The failed attempts above remain
+historical evidence. The same tree now also builds Chrome successfully. A full
+test run passed 242 files and 1,745 cases with four skips; one DOM worker hit
+the explicit 512 MiB heap cap. All 17 cases in that file pass when its heap
+limit is 1,536 MiB. This union covers the discovered cases on that source;
+the aggregate full rerun on the final tree remains open.
+
+The stress harness change serves the maintainer who must reproduce a browser
+failure and identify which action or invariant owns it. `scenarios.mjs` is its
+only production caller. The change separates the former 962-line owner
+without changing the seeded schedule, browser scripts, persisted storage keys,
+fixture expectations, grace periods or JSON result contract:
+
+| Owner under `tools/verify/stress/` | Responsibility |
+| --- | --- |
+| `index.mjs` | Compose one run, seed browser contexts, schedule activity and idle periods, then request final checks. |
+| `schedule.mjs` | Interpret the existing options and own the single seeded random stream. |
+| `pages.mjs` | Select fixture/real URLs, share the URL counter with history changes, and describe allowed page markers. |
+| `model.mjs` | Own stable tab/window labels, privacy identities, closure times and disruptive-action times. |
+| `actions.mjs` | Mutate the browser and reconcile its reported contexts with that model. |
+| `observations.mjs` | Read extension state, confirm repeated violations and sample diagnostics/memory. |
+| `checks.mjs` | Visit settled tabs, drain work and evaluate cleanup, journal and memory invariants. |
+| `report.mjs` | Retain ordered actions and failure evidence, then emit the existing result records. |
+
+1. Characterize the existing seeded choices and state transitions before the
+   move. Use Oxc to retain each function's controlling body and trace every
+   captured owner. Shared URLs and `pushState` must consume one counter;
+   random choices must keep their current draw order.
+2. Move the complete owners, migrate the scenario caller and every current
+   document/comment link, then delete `stress.mjs`. Keep no forwarding alias.
+   Retain the actual extension-script strings and storage/database names.
+3. Verify the new public scenario path, seeded action traces, tab/window
+   cleanup and repeated-observation contract. Run the discovered verify tests,
+   native syntax/type gates, full suite and browser stress scenarios.
+4. Treat startup failure separately: the current initial-window loop can
+   retry forever when window creation fails. Reproduce the failure, define a
+   bounded startup result, then repair it in a separate behavior commit.
+
+The source split and caller cutover are implemented. Oxc checks all 48 moved
+functions: 46 bodies are unchanged, one export is renamed, and `pushState`
+delegates its existing counter to the page owner. Eight controlled replays,
+each with 128 selected actions, retain identical command arguments, URL choices,
+model state, logs and error counts. The discovered verify project passes all
+16 cases in four files, including the real scenario dispatcher; its native
+TypeScript and JavaScript syntax checks pass. Startup repair, the final full
+gates and real-browser acceptance remain open.
+
 1. Verify independent read-back of the binary-capable patches, native history
    and current checkpoint records, then publish the coherent commit batch to
    existing PR #7 and verify its full remote head. Preserve the completed
@@ -75,11 +129,10 @@ the remote PR was updated or its current checks passed.
 3. Run the affected generated panel, observation, navigation, private-window,
    cleanup and search/focus journeys in the actual browsers. A CDP connection
    unit test or static archive inspection does not complete those journeys.
-4. Finish the tools structure review. The full 962-line `tools/verify/stress.mjs`
-   mixes scenario planning, browser actions, observations and reporting. Its
-   split is still open; the application/package size guard does not cover it.
-   Preserve seeded action order and the persisted-state oracle when separating
-   those responsibilities, and rerun the browser stress scenarios.
+4. Finish stress failure-path review and browser acceptance for the owner split
+   above. The application/package size guard does not cover tools; the split's
+   explicit owner and replay checks remain necessary. Keep the startup repair
+   separate from structural extraction.
 5. Review cancellation separately from transport failure. The comctx patch
    fixes rejected sends. A caller timeout does not by itself cancel the remote
    operation or settle its RPC promise; preserve late-response cleanup when a

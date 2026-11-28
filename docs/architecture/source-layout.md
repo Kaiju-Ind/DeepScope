@@ -18,7 +18,7 @@ Moving an owner does not change a storage key, registry identifier or RPC name.
 | `tools/utils/` | Generate the recorded vendored closure from exact upstream revisions | Node built-ins and Git; TypeScript for checks |
 | `tools/registry/` | Catalog audits and Intelligence import/diff tools | `rolldown` and Node built-ins |
 | `tools/release/` | Verify versions and collect built archives and checksums | Node built-ins |
-| `tools/verify/` | Inspect built output and drive installed browsers; `chrome/cdp.mjs` owns debugger requests and disposal | Node built-ins; TypeScript and Vitest for checks; browser and driver executables are external prerequisites |
+| `tools/verify/` | Inspect built output and drive installed browsers; `chrome/cdp.mjs` owns debugger requests and disposal, while `stress/` separates activity, observations, settled checks and reporting | Node built-ins; TypeScript and Vitest for checks; browser and driver executables are external prerequisites |
 | `patches/` | Frozen dependency repairs with their rationale and regression coverage | pnpm applies the recorded patch hashes during installation |
 
 Each tools directory is a private workspace package with its own `check`
@@ -130,8 +130,10 @@ then checks the extension, vendored Utils and root configuration. Vitest uses
 project discovery for package tests. The extension keeps browser integration
 tests. Oxc checks dependency direction, exported targets and application/package
 module size; those oversize exception lists are empty after the source splits.
-They do not measure every tools file. The stress harness's remaining split is
-tracked in the [active migration record](../migration/monorepo-plan.md).
+They do not measure every tools file. The stress harness has separate owners
+under `tools/verify/stress/`; its scenario and verification contract are described
+in the [verify guide](../../tools/verify/README.md). Remaining browser acceptance
+is tracked in the [active migration record](../migration/monorepo-plan.md).
 
 Type checking and unit tests cannot prove the generated extension lifecycle.
 Build and inspect Chrome, Firefox and Safari output, rebuild the Firefox source
