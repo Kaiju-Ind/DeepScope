@@ -291,7 +291,9 @@ try {
 	await session.navigate(`${origin}/wp.html`);
 	const preHandle = await session.newWindow('tab');
 	await session.switchTo(preHandle);
-	await session.navigate('https://example.com/');
+	// Both pre-install tabs are controlled fixtures, so local scenarios do not
+	// depend on an external site's availability or certificate chain.
+	await session.navigate(`${origin}/spa.html`);
 	await session.switchTo(mainHandle);
 
 	const installedAt = Date.now();
@@ -354,7 +356,7 @@ try {
 		origin,
 		installedAt,
 		wpTab: tabs.find((t) => t.url?.endsWith('/wp.html')),
-		exampleTab: tabs.find((t) => t.url?.startsWith('https://example.com')),
+		preinstallTab: tabs.find((t) => t.url === `${origin}/spa.html`),
 		want,
 		idleMs: Number(options['idle-timeout']),
 		stressRounds: Number(options['stress-rounds']),

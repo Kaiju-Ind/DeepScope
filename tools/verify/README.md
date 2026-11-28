@@ -42,6 +42,12 @@ opened from the chrome context. The control page drives tabs with
   (`running`/`stopped`) and `ChromeUtils.requestProcInfo()` for the extension
   process's resident memory.
 
+Both drivers open the local WordPress and SPA fixtures before installing the
+extension. The `preinstall` scenario activates the existing SPA tab and requires
+its Docusaurus marker, then switches back to WordPress. Selecting local scenarios
+therefore does not require an external page during setup. Scenarios such as
+`real-sites`, `heavy`, and `restricted` still use the public sites they name.
+
 Options:
 
 | Flag | Default | Meaning |

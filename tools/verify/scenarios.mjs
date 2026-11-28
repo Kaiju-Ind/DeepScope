@@ -156,7 +156,7 @@ export function createHarness(ext) {
  * page is open.
  *
  * `context` holds the fixture `origin`, the pre-install tabs `wpTab` and
- * `exampleTab`, `want(name)`, `idleMs`, `stressRounds`, and hooks:
+ * `preinstallTab` (the local SPA fixture), `want(name)`, `idleMs`, `stressRounds`, and hooks:
  * - `backgroundState()` → a short string, or undefined when the browser
  *   cannot report it (then the journal's background starts are used);
  * - `memory()` → optional extension process memory;
@@ -167,7 +167,7 @@ export function createHarness(ext) {
  */
 export async function runScenarios(session, harness, context) {
 	const { ext, tabState, backgroundStarts, waitForResults, record } = harness;
-	const { origin, wpTab, exampleTab, want, hooks } = context;
+	const { origin, wpTab, preinstallTab, want, hooks } = context;
 	const mainWindowId = wpTab.windowId;
 	/** Activate an existing fixture tab through the extension control context without changing its URL. */
 	const activate = (id) => ext(`async (id) => { await browser.tabs.update(id, { active: true }); }`, id);
@@ -181,8 +181,8 @@ export async function runScenarios(session, harness, context) {
 		record('preinstall-active-tab-without-event', true, { note: 'informational: scanned without any trigger?', scanned: idle.names.length > 0, ...summarize(idle) });
 		// Activating the pre-existing background tab must inject and scan it.
 		const since = Date.now();
-		await activate(exampleTab.id);
-		const activated = await waitForResults(exampleTab.id, since);
+		await activate(preinstallTab.id);
+		const activated = await waitForResults(preinstallTab.id, since, { expect: ['Docusaurus'] });
 		record('preinstall-tab-activated', !activated.timedOut, summarize(activated.state, activated.timedOut));
 		const since2 = Date.now();
 		await activate(wpTab.id);
