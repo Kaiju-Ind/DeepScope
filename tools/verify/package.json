@@ -3,6 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "for source in ./*.mjs; do node --check \"$source\" || exit; done"
+    "check": "tsc --noEmit && for source in ./*.mjs ./*/*.mjs; do node --check \"$source\" || exit; done",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
   }
 }

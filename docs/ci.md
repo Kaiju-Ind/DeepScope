@@ -4,7 +4,7 @@ Two workflows live in `.github/workflows/`:
 
 | Workflow | Trigger | Purpose |
 | --- | --- | --- |
-| `verify.yml` (**Verify**) | every pull request, pushes to `main`, manual | type checks, the full Vitest suite, Chrome/Firefox/Safari builds, Firefox add-on lint, workflow lint |
+| `verify.yml` (**Verify**) | every pull request, pushes to `main`, manual | type checks, the full Vitest suite, Chrome/Firefox/Safari builds, Chrome artifact smoke, Firefox add-on lint, workflow lint |
 | `release.yml` (**Release**) | `v*` tags, manual dry run | release archives, `SHA256SUMS`, provenance, GitHub Release, ghcr.io; see [release/README.md](release/README.md) |
 
 Both call the same Mise tasks a developer runs locally, so a CI failure can be
@@ -29,6 +29,7 @@ the app owns the command.
 | `mise run release:archives [browsers]` | zips each browser, then writes release-named archives and `SHA256SUMS` to `.output/release` |
 | `mise run release:check-version <tag>` | fails unless the tag equals the `apps/extension/package.json` version |
 | `mise run safari-project` | macOS only: wraps the Safari build in an Xcode project and builds it unsigned |
+| `pnpm run validate:chrome-artifact` | reads the built Chrome files and opens the generated panel and options pages in Chromium or Chrome for Testing |
 
 `--mv3` is passed explicitly because WXT 0.21 builds Firefox and Safari as MV2
 unless `wxt.config.ts` sets `manifestVersion: 3`. It is harmless once it does.
@@ -38,14 +39,17 @@ No task lists individual test, source or benchmark files. A new test under
 
 ## Verify workflow
 
+```mermaid
+flowchart TD
+  prepare["Prepare dependencies"] --> check["Type checks"]
+  prepare --> test["Tests"]
+  prepare --> build["Build Chrome, Firefox and Safari"]
+  build --> firefox["Firefox add-on lint"]
+  build --> chrome["Chrome artifact smoke"]
+  build --> safari["Safari Xcode project, when requested"]
 ```
-prepare ──┬── check (Type checks)
-          ├── test (Tests)
-          └── build [chrome, firefox, safari] ──┬── lint-firefox
-                                                ├── smoke-chrome
-                                                └── safari-xcode (opt-in, macOS)
-workflows (Workflow lint, independent)
-```
+
+Workflow lint runs independently of these jobs.
 
 - **prepare** runs `pnpm install --frozen-lockfile` once and, on trusted refs
   only, saves the download caches. Every other job restores them read-only and
@@ -55,14 +59,16 @@ workflows (Workflow lint, independent)
   the release workflow rebuilds from the tag.
 - **lint-firefox** unpacks the Firefox build and runs `web-ext lint`. It fails
   on lint *errors* (for example a missing `browser_specific_settings.gecko.id`),
-  which is what addons.mozilla.org rejects. Until the Firefox manifest work
-  (milestone 3 of the cross-browser plan) adds the add-on id, this job fails.
+  which is what addons.mozilla.org rejects. The current WXT manifest includes
+  the add-on id; the lint result still depends on the generated archive.
 - **smoke-chrome** runs `pnpm run validate:chrome-artifact` against the CI
-  Chrome build **only if that script exists in `package.json`**. The script is
-  not on this branch yet; until it is, the job prints a notice and succeeds
-  without claiming a smoke test ran. Treat that state as *not checked*.
-- **safari-xcode** costs macOS minutes (10x Linux), so it runs only when a PR
-  carries the `ci:safari` label or a manual run sets the `safari-xcode` input.
+  Chrome build. It requires exactly one downloaded Chrome archive and fails if
+  the script or a compatible browser is unavailable. Set `CHROME_BIN` when the
+  runner needs an explicit Chromium or Chrome for Testing executable. A static
+  artifact check does not replace this browser startup check.
+- **safari-xcode** is an optional packaging check that needs Apple's macOS
+  tools. It runs when a PR carries the `ci:safari` label or a manual run sets
+  the `safari-xcode` input.
 - **workflows** lints the workflow files. `.github/zizmor.yml` disables only the
   `self-repository` audit: zizmor prefers `uses: $/...`, which actionlint
   1.7.12 still rejects.
@@ -73,9 +79,10 @@ workflow token is `contents: read` throughout.
 
 ### Runners
 
-Jobs use GitHub-hosted `ubuntu-24.04`, which is free for public repositories,
-matches the Firefox reviewers' Ubuntu 24.04 build environment, and is a
-GitHub-hosted runner for attestation purposes. The previous workflow used
+Most jobs use GitHub-hosted `ubuntu-24.04`; the optional Xcode job uses
+`macos-15`. [Standard GitHub-hosted runners are free for public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
+The old fixed macOS billing multiplier does not describe this public
+repository's standard runners. The previous workflow used
 Ubicloud's `ubicloud-standard-2`; to return to it, change `runs-on` in
 `verify.yml` (release jobs should stay GitHub-hosted so provenance does not
 name a third-party runner).
@@ -110,8 +117,9 @@ cold from the lockfile so nothing a PR run produced can reach a published
 archive.
 
 A cache hit is not evidence that a test or build ran; each job executes its
-command every time. WXT output is not cached because `wxt.config.ts` embeds a
-build timestamp and fetches fonts during the build.
+command every time. Each build produces fresh WXT output from its checkout.
+`wxt.config.ts` derives the diagnostic build identity from the package version
+and source commit, and fonts come from pinned workspace dependencies.
 
 ### Native task-cache experiment (November 2026)
 
@@ -124,10 +132,11 @@ closure gives a stable key and a measured saving.
 ## Required checks and branch settings
 
 The checks a branch rule should require are **Type checks**, **Tests**,
-**Build (chrome)**, **Build (firefox)**, **Build (safari)** and **Workflow
-lint**. Add **Firefox add-on lint** once the Firefox manifest has its add-on
-id. Do not require **Chrome artifact smoke** until `validate:chrome-artifact`
-exists, because until then its success means "not run". The previous single
+**Build (chrome)**, **Build (firefox)**, **Build (safari)**, **Firefox add-on lint**,
+**Chrome artifact smoke** and **Workflow lint**. The Chrome job executes its
+validator on every run; it no longer has a successful "script absent" path.
+Verify that the runner provides a compatible browser before requiring the
+new check in a ruleset. The previous single
 check names (`Type checks` / `Tests and Chrome build (manual)`) are replaced;
 an owner must update any ruleset that names the old ones.
 

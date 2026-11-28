@@ -5,6 +5,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, join, relative, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
+import { connect as connectCdp } from './chrome/cdp.mjs';
 
 const DEFAULT_ARTIFACT_DIRECTORY = '.output/chrome-mv3';
 const REGISTRY_DIRECTORY = 'kaiju-deepscope-registry';
@@ -373,48 +374,6 @@ async function fetchJson(url, init) {
 	const response = await fetch(url, init);
 	if (!response.ok) throw new Error(`${response.status} ${response.statusText} for ${url}`);
 	return await response.json();
-}
-
-/** Correlate DevTools requests by ID and deliver method events through one WebSocket; resolved requests contain message.result directly. */
-function connectCdp(url) {
-	return new Promise((resolveClient, reject) => {
-		const socket = new WebSocket(url);
-		const pending = new Map();
-		const listeners = new Map();
-		let sequence = 0;
-
-		socket.addEventListener('open', () => resolveClient({
-			/** Allocate a request ID and retain its promise until the matching DevTools response arrives. */
-			send(method, params = {}) {
-				const id = ++sequence;
-				return new Promise((resolve, rejectRequest) => {
-					pending.set(id, { resolve, reject: rejectRequest });
-					socket.send(JSON.stringify({ id, method, params }));
-				});
-			},
-			/** Retain an event listener for the lifetime of this verification connection. */
-			on(method, listener) {
-				const current = listeners.get(method) ?? [];
-				current.push(listener);
-				listeners.set(method, current);
-			},
-			/** Close the DevTools socket after the caller has finished its browser checks. */
-			close() { socket.close(); },
-		}));
-		socket.addEventListener('error', () => reject(new Error(`Could not connect to Chrome target: ${url}`)));
-		socket.addEventListener('message', (event) => {
-			const message = JSON.parse(String(event.data));
-			if (message.id) {
-				const request = pending.get(message.id);
-				if (!request) return;
-				pending.delete(message.id);
-				if (message.error) request.reject(new Error(message.error.message ?? 'Chrome DevTools request failed.'));
-				else request.resolve(message.result);
-				return;
-			}
-			for (const listener of listeners.get(message.method) ?? []) listener(message.params ?? {});
-		});
-	});
 }
 
 /** Wait for the launched browser to stop within the cleanup deadline, accepting an already exited process. */
