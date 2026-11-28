@@ -1,5 +1,5 @@
 import { fc, test } from '@fast-check/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { buildCollectionPlan } from "@deepscope/detection/collection/plan";
 import * as dom from "@deepscope/dom";
@@ -26,10 +26,6 @@ function registry(): readonly string[] {
 	return buildCollectionPlan(technologies).initial.domSelectorPlan.selectors;
 }
 
-afterEach(() => {
-	vi.unstubAllGlobals();
-});
-
 describe('routed DOM selector matching', () => {
 	it('returns exactly the selectors the DOM matches for every registry selector', async () => {
 		const selectors = registry();
@@ -38,13 +34,19 @@ describe('routed DOM selector matching', () => {
 			const chunk = selectors.slice(start, start + CHUNK);
 			const plan = dom.create(chunk);
 			const document = parse(synthesize(chunk));
-			stub(document);
+			try {
+				stub(document);
 
-			const { matches } = await scan(plan, document);
+				const { matches } = await scan(plan, document);
 
-			expect(matches).toEqual(truth(plan, document));
-			expect(matches).toEqual(reference(plan, document).matches);
-			positives += Object.keys(matches).length;
+				expect(matches).toEqual(truth(plan, document));
+				expect(matches).toEqual(reference(plan, document).matches);
+				positives += Object.keys(matches).length;
+			} finally {
+				// Release each registry chunk before constructing the next one.
+				vi.unstubAllGlobals();
+				close(document);
+			}
 		}
 		// The fixture must exercise positives, not only rejections.
 		expect(positives).toBeGreaterThan(selectors.length / 2);
@@ -53,13 +55,18 @@ describe('routed DOM selector matching', () => {
 	it('keeps native selector checks per element low for the full registry plan', async () => {
 		const plan = buildCollectionPlan(technologies).initial.domSelectorPlan;
 		const document = parse(synthesize(plan.selectors));
-		stub(document);
+		try {
+			stub(document);
 
-		const { stats } = await scan(plan, document);
+			const { stats } = await scan(plan, document);
 
-		expect(stats.elementCount).toBeGreaterThan(5_000);
-		// The previous union routing issued hundreds of checks per element here.
-		expect(stats.selectorCheckCount / stats.elementCount).toBeLessThan(2);
+			expect(stats.elementCount).toBeGreaterThan(5_000);
+			// The previous union routing issued hundreds of checks per element here.
+			expect(stats.selectorCheckCount / stats.elementCount).toBeLessThan(2);
+		} finally {
+			vi.unstubAllGlobals();
+			close(document);
+		}
 	}, 60_000);
 
 	it.each([
@@ -96,33 +103,48 @@ describe('routed DOM selector matching', () => {
 	])('matches DOM ground truth for %s', async (_name, body, selectors) => {
 		const plan = dom.create(selectors);
 		const document = parse(`<!doctype html><html><body>${body}</body></html>`);
-		stub(document);
+		try {
+			stub(document);
 
-		const { matches } = await scan(plan, document);
+			const { matches } = await scan(plan, document);
 
-		expect(matches).toEqual(truth(plan, document));
+			expect(matches).toEqual(truth(plan, document));
+		} finally {
+			vi.unstubAllGlobals();
+			close(document);
+		}
 	});
 
 	it('matches ground truth in a quirks-mode document', async () => {
 		const selectors = ['.widget', '.Widget', '#app', '#App', 'DIV.WIDGET'];
 		const plan = dom.create(selectors);
 		const document = parse('<html><body><div id="App" class="Widget"></div></body></html>');
-		stub(document);
+		try {
+			stub(document);
 
-		const { matches } = await scan(plan, document);
+			const { matches } = await scan(plan, document);
 
-		expect(matches).toEqual(truth(plan, document));
+			expect(matches).toEqual(truth(plan, document));
+		} finally {
+			vi.unstubAllGlobals();
+			close(document);
+		}
 	});
 
 	it('checks one selector once per element even when several branches admit it', async () => {
 		const plan = dom.create(['div.a, div.b, div[data-x]']);
 		const document = parse('<!doctype html><div class="a b" data-x></div>');
-		stub(document);
+		try {
+			stub(document);
 
-		const { stats } = await scan(plan, document);
+			const { stats } = await scan(plan, document);
 
-		expect(stats.selectorCheckCount).toBe(1);
-		expect(stats.matchCount).toBe(1);
+			expect(stats.selectorCheckCount).toBe(1);
+			expect(stats.matchCount).toBe(1);
+		} finally {
+			vi.unstubAllGlobals();
+			close(document);
+		}
 	});
 });
 
@@ -172,11 +194,11 @@ describe('routed DOM selector matching properties', () => {
 	], { numRuns: 150 })('equals DOM ground truth for random documents and selectors', async (body, selectors, quirks) => {
 		const plan = dom.create(selectors);
 		const document = parse(`${quirks ? '' : '<!doctype html>'}<html><body>${body.join('')}</body></html>`);
-		stub(document);
-
-		const { matches } = await scan(plan, document);
-
 		try {
+			stub(document);
+
+			const { matches } = await scan(plan, document);
+
 			expect(matches).toEqual(truth(plan, document));
 		} finally {
 			vi.unstubAllGlobals();
@@ -195,28 +217,38 @@ describe('routed DOM selector matching regressions', () => {
 	])('matches a selector the parser misreads: %s', async (_name, tag, selector) => {
 		const plan = dom.create([selector]);
 		const document = parse(`<!doctype html><html><body><${tag}></div></body></html>`);
-		stub(document);
+		try {
+			stub(document);
 
-		const { matches } = await scan(plan, document);
+			const { matches } = await scan(plan, document);
 
-		expect(truth(plan, document)).toEqual({ [selector]: true });
-		expect(matches).toEqual({ [selector]: true });
+			expect(truth(plan, document)).toEqual({ [selector]: true });
+			expect(matches).toEqual({ [selector]: true });
+		} finally {
+			vi.unstubAllGlobals();
+			close(document);
+		}
 	});
 
 	it('reads every attribute that shares one qualified name', async () => {
 		const selectors = ['.real', '[data-x="plain"]', '#plain'];
 		const plan = dom.create(selectors);
 		const document = parse('<!doctype html><html><body><div></div></body></html>');
-		const element = document.querySelector('div')!;
-		for (const name of ['class', 'data-x', 'id']) {
-			element.setAttributeNS('urn:x', name, 'other');
-			element.setAttributeNS(null, name, name === 'class' ? 'real' : 'plain');
+		try {
+			const element = document.querySelector('div')!;
+			for (const name of ['class', 'data-x', 'id']) {
+				element.setAttributeNS('urn:x', name, 'other');
+				element.setAttributeNS(null, name, name === 'class' ? 'real' : 'plain');
+			}
+			stub(document);
+
+			const { matches } = await scan(plan, document);
+
+			expect(truth(plan, document)).toEqual({ '.real': true, '[data-x="plain"]': true, '#plain': true });
+			expect(matches).toEqual(truth(plan, document));
+		} finally {
+			vi.unstubAllGlobals();
+			close(document);
 		}
-		stub(document);
-
-		const { matches } = await scan(plan, document);
-
-		expect(truth(plan, document)).toEqual({ '.real': true, '[data-x="plain"]': true, '#plain': true });
-		expect(matches).toEqual(truth(plan, document));
 	});
 });
