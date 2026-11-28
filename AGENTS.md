@@ -85,6 +85,8 @@ Chrome artifact verification has three lifetime owners under `tools/verify/chrom
 the browser process, profile and bounded HTTP reads; `cdp.mjs` owns WebSocket requests; `pages.mjs` owns
 the generated-page report and cleanup results. Await disposal and preserve caller cancellation. A failed
 browser start must retain bounded stderr and process status; it must not become a passing static-only check.
+The hosted smoke job owns Chromium sandbox preparation through the image's existing root-owned helper.
+Keep the browser sandbox and Ubuntu policy enabled; the [CI guide](docs/ci.md#runners) records native discovery.
 
 Local extension modules use explicit imports. WXT excludes local files from automatic export discovery, so
 module-qualified operations such as `fence.create` and `generation.create` cannot compete for one generated

@@ -11,6 +11,10 @@ version. The Ubuntu image's default `CHROME_BIN` selects branded Chrome, whose
 [`--load-extension` flag was removed in Chrome 137](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY).
 For local automation, select Chromium or Chrome for Testing. See
 [CI browser ownership](../../docs/ci.md#runners) for the hosted source and version policy.
+The hosted job also makes the image's existing root-owned sandbox helper
+discoverable beside Chromium, validates its mode and runs as an unprivileged
+user. This is CI host preparation; the validator keeps the browser's sandbox
+checks and reports a failed start when the host cannot support them.
 
 `chrome/cdp.mjs` owns the debugging connection. Opening the socket and each command have a 15-second deadline. A transport error, browser closure or explicit disposal rejects outstanding commands and releases their timers and event subscriptions. The `verify` Vitest project tests these failure paths without claiming that a generated extension loaded in a real browser.
 

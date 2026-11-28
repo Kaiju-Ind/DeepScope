@@ -99,6 +99,20 @@ therefore selects the image's Chromium explicitly. Its version follows the
 hosted image and is recorded in each run; it is not a separately pinned browser
 release. Local runs must select a supported executable in the same way.
 
+Ubuntu restricts unprivileged user namespaces, so the image's Chromium snapshot
+also needs a discoverable sandbox helper. Before validation, the smoke job checks
+for `chrome-sandbox` beside the Chromium executable. If it is absent, the job
+links the image's existing `/opt/google/chrome/chrome-sandbox` there. It requires
+an executable, root-owned helper with mode 4755 and runs the browser as the
+ordinary hosted user. The job preserves Ubuntu's policy and the browser's
+sandbox checks; it does not download a helper or change its permissions.
+
+This follows [Chromium's sandbox guidance](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md).
+The [native discovery code](https://github.com/chromium/chromium/blob/158.0.8127.0/sandbox/linux/suid/client/setuid_sandbox_host.cc)
+requires the adjacent path for a system-owned browser: `CHROME_DEVEL_SANDBOX`
+applies only when the browser executable belongs to its current user. A missing,
+misconfigured or incompatible helper fails the job with the available diagnostics.
+
 ### Concurrency
 
 Automatic runs cancel an outdated run for the same PR or branch. Manual runs
