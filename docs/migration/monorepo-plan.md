@@ -105,9 +105,11 @@ fixture expectations, grace periods or JSON result contract:
 3. Verify the new public scenario path, seeded action traces, tab/window
    cleanup and repeated-observation contract. Run the discovered verify tests,
    native syntax/type gates, full suite and browser stress scenarios.
-4. Treat startup failure separately: the current initial-window loop can
-   retry forever when window creation fails. Reproduce the failure, define a
-   bounded startup result, then repair it in a separate behavior commit.
+4. Keep the behavior repair separate from the source move. A denied initial
+   window now records a failed startup result and returns control to the driver,
+   which owns cleanup.
+   An unchanged bad result now starts a new confirmation pair after a touch;
+   it cannot remain suppressed by the old pre-action sample indefinitely.
 
 The source split and caller cutover are implemented. Oxc checks all 48 moved
 functions: 46 bodies are unchanged, one export is renamed, and `pushState`
@@ -115,8 +117,11 @@ delegates its existing counter to the page owner. Eight controlled replays,
 each with 128 selected actions, retain identical command arguments, URL choices,
 model state, logs and error counts. The discovered verify project passes all
 16 cases in four files, including the real scenario dispatcher; its native
-TypeScript and JavaScript syntax checks pass. Startup repair, the final full
-gates and real-browser acceptance remain open.
+TypeScript and JavaScript syntax checks pass. Two failure-path regressions
+fail on that structural commit: startup retries after a denied window, and a
+touch permanently suppresses an unchanged bad result. Their focused repair
+follows separately. The final full gates and real-browser acceptance remain
+open.
 
 1. Verify independent read-back of the binary-capable patches, native history
    and current checkpoint records, then publish the coherent commit batch to

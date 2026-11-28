@@ -80,7 +80,9 @@ export function create(ext, control, model, pages, report, hooks) {
 						fail(problem.invariant, { phase: 'continuous', tabId: tab.id, url: tab.url, ...problem.detail, persistedMs: Date.now() - previous.at });
 						previous.reported = true;
 					}
-				} else if (!previous || previous.url !== tab.url || JSON.stringify(previous.detail) !== JSON.stringify(problem.detail)) {
+				} else if (!previous || previous.url !== tab.url || lastTouch >= previous.at || JSON.stringify(previous.detail) !== JSON.stringify(problem.detail)) {
+					// A touch invalidates the old confirmation interval even when
+					// the result did not change. Start a fresh pair of samples.
 					pending.set(key, { at: Date.now(), url: tab.url, detail: problem.detail });
 				}
 			}

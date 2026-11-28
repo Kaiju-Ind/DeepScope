@@ -90,7 +90,11 @@ seed, time, tab, the tab's last actions and its journal lines.
 | `inv6-private-not-persisted` | no stored key or value refers to a private tab |
 
 A violation seen while running counts only if the next sample still shows it
-and the harness has not touched the tab since.
+and the harness has not touched the tab since. A disruptive action restarts
+confirmation even when the incorrect result stays the same. If the browser
+cannot create a normal window during startup, the scenario records a failed
+`stress startup` result with the action errors and returns control to the driver,
+which owns cleanup. It does not retry window creation indefinitely.
 
 The stress folder separates the parts a maintainer needs to trace when a run
 fails. `index.mjs` composes the run. `schedule.mjs` owns its options and single

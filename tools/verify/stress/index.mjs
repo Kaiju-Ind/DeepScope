@@ -42,7 +42,24 @@ export async function verify(harness, context) {
 		report.info.counts['closed-leftover-tabs'] = foreign.length;
 	}
 	for (const t of existing.filter((x) => pages.isOurs(x.url))) model.addTab(t, t.url);
-	while (model.normalWindows().length < Math.min(2, plan.maxWindows)) await actions.newWindow();
+	const requiredWindows = Math.min(2, plan.maxWindows);
+	while (model.normalWindows().length < requiredWindows) {
+		const before = model.normalWindows().length;
+		await actions.newWindow();
+		const after = model.normalWindows().length;
+		if (after <= before) {
+			// Action errors are retained by the action owner. Stop here so a
+			// denied browser window cannot turn startup into an endless retry.
+			record('stress startup', false, {
+				seed: plan.seed,
+				reason: 'The browser did not create a normal window.',
+				normalWindows: after,
+				requiredWindows,
+				actionErrors: report.info.actionErrors,
+			});
+			return;
+		}
+	}
 	for (let i = model.tabs.size; i < Math.ceil(plan.maxTabs * 0.6); i++) await actions.openTab();
 
 	const idleAt = plan.idle ? [0.5, ...(plan.durationMs > 8 * 60_000 ? [0.8] : [])].map((f) => f * plan.durationMs) : [];
